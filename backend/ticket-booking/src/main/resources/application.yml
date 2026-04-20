@@ -3,9 +3,9 @@ spring:
     name: booking-service
   datasource:
     # Cấu hình MS SQL Server 
-    url: jdbc:sqlserver://host.docker.internal:1433;databaseName=ticket_booking_db;encrypt=true;trustServerCertificate=true;
-    username: sa
-    password: Toibingu1234
+    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://host.docker.internal:1433;databaseName=ticket_booking_db;encrypt=true;trustServerCertificate=true;}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:Toibingu1234}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
     hikari:
       connection-timeout: 60000
@@ -21,10 +21,10 @@ spring:
         dialect: org.hibernate.dialect.SQLServerDialect
         use_nationalized_character_data: true
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: "tunggaming9874123@gmail.com"
-    password: "umdartwxuughrwuc"
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:tunggaming9874123@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:umdartwxuughrwuc}
     properties:
       mail:
         smtp:
@@ -36,15 +36,15 @@ server:
   port: 8080
 
 jwt:
-  secret: YTJiM2M0ZDVlNmY3ZzhoOWkwajFrMmwzbTRuNW82cDdxOHI5czB0MXUydjN3NHg1eTZ6
+  secret: ${JWT_SECRET:YTJiM2M0ZDVlNmY3ZzhoOWkwajFrMmwzbTRuNW82cDdxOHI5czB0MXUydjN3NHg1eTZ6}
   expiration: 86400000
 
 # VNPay Sandbox Configuration (Demo credentials từ sandbox.vnpayment.vn)
 vnpay:
-  tmn-code: 3JZ7QBUX
-  hash-secret: WOX93XWGGLC2YUHTZUOB7ALN5LPG8VRE
+  tmn-code: ${VNP_TMN_CODE:3JZ7QBUX}
+  hash-secret: ${VNP_HASH_SECRET:WOX93XWGGLC2YUHTZUOB7ALN5LPG8VRE}
   pay-url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
-  return-url: http://localhost:8081/api/payment/vnpay-return
+  return-url: ${VNP_RETURN_URL:http://localhost:8081/api/payment/vnpay-return}
   api-url: https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
 
 # Swagger
@@ -65,4 +65,4 @@ management:
 
 # Gemini AI Configuration
 gemini:
-  api-key: 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
+  api-key: ${GEMINI_API_KEY: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}

@@ -1,0 +1,30 @@
+# Build and Dependencies
+**/node_modules/
+**/target/
+**/dist/
+**/build/
+.mvn/
+.gradle/
+
+# IDE and System
+.idea/
+.vscode/
+*.swp
+*.swo
+*.DS_Store
+.vs/
+
+# Sensitive Configuration Files
+**/application.yml
+**/application.properties
+**/.env
+docker-compose.override.yml
+
+# Logs
+**/logs/
+*.log
+npm-debug.log*
+
+# Infrastructure Data
+prometheus/data/
+grafana/data/
