@@ -10,6 +10,7 @@ import java.util.List;
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     List<Booking> findByUserIdOrderByBookingDateDesc(Long userId);
+    List<Booking> findByUserEmailOrderByBookingDateDesc(String email);
 
     @Query("SELECT DISTINCT b FROM Booking b JOIN b.tickets t WHERE t.trip.id = :tripId AND b.status IN ('CONFIRMED', 'PAID')")
     List<Booking> findActiveBookingsByTripId(@Param("tripId") Long tripId);

@@ -44,7 +44,10 @@ const Auth = ({ isOpen, onClose }) => {
     sessionStorage.removeItem("tempEmail");
   };
 
-  if (!isOpen) return null;
+  const isModal = !!onClose;
+  const shouldRender = isModal ? isOpen : true;
+
+  if (!shouldRender) return null;
 
   const isValidEmail = (email) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -224,7 +227,7 @@ const Auth = ({ isOpen, onClose }) => {
 
   return (
     <div
-      style={{
+      style={isModal ? {
         position: "fixed",
         top: 0,
         left: 0,
@@ -235,6 +238,13 @@ const Auth = ({ isOpen, onClose }) => {
         justifyContent: "center",
         alignItems: "center",
         zIndex: 10000,
+      } : {
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        background: "var(--bg-main)",
+        padding: "20px"
       }}
       onClick={onClose}
     >
@@ -278,28 +288,30 @@ const Auth = ({ isOpen, onClose }) => {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          onClick={onClose}
-          style={{
-            position: "absolute",
-            top: "15px",
-            right: "15px",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border-input)",
-            borderRadius: "50%",
-            width: "35px",
-            height: "35px",
-            cursor: "pointer",
-            fontWeight: "bold",
-            fontSize: "20px",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 10,
-          }}
-        >
-          ×
-        </button>
+        {isModal && (
+          <button
+            onClick={onClose}
+            style={{
+              position: "absolute",
+              top: "15px",
+              right: "15px",
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-input)",
+              borderRadius: "50%",
+              width: "35px",
+              height: "35px",
+              cursor: "pointer",
+              fontWeight: "bold",
+              fontSize: "20px",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 10,
+            }}
+          >
+            ×
+          </button>
+        )}
 
         {step === 1 && (
           <>

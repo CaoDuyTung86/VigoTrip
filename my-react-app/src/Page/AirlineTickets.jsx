@@ -121,6 +121,8 @@ const AirlineTickets = () => {
   const [error, setError] = useState("");
   const [formErrors, setFormErrors] = useState({});
   const [promoCode, setPromoCode] = useState("");
+  const [appliedVoucher, setAppliedVoucher] = useState("");
+  const [voucherDiscount, setVoucherDiscount] = useState(0);
   const [selectedSeatClass, setSelectedSeatClass] = useState("");
 
   const API_BASE = "/api";
@@ -409,6 +411,36 @@ const AirlineTickets = () => {
     setStep("review");
   };
 
+  const calculateTotalBeforeDiscount = () => {
+    if (!selectedTrip) return 0;
+    const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
+    const ecoCount = selSeats.filter(s => s.seatType !== "BUSINESS").length;
+    const bizCount = selSeats.filter(s => s.seatType === "BUSINESS").length;
+    const basePrice = Number(selectedTrip.price||0);
+    const seatsTotal = ecoCount * basePrice + bizCount * basePrice * 2.5;
+    const extraTotal = services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum,s)=>sum+(s.price||0),0);
+    return seatsTotal + extraTotal;
+  };
+
+  const handleApplyVoucher = async () => {
+    if (!promoCode) return;
+    try {
+      const orderAmount = calculateTotalBeforeDiscount();
+      const res = await axios.post("/api/voucher/validate", { code: promoCode, orderAmount });
+      if (res.data.valid) {
+        setAppliedVoucher(promoCode);
+        setVoucherDiscount(res.data.discountAmount);
+        alert(res.data.message);
+      } else {
+        setAppliedVoucher("");
+        setVoucherDiscount(0);
+        alert("Lỗi: " + res.data.message);
+      }
+    } catch (err) {
+      alert("Có lỗi xảy ra khi áp mã giảm giá.");
+    }
+  };
+
   const submitBooking = async () => {
     if (!isAuthenticated || !token) {
       setError("Vui lòng đăng nhập trước khi đặt vé.");
@@ -428,6 +460,8 @@ const AirlineTickets = () => {
     setError("");
     setSubmitLoading(true);
 
+    const names = passengerInfoList.map(p => p.data.fullName).filter(Boolean);
+
     try {
       const res = await fetch(`${API_BASE}/bookings`, {
         method: "POST",
@@ -438,7 +472,9 @@ const AirlineTickets = () => {
         body: JSON.stringify({
           tripId: selectedTrip.id,
           seatIds: selectedSeatIds,
+          passengerNames: names,
           additionalServiceIds: selectedServiceIds,
+          voucherCode: appliedVoucher,
         }),
       });
 
@@ -1315,7 +1351,7 @@ const AirlineTickets = () => {
                     <div style={{ display: "flex", gap: 8 }}>
                       <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="Nhập mã khuyến mãi..."
                         style={{ flex: 1, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-input)", fontSize: 14 }} />
-                      <button type="button" style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #4f7cff", background: "var(--bg-accent)", color: "var(--primary)", fontWeight: 700, cursor: "pointer" }}>Xác nhận</button>
+                      <button type="button" onClick={handleApplyVoucher} style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #4f7cff", background: "var(--bg-accent)", color: "var(--primary)", fontWeight: 700, cursor: "pointer" }}>Xác nhận</button>
                     </div>
                     <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>Nhập mã nếu có để được giảm giá.</div>
                   </div>
@@ -1372,10 +1408,10 @@ const AirlineTickets = () => {
                           {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}><span style={{ color: "var(--text-muted)" }}>+ {s.serviceName}</span><span>{Number(s.price||0).toLocaleString("vi-VN")} đ</span></div>
                           ))}
-                          {promoCode && <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", marginTop: 4 }}><span>Mã: {promoCode}</span><span>-0 đ</span></div>}
+                          {appliedVoucher && <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", marginTop: 4 }}><span>Mã: {appliedVoucher}</span><span>-{voucherDiscount.toLocaleString("vi-VN")} đ</span></div>}
                           <div style={{ borderTop: "1px solid var(--border-light)", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 16, color: "#ff6b00" }}>
                             <span>Tổng cộng</span>
-                            <span>{(seatsTotal + extraTotal).toLocaleString("vi-VN")} đ</span>
+                            <span>{Math.max(0, seatsTotal + extraTotal - voucherDiscount).toLocaleString("vi-VN")} đ</span>
                           </div>
                         </>
                       );

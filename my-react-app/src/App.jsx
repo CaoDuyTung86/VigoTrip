@@ -21,6 +21,7 @@ import AdminReviews from "./Page/AdminReviews";
 import AccountPage from "./Page/AccountPage";
 import AdminRevenue from "./Page/AdminRevenue";
 import ProviderRefunds from "./Page/ProviderRefunds";
+import Chatbot from "./components/Chatbot";
 
 function AppWrapper() {
   const location = useLocation();
@@ -48,6 +49,7 @@ function AppWrapper() {
         <Route path="/provider/refunds" element={<ProviderRefunds />} />
       </Routes>
       {showFooter && <Footer />} 
+      <Chatbot />
     </>
   );
 }

@@ -14,16 +14,16 @@ html {
   --page-padding: clamp(16px, 4vw, 40px);
 
   /* Light theme colors */
-  --bg-main: #f8f9fa;
+  --bg-main: #f0f4f8; /* Soft premium blue-gray background */
   --bg-card: #ffffff;
-  --bg-input: #f8f9ff;
-  --bg-hover: #f5f5f5;
+  --bg-input: #f8fafc;
+  --bg-hover: #f1f5f9;
   --bg-accent: #eff6ff;
   --bg-header: #ffffff;
   --bg-sidebar: #ffffff;
   --bg-modal: #ffffff;
   --bg-dropdown: #ffffff;
-  --bg-tag: #f0f0f0;
+  --bg-tag: #e2e8f0;
 
   --text-main: #333333;
   --text-secondary: #666666;
@@ -35,10 +35,10 @@ html {
   --border-light: #eee;
   --border-input: #d1d5db;
 
-  --shadow-sm: 0 2px 10px rgba(0,0,0,0.08);
-  --shadow-md: 0 4px 15px rgba(0,0,0,0.05);
-  --shadow-lg: 0 8px 30px rgba(0,0,0,0.15);
-  --shadow-card: 0 10px 30px rgba(0,0,0,0.08);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
+  --shadow-md: 0 8px 24px rgba(0,0,0,0.08);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.12);
+  --shadow-card: 0 12px 35px rgba(0,0,0,0.06);
 
   --primary: #4f7cff;
   --primary-hover: #3a5fd0;
@@ -134,6 +134,7 @@ body {
   min-width: 0;
   padding: var(--page-padding);
   transition: margin-left 0.3s;
+  animation: fadeInUp 0.5s ease-out forwards;
 }
 .page-main.with-sidebar { margin-left: var(--sidebar-width); }
 @media (max-width: 768px) {
@@ -145,6 +146,18 @@ body {
   padding: clamp(80px, 10vh, 100px) var(--gap-unit) var(--gap-unit);
   max-width: 1400px;
   margin: 0 auto;
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* === Card booking (BookingTabs) === */
@@ -235,3 +248,66 @@ body {
 
 /* === Ảnh / icon scale theo font === */
 img, svg { max-width: 100%; height: auto; vertical-align: middle; }
+
+/* === Chatbot Custom Styles === */
+.chat-table-container {
+  width: 100%;
+  overflow-x: auto;
+  margin: 10px 0;
+  border-radius: 12px;
+  border: 1px solid var(--border-light);
+}
+
+.chat-table-container table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background-color: var(--bg-main);
+}
+
+.chat-table-container th {
+  background-color: var(--bg-accent);
+  color: var(--primary);
+  font-weight: 600;
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+
+.chat-table-container td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.chat-table-container tr:last-child td {
+  border-bottom: none;
+}
+
+/* === Chatbot Typing Animation (Premium) === */
+.typing-loader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+}
+
+.typing-loader span {
+  width: 7px;
+  height: 7px;
+  background-color: var(--primary);
+  border-radius: 50%;
+  display: inline-block;
+  opacity: 0.4;
+  animation: typing-bounce 1.4s infinite ease-in-out both;
+}
+
+.typing-loader span:nth-child(1) { animation-delay: -0.32s; }
+.typing-loader span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes typing-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1.1); opacity: 1; }
+}

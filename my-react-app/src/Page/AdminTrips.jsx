@@ -4,6 +4,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { RiTimerLine } from "react-icons/ri";
 import { MdOutlineCancel } from "react-icons/md";
 
+
 const API_BASE = "/api";
 
 const AdminTrips = () => {
@@ -27,6 +28,12 @@ const AdminTrips = () => {
     status: "ACTIVE",
   });
 
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+
   // Delay modal state
   const [delayModal, setDelayModal] = useState({ show: false, trip: null, newDeparture: "", newArrival: "", reason: "", loading: false });
   // Cancel modal state
@@ -34,18 +41,26 @@ const AdminTrips = () => {
 
   useEffect(() => {
     if (!token) return;
-    loadInitialData();
+    loadRoutes();
+    loadVehicles();
   }, [token]);
 
-  const loadInitialData = async () => {
-    await Promise.all([loadTrips(), loadRoutes(), loadVehicles()]);
-  };
+  useEffect(() => {
+    if (!token) return;
+    loadTrips();
+  }, [token, currentPage, activeTab, searchTerm]);
 
   const loadTrips = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/admin/trips`, {
+      const url = new URL(`${window.location.origin}${API_BASE}/admin/trips`);
+      url.searchParams.append("page", currentPage);
+      url.searchParams.append("size", pageSize);
+      url.searchParams.append("type", activeTab);
+      if (searchTerm) url.searchParams.append("search", searchTerm);
+
+      const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -59,6 +74,7 @@ const AdminTrips = () => {
           setError(text || `Lỗi ${res.status}. Thử lại sau.`);
         }
         setTrips([]);
+        setTotalPages(0);
         return;
       }
 
@@ -77,6 +93,7 @@ const AdminTrips = () => {
             `Dữ liệu trả về không đúng định dạng JSON. Preview: ${preview || "(rỗng)"}`
           );
           setTrips([]);
+          setTotalPages(0);
           return;
         }
       } else {
@@ -85,6 +102,7 @@ const AdminTrips = () => {
         const cleaned = (text || "").replace(/^\uFEFF/, "").trim();
         if (!cleaned) {
           setTrips([]);
+          setTotalPages(0);
           return;
         }
         try {
@@ -95,14 +113,15 @@ const AdminTrips = () => {
             `Dữ liệu trả về không đúng định dạng. Content-Type: ${contentType || "(không có)"} · Preview: ${preview}`
           );
           setTrips([]);
+          setTotalPages(0);
           return;
         }
       }
 
-      // Backend đôi khi trả về { data: [...] } hoặc { content: [...] }
-      const data =
-        Array.isArray(parsed) ? parsed : parsed?.data ?? parsed?.content ?? [];
+      // Backend trả về Page<Trip> nên data nằm trong 'content', số trang nằm trong 'totalPages'
+      const data = parsed?.content ?? parsed?.data ?? (Array.isArray(parsed) ? parsed : []);
       setTrips(Array.isArray(data) ? data : []);
+      setTotalPages(parsed?.totalPages ?? 1);
     } catch (e) {
       console.error(e);
       setError("Không kết nối được máy chủ. Kiểm tra backend hoặc mạng.");
@@ -283,24 +302,68 @@ const AdminTrips = () => {
         </p>
       )}
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-        {["PLANE", "BUS", "TRAIN"].map((tab) => (
+      <div style={{ display: "flex", gap: 12, marginBottom: 24, justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 12 }}>
+          {["PLANE", "BUS", "TRAIN"].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => {
+                setActiveTab(tab);
+                setCurrentPage(0);
+                setSearchInput("");
+                setSearchTerm("");
+              }}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: activeTab === tab ? "none" : "1px solid #ddd",
+                background: activeTab === tab ? "#4f7cff" : "#fff",
+                color: activeTab === tab ? "#fff" : "#333",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {tab === "PLANE" ? t.flight : tab === "BUS" ? t.bus : t.train}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            type="text"
+            placeholder="Tìm địa điểm hoặc ID..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setSearchTerm(searchInput);
+                setCurrentPage(0);
+              }
+            }}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--border-input)",
+              width: 250
+            }}
+          />
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              setSearchTerm(searchInput);
+              setCurrentPage(0);
+            }}
             style={{
               padding: "8px 16px",
               borderRadius: 8,
-              border: activeTab === tab ? "none" : "1px solid #ddd",
-              background: activeTab === tab ? "#4f7cff" : "#fff",
-              color: activeTab === tab ? "#fff" : "#333",
-              fontWeight: 600,
+              border: "none",
+              background: "var(--primary)",
+              color: "#fff",
               cursor: "pointer",
+              fontWeight: 600
             }}
           >
-            {tab === "PLANE" ? t.flight : tab === "BUS" ? t.bus : t.train}
+            Tìm
           </button>
-        ))}
+        </div>
       </div>
 
       <div
@@ -479,7 +542,7 @@ const AdminTrips = () => {
         }}
         disabled={loading}
       >
-        {loading ? "Đang tải..." : "Tải lại danh sách"}
+        {loading ? "Đang tải..." : "Tải lại trang hiện tại"}
       </button>
 
       <div className="table-wrap" style={{ border: "1px solid var(--border-light)", borderRadius: 8 }}>
@@ -487,6 +550,7 @@ const AdminTrips = () => {
           style={{
             borderCollapse: "collapse",
             fontSize: 13,
+            width: "100%",
           }}
         >
           <thead>
@@ -515,7 +579,7 @@ const AdminTrips = () => {
             </tr>
           </thead>
           <tbody>
-            {trips.filter(t => t.vehicle?.vehicleType === activeTab).map((trip) => (
+            {trips.map((trip) => (
               <tr key={trip.id}>
                 <td style={{ padding: 8, borderBottom: "1px solid #f3f3f3" }}>
                   {trip.id}
@@ -564,22 +628,93 @@ const AdminTrips = () => {
                 </td>
               </tr>
             ))}
-            {trips.filter(t => t.vehicle?.vehicleType === activeTab).length === 0 && !loading && (
+            {trips.length === 0 && !loading && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={8}
                   style={{
                     padding: 12,
                     textAlign: "center",
                     color: "var(--text-secondary)",
                   }}
                 >
-                  Chưa có chuyến đi nào.
+                  Không tìm thấy chuyến đi nào.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
+        <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+          Trang {currentPage + 1} / {totalPages || 1}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            disabled={currentPage === 0 || loading}
+            onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 6,
+              border: "1px solid var(--border-input)",
+              background: currentPage === 0 ? "#f1f1f1" : "#fff",
+              cursor: currentPage === 0 ? "not-allowed" : "pointer"
+            }}
+          >
+            Trước
+          </button>
+          
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            {/* Simple page numbers */}
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i;
+              } else if (currentPage < 3) {
+                pageNum = i;
+              } else if (currentPage > totalPages - 3) {
+                pageNum = totalPages - 5 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+              
+              if (pageNum < 0 || pageNum >= totalPages) return null;
+              
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: currentPage === pageNum ? "none" : "1px solid var(--border-input)",
+                    background: currentPage === pageNum ? "var(--primary)" : "#fff",
+                    color: currentPage === pageNum ? "#fff" : "#333",
+                    cursor: "pointer",
+                    fontWeight: currentPage === pageNum ? 600 : 400
+                  }}
+                >
+                  {pageNum + 1}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            disabled={currentPage >= totalPages - 1 || loading}
+            onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 6,
+              border: "1px solid var(--border-input)",
+              background: currentPage >= totalPages - 1 ? "#f1f1f1" : "#fff",
+              cursor: currentPage >= totalPages - 1 ? "not-allowed" : "pointer"
+            }}
+          >
+            Sau
+          </button>
+        </div>
       </div>
 
       {delayModal.show && delayModal.trip && (

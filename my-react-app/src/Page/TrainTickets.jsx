@@ -14,6 +14,7 @@ import { IoMdSearch } from "react-icons/io";
 import { FiChevronDown } from "react-icons/fi";
 import { CgSandClock } from "react-icons/cg";
 import { CiCreditCard1 } from "react-icons/ci";
+import { MdOutlineDone } from "react-icons/md";
 import { FaChair } from "react-icons/fa";
 import { FaUser } from "react-icons/fa";
 import { FaBell } from "react-icons/fa";
@@ -118,6 +119,8 @@ const TrainTickets = () => {
   const [error, setError] = useState("");
   const [formErrors, setFormErrors] = useState({});
   const [promoCode, setPromoCode] = useState("");
+  const [appliedVoucher, setAppliedVoucher] = useState("");
+  const [voucherDiscount, setVoucherDiscount] = useState(0);
   const [selectedSeatClass, setSelectedSeatClass] = useState("");
 
   const API_BASE = "/api";
@@ -407,6 +410,32 @@ const TrainTickets = () => {
     setStep("review");
   };
 
+  const calculateTotalBeforeDiscount = () => {
+    if (!selectedTrip) return 0;
+    const seatsTotal = seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s.seatType), 0);
+    const extraTotal = services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum,s)=>sum+(s.price||0),0);
+    return seatsTotal + extraTotal;
+  };
+
+  const handleApplyVoucher = async () => {
+    if (!promoCode) return;
+    try {
+      const orderAmount = calculateTotalBeforeDiscount();
+      const res = await axios.post("/api/voucher/validate", { code: promoCode, orderAmount });
+      if (res.data.valid) {
+        setAppliedVoucher(promoCode);
+        setVoucherDiscount(res.data.discountAmount);
+        alert(res.data.message);
+      } else {
+        setAppliedVoucher("");
+        setVoucherDiscount(0);
+        alert("Lỗi: " + res.data.message);
+      }
+    } catch (err) {
+      alert("Có lỗi xảy ra khi áp mã giảm giá.");
+    }
+  };
+
   const submitBooking = async () => {
     if (!isAuthenticated || !token) {
       setError("Vui lòng đăng nhập trước khi đặt vé.");
@@ -426,6 +455,8 @@ const TrainTickets = () => {
     setError("");
     setSubmitLoading(true);
 
+    const names = passengerInfoList.map(p => p.data.fullName).filter(Boolean);
+
     try {
       const res = await fetch(`${API_BASE}/bookings`, {
         method: "POST",
@@ -436,7 +467,9 @@ const TrainTickets = () => {
         body: JSON.stringify({
           tripId: selectedTrip.id,
           seatIds: selectedSeatIds,
+          passengerNames: names,
           additionalServiceIds: selectedServiceIds,
+          voucherCode: appliedVoucher,
         }),
       });
 
@@ -1239,7 +1272,7 @@ const TrainTickets = () => {
                       <div style={{ display: "flex", gap: 10 }}>
                         <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="Nhập mã ưu đãi..."
                           style={{ flex: 1, padding: "12px 16px", borderRadius: 8, border: "1px solid #fca5a5", fontSize: 15, fontWeight: "bold", color: "#b91c1c", textTransform: "uppercase" }} />
-                        <button type="button" disabled={!promoCode} style={{ padding: "12px 24px", borderRadius: 8, border: "none", background: promoCode ? "#ff4500" : "#fca5a5", color: "#fff", fontWeight: 800, cursor: promoCode ? "pointer" : "not-allowed", transition: "all 0.2s" }}>
+                        <button type="button" onClick={handleApplyVoucher} disabled={!promoCode} style={{ padding: "12px 24px", borderRadius: 8, border: "none", background: promoCode ? "#ff4500" : "#fca5a5", color: "#fff", fontWeight: 800, cursor: promoCode ? "pointer" : "not-allowed", transition: "all 0.2s" }}>
                           {t.applyPromo}
                         </button>
                       </div>
@@ -1288,10 +1321,10 @@ const TrainTickets = () => {
                     {services.filter(s=>selectedServiceIds.includes(s.id)).map(s => (
                       <div key={s.id} style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-muted)" }}>+ {s.serviceName}</span><span>{Number(s.price||0).toLocaleString("vi-VN")} đ</span></div>
                     ))}
-                    {promoCode && <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a" }}><span>Mã: {promoCode}</span><span>-0 đ</span></div>}
+                    {appliedVoucher && <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", marginTop: 4 }}><span>Mã: {appliedVoucher}</span><span>-{voucherDiscount.toLocaleString("vi-VN")} đ</span></div>}
                     <div style={{ borderTop: "1px solid var(--border-light)", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 16, color: "#ff6b00" }}>
                       <span>Tổng cộng</span>
-                      <span>{Number((selectedTrip.price||0)*selectedSeatIds.length + services.filter(s=>selectedServiceIds.includes(s.id)).reduce((sum,s)=>sum+(s.price||0),0)).toLocaleString("vi-VN")} đ</span>
+                      <span>{Math.max(0, seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s.seatType), 0) + services.filter(s=>selectedServiceIds.includes(s.id)).reduce((sum,s)=>sum+(s.price||0),0) - voucherDiscount).toLocaleString("vi-VN")} đ</span>
                     </div>
                   </div>
                 </div>

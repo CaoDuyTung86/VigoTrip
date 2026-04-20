@@ -29,6 +29,7 @@ public class BookingService {
     private final AdditionalServiceRepository additionalServiceRepository;
     private final BookingMapper bookingMapper;
     private final EmailService emailService;
+    private final VoucherService voucherService;
 
     @Transactional
     public BookingResponse createBooking(String email, BookingRequest request) {
@@ -51,12 +52,18 @@ public class BookingService {
             }
 
             double seatPrice = trip.getPrice();
-            if ("VIP".equalsIgnoreCase(seat.getSeatType())) {
-                seatPrice *= 2; // Ghế VIP giá gấp đôi
-            } else if ("BUSINESS".equalsIgnoreCase(seat.getSeatType())) {
-                seatPrice += 100000;
-            } else if ("SLEEPER".equalsIgnoreCase(seat.getSeatType())) {
-                seatPrice += 50000;
+            if ("FLIGHT".equalsIgnoreCase(trip.getVehicle().getVehicleType()) || "AIRLINE".equalsIgnoreCase(trip.getVehicle().getVehicleType())) {
+                if ("BUSINESS".equalsIgnoreCase(seat.getSeatType())) {
+                    seatPrice *= 2.5;
+                }
+            } else {
+                if ("VIP".equalsIgnoreCase(seat.getSeatType())) {
+                    seatPrice *= 2; // Ghế VIP xe/tàu giá gấp đôi
+                } else if ("BUSINESS".equalsIgnoreCase(seat.getSeatType())) {
+                    seatPrice += 100000;
+                } else if ("SLEEPER".equalsIgnoreCase(seat.getSeatType())) {
+                    seatPrice += 50000;
+                }
             }
 
             Ticket ticket = new Ticket();
@@ -97,6 +104,21 @@ public class BookingService {
         if (discountPercent > 0) {
             double discountAmount = booking.getTotalPrice() * (discountPercent / 100.0);
             booking.setTotalPrice(booking.getTotalPrice() - discountAmount);
+        }
+
+        // Apply voucher if provided
+        if (request.getVoucherCode() != null && !request.getVoucherCode().isBlank()) {
+            java.util.Map<String, Object> validation = voucherService.validateVoucher(request.getVoucherCode(), booking.getTotalPrice());
+            if (Boolean.TRUE.equals(validation.get("valid"))) {
+                double discount = (double) validation.get("discountAmount");
+                booking.setTotalPrice(Math.max(0, booking.getTotalPrice() - discount));
+                
+                // Track usage (can also be done after payment confirmation, but doing it here for simplicity)
+                Long voucherId = (Long) validation.get("voucherId");
+                voucherService.useVoucher(voucherId);
+            } else {
+                throw new BookingException((String) validation.get("message"));
+            }
         }
 
         for (Ticket ticket : tickets) {

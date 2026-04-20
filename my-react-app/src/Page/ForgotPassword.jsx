@@ -44,10 +44,10 @@ const ForgotPassword = () => {
                 newPassword,
                 otpCode: otp
             });
-            setMessage({ type: "success", text: "Đổi mật khẩu thành công! Chuyển hướng về trang đăng nhập..." });
+            setMessage({ type: "success", text: "Đổi mật khẩu thành công! Hệ thống sẽ đưa bạn về trang đăng nhập sau giây lát..." });
             setTimeout(() => {
                 navigate("/auth");
-            }, 3000);
+            }, 2000);
         } catch (err) {
             setMessage({ type: "error", text: err.response?.data?.message || "Mã OTP không đúng hoặc đã hết hạn." });
         } finally {

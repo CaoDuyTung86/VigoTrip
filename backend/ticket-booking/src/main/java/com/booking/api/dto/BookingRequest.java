@@ -24,4 +24,7 @@ public class BookingRequest {
 
     // Dịch vụ bổ sung (hành lý, suất ăn, bảo hiểm, taxi...)
     private List<Long> additionalServiceIds;
+
+    // Mã giảm giá
+    private String voucherCode;
 }

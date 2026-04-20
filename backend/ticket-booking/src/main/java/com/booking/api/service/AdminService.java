@@ -6,6 +6,9 @@ import com.booking.api.entity.*;
 import com.booking.api.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -124,8 +127,12 @@ public class AdminService {
     // ==================== TRIP ====================
 
     @Transactional(readOnly = true)
-    public List<Trip> getAllTrips() {
-        return tripRepository.findAll();
+    public Page<Trip> getPaginatedTrips(String vehicleType, String keyword, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        if (keyword != null && keyword.trim().isEmpty()) {
+            keyword = null;
+        }
+        return tripRepository.searchTripsForAdmin(vehicleType, keyword, pageable);
     }
 
     @Transactional

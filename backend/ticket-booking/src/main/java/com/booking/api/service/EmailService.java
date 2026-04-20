@@ -197,4 +197,36 @@ public class EmailService {
             log.error("Failed to send trip cancelled email to {}", toEmail, e);
         }
     }
+
+    public void sendTripReminderEmail(String toEmail, Long bookingId, String route, String departureTime) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(toEmail);
+            helper.setSubject("🔔 Nhắc lịch: Chuyến đi của bạn sắp khởi hành! - Datxe.com");
+
+            String html = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
+                    + "<h2 style='color: #4f7cff;'>🔔 Chuyến đi sắp khởi hành!</h2>"
+                    + "<p>Xin chào,</p>"
+                    + "<p>Chúng tôi muốn nhắc bạn rằng chuyến đi của bạn sẽ khởi hành trong vòng <strong>24 giờ tới</strong>:</p>"
+                    + "<div style='background: linear-gradient(135deg, #eff6ff, #f0fdf4); border: 1px solid #bfdbfe; border-radius: 12px; padding: 20px; margin: 20px 0;'>"
+                    + "<p style='margin: 5px 0;'><strong>📋 Mã Booking:</strong> #" + bookingId + "</p>"
+                    + "<p style='margin: 5px 0;'><strong>🚌 Tuyến:</strong> " + route + "</p>"
+                    + "<p style='margin: 5px 0;'><strong>🕐 Khởi hành:</strong> <span style='color: #dc2626; font-weight: bold;'>" + departureTime + "</span></p>"
+                    + "</div>"
+                    + "<div style='background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 20px 0; border-radius: 0 8px 8px 0;'>"
+                    + "<strong>💡 Lưu ý:</strong> Hãy đến bến/ga trước giờ khởi hành ít nhất 30 phút để làm thủ tục."
+                    + "</div>"
+                    + "<p>Chúc bạn có một chuyến đi an toàn và vui vẻ! 🎉</p>"
+                    + "<hr style='border: 1px solid #eee; margin-top: 30px;'/>"
+                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br>Đội ngũ Datxe.com</p>"
+                    + "</div>";
+
+            helper.setText(html, true);
+            mailSender.send(message);
+            log.info("Trip reminder email sent to {}", toEmail);
+        } catch (Exception e) {
+            log.error("Failed to send trip reminder email to {}", toEmail, e);
+        }
+    }
 }

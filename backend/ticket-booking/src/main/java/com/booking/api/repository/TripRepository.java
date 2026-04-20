@@ -5,6 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -20,5 +22,18 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
                            @Param("start") LocalDateTime start,
                            @Param("end") LocalDateTime end,
                            @Param("vehicleType") String vehicleType);
+
+    @Query("SELECT t FROM Trip t " +
+            "WHERE (:vehicleType IS NULL OR t.vehicle.vehicleType = :vehicleType) " +
+            "AND (:keyword IS NULL OR LOWER(t.route.origin) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR LOWER(t.route.destination) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR STR(t.id) LIKE CONCAT('%', :keyword, '%')) " +
+            "ORDER BY t.departureTime ASC")
+    Page<Trip> searchTripsForAdmin(@Param("vehicleType") String vehicleType,
+                                   @Param("keyword") String keyword,
+                                   Pageable pageable);
+
+    @Query("SELECT t FROM Trip t WHERE t.departureTime >= :now ORDER BY t.departureTime ASC")
+    Page<Trip> findUpcomingTrips(@Param("now") LocalDateTime now, Pageable pageable);
 }
 

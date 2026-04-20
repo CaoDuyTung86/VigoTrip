@@ -2,13 +2,13 @@ import React, { useState } from "react";
 import { IoIosPhonePortrait } from "react-icons/io";
 import { MdOutlinePhone } from "react-icons/md";
 import { IoChevronDown } from "react-icons/io5";
-import Auth from "../Page/Auth"; 
+import Auth from "../Page/Auth";
 
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { AiOutlineGlobal } from "react-icons/ai";
-import { useNavigate } from "react-router-dom"; 
+import { useNavigate } from "react-router-dom";
 import VNFlag from "../Picture/flags/vn.png";
 import UKFlag from "../Picture/flags/uk.png";
 import JPFlag from "../Picture/flags/jp.png";
@@ -17,12 +17,12 @@ import TWFlag from "../Picture/flags/tw.png";
 const Header = ({ setIsSidebarOpen }) => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isLanguageOpen, setIsLanguageOpen] = useState(false);
-  const [showPhone, setShowPhone] = useState(false); 
+  const [showPhone, setShowPhone] = useState(false);
 
   const { currentLanguage, t, changeLanguage } = useLanguage();
   const { user, isAuthenticated, logout } = useAuth();
   const { isDark } = useTheme();
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
 
   const languages = [
     { code: 'vi', name: 'Tiếng Việt', flag: VNFlag },
@@ -32,13 +32,13 @@ const Header = ({ setIsSidebarOpen }) => {
   ];
 
   const phoneNumbers = {
-    vi: "1900 1234",
+    vi: "0977.999999",
     en: "+84 13 1234 5678",
     ja: "+84 58 1234 5678",
     zh: "+84 43 1234 5678"
   };
 
- 
+
   const handleLogoClick = () => {
     navigate("/");
   };
@@ -97,12 +97,12 @@ const Header = ({ setIsSidebarOpen }) => {
           >
             ☰
           </button>
-          <h2 
-            onClick={handleLogoClick} 
-            style={{ 
-              margin: 0, 
+          <h2
+            onClick={handleLogoClick}
+            style={{
+              margin: 0,
               color: "#20c997",
-              cursor: "pointer", 
+              cursor: "pointer",
               transition: "opacity 0.2s",
             }}
             onMouseEnter={(e) => e.target.style.opacity = "0.8"}
@@ -114,11 +114,11 @@ const Header = ({ setIsSidebarOpen }) => {
 
         <div className="app-header-actions">
           <div className="language-selector" style={{ position: "relative" }}>
-            <span 
-              style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                gap: "8px", 
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
                 cursor: "pointer",
                 padding: "4px 12px",
                 borderRadius: "20px",
@@ -128,22 +128,22 @@ const Header = ({ setIsSidebarOpen }) => {
               onClick={(e) => {
                 e.stopPropagation();
                 setIsLanguageOpen(!isLanguageOpen);
-                setShowPhone(false); 
+                setShowPhone(false);
               }}
             >
-              <img 
-                src={currentLanguage.flag} 
-                alt={currentLanguage.code} 
-                style={{ 
-                  width: "24px", 
-                  height: "24px", 
+              <img
+                src={currentLanguage.flag}
+                alt={currentLanguage.code}
+                style={{
+                  width: "24px",
+                  height: "24px",
                   objectFit: "cover",
                   borderRadius: "50%",
-                }} 
+                }}
               />
               <span style={{ fontSize: "14px", fontWeight: "500" }}>{currentLanguage.code.toUpperCase()}</span>
-              <IoChevronDown style={{ 
-                fontSize: "14px", 
+              <IoChevronDown style={{
+                fontSize: "14px",
                 color: "var(--text-secondary)",
                 transform: isLanguageOpen ? "rotate(180deg)" : "rotate(0)",
                 transition: "transform 0.3s"
@@ -164,9 +164,9 @@ const Header = ({ setIsSidebarOpen }) => {
                   padding: "12px",
                 }}
               >
-                <h3 style={{ 
-                  margin: "0 0 12px 8px", 
-                  fontSize: "16px", 
+                <h3 style={{
+                  margin: "0 0 12px 8px",
+                  fontSize: "16px",
                   fontWeight: "600",
                   color: "var(--text-main)",
                   display: "flex",
@@ -175,9 +175,9 @@ const Header = ({ setIsSidebarOpen }) => {
                 }}>
                   <span><AiOutlineGlobal /></span> {t.selectLanguage}
                 </h3>
-                
-                <div style={{ 
-                  display: "flex", 
+
+                <div style={{
+                  display: "flex",
                   flexDirection: "column",
                   gap: "4px"
                 }}>
@@ -211,15 +211,15 @@ const Header = ({ setIsSidebarOpen }) => {
                         }
                       }}
                     >
-                      <img 
-                        src={lang.flag} 
-                        alt={lang.code} 
-                        style={{ 
-                          width: "24px", 
-                          height: "16px", 
+                      <img
+                        src={lang.flag}
+                        alt={lang.code}
+                        style={{
+                          width: "24px",
+                          height: "16px",
                           objectFit: "cover",
                           borderRadius: "2px",
-                        }} 
+                        }}
                       />
                       <span style={{ fontWeight: currentLanguage.code === lang.code ? "600" : "400" }}>
                         {lang.name}
@@ -235,11 +235,11 @@ const Header = ({ setIsSidebarOpen }) => {
           </div>
 
           <div className="cskh-container" style={{ position: "relative" }}>
-            <span 
-              style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                gap: "4px", 
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
                 cursor: "pointer",
                 padding: "4px 8px",
                 borderRadius: "4px",
@@ -248,7 +248,7 @@ const Header = ({ setIsSidebarOpen }) => {
               onClick={(e) => {
                 e.stopPropagation();
                 setShowPhone(!showPhone);
-                setIsLanguageOpen(false); 
+                setIsLanguageOpen(false);
               }}
             >
               <MdOutlinePhone /> {t.support}
@@ -289,9 +289,9 @@ const Header = ({ setIsSidebarOpen }) => {
                   paddingTop: "8px",
                   marginTop: "8px"
                 }}>
-                  {t.support === "CSKH" ? "Tư vấn 24/7" : 
-                   t.support === "Support" ? "24/7 Support" :
-                   t.support === "サポート" ? "24時間サポート" : "24小時客服"}
+                  {t.support === "CSKH" ? "Tư vấn 24/7" :
+                    t.support === "Support" ? "24/7 Support" :
+                      t.support === "サポート" ? "24時間サポート" : "24小時客服"}
                 </div>
                 <div style={{
                   position: "absolute",

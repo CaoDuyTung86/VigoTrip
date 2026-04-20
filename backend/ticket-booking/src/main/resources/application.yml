@@ -1,7 +1,9 @@
 spring:
+  application:
+    name: booking-service
   datasource:
     # Cấu hình MS SQL Server 
-    url: jdbc:sqlserver://localhost:1433;databaseName=ticket_booking_db;encrypt=true;trustServerCertificate=true;
+    url: jdbc:sqlserver://host.docker.internal:1433;databaseName=ticket_booking_db;encrypt=true;trustServerCertificate=true;
     username: sa
     password: Toibingu1234
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
@@ -21,8 +23,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: "tungg.test.booking@gmail.com"
-    password: "fajy rcyu obxd vqzf" 
+    username: "tunggaming9874123@gmail.com"
+    password: "umdartwxuughrwuc"
     properties:
       mail:
         smtp:
@@ -42,7 +44,7 @@ vnpay:
   tmn-code: 3JZ7QBUX
   hash-secret: WOX93XWGGLC2YUHTZUOB7ALN5LPG8VRE
   pay-url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
-  return-url: http://localhost:8080/api/payment/vnpay-return
+  return-url: http://localhost:8081/api/payment/vnpay-return
   api-url: https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
 
 # Swagger
@@ -51,3 +53,16 @@ springdoc:
     path: /swagger-ui.html
   api-docs:
     path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus, health, info
+  endpoint:
+    prometheus:
+      enabled: true
+
+# Gemini AI Configuration
+gemini:
+  api-key: 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

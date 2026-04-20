@@ -9,6 +9,7 @@ import com.booking.api.entity.Vehicle;
 import com.booking.api.service.AdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -99,8 +100,12 @@ public class AdminController {
     // ==================== TRIP ====================
 
     @GetMapping("/trips")
-    public ResponseEntity<List<Trip>> getAllTrips() {
-        return ResponseEntity.ok(adminService.getAllTrips());
+    public ResponseEntity<Page<Trip>> getTrips(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String search) {
+        return ResponseEntity.ok(adminService.getPaginatedTrips(type, search, page, size));
     }
 
     @PostMapping("/trips")
