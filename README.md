@@ -110,6 +110,10 @@ Các tính năng đã hoàn thành:
 - [x] **Ticket History Detail:** Xem chi tiết thông tin hành khách và lộ trình bằng Modal trong lịch sử quét.
 - [x] **Mobile Camera Access:** Camera hoạt động trong Safari trên điện thoại. (trừ app trên IOS không cho phép PWA truy cập camera, còn hệ điều hành khác chưa test)
 
+- [x] **Secret Management:** Chuyển toàn bộ thông tin nhạy cảm sang biến môi trường (`.env`).
+- [x] **Security Scanning:** Tích hợp Gitleaks vào GitHub Actions để quét rò rỉ secret.
+- [x] **Static Analysis:** Tích hợp SonarQube (Self-hosted Docker) để đánh giá chất lượng code.
+
 Các tính năng dự kiến (Advanced Features):
 - [ ] **Map Integration:** Tích hợp Google Maps chỉ đường và định vị bến xe/nhà ga theo thời gian thực.
 - [ ] **Smart Revenue Forecasting:** Sử dụng Machine Learning (Regression) để dự báo doanh thu và nhu cầu đặt vé theo mùa.
@@ -120,7 +124,20 @@ Các tính năng dự kiến (Advanced Features):
 
 ---
 
+## 🔒 Bảo Mật & Cấu Hình (.env)
+Dự án sử dụng file `.env` để quản lý các thông tin nhạy cảm. Để chạy dự án cục bộ, bạn cần tạo file `.env` tại thư mục gốc với các biến sau:
+```env
+SPRING_DATASOURCE_PASSWORD=your_db_password
+SPRING_MAIL_PASSWORD=your_gmail_app_password
+JWT_SECRET=your_jwt_secret
+VNP_HASH_SECRET=your_vnpay_secret
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+---
+
 ## 🤖 Ghi chú cho AI Assistant (Antigravity/Cursor)
 1. **Dữ liệu lớn:** Luôn sử dụng API phân trang `/api/admin/trips?page=...&size=...`.
 2. **Database:** SQL Server nằm ở máy Host, kết nối qua `host.docker.internal`.
 3. **Cấu trúc UI:** Sử dụng CSS Variable trong `index.css` để duy trì theme Light/Dark.
+4. **Secret:** Tuyệt đối không hardcode mật khẩu hay API Key vào code. Sử dụng biến môi trường.
