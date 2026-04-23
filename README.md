@@ -108,11 +108,15 @@ Các tính năng đã hoàn thành:
 - [x] **Notification System:** Tự động gửi Email thông báo.
 - [x] **QR Code Check-in:** Hệ thống quét mã QR bằng Camera (hỗ trợ chọn thiết bị) để xác thực vé tại bến.
 - [x] **Ticket History Detail:** Xem chi tiết thông tin hành khách và lộ trình bằng Modal trong lịch sử quét.
+- [x] **Mobile Camera Access:** Camera hoạt động trong Safari trên điện thoại. (trừ app trên IOS không cho phép PWA truy cập camera, còn hệ điều hành khác chưa test)
 
-Các tính năng dự kiến:
-- [ ] **Map Integration:** Tích hợp Google Maps chỉ đường đến bến xe/nhà ga.
-- [ ] **Phân tích doanh thu:** Biểu đồ dự báo nâng cao cho Nhà cung cấp.
-- [ ] **OCR CCCD (E-KYC):** Tự động điền thông tin hành khách từ ảnh chụp CCCD.
+Các tính năng dự kiến (Advanced Features):
+- [ ] **Map Integration:** Tích hợp Google Maps chỉ đường và định vị bến xe/nhà ga theo thời gian thực.
+- [ ] **Smart Revenue Forecasting:** Sử dụng Machine Learning (Regression) để dự báo doanh thu và nhu cầu đặt vé theo mùa.
+- [ ] **E-KYC & Face Check-in:** Tự động nhận diện hành khách qua khuôn mặt và trích xuất thông tin CCCD bằng OCR.
+- [ ] **Multi-Channel Notification:** Tích hợp thông báo qua SMS, Zalo và WhatsApp cho người dùng.
+- [ ] **Blockchain Ticket Verification:** Ứng dụng công nghệ Blockchain để đảm bảo tính minh bạch và chống làm giả vé.
+- [ ] **Voice-to-Command Search:** Tìm kiếm và đặt vé bằng giọng nói tích hợp AI.
 
 ---
 

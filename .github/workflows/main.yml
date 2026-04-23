@@ -7,6 +7,20 @@ on:
     branches: [ "main" ]
 
 jobs:
+  # 0. Security - Quét rò rỉ bí mật (Secret Detection)
+  gitleaks:
+    name: 🔐 Gitleaks Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Cần toàn bộ lịch sử Git để quét
+
+    - name: Run Gitleaks
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # 1. Build & Test Backend
   build-backend:
     runs-on: ubuntu-latest
@@ -46,7 +60,7 @@ jobs:
 
   # 3. Docker Build Test (Ensures Dockerfiles are correct)
   docker-test:
-    needs: [build-backend, build-frontend]
+    needs: [build-backend, build-frontend, gitleaks]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
