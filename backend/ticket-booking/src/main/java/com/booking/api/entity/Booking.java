@@ -45,4 +45,13 @@ public class Booking {
     @ManyToMany(cascade = { CascadeType.PERSIST, CascadeType.MERGE })
     @JoinTable(name = "dat_ve_dich_vu", joinColumns = @JoinColumn(name = "booking_id"), inverseJoinColumns = @JoinColumn(name = "service_id"))
     private List<AdditionalService> additionalServices;
+
+    @Column(name = "voucher_code")
+    private String voucherCode;
+
+    @Column(name = "is_checked_in")
+    private Boolean isCheckedIn = false;
+
+    @Column(name = "check_in_date")
+    private LocalDateTime checkInDate;
 }

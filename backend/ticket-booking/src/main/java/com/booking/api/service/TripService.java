@@ -10,6 +10,7 @@ import com.booking.api.mapper.TripMapper;
 import com.booking.api.repository.SeatRepository;
 import com.booking.api.repository.TicketRepository;
 import com.booking.api.repository.TripRepository;
+import com.booking.api.service.SeatLockService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ public class TripService {
         private final SeatRepository seatRepository;
         private final TicketRepository ticketRepository;
         private final TripMapper tripMapper;
+        private final SeatLockService seatLockService;
 
         @Transactional(readOnly = true)
         public List<TripSearchResponse> searchTrips(String from,
@@ -73,11 +75,13 @@ public class TripService {
                 return seats.stream()
                                 .map(seat -> {
                                         boolean booked = ticketRepository.existsByTripIdAndSeatId(tripId, seat.getId());
+                                        String tempLockedBy = seatLockService.getLockedBy(seat.getId());
                                         return new SeatResponse(
                                                         seat.getId(),
                                                         seat.getSeatNumber(),
                                                         seat.getSeatType(),
-                                                        booked);
+                                                        booked,
+                                                        tempLockedBy);
                                 })
                                 .collect(Collectors.toList());
         }

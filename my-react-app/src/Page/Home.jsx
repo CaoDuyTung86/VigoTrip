@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useLanguage } from "../context/LanguageContext";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import BookingTabs from "../components/BookingTabs";
 import beachBanner from "../Picture/beach_banner.jpg";
 
 const Home = () => {
+  const { t } = useLanguage();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
@@ -55,16 +57,16 @@ const Home = () => {
                 textShadow: "0 2px 12px rgba(0,0,0,0.3)",
                 lineHeight: 1.3,
               }}>
-                Khám phá thế giới cùng Datxe.com
+                {t.heroTitle}
               </h2>
               <p style={{
                 color: "rgba(255,255,255,0.9)",
                 fontSize: "clamp(13px, 2vw, 17px)",
                 margin: "8px 0 0",
                 textShadow: "0 1px 6px rgba(0,0,0,0.3)",
-                maxWidth: 500,
+                maxWidth: 800,
               }}>
-                Đặt vé máy bay, tàu hỏa, xe khách & tour du lịch với giá tốt nhất
+                {t.heroTagline}
               </p>
             </div>
           </div>

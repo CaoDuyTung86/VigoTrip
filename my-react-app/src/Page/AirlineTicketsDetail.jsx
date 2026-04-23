@@ -864,7 +864,7 @@ const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialC
   ];
 
   const updatePassenger = (type, increment) => {
-    setPassengers(prev => {
+    setPassengerCounts(prev => {
       const newValue = increment ? prev[type] + 1 : Math.max(0, prev[type] - 1);
       const total = Object.values({...prev, [type]: newValue}).reduce((a, b) => a + b, 0);
       if (total > 9) return prev;

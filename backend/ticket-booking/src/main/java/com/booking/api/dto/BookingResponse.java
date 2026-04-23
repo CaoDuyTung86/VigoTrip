@@ -40,6 +40,9 @@ public class BookingResponse {
     // Refund status (for checking pending refund requests)
     private String refundStatus;
 
+    private Boolean isCheckedIn;
+    private LocalDateTime checkInDate;
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

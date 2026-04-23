@@ -66,4 +66,17 @@ public class BookingController {
         BookingResponse response = bookingService.cancelTicket(userDetails.getUsername(), bookingId, ticketId);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/{id}/check-in")
+    public ResponseEntity<BookingResponse> checkIn(@PathVariable Long id) {
+        BookingResponse response = bookingService.checkIn(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/recent-checkins")
+    public ResponseEntity<List<BookingResponse>> getRecentCheckIns(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        List<BookingResponse> responses = bookingService.getRecentCheckIns(userDetails.getUsername());
+        return ResponseEntity.ok(responses);
+    }
 }

@@ -10,6 +10,8 @@ import com.booking.api.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import com.booking.api.controller.SeatStatusController.SeatStatusUpdate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -30,6 +32,8 @@ public class BookingService {
     private final BookingMapper bookingMapper;
     private final EmailService emailService;
     private final VoucherService voucherService;
+    private final SeatLockService seatLockService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional
     public BookingResponse createBooking(String email, BookingRequest request) {
@@ -39,20 +43,40 @@ public class BookingService {
         Trip trip = tripRepository.findById(request.getTripId())
                 .orElseThrow(() -> new ResourceNotFoundException("Chuyến đi", request.getTripId()));
 
+        if (trip.getDepartureTime().isBefore(LocalDateTime.now())) {
+            throw new BookingException("Không thể đặt vé cho chuyến đi đã khởi hành.");
+        }
+
+        if (request.getSeatIds() == null || request.getSeatIds().isEmpty()) {
+            throw new BookingException("Vui lòng chọn ít nhất 1 chỗ ngồi/giường.");
+        }
+
+        long distinctSeats = request.getSeatIds().stream().distinct().count();
+        if (distinctSeats != request.getSeatIds().size()) {
+            throw new BookingException("Danh sách chỗ ngồi có chứa dữ liệu trùng lặp.");
+        }
+
         List<Ticket> tickets = new ArrayList<>();
         double totalPrice = 0;
 
         for (int i = 0; i < request.getSeatIds().size(); i++) {
             Long seatId = request.getSeatIds().get(i);
-            Seat seat = seatRepository.findById(seatId)
+            Seat seat = seatRepository.findByIdWithLock(seatId)
                     .orElseThrow(() -> new ResourceNotFoundException("Ghế", seatId));
 
             if (ticketRepository.existsByTripIdAndSeatId(trip.getId(), seat.getId())) {
                 throw new BookingException("Ghế " + seat.getSeatNumber() + " đã được đặt cho chuyến này");
             }
 
+            String lockedBy = seatLockService.getLockedBy(seatId);
+            if (lockedBy != null && !lockedBy.equals(user.getEmail())) {
+                throw new BookingException(
+                        "Ghế " + seat.getSeatNumber() + " đang được giữ bởi người khác. Vui lòng chọn ghế khác.");
+            }
+
             double seatPrice = trip.getPrice();
-            if ("FLIGHT".equalsIgnoreCase(trip.getVehicle().getVehicleType()) || "AIRLINE".equalsIgnoreCase(trip.getVehicle().getVehicleType())) {
+            if ("FLIGHT".equalsIgnoreCase(trip.getVehicle().getVehicleType())
+                    || "AIRLINE".equalsIgnoreCase(trip.getVehicle().getVehicleType())) {
                 if ("BUSINESS".equalsIgnoreCase(seat.getSeatType())) {
                     seatPrice *= 2.5;
                 }
@@ -78,7 +102,7 @@ public class BookingService {
             } else {
                 ticket.setPassengerName(user.getFullName());
             }
-            
+
             tickets.add(ticket);
 
             totalPrice += seatPrice;
@@ -91,7 +115,8 @@ public class BookingService {
         booking.setStatus("PENDING");
 
         if (request.getAdditionalServiceIds() != null && !request.getAdditionalServiceIds().isEmpty()) {
-            List<AdditionalService> services = additionalServiceRepository.findAllById(request.getAdditionalServiceIds());
+            List<AdditionalService> services = additionalServiceRepository
+                    .findAllById(request.getAdditionalServiceIds());
             booking.setAdditionalServices(services);
             double servicesTotal = services.stream().mapToDouble(s -> s.getPrice() != null ? s.getPrice() : 0).sum();
             booking.setTotalPrice(totalPrice + servicesTotal);
@@ -108,17 +133,31 @@ public class BookingService {
 
         // Apply voucher if provided
         if (request.getVoucherCode() != null && !request.getVoucherCode().isBlank()) {
-            java.util.Map<String, Object> validation = voucherService.validateVoucher(request.getVoucherCode(), booking.getTotalPrice());
+            // Check if user has used this voucher code before (and not cancelled)
+            boolean alreadyUsed = bookingRepository.existsByUserIdAndVoucherCodeAndStatusNot(user.getId(),
+                    request.getVoucherCode(), "CANCELLED");
+            if (alreadyUsed) {
+                throw new BookingException("Bạn đã sử dụng mã giảm giá này cho một đơn hàng khác.");
+            }
+
+            java.util.Map<String, Object> validation = voucherService.validateVoucher(request.getVoucherCode(),
+                    booking.getTotalPrice());
             if (Boolean.TRUE.equals(validation.get("valid"))) {
                 double discount = (double) validation.get("discountAmount");
                 booking.setTotalPrice(Math.max(0, booking.getTotalPrice() - discount));
-                
-                // Track usage (can also be done after payment confirmation, but doing it here for simplicity)
+
+                // Track usage (at this stage it's locked to this booking)
                 Long voucherId = (Long) validation.get("voucherId");
                 voucherService.useVoucher(voucherId);
+                booking.setVoucherCode(request.getVoucherCode()); // Store it to prevent reuse
             } else {
                 throw new BookingException((String) validation.get("message"));
             }
+        }
+
+        // Final price consistency check
+        if (booking.getTotalPrice() == null || booking.getTotalPrice() < 0) {
+            booking.setTotalPrice(0.0);
         }
 
         for (Ticket ticket : tickets) {
@@ -127,6 +166,13 @@ public class BookingService {
         booking.setTickets(tickets);
 
         bookingRepository.save(booking);
+
+        // Remove locks and broadcast BOOKED status
+        for (Long seatId : request.getSeatIds()) {
+            seatLockService.removeLockBySeatId(seatId);
+            SeatStatusUpdate update = new SeatStatusUpdate(trip.getId(), seatId, "BOOKED", user.getEmail());
+            messagingTemplate.convertAndSend("/topic/seat-status", update);
+        }
 
         return bookingMapper.toBookingResponse(booking, trip);
     }
@@ -196,7 +242,8 @@ public class BookingService {
 
             if ("PAID".equals(booking.getStatus()) || "CONFIRMED".equals(booking.getStatus())) {
                 if (hoursUntilDeparture < 4) {
-                    throw new BookingException("Không thể hủy/hoàn vé khi chỉ còn dưới 4 tiếng là khởi hành hoặc xe đã chạy");
+                    throw new BookingException(
+                            "Không thể hủy/hoàn vé khi chỉ còn dưới 4 tiếng là khởi hành hoặc xe đã chạy");
                 }
 
                 double refundAmount = 0.0;
@@ -254,7 +301,8 @@ public class BookingService {
 
         try {
             emailService.sendSurveyEmail(user.getEmail(), booking.getId());
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
 
         Trip trip = null;
         if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
@@ -292,7 +340,8 @@ public class BookingService {
 
         // Trừ giá vé khỏi tổng
         if (ticketToCancel.getPrice() != null) {
-            double newTotal = (booking.getTotalPrice() != null ? booking.getTotalPrice() : 0) - ticketToCancel.getPrice();
+            double newTotal = (booking.getTotalPrice() != null ? booking.getTotalPrice() : 0)
+                    - ticketToCancel.getPrice();
             booking.setTotalPrice(Math.max(0, newTotal));
         }
 
@@ -311,5 +360,49 @@ public class BookingService {
         }
 
         return bookingMapper.toBookingResponse(booking, trip);
+    }
+
+    @Transactional
+    public BookingResponse checkIn(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+
+        if (!"PAID".equals(booking.getStatus()) && !"CONFIRMED".equals(booking.getStatus())) {
+            throw new BookingException("Vé chưa thanh toán hoặc đã bị hủy, không thể check-in.");
+        }
+
+        if (Boolean.TRUE.equals(booking.getIsCheckedIn())) {
+            throw new BookingException("Vé này đã được check-in vào lúc " + booking.getCheckInDate());
+        }
+
+        booking.setIsCheckedIn(true);
+        booking.setCheckInDate(LocalDateTime.now());
+        bookingRepository.save(booking);
+
+        Trip trip = null;
+        if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
+            trip = booking.getTickets().get(0).getTrip();
+        }
+
+        return bookingMapper.toBookingResponse(booking, trip);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getRecentCheckIns(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user"));
+
+        org.springframework.data.domain.Pageable top10 = org.springframework.data.domain.PageRequest.of(0, 10);
+        List<Booking> bookings = bookingRepository.findRecentCheckInsAdmin(top10);
+
+        return bookings.stream()
+                .map(booking -> {
+                    Trip trip = null;
+                    if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
+                        trip = booking.getTickets().get(0).getTrip();
+                    }
+                    return bookingMapper.toBookingResponse(booking, trip);
+                })
+                .collect(Collectors.toList());
     }
 }

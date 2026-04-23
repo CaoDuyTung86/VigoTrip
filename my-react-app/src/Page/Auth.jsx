@@ -140,7 +140,9 @@ const Auth = ({ isOpen, onClose }) => {
         navigate(`/verify-email?email=${email}`);
       }, 1500);
     } catch (error) {
-      setApiError("Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại backend.");
+      console.error("Register error:", error);
+      setApiError("Lỗi kết nối: " + error.message);
+      alert("Lỗi kết nối: " + error.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -213,7 +215,9 @@ const Auth = ({ isOpen, onClose }) => {
         setApiError("");
       }, 1000);
     } catch (error) {
-      setApiError("Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại backend.");
+      console.error("Login error:", error);
+      setApiError("Lỗi kết nối: " + error.message);
+      alert("Lỗi kết nối: " + error.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -402,8 +406,15 @@ const Auth = ({ isOpen, onClose }) => {
               <div style={{ marginBottom: "12px", width: "100%", display: "flex", justifyContent: "center" }}>
                 <GoogleLogin
                   onSuccess={async (credentialResponse) => {
-                    const decoded = jwtDecode(credentialResponse.credential);
+                    console.log("Google response:", credentialResponse);
+                    if (!credentialResponse.credential) {
+                      alert("Google không trả về Token. Có thể trình duyệt đã chặn Cookie.");
+                      return;
+                    }
+                    // alert("DEBUG - Credential nhận được: " + credentialResponse.credential.substring(0, 20) + "...");
+                    
                     try {
+                      const decoded = jwtDecode(credentialResponse.credential);
                       const response = await fetch("/api/auth/google-login", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -427,13 +438,16 @@ const Auth = ({ isOpen, onClose }) => {
                         alert("Lỗi Backend: " + (data.message || "Không xác định"));
                       }
                     } catch (error) {
-                      setApiError("Lỗi kết nối: " + error.message);
-                      alert("Lỗi kết nối: " + error.message);
+                      console.error("Google login error:", error);
+                      const errorMsg = "Lỗi đăng nhập Google: " + error.message;
+                      setApiError(errorMsg);
+                      alert(errorMsg);
                     }
                   }}
-                  onError={() => {
-                    setApiError("Đăng nhập Google thất bại (Google Error)");
-                    alert("Google OAuth Error - Vui lòng kiểm tra Client ID và Origin");
+                  onError={(error) => {
+                    console.error("Google OAuth Error:", error);
+                    setApiError("Đăng nhập Google thất bại");
+                    alert("Lỗi Google OAuth: " + JSON.stringify(error || "Không xác định"));
                   }}
                   theme="outline"
                   size="large"
@@ -736,7 +750,7 @@ const Auth = ({ isOpen, onClose }) => {
               paddingTop: "20px",
               marginTop: "10px",
             }}>
-              {t.termsPrefix} <a href="#" style={{ color: "var(--primary)", textDecoration: "none", fontWeight: "500", textDecoration: "underline", }}>{t.termsAndConditions}</a> {t.termsPrefix === "Bằng việc đăng nhập hoặc đăng ký, bạn được xem như đã đồng ý với" ? "và" : "and"} <a href="#" style={{ color: "var(--primary)", textDecoration: "none", fontWeight: "500", textDecoration: "underline", }}>{t.privacyPolicy}</a> {t.of} Datxe.com.
+              {t.termsPrefix} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.termsAndConditions}</a> {t.termsPrefix === "Bằng việc đăng nhập hoặc đăng ký, bạn được xem như đã đồng ý với" ? "và" : "and"} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.privacyPolicy}</a> {t.of} Datxe.com.
             </p>
           </div>
         )}

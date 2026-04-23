@@ -6,6 +6,7 @@ import PassengerInfoForm from "../components/PassengerInfoForm";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar"; 
 import { useAuth } from "../context/AuthContext";
+import { useWebSocket } from "../context/WebSocketContext";
 import { useLocation } from "react-router-dom";
 import { MdOutlineCreditCard } from "react-icons/md";
 import { TbTrain } from "react-icons/tb";
@@ -56,8 +57,10 @@ const getSeatPrice = (base, type) => {
 
 const TrainTickets = () => {
   const { t } = useLanguage();
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, user } = useAuth();
+  const { isConnected, sendMessage, subscribe } = useWebSocket();
   const location = useLocation();
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
   const stations = [
     { code: "HAN", name: "Hà Nội", fullName: "Ga Hà Nội" },
@@ -96,6 +99,25 @@ const TrainTickets = () => {
   const [passengerInfoList, setPassengerInfoList] = useState([]);
   const [globalContact, setGlobalContact] = useState({ promoOptIn: true, remember: false });
   const { savedPassengers, addPassenger } = useSavedPassengers();
+
+  useEffect(() => {
+    if (selectedTrip && isConnected) {
+      const subscription = subscribe("/topic/seat-status", (update) => {
+        if (update.tripId === selectedTrip.id) {
+          setSeats((prevSeats) =>
+            prevSeats.map((s) =>
+              s.id === update.seatId 
+                ? { ...s, tempLockedBy: update.status === "SELECTED" ? update.userId : null } 
+                : s
+            )
+          );
+        }
+      });
+      return () => {
+        if (subscription) subscription.unsubscribe();
+      };
+    }
+  }, [selectedTrip, isConnected, subscribe]);
 
   useEffect(() => {
     const newList = [];
@@ -139,7 +161,7 @@ const TrainTickets = () => {
     if (qDate) setDate(qDate);
     if (qPassengers) {
       const n = Number(qPassengers);
-      if (!Number.isNaN(n) && n > 0) setPassengers(n);
+      if (!Number.isNaN(n) && n > 0) setPassengerCounts({ adult: n, child: 0, infant: 0 });
     }
 
     if (qFrom && qTo && qPassengers && mode === "calendar") {
@@ -326,10 +348,19 @@ const TrainTickets = () => {
   };
 
   const toggleSeat = (seat) => {
-    if (seat.booked) return;
+    if (seat.booked || (seat.tempLockedBy && seat.tempLockedBy !== user?.email)) return;
 
     setSelectedSeatIds((prev) => {
       const exists = prev.includes(seat.id);
+      const newStatus = exists ? "AVAILABLE" : "SELECTED";
+      
+      sendMessage("/app/seat-selection", {
+        tripId: selectedTrip.id,
+        seatId: seat.id,
+        status: newStatus,
+        userId: user?.email
+      });
+
       if (exists) {
         return prev.filter((id) => id !== seat.id);
       }
@@ -927,19 +958,20 @@ const TrainTickets = () => {
                               const s = smap.get(`${row}${col}`);
                               if (!s) return <div key={col} style={{ width: 44, height: 38 }} />;
                               const sel = selectedSeatIds.includes(s.id);
+                              const isLockedByOthers = s.tempLockedBy && s.tempLockedBy !== user?.email;
                               return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked}
-                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : ""}`}
+                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked || isLockedByOthers}
+                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
                                   style={{ 
         width: 44, height: s.seatType === "BUSINESS" || s.seatType === "VIP" ? 48 : 40, 
         borderRadius: "8px 8px 4px 4px", border: "1px solid rgba(0,0,0,0.1)", 
-        cursor: s.booked ? "not-allowed" : "pointer",
-        background: s.booked ? "#e0e0e0" : sel ? "#f59e0b" : (["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType) ? "#bfdbfe" : false ? "#fef08a" : "#bbf7d0"),
-        color: s.booked ? "#aaa" : sel ? "#fff" : "#333", fontWeight: 700, fontSize: 12,
-        borderBottom: s.booked ? "6px solid #ccc" : sel ? "6px solid #d97706" : (["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType) ? "6px solid #60a5fa" : false ? "6px solid #eab308" : "6px solid #4ade80"),
+        cursor: (s.booked || isLockedByOthers) ? "not-allowed" : "pointer",
+        background: s.booked ? "#e0e0e0" : isLockedByOthers ? "#fecaca" : sel ? "#f59e0b" : (["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType) ? "#bfdbfe" : "#bbf7d0"),
+        color: (s.booked || isLockedByOthers) ? "#aaa" : sel ? "#fff" : "#333", fontWeight: 700, fontSize: 12,
+        borderBottom: s.booked ? "6px solid #ccc" : isLockedByOthers ? "6px solid #f87171" : sel ? "6px solid #d97706" : (["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType) ? "6px solid #60a5fa" : "6px solid #4ade80"),
         transition: "all 0.2s"
     }}>
-                                  {s.booked ? "✗" : s.seatNumber}
+                                  {s.booked ? "✗" : isLockedByOthers ? "🔒" : s.seatNumber}
                                 </button>
                               );
                             })}
@@ -948,19 +980,20 @@ const TrainTickets = () => {
                               const s = smap.get(`${row}${col}`);
                               if (!s) return <div key={col} style={{ width: 44, height: 38 }} />;
                               const sel = selectedSeatIds.includes(s.id);
+                              const isLockedByOthers = s.tempLockedBy && s.tempLockedBy !== user?.email;
                               return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked}
-                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : ""}`}
+                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked || isLockedByOthers}
+                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
                                   style={{ 
         width: 44, height: s.seatType === "BUSINESS" || s.seatType === "VIP" ? 48 : 40, 
         borderRadius: "8px 8px 4px 4px", border: "1px solid rgba(0,0,0,0.1)", 
-        cursor: s.booked ? "not-allowed" : "pointer",
-        background: s.booked ? "#e0e0e0" : sel ? "#f59e0b" : (["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType) ? "#bfdbfe" : false ? "#fef08a" : "#bbf7d0"),
-        color: s.booked ? "#aaa" : sel ? "#fff" : "#333", fontWeight: 700, fontSize: 12,
-        borderBottom: s.booked ? "6px solid #ccc" : sel ? "6px solid #d97706" : (["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType) ? "6px solid #60a5fa" : false ? "6px solid #eab308" : "6px solid #4ade80"),
+        cursor: (s.booked || isLockedByOthers) ? "not-allowed" : "pointer",
+        background: s.booked ? "#e0e0e0" : isLockedByOthers ? "#fecaca" : sel ? "#f59e0b" : (["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType) ? "#bfdbfe" : "#bbf7d0"),
+        color: (s.booked || isLockedByOthers) ? "#aaa" : sel ? "#fff" : "#333", fontWeight: 700, fontSize: 12,
+        borderBottom: s.booked ? "6px solid #ccc" : isLockedByOthers ? "6px solid #f87171" : sel ? "6px solid #d97706" : (["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType) ? "6px solid #60a5fa" : "6px solid #4ade80"),
         transition: "all 0.2s"
     }}>
-                                  {s.booked ? "✗" : s.seatNumber}
+                                  {s.booked ? "✗" : isLockedByOthers ? "🔒" : s.seatNumber}
                                 </button>
                               );
                             })}
@@ -971,6 +1004,7 @@ const TrainTickets = () => {
                           <span><span style={{ display: "inline-block", width: 14, height: 14, background: "#dcfce7", borderRadius: 3, marginRight: 4 }} />{t.seatClassEco}</span>
                           <span><span style={{ display: "inline-block", width: 14, height: 14, background: "#dbeafe", borderRadius: 3, marginRight: 4 }} />{t.seatClassBiz}</span>
                           <span><span style={{ display: "inline-block", width: 14, height: 14, background: "#f59e0b", borderRadius: 3, marginRight: 4 }} />{t.seatClassSelected}</span>
+                          <span><span style={{ display: "inline-block", width: 14, height: 14, background: "#fecaca", borderRadius: 3, marginRight: 4 }} />Có người đang chọn</span>
                           <span><span style={{ display: "inline-block", width: 14, height: 14, background: "#e0e0e0", borderRadius: 3, marginRight: 4 }} />{t.seatClassBooked}</span>
                         </div>
                       </div>

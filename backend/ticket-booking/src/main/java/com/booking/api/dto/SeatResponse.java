@@ -11,5 +11,6 @@ public class SeatResponse {
     private String seatNumber;
     private String seatType;
     private boolean booked;
+    private String tempLockedBy;
 }
 

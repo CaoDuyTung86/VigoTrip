@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { FaCalendarAlt, FaSearch, FaBus } from "react-icons/fa";
 import { IoIosSwap } from "react-icons/io";
@@ -6,6 +7,8 @@ import { IoLocationOutline } from "react-icons/io5";
 
 const BusSearch = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
+
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [departDate, setDepartDate] = useState("");
@@ -32,11 +35,18 @@ const BusSearch = () => {
   ];
 
   const handleSearch = () => {
-    console.log("Search buses:", {
+    if (!from || !to || !departDate) {
+      return;
+    }
+
+    const params = new URLSearchParams({
       from,
       to,
-      departDate,
+      date: departDate,
+      passengers: "1",
     });
+
+    navigate(`/xe-khach?${params.toString()}`);
   };
 
   const handleSwapCities = () => {

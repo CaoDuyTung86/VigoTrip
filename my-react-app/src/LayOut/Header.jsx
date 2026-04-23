@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { FaRegUser, FaSignOutAlt, FaHistory, FaQrcode } from "react-icons/fa";
 import { IoIosPhonePortrait } from "react-icons/io";
 import { MdOutlinePhone } from "react-icons/md";
 import { IoChevronDown } from "react-icons/io5";
@@ -8,6 +9,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { AiOutlineGlobal } from "react-icons/ai";
+import { MdOutlineLightMode, MdOutlineDarkMode, MdMenu, MdQrCodeScanner } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import VNFlag from "../Picture/flags/vn.png";
 import UKFlag from "../Picture/flags/uk.png";
@@ -378,6 +380,24 @@ const Header = ({ setIsSidebarOpen }) => {
                   </button>
                 </>
               )}
+              <button
+                onClick={() => navigate("/provider/check-in")}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  border: "1px solid #16a34a",
+                  background: "#dcfce7",
+                  color: "#16a34a",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px"
+                }}
+              >
+                <FaQrcode /> {t.checkInQR}
+              </button>
             </div>
           )}
 
@@ -414,6 +434,8 @@ const Header = ({ setIsSidebarOpen }) => {
               >
                 {t.bookingHistory}
               </button>
+
+
               <button
                 onClick={logout}
                 style={{

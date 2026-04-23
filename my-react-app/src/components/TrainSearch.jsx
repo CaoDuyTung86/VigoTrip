@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { FaCalendarAlt, FaSearch, FaTrain, FaClock } from "react-icons/fa";
 import { IoIosSwap } from "react-icons/io";
@@ -9,6 +10,8 @@ import CitySelector from "./CitySelector";
 
 const TrainSearch = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
+
   const [tripType, setTripType] = useState("oneway");
   
   
@@ -46,16 +49,20 @@ const TrainSearch = () => {
   ];
 
   const handleSearch = () => {
-    console.log("Search trains:", {
-      tripType,
-      from: fromCity,
-      to: toCity,
-      departDate,
-      returnDate,
-      passengers,
-      onlyHighSpeed,
-      showHotel
+    if (!fromCity || !toCity || !departDate) {
+      return;
+    }
+
+    const totalPassengers = passengers.adult + passengers.child + passengers.infant;
+
+    const params = new URLSearchParams({
+      from: fromCity.code || fromCity.name,
+      to: toCity.code || toCity.name,
+      date: departDate,
+      passengers: String(totalPassengers || 1),
     });
+
+    navigate(`/ve-tau-hoa?${params.toString()}`);
   };
 
   const handleCitySelect = (city) => {

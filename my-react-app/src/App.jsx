@@ -12,6 +12,7 @@ import { LanguageProvider } from "./context/LanguageContext";
 import { AuthProvider } from "./context/AuthContext";
 import { SavedPassengersProvider } from "./context/SavedPassengersContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { WebSocketProvider } from "./context/WebSocketContext";
 import Footer from "./LayOut/Footer";
 import MyBookings from "./Page/MyBookings";
 import ForgotPassword from "./Page/ForgotPassword";
@@ -21,6 +22,7 @@ import AdminReviews from "./Page/AdminReviews";
 import AccountPage from "./Page/AccountPage";
 import AdminRevenue from "./Page/AdminRevenue";
 import ProviderRefunds from "./Page/ProviderRefunds";
+import ProviderCheckIn from "./Page/ProviderCheckIn";
 import Chatbot from "./components/Chatbot";
 
 function AppWrapper() {
@@ -47,6 +49,7 @@ function AppWrapper() {
         <Route path="/admin/revenue" element={<AdminRevenue />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="/provider/refunds" element={<ProviderRefunds />} />
+        <Route path="/provider/check-in" element={<ProviderCheckIn />} />
       </Routes>
       {showFooter && <Footer />} 
       <Chatbot />
@@ -62,7 +65,9 @@ function App() {
           <LanguageProvider>
             <AuthProvider>
               <SavedPassengersProvider>
-                <AppWrapper />
+                <WebSocketProvider>
+                  <AppWrapper />
+                </WebSocketProvider>
               </SavedPassengersProvider>
             </AuthProvider>
           </LanguageProvider>

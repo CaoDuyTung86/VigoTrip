@@ -6,6 +6,7 @@ import PassengerInfoForm from "../components/PassengerInfoForm";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import { useAuth } from "../context/AuthContext";
+import { useWebSocket } from "../context/WebSocketContext";
 import { useLocation } from "react-router-dom";
 import { TbBus } from "react-icons/tb";
 import { FaRegCalendarAlt } from "react-icons/fa";
@@ -56,8 +57,10 @@ const getSeatPrice = (base, type) => {
 
 const BusTickets = () => {
   const { t } = useLanguage();
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, user } = useAuth();
+  const { isConnected, sendMessage, subscribe } = useWebSocket();
   const location = useLocation();
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const stations = [
     { code: "HAN", name: "Hà Nội", fullName: "Bến xe Mỹ Đình / Giáp Bát" },
@@ -83,7 +86,7 @@ const BusTickets = () => {
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [seats, setSeats] = useState([]);
   const [selectedSeatIds, setSelectedSeatIds] = useState([]);
-  const [step, setStep] = useState("search"); 
+  const [step, setStep] = useState("search");
 
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -96,6 +99,25 @@ const BusTickets = () => {
   const [passengerInfoList, setPassengerInfoList] = useState([]);
   const [globalContact, setGlobalContact] = useState({ promoOptIn: true, remember: false });
   const { savedPassengers, addPassenger } = useSavedPassengers();
+
+  useEffect(() => {
+    if (selectedTrip && isConnected) {
+      const subscription = subscribe("/topic/seat-status", (update) => {
+        if (update.tripId === selectedTrip.id) {
+          setSeats((prevSeats) =>
+            prevSeats.map((s) =>
+              s.id === update.seatId
+                ? { ...s, tempLockedBy: update.status === "SELECTED" ? update.userId : null }
+                : s
+            )
+          );
+        }
+      });
+      return () => {
+        if (subscription) subscription.unsubscribe();
+      };
+    }
+  }, [selectedTrip, isConnected, subscribe]);
 
   useEffect(() => {
     const newList = [];
@@ -139,27 +161,27 @@ const BusTickets = () => {
     if (qDate) setDate(qDate);
     if (qPassengers) {
       const n = Number(qPassengers);
-      if (!Number.isNaN(n) && n > 0) setPassengers(n);
+      if (!Number.isNaN(n) && n > 0) setPassengerCounts({ adult: n, child: 0, infant: 0 });
     }
 
     if (qFrom && qTo && qPassengers && mode === "calendar") {
-    
+
       setTimeout(() => {
         loadCalendar();
       }, 0);
     }
-   
+
   }, []);
 
-  
 
-  
+
+
 
   const handleSearch = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
-   
+
     setCalendarOpen(false);
-    
+
     const errs = {};
     if (!from || !from.trim()) errs.from = "Vui lòng nhập điểm đi";
     if (!to || !to.trim()) errs.to = "Vui lòng nhập điểm đến";
@@ -203,7 +225,7 @@ const BusTickets = () => {
     }
   };
 
-  
+
   const handleSearchWithDate = async (selectedDate) => {
     setDate(selectedDate);
     setCalendarOpen(false);
@@ -315,7 +337,7 @@ const BusTickets = () => {
       }
       const data = await res.json();
       setSeats(data);
-    
+
       setStep("seatClass");
     } catch (err) {
       console.error(err);
@@ -326,10 +348,19 @@ const BusTickets = () => {
   };
 
   const toggleSeat = (seat) => {
-    if (seat.booked) return;
+    if (seat.booked || (seat.tempLockedBy && seat.tempLockedBy !== user?.email)) return;
 
     setSelectedSeatIds((prev) => {
       const exists = prev.includes(seat.id);
+      const newStatus = exists ? "AVAILABLE" : "SELECTED";
+
+      sendMessage("/app/seat-selection", {
+        tripId: selectedTrip.id,
+        seatId: seat.id,
+        status: newStatus,
+        userId: user?.email
+      });
+
       if (exists) {
         return prev.filter((id) => id !== seat.id);
       }
@@ -370,17 +401,17 @@ const BusTickets = () => {
 
   const validatePassenger = () => {
     for (const [idx, pi] of passengerInfoList.entries()) {
-        const d = pi.data || {};
-        const isAdult = pi.type === 'ADULT';
-        if (!d.fullName || d.fullName.trim() === '') return `Vui lòng nhập họ tên cho ${isAdult ? 'người lớn' : pi.type === 'CHILD' ? 'trẻ em' : 'em bé'} ${idx + 1}.`;
-        if (!d.dateOfBirth || !/^\d{2}\/\d{2}\/\d{4}$/.test(d.dateOfBirth)) return `Ngày sinh hành khách ${idx + 1} không hợp lệ. Vui lòng nhập định dạng DD/MM/YYYY.`;
-        if (!d.gender) return `Vui lòng chọn giới tính cho hành khách ${idx + 1}.`;
-        
-        if (isAdult) {
-            if (!d.email || !/^\S+@\S+\.\S+$/.test(d.email)) return `Email của người lớn không hợp lệ.`;
-            if (!d.phone || !/^\d{9,10}$/.test(d.phone.replace(/\D/g, ''))) return `SĐT người lớn không hợp lệ.`;
-            if (!d.idNumber) return `Vui lòng nhập CCCD/Hộ chiếu cho người lớn.`;
-        }
+      const d = pi.data || {};
+      const isAdult = pi.type === 'ADULT';
+      if (!d.fullName || d.fullName.trim() === '') return `Vui lòng nhập họ tên cho ${isAdult ? 'người lớn' : pi.type === 'CHILD' ? 'trẻ em' : 'em bé'} ${idx + 1}.`;
+      if (!d.dateOfBirth || !/^\d{2}\/\d{2}\/\d{4}$/.test(d.dateOfBirth)) return `Ngày sinh hành khách ${idx + 1} không hợp lệ. Vui lòng nhập định dạng DD/MM/YYYY.`;
+      if (!d.gender) return `Vui lòng chọn giới tính cho hành khách ${idx + 1}.`;
+
+      if (isAdult) {
+        if (!d.email || !/^\S+@\S+\.\S+$/.test(d.email)) return `Email của người lớn không hợp lệ.`;
+        if (!d.phone || !/^\d{9,10}$/.test(d.phone.replace(/\D/g, ''))) return `SĐT người lớn không hợp lệ.`;
+        if (!d.idNumber) return `Vui lòng nhập CCCD/Hộ chiếu cho người lớn.`;
+      }
     }
     return null;
   };
@@ -413,7 +444,7 @@ const BusTickets = () => {
   const calculateTotalBeforeDiscount = () => {
     if (!selectedTrip) return 0;
     const seatsTotal = seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s.seatType), 0);
-    const extraTotal = services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum,s)=>sum+(s.price||0),0);
+    const extraTotal = services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum, s) => sum + (s.price || 0), 0);
     return seatsTotal + extraTotal;
   };
 
@@ -484,9 +515,9 @@ const BusTickets = () => {
       setBookingResult(data);
       if (globalContact.remember) {
         passengerInfoList.forEach(pi => {
-           if (pi.type === 'ADULT' && pi.data.fullName) {
-               addPassenger({ ...pi.data, passengerType: 'ADULT' }).catch(() => {});
-           }
+          if (pi.type === 'ADULT' && pi.data.fullName) {
+            addPassenger({ ...pi.data, passengerType: 'ADULT' }).catch(() => { });
+          }
         });
       }
     } catch (err) {
@@ -562,7 +593,7 @@ const BusTickets = () => {
             >
               <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr 1fr auto", gap: 12, alignItems: "start" }}>
 
-             
+
                 <div style={{ position: "relative" }}>
                   <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><TbBus /> {t.from}</label>
                   <div
@@ -600,7 +631,7 @@ const BusTickets = () => {
                   )}
                 </div>
 
-          
+
                 <button type="button"
                   onClick={() => { const t2 = from; setFrom(to); setTo(t2); }}
                   style={{
@@ -613,7 +644,7 @@ const BusTickets = () => {
                   title={t.swapDestinations}
                 >⇄</button>
 
-             
+
                 <div style={{ position: "relative" }}>
                   <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><TbBus /> {t.to}</label>
                   <div
@@ -651,7 +682,7 @@ const BusTickets = () => {
                   )}
                 </div>
 
-          
+
                 <div>
                   <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaRegCalendarAlt /> {t.departureDate}</label>
                   <input type="date" value={date}
@@ -670,27 +701,29 @@ const BusTickets = () => {
                   <div style={{ position: "relative", marginBottom: 10 }}>
                     <div
                       onClick={() => setShowPassengersDropdown(!showPassengersDropdown)}
-                      style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "2px solid var(--border-main)",
-                        background: "var(--bg-card)", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", boxSizing: "border-box" }}
+                      style={{
+                        width: "100%", padding: "10px 14px", borderRadius: 10, border: "2px solid var(--border-main)",
+                        background: "var(--bg-card)", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", boxSizing: "border-box"
+                      }}
                     >
                       <span>{passengerCounts.adult} {t.adult || 'Người lớn'}, {passengerCounts.child} {t.child || 'Trẻ em'}, {passengerCounts.infant} {t.infant || 'Em bé'}</span>
                       <FiChevronDown />
                     </div>
                     {showPassengersDropdown && (
                       <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: 12, boxShadow: "var(--shadow-lg)", zIndex: 100, padding: 16, marginTop: 4 }}>
-                         {['adult', 'child', 'infant'].map(type => (
-                           <div key={type} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                             <div>
-                               <div style={{ fontWeight: 600 }}>{type === 'adult' ? t.adult || 'Người lớn' : type === 'child' ? t.child || 'Trẻ em' : t.infant || 'Em bé'}</div>
-                               <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{type === 'adult' ? '>12 tuổi' : type === 'child' ? '2-11 tuổi' : '<2 tuổi'}</div>
-                             </div>
-                             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                               <button type="button" disabled={passengerCounts[type] <= (type === 'adult' ? 1 : 0)} onClick={() => setPassengerCounts(p => ({...p, [type]: p[type] - 1}))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
-                               <span style={{ fontWeight: 600, width: 16, textAlign: "center" }}>{passengerCounts[type]}</span>
-                               <button type="button" disabled={passengerCounts.adult + passengerCounts.child + passengerCounts.infant >= 5} onClick={() => setPassengerCounts(p => ({...p, [type]: p[type] + 1}))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
-                             </div>
-                           </div>
-                         ))}
+                        {['adult', 'child', 'infant'].map(type => (
+                          <div key={type} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                            <div>
+                              <div style={{ fontWeight: 600 }}>{type === 'adult' ? t.adult || 'Người lớn' : type === 'child' ? t.child || 'Trẻ em' : t.infant || 'Em bé'}</div>
+                              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{type === 'adult' ? '>12 tuổi' : type === 'child' ? '2-11 tuổi' : '<2 tuổi'}</div>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              <button type="button" disabled={passengerCounts[type] <= (type === 'adult' ? 1 : 0)} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] - 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
+                              <span style={{ fontWeight: 600, width: 16, textAlign: "center" }}>{passengerCounts[type]}</span>
+                              <button type="button" disabled={passengerCounts.adult + passengerCounts.child + passengerCounts.infant >= 5} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] + 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -844,14 +877,14 @@ const BusTickets = () => {
               </div>
             )}
 
-          
+
             {["seatClass", "passenger", "extras", "review"].includes(step) && (
               <div style={{ marginBottom: 20, background: "var(--bg-card)", borderRadius: 12, padding: "16px 24px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
-              
+
                   <div style={{ position: "absolute", top: 20, left: "10%", right: "10%", height: 3, background: "#e0e7ff", zIndex: 0 }} />
                   {[
-                    { key: "seatClass", icon: <FaChair/>, label: t.step1Title },
+                    { key: "seatClass", icon: <FaChair />, label: t.step1Title },
                     { key: "passenger", icon: <FaUser />, label: t.step2Title },
                     { key: "extras", icon: <FaConciergeBell />, label: t.step3Title },
                     { key: "review", icon: <FaCreditCard />, label: t.step4Title },
@@ -922,11 +955,11 @@ const BusTickets = () => {
                     const rightCols = cols.slice(half);
 
                     return (
-                      <div style={{ 
-                        overflowX: "auto", 
-                        background: "#fafafa", 
-                        padding: "30px", 
-                        borderRadius: "24px", 
+                      <div style={{
+                        overflowX: "auto",
+                        background: "#fafafa",
+                        padding: "30px",
+                        borderRadius: "24px",
                         border: "3px solid #ccc",
                         position: "relative",
                         minWidth: "fit-content",
@@ -935,7 +968,7 @@ const BusTickets = () => {
                         <div style={{ textAlign: "center", marginBottom: 20, color: "var(--text-muted)", fontSize: 24 }}>Đầu xe</div>
                         <div style={{ display: "flex", gap: 16, marginBottom: 8, paddingLeft: 48, justifyContent: "center" }}>
                           {leftCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-muted)", fontSize: 12 }}>{c}</div>)}
-                          <div style={{ width: 40 }} /> 
+                          <div style={{ width: 40 }} />
                           {rightCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-muted)", fontSize: 12 }}>{c}</div>)}
                         </div>
                         {rows.map(row => (
@@ -945,19 +978,21 @@ const BusTickets = () => {
                               const s = smap.get(`${row}${col}`);
                               if (!s) return <div key={col} style={{ width: 44, height: 60 }} />;
                               const sel = selectedSeatIds.includes(s.id);
+                              const isLockedByOthers = s.tempLockedBy && s.tempLockedBy !== user?.email;
                               const isSleeper = s.seatType === "SLEEPER" || s.seatType === "BUSINESS";
                               return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked}
-                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : ""}`}
+                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked || isLockedByOthers}
+                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
                                   style={{
-                                    width: 44, height: isSleeper ? 64 : 44, borderRadius: isSleeper ? "8px" : "12px", border: "none", cursor: s.booked ? "not-allowed" : "pointer",
-                                    background: s.booked ? "#e0e0e0" : sel ? "#f59e0b" : (s.seatType === "BUSINESS" || s.seatType === "VIP" || isSleeper ? "#bfdbfe" : false ? "#fef08a" : "#bbf7d0"),
-                                    color: s.booked ? "#aaa" : sel ? "#fff" : "#444", fontWeight: 700, fontSize: 12,
+                                    width: 44, height: isSleeper ? 64 : 44, borderRadius: isSleeper ? "8px" : "12px", border: "none",
+                                    cursor: (s.booked || isLockedByOthers) ? "not-allowed" : "pointer",
+                                    background: s.booked ? "#e0e0e0" : isLockedByOthers ? "#fecaca" : sel ? "#f59e0b" : (s.seatType === "BUSINESS" || s.seatType === "VIP" || isSleeper ? "#bfdbfe" : "#bbf7d0"),
+                                    color: (s.booked || isLockedByOthers) ? "#aaa" : sel ? "#fff" : "#444", fontWeight: 700, fontSize: 12,
                                     boxShadow: sel ? "0 4px 10px rgba(245, 158, 11, 0.4)" : "0 2px 4px rgba(0,0,0,0.1)",
                                     transition: "all 0.2s"
                                   }}>
-                                  {isSleeper && !s.booked && !sel && <div style={{fontSize: 10, marginBottom: 2}}>🛏️</div>}
-                                  <div>{s.booked ? "✗" : s.seatNumber}</div>
+                                  {isSleeper && !s.booked && !sel && !isLockedByOthers && <div style={{ fontSize: 10, marginBottom: 2 }}>🛏️</div>}
+                                  <div>{s.booked ? "✗" : isLockedByOthers ? "🔒" : s.seatNumber}</div>
                                 </button>
                               );
                             })}
@@ -966,29 +1001,32 @@ const BusTickets = () => {
                               const s = smap.get(`${row}${col}`);
                               if (!s) return <div key={col} style={{ width: 44, height: 60 }} />;
                               const sel = selectedSeatIds.includes(s.id);
+                              const isLockedByOthers = s.tempLockedBy && s.tempLockedBy !== user?.email;
                               const isSleeper = s.seatType === "SLEEPER" || s.seatType === "BUSINESS";
                               return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked}
-                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : ""}`}
+                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked || isLockedByOthers}
+                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
                                   style={{
-                                    width: 44, height: isSleeper ? 64 : 44, borderRadius: isSleeper ? "8px" : "12px", border: "none", cursor: s.booked ? "not-allowed" : "pointer",
-                                    background: s.booked ? "#e0e0e0" : sel ? "#f59e0b" : (s.seatType === "BUSINESS" || s.seatType === "VIP" || isSleeper ? "#bfdbfe" : false ? "#fef08a" : "#bbf7d0"),
-                                    color: s.booked ? "#aaa" : sel ? "#fff" : "#444", fontWeight: 700, fontSize: 12,
+                                    width: 44, height: isSleeper ? 64 : 44, borderRadius: isSleeper ? "8px" : "12px", border: "none",
+                                    cursor: (s.booked || isLockedByOthers) ? "not-allowed" : "pointer",
+                                    background: s.booked ? "#e0e0e0" : isLockedByOthers ? "#fecaca" : sel ? "#f59e0b" : (s.seatType === "BUSINESS" || s.seatType === "VIP" || isSleeper ? "#bfdbfe" : "#bbf7d0"),
+                                    color: (s.booked || isLockedByOthers) ? "#aaa" : sel ? "#fff" : "#444", fontWeight: 700, fontSize: 12,
                                     boxShadow: sel ? "0 4px 10px rgba(245, 158, 11, 0.4)" : "0 2px 4px rgba(0,0,0,0.1)",
                                     transition: "all 0.2s"
                                   }}>
-                                  {isSleeper && !s.booked && !sel && <div style={{fontSize: 10, marginBottom: 2}}>🛏️</div>}
-                                  <div>{s.booked ? "✗" : s.seatNumber}</div>
+                                  {isSleeper && !s.booked && !sel && !isLockedByOthers && <div style={{ fontSize: 10, marginBottom: 2 }}>🛏️</div>}
+                                  <div>{s.booked ? "✗" : isLockedByOthers ? "🔒" : s.seatNumber}</div>
                                 </button>
                               );
                             })}
                           </div>
                         ))}
                         <div style={{ display: "flex", gap: 16, marginTop: 24, fontSize: 12, color: "var(--text-secondary)", justifyContent: "center", flexWrap: "wrap" }}>
-                          <span style={{display: "flex", alignItems: "center", gap: 4}}><span style={{ display: "inline-block", width: 14, height: 14, background: "#dcfce7", borderRadius: 3 }} />Ghế thường</span>
-                          <span style={{display: "flex", alignItems: "center", gap: 4}}><span style={{ display: "inline-block", width: 14, height: 14, background: "#fef08a", borderRadius: 3 }} />Giường nằm</span>
-                          <span style={{display: "flex", alignItems: "center", gap: 4}}><span style={{ display: "inline-block", width: 14, height: 14, background: "#f59e0b", borderRadius: 3 }} />Đang chọn</span>
-                          <span style={{display: "flex", alignItems: "center", gap: 4}}><span style={{ display: "inline-block", width: 14, height: 14, background: "#e0e0e0", borderRadius: 3 }} />Bị đặt</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ display: "inline-block", width: 14, height: 14, background: "#dcfce7", borderRadius: 3 }} />Ghế thường</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ display: "inline-block", width: 14, height: 14, background: "#fef08a", borderRadius: 3 }} />Giường nằm</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ display: "inline-block", width: 14, height: 14, background: "#f59e0b", borderRadius: 3 }} />Đang chọn</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ display: "inline-block", width: 14, height: 14, background: "#fecaca", borderRadius: 3 }} />Người khác đang chọn</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ display: "inline-block", width: 14, height: 14, background: "#e0e0e0", borderRadius: 3 }} />Bị đặt</span>
                         </div>
                       </div>
                     );
@@ -1009,7 +1047,7 @@ const BusTickets = () => {
                     <div><b>{selectedTrip.origin}</b> → <b>{selectedTrip.destination}</b></div>
                     <div style={{ color: "var(--text-muted)", marginBottom: 6 }}>{selectedTrip.departureTime}</div>
                     <div style={{ background: "var(--bg-main)", padding: 10, borderRadius: 8 }}>
-                      <div style={{ marginBottom: 4 }}>Ghế: <b style={{color: "var(--primary)"}}>{selectedSeatIds.length === 0 ? "Chưa chọn" : seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ")}</b></div>
+                      <div style={{ marginBottom: 4 }}>Ghế: <b style={{ color: "var(--primary)" }}>{selectedSeatIds.length === 0 ? "Chưa chọn" : seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ")}</b></div>
                       <div style={{ fontWeight: 700, color: "#ff6b00", fontSize: 15 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ / ghế</div>
                     </div>
                   </div>
@@ -1026,22 +1064,22 @@ const BusTickets = () => {
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {passengerInfoList.map((pi, idx) => (
                       <PassengerInfoForm
-                         key={idx}
-                         type={pi.type}
-                         index={idx}
-                         data={pi.data}
-                         onChange={handlePassengerChange}
-                         savedPassengers={savedPassengers}
-                         onSelectSaved={(i, t, p) => handlePassengerChange(i, t, {
-                            ...p, 
-                            fullName: p.fullName || "", 
-                            phone: p.phone || "",
-                            email: p.email || "",
-                            idNumber: p.idNumber || "",
-                            dateOfBirth: p.dateOfBirth || "",
-                            gender: p.gender || "",
-                            nationality: p.nationality || "Việt Nam"
-                         })}
+                        key={idx}
+                        type={pi.type}
+                        index={idx}
+                        data={pi.data}
+                        onChange={handlePassengerChange}
+                        savedPassengers={savedPassengers}
+                        onSelectSaved={(i, t, p) => handlePassengerChange(i, t, {
+                          ...p,
+                          fullName: p.fullName || "",
+                          phone: p.phone || "",
+                          email: p.email || "",
+                          idNumber: p.idNumber || "",
+                          dateOfBirth: p.dateOfBirth || "",
+                          gender: p.gender || "",
+                          nationality: p.nationality || "Việt Nam"
+                        })}
                       />
                     ))}
                   </div>
@@ -1070,14 +1108,14 @@ const BusTickets = () => {
                     <div><b>{selectedTrip.origin}</b> → <b>{selectedTrip.destination}</b></div>
                     <div style={{ color: "var(--text-muted)", marginBottom: 6 }}>{selectedTrip.departureTime}</div>
                     <div style={{ background: "var(--bg-main)", padding: 10, borderRadius: 8 }}>
-                      <div style={{ marginBottom: 4 }}>Ghế: <b style={{color: "var(--primary)"}}>{selectedSeatIds.length === 0 ? "Chưa chọn" : seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ")}</b></div>
+                      <div style={{ marginBottom: 4 }}>Ghế: <b style={{ color: "var(--primary)" }}>{selectedSeatIds.length === 0 ? "Chưa chọn" : seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ")}</b></div>
                       <div style={{ fontWeight: 700, color: "#ff6b00", fontSize: 15 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ / ghế</div>
                     </div>
                   </div>
                 </div>
               </div>
             )}
-{selectedTrip && step === "extras" && (
+            {selectedTrip && step === "extras" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-md)" }}>
                   <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{t.step3}</h2>
@@ -1087,7 +1125,7 @@ const BusTickets = () => {
 
                   {!servicesLoading && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        
+
                       <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, background: "var(--bg-input)" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                           <span style={{ fontSize: 24 }}>🧳</span>
@@ -1119,7 +1157,7 @@ const BusTickets = () => {
                         </div>
                       </div>
 
-                
+
                       <div style={{ border: "1px solid #fef3c7", borderRadius: 12, padding: 16, background: "var(--bg-input)" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                           <span style={{ fontSize: 24 }}>🍱</span>
@@ -1195,7 +1233,7 @@ const BusTickets = () => {
                   </div>
                 </div>
 
-      
+
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-md)", height: "fit-content" }}>
                   <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid #eee", paddingBottom: 10 }}>{t.totalCost}</div>
                   <div style={{ fontSize: 13, lineHeight: 2 }}>
@@ -1218,7 +1256,7 @@ const BusTickets = () => {
                   <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{t.step4}</h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{t.reviewInstruction}</p>
 
-      
+
                   <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
                     <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--primary)" }}>Chuyến bay</div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1234,7 +1272,7 @@ const BusTickets = () => {
                     <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--primary)" }}><FaUser /> Hành khách</div>
                     {passengerInfoList.map((pi, idx) => (
                       <div key={idx} style={{ fontSize: 13, marginBottom: 8, paddingBottom: 8, borderBottom: idx < passengerInfoList.length - 1 ? "1px dashed #ccc" : "none" }}>
-                        <b>{pi.data.fullName || `Hành khách ${idx+1}`}</b> ({pi.type === 'ADULT' ? 'Người lớn' : pi.type === 'CHILD' ? 'Trẻ em' : 'Em bé'})
+                        <b>{pi.data.fullName || `Hành khách ${idx + 1}`}</b> ({pi.type === 'ADULT' ? 'Người lớn' : pi.type === 'CHILD' ? 'Trẻ em' : 'Em bé'})
                         {pi.type === 'ADULT' && <div style={{ color: "var(--text-muted)", marginTop: 2 }}>{pi.data.email} · {pi.data.phone ? `${pi.data.phone}` : ''}</div>}
                         <div style={{ marginTop: 2 }}>Ngày sinh: {pi.data.dateOfBirth} | Giới tính: {pi.data.gender === 'Male' ? 'Nam' : pi.data.gender === 'Female' ? 'Nữ' : 'Khác'}</div>
                       </div>
@@ -1242,7 +1280,7 @@ const BusTickets = () => {
                     <div style={{ marginTop: 4 }}>Ghế: <b>{seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ") || "Chưa chọn"}</b></div>
                   </div>
 
-         
+
                   {selectedServiceIds.length > 0 && (
                     <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
                       <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--primary)" }}>🛎 Dịch vụ bổ sung</div>
@@ -1306,7 +1344,7 @@ const BusTickets = () => {
                     {appliedVoucher && <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", marginTop: 4 }}><span>Mã: {appliedVoucher}</span><span>-{voucherDiscount.toLocaleString("vi-VN")} đ</span></div>}
                     <div style={{ borderTop: "1px solid var(--border-light)", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 16, color: "#ff6b00" }}>
                       <span>Tổng cộng</span>
-                      <span>{Math.max(0, seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s.seatType), 0) + services.filter(s=>selectedServiceIds.includes(s.id)).reduce((sum,s)=>sum+(s.price||0),0) - voucherDiscount).toLocaleString("vi-VN")} đ</span>
+                      <span>{Math.max(0, seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s.seatType), 0) + services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum, s) => sum + (s.price || 0), 0) - voucherDiscount).toLocaleString("vi-VN")} đ</span>
                     </div>
                   </div>
                 </div>

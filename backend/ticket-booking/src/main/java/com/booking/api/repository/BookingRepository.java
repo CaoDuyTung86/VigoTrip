@@ -19,4 +19,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("SELECT SUM(b.totalPrice) FROM Booking b JOIN b.tickets t WHERE t.trip.vehicle.provider.id = :providerId AND b.status IN ('CONFIRMED', 'PAID', 'COMPLETED')")
     Double calculateTotalRevenueByProvider(@Param("providerId") Long providerId);
+
+    boolean existsByUserIdAndVoucherCodeAndStatusNot(Long userId, String voucherCode, String status);
+
+    @Query("SELECT b FROM Booking b WHERE b.isCheckedIn = true ORDER BY b.checkInDate DESC")
+    List<Booking> findRecentCheckInsAdmin(org.springframework.data.domain.Pageable pageable);
 }

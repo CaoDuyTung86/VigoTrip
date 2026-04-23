@@ -4,9 +4,12 @@ const translations = {
   vi: {
     // Header
     app: "Ứng dụng",
+    heroTitle: "Khám phá thế giới cùng Datxe.com",
+    heroTagline: "Đặt vé máy bay, tàu hỏa, xe khách & tour du lịch với giá tốt nhất",
     search: "Tìm kiếm",
     support: "CSKH",
     login: "Đăng nhập/Đăng ký",
+    checkInQR: "Quét vé (Check-in)",
 
     // Auth Modal
     authTitle: "Đăng nhập / Đăng ký",
@@ -42,18 +45,12 @@ const translations = {
     passwordInvalid: "Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ cái, chữ số và ký hiệu",
     registerSuccess: "Đăng ký tài khoản {email} thành công!",
 
-    // Booking Tabs
+    // Booking Tabs & Sidebar
     flight: "Vé máy bay",
     train: "Vé tàu hỏa",
     bus: "Xe khách",
     package: "Đặt theo gói",
     bookingContent: "Nội dung đặt vé cho:",
-
-    // Sidebar
-    flight: "Vé máy bay",
-    train: "Vé tàu hỏa",
-    bus: "Xe khách",
-    package: "Đặt theo gói",
 
     // Flight Search
     roundTrip: "Khứ hồi",
@@ -79,7 +76,6 @@ const translations = {
     business: "Thương gia",
     first: "Hạng nhất",
     apply: "Áp dụng",
-    search: "Tìm kiếm",
     anywhere: "Mọi nơi",
     addFlight: "Thêm chuyến bay khác",
 
@@ -133,7 +129,6 @@ const translations = {
     news: "Tin Tức",
     careers: "Tuyển dụng",
     termsConditions: "Điều Khoản & Điều Kiện",
-    privacyPolicy: "Tuyên bố quyền riêng tư",
     aboutGroup: "Giới Thiệu Về Tập Đoàn Datxe.com",
     otherServices: "Các Dịch Vụ Khác",
     investorRelations: "Quan Hệ Đầu Tư",
@@ -146,24 +141,13 @@ const translations = {
     copyright: "Bản quyền © 2025 Datxe.com Travel VietNam Pte. Ltd. Bảo lưu mọi quyền. Nhà điều hành trang: Datxe.com Travel VietNam Pte. Ltd.",
 
 
-    // PACKAGE SEARCH 
-    package: "Đặt theo gói",
-    roundTrip: "Khứ hồi",
-    oneWay: "Một chiều",
-    from: "Từ",
-    to: "Đến",
-    search: "Tìm kiếm",
-    apply: "Áp dụng",
-    departureDate: "Chiều đi",
-    returnDate: "Chiều về",
+    // PACKAGE SEARCH (Uses shared keys: roundTrip, oneWay, from, to, search, apply, departureDate, returnDate)
     hotel: "Khách sạn",
     hotelDestination: "Điểm đến",
     checkin: "Nhận phòng",
     checkout: "Trả phòng",
     nights: "đêm",
     rooms: " Số phòng",
-    adult: "Người lớn",
-    child: "Trẻ em",
 
     // Search Forms
     selectAirport: "Chọn sân bay",
@@ -226,7 +210,7 @@ const translations = {
     // Extra Strings
     adminTrips: "Admin Trips",
     adminReviews: "Quản lý đánh giá",
-    providerReviews: "Đánh giá (Provider)",
+    providerReviews: "Đánh giá",
     revenue: "Doanh thu",
     refunds: "Hoàn tiền",
     account: "Tài khoản",
@@ -315,9 +299,12 @@ const translations = {
   en: {
     // Header
     app: "App",
+    heroTitle: "Explore the world with Datxe.com",
+    heroTagline: "Book flights, trains, buses & tours at the best prices",
     search: "Search",
     support: "Support",
     login: "Login/Register",
+    checkInQR: "Scan Ticket (Check-in)",
 
     // Auth Modal
     authTitle: "Login / Register",
@@ -353,18 +340,12 @@ const translations = {
     passwordInvalid: "Password must be at least 8 characters, including letters, numbers and symbols",
     registerSuccess: "Account {email} registered successfully!",
 
-    // Booking Tabs
+    // Booking Tabs & Sidebar
     flight: "Flight Tickets",
     train: "Train Tickets",
     bus: "Bus Tickets",
     package: "Package Booking",
     bookingContent: "Booking content for:",
-
-    // Sidebar
-    flight: "Flight Tickets",
-    train: "Train Tickets",
-    bus: "Bus Tickets",
-    package: "Package Booking",
 
     // Flight Search
     roundTrip: "Round trip",
@@ -391,7 +372,6 @@ const translations = {
     first: "First class",
     apply: "Apply",
     flightHotel: "Flight + Hotel",
-    search: "Search",
     anywhere: "Anywhere",
     addFlight: "Add another flight",
 
@@ -445,7 +425,6 @@ const translations = {
     news: "News",
     careers: "Careers",
     termsConditions: "Terms & Conditions",
-    privacyPolicy: "Privacy Policy",
     aboutGroup: "About Datxe.com Group",
     otherServices: "Other Services",
     investorRelations: "Investor Relations",
@@ -457,24 +436,13 @@ const translations = {
     ourPartners: "Our Partners",
     copyright: "Copyright © 2025 Datxe.com Travel VietNam Pte. Ltd. All rights reserved. Operator: Datxe.com Travel VietNam Pte. Ltd.",
 
-    // Package Search
-    search: "Search",
-    apply: "Apply",
-    package: "Package Booking",
-    roundTrip: "Round trip",
-    oneWay: "One way",
-    from: "From",
-    to: "To",
-    departureDate: "Departure",
-    returnDate: "Return",
+    // Package Search (Uses shared keys: search, apply, package, roundTrip, oneWay, from, to, departureDate, returnDate)
     hotel: "Hotel",
     hotelDestination: "Destination",
     checkin: "Check-in",
     checkout: "Check-out",
     nights: "nights",
     rooms: "rooms",
-    adult: "Adults",
-    child: "Children",
 
     // Search Forms
     selectAirport: "Select airport",
@@ -626,9 +594,12 @@ const translations = {
   ja: {
     // Header
     app: "アプリ",
+    heroTitle: "Datxe.comで世界を探索しよう",
+    heroTagline: "航空券、列車、バス、ツアーを最安値で予約",
     search: "検索",
     support: "サポート",
     login: "ログイン/登録",
+    checkInQR: "チケットスキャン",
 
     // Auth Modal
     authTitle: "ログイン / 登録",
@@ -664,18 +635,12 @@ const translations = {
     passwordInvalid: "パスワードは8文字以上で、文字、数字、記号を含む必要があります",
     registerSuccess: "アカウント {email} が正常に登録されました",
 
-    // Booking Tabs
+    // Booking Tabs & Sidebar
     flight: "航空券",
     train: "鉄道チケット",
     bus: "バスチケット",
     package: "パッケージ予約",
     bookingContent: "予約内容:",
-
-    // Sidebar
-    flight: "航空券",
-    train: "鉄道チケット",
-    bus: "バスチケット",
-    package: "パッケージ予約",
 
     // Flight Search
     roundTrip: "往復",
@@ -702,7 +667,6 @@ const translations = {
     first: "ファースト",
     apply: "適用",
     flightHotel: "飛行機 + ホテル",
-    search: "検索",
     anywhere: "どこでも",
     addFlight: "別のフライトを追加",
 
@@ -756,7 +720,6 @@ const translations = {
     news: "ニュース",
     careers: "採用情報",
     termsConditions: "利用規約",
-    privacyPolicy: "プライバシーポリシー",
     aboutGroup: "Datxe.comグループについて",
     otherServices: "その他のサービス",
     investorRelations: "投資家情報",
@@ -768,24 +731,13 @@ const translations = {
     ourPartners: "パートナー",
     copyright: "著作権 © 2025 Datxe.com Travel VietNam Pte. Ltd. 全著作権所有。運営会社: Datxe.com Travel VietNam Pte. Ltd.",
 
-    // Package Search
-    search: "検索",
-    apply: "適用",
-    package: "パッケージ予約",
-    roundTrip: "往復",
-    oneWay: "片道",
-    from: "出発",
-    to: "到着",
-    departureDate: "出発日",
-    returnDate: "帰国日",
+    // Package Search (Shared keys: search, apply, package, roundTrip, oneWay, from, to, departureDate, returnDate)
     hotel: "ホテル",
     hotelDestination: "目的地",
     checkin: "チェックイン",
     checkout: "チェックアウト",
     nights: "泊",
     rooms: "部屋",
-    adult: "大人",
-    child: "子供",
 
     // Search Forms
     selectAirport: "空港を選択",
@@ -935,9 +887,12 @@ const translations = {
   zh: {
     // Header
     app: "應用程式",
+    heroTitle: "与 Datxe.com 一起探索世界",
+    heroTagline: "以最优惠的价格预订机票、火车、巴士和旅游",
     search: "搜尋",
     support: "客服",
-    login: "登入/註冊",
+    login: "登录/注册",
+    checkInQR: "扫描门票",
 
     // Auth Modal
     authTitle: "登入 / 註冊",
@@ -973,18 +928,12 @@ const translations = {
     passwordInvalid: "密碼必須至少8個字符，包含字母、數字和符號",
     registerSuccess: "帳戶 {email} 註冊成功！",
 
-    // Booking Tabs
+    // Booking Tabs & Sidebar
     flight: "機票",
     train: "火車票",
     bus: "巴士票",
     package: "套裝預訂",
     bookingContent: "預訂內容:",
-
-    // Sidebar
-    flight: "機票",
-    train: "火車票",
-    bus: "巴士票",
-    package: "套裝預訂",
 
     // Flight Search
     roundTrip: "往返",
@@ -1011,7 +960,6 @@ const translations = {
     first: "頭等艙",
     apply: "套用",
     flightHotel: "機票 + 酒店",
-    search: "搜尋",
     anywhere: "任何地方",
     addFlight: "添加其他航班",
 
@@ -1065,7 +1013,6 @@ const translations = {
     news: "新聞",
     careers: "招聘",
     termsConditions: "條款與條件",
-    privacyPolicy: "隱私政策",
     aboutGroup: "關於Datxe.com集團",
     otherServices: "其他服務",
     investorRelations: "投資者關係",
@@ -1078,25 +1025,13 @@ const translations = {
     copyright: "版權所有 © 2025 Datxe.com Travel VietNam Pte. Ltd. 保留所有權利。運營商：Datxe.com Travel VietNam Pte. Ltd.",
 
 
-    //Package Search
-
-    search: "搜尋",
-    apply: "套用",
-    package: "套裝預訂",
-    roundTrip: "往返",
-    oneWay: "單程",
-    from: "出發地",
-    to: "目的地",
-    departureDate: "出發日期",
-    returnDate: "回程日期",
+    //Package Search (Shared keys: search, apply, package, roundTrip, oneWay, from, to, departureDate, returnDate)
     hotel: "酒店",
     hotelDestination: "目的地",
     checkin: "入住",
     checkout: "退房",
     nights: "晚",
     rooms: "房間",
-    adult: "成人",
-    child: "兒童",
 
     // Search Forms
     selectAirport: "选择机场",

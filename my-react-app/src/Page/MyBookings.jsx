@@ -5,7 +5,8 @@ import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import { useLanguage } from "../context/LanguageContext";
 import { TbTrain, TbBus } from "react-icons/tb";
-import { FaRegStar, FaPlane } from "react-icons/fa";
+import { FaRegStar, FaPlane, FaQrcode } from "react-icons/fa";
+import { QRCodeCanvas } from "qrcode.react";
 
 const MyBookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -19,8 +20,8 @@ const MyBookings = () => {
 
 
   const [cancelModal, setCancelModal] = useState({ show: false, booking: null, loading: false, error: null, reason: "", success: false });
-
   const [reviewModal, setReviewModal] = useState({ show: false, booking: null, rating: 0, hovered: 0, comment: "", loading: false, error: null, success: false });
+  const [qrModal, setQrModal] = useState({ show: false, booking: null });
 
 
   const fetchBookings = async () => {
@@ -249,6 +250,15 @@ const MyBookings = () => {
                         </div>
 
                         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                          {(bk.status === "PAID" || bk.status === "CONFIRMED") && (
+                            <button
+                              onClick={() => setQrModal({ show: true, booking: bk })}
+                              style={{ padding: "8px 16px", borderRadius: 6, border: "1px solid var(--primary)", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, transition: "0.2s", display: "flex", alignItems: "center", gap: 6 }}
+                            >
+                              <FaQrcode /> Mã vé QR
+                            </button>
+                          )}
+
                           {bk.status === "CONFIRMED" && (
                             <button
                               onClick={async () => {
@@ -516,6 +526,53 @@ const MyBookings = () => {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Mã vé QR */}
+      {qrModal.show && qrModal.booking && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1100, padding: 20 }}>
+          <div style={{ background: "var(--bg-card)", padding: 32, borderRadius: 20, width: "100%", maxWidth: 400, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", textAlign: "center", position: "relative" }}>
+            <button 
+              onClick={() => setQrModal({ show: false, booking: null })}
+              style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--text-muted)" }}
+            >
+              ×
+            </button>
+            <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8, color: "var(--text-heading)" }}>Mã vé của bạn</h3>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 24 }}>
+              Xuất trình mã này tại quầy để làm thủ tục check-in.
+            </p>
+            
+            <div style={{ background: "#fff", padding: 20, borderRadius: 16, display: "inline-block", boxShadow: "0 4px 12px rgba(0,0,0,0.05)", marginBottom: 24 }}>
+              <QRCodeCanvas 
+                value={JSON.stringify({
+                  bookingId: qrModal.booking.id,
+                  type: qrModal.booking.vehicleType,
+                  user: qrModal.booking.userEmail,
+                  code: `TICKET-${qrModal.booking.id}-${qrModal.booking.bookingDate}`
+                })}
+                size={220}
+                level="H"
+                includeMargin={true}
+              />
+            </div>
+
+            <div style={{ background: "var(--bg-input)", padding: 16, borderRadius: 12, textAlign: "left", marginBottom: 24 }}>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 4 }}>Mã đặt chỗ:</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 12 }}>#{qrModal.booking.id}</div>
+              
+              <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 4 }}>Hành trình:</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>{qrModal.booking.origin} → {qrModal.booking.destination}</div>
+            </div>
+
+            <button
+              onClick={() => setQrModal({ show: false, booking: null })}
+              style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 15 }}
+            >
+              Đóng
+            </button>
           </div>
         </div>
       )}
