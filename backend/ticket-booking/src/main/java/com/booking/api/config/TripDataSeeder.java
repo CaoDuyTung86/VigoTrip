@@ -196,7 +196,7 @@ public class TripDataSeeder {
             }
 
             // ── 4. Trips (30 ngày kể từ HÔM NAY) ──
-            Random rng = new Random(42);
+            java.security.SecureRandom rng = new java.security.SecureRandom();
 
             // Plane routes + config
             String[][] planeRoutes = {

@@ -19,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.util.Collections;
 
 @Service
@@ -29,6 +30,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private static final SecureRandom secureRandom = new SecureRandom();
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -45,7 +47,7 @@ public class AuthService {
         user.setEnabled(false); // Bắt buộc xác thực email
 
         // Tạo mã xác thực 6 số
-        String verificationCode = String.format("%06d", new java.util.Random().nextInt(1000000));
+        String verificationCode = String.format("%06d", secureRandom.nextInt(1000000));
         user.setVerificationCode(verificationCode);
 
         userRepository.save(user);
@@ -122,7 +124,7 @@ public class AuthService {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng với email: " + request.getEmail()));
         
         // Tạo mã OTP 6 số
-        String otpCode = String.format("%06d", new java.util.Random().nextInt(1000000));
+        String otpCode = String.format("%06d", secureRandom.nextInt(1000000));
         
         user.setResetToken(otpCode);
         user.setResetTokenExpiry(java.time.LocalDateTime.now().plusMinutes(15));
