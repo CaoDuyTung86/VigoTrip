@@ -26,23 +26,41 @@ Tài liệu này tóm tắt các điểm mạnh kỹ thuật và tính năng đ�
 ---
 
 ## 🌟 3. Các Tính Năng Đột Phá (Key Features)
-1.  **Hệ thống QR Check-in:** Quét mã xác thực vé tại bến bằng Camera di động, hỗ trợ đa thiết bị, có lịch sử và chi tiết hành khách.
-2.  **Real-time Seat Sync:** Ngăn chặn việc đặt trùng ghế nhờ cơ chế đẩy dữ liệu thời gian thực qua WebSocket.
-3.  **AI Chatbot (RAG):** Tư vấn khách hàng thông minh bằng trí tuệ nhân tạo, hiểu ngữ cảnh và dữ liệu của dự án.
-4.  **Hệ thống Voucher & Khuyến mãi:** Cơ chế áp dụng mã giảm giá linh hoạt cho từng lộ trình.
-5.  **Multi-channel Notification:** Gửi thông báo xác nhận qua Email tự động.
+1.  **Hệ thống QR Check-in:** Quét mã xác thực vé tại bến bằng Camera di động, hỗ trợ đa thiết bị, tích hợp Modal xem chi tiết hành khách.
+2.  **Real-time Seat Sync:** Sử dụng WebSocket (STOMP) để khóa ghế tạm thời và đồng bộ trạng thái, đảm bảo tính toàn vẹn dữ liệu.
+3.  **AI Chatbot (RAG):** Sử dụng kỹ thuật Retrieval-Augmented Generation để AI hiểu được dữ liệu chuyến đi thực tế và tư vấn chính xác.
+4.  **Hệ thống Voucher & Khuyến mãi:** Logic áp dụng mã giảm giá phức tạp (theo loại phương tiện, giá tối thiểu).
+5.  **Multi-channel Notification:** Quy trình xác thực 2 lớp qua Email OTP.
 
 ---
 
-## 📊 4. Gợi Ý Các Số Liệu Đưa Vào Báo Cáo
-*   **Chất lượng Code:** Chụp màn hình Dashboard SonarQube để minh chứng cho việc code đạt chuẩn công nghiệp.
-*   **Hiệu năng:** Chụp biểu đồ Grafana để thấy hệ thống hoạt động ổn định dưới tải trọng giả lập.
-*   **Tính thực tế:** Ảnh chụp màn hình ứng dụng chạy trên Safari/Chrome của điện thoại (giao diện PWA).
+## 🏗️ 4. Kiến Trúc Hệ Thống (Architecture)
+*   **Mô hình:** Client-Server, Stateless REST API.
+*   **Security:** JWT Filter, Spring Security 6, Password Encoding (BCrypt).
+*   **Database Patterns:** DTO, Data Mapper (MapStruct), Repository Pattern, Service Layer.
+*   **Optimization:** Server-side Pagination giúp hệ thống chịu tải tốt với hàng triệu bản ghi.
 
 ---
 
-## 🤖 5. Hướng dẫn cho AI Assistant (Future Reference)
+## 🛡️ 5. Quản Lý Chất Lượng (Quality Assurance)
+*   **Static Code Analysis:** Sử dụng SonarQube để đảm bảo code sạch (Clean Code), không có lỗi bảo mật (Vulnerabilities) và lỗi tiềm tàng (Bugs).
+*   **Security Scanning:** Dùng Gitleaks để ngăn chặn việc lộ lọt thông tin nhạy cảm.
+*   **Unit Testing:** Xây dựng bộ test case bằng JUnit 5 & Mockito cho các nghiệp vụ lõi.
+*   **Monitoring:** Theo dõi sức khỏe hệ thống bằng Prometheus & Grafana (CPU, Heap Memory, Request Count).
+
+---
+
+## 📊 6. Gợi Ý Các Số Liệu Đưa Vào Báo Cáo
+*   **Chất lượng Code:** Chụp màn hình Dashboard SonarQube với điểm **Full A** để minh chứng cho độ chuyên nghiệp.
+*   **Hiệu năng:** Chụp biểu đồ Grafana khi hệ thống đang chạy.
+*   **Độ bao phủ:** Báo cáo tỉ lệ Unit Test Coverage (Target 80%).
+
+---
+
+## 🤖 7. Hướng dẫn cho AI Assistant (Future Reference)
 *Khi nhờ AI tư vấn viết báo cáo, hãy cung cấp file này và yêu cầu:*
+- "Dựa trên mục 3 và 5, hãy viết nội dung cho Chương 'Giải pháp và Thực thi'."
+- "Dựa trên mục 4, hãy vẽ biểu đồ tuần tự (Sequence Diagram) cho tính năng đặt vé."
 1.  "Dựa vào mục 2, hãy viết chương 'Quy trình đảm bảo chất lượng phần mềm' cho báo cáo."
 2.  "Dựa vào mục 3, hãy viết mô tả chi tiết luồng nghiệp vụ của tính năng QR Check-in."
 3.  "Hãy lập bảng so sánh ưu điểm của việc dùng Docker so với cài đặt phần mềm truyền thống cho dự án này."
