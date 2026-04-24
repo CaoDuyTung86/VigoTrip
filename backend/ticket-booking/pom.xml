@@ -29,6 +29,13 @@
 	<properties>
 		<java.version>17</java.version>
 		<mapstruct.version>1.6.3</mapstruct.version>
+		<sonar.exclusions>
+			**/target/**,
+			**/*MapperImpl.java,
+			**/com/booking/api/entity/**,
+			**/com/booking/api/dto/**,
+			**/com/booking/api/config/**
+		</sonar.exclusions>
 	</properties>
 	<dependencies>
 	<!-- Giám sát hệ thống (Actuator & Prometheus) -->
@@ -166,6 +173,25 @@
 						</exclude>
 					</excludes>
 				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.12</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

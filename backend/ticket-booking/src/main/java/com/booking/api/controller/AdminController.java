@@ -1,11 +1,13 @@
 package com.booking.api.controller;
 
+import com.booking.api.dto.AdminDTO.*;
 import com.booking.api.dto.ProviderRevenueDTO;
 import com.booking.api.dto.TripUpdateRequest;
 import com.booking.api.entity.Provider;
 import com.booking.api.entity.Route;
 import com.booking.api.entity.Trip;
 import com.booking.api.entity.Vehicle;
+import com.booking.api.mapper.AdminMapper;
 import com.booking.api.service.AdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ import java.util.Map;
 public class AdminController {
 
     private final AdminService adminService;
+    private final AdminMapper adminMapper;
 
     // ==================== ROUTE ====================
 
@@ -31,13 +34,13 @@ public class AdminController {
     }
 
     @PostMapping("/routes")
-    public ResponseEntity<Route> createRoute(@RequestBody Route route) {
-        return ResponseEntity.ok(adminService.createRoute(route));
+    public ResponseEntity<Route> createRoute(@RequestBody RouteRequest request) {
+        return ResponseEntity.ok(adminService.createRoute(adminMapper.toEntity(request)));
     }
 
     @PutMapping("/routes/{id}")
-    public ResponseEntity<Route> updateRoute(@PathVariable Long id, @RequestBody Route route) {
-        return ResponseEntity.ok(adminService.updateRoute(id, route));
+    public ResponseEntity<Route> updateRoute(@PathVariable Long id, @RequestBody RouteRequest request) {
+        return ResponseEntity.ok(adminService.updateRoute(id, adminMapper.toEntity(request)));
     }
 
     @DeleteMapping("/routes/{id}")
@@ -54,13 +57,13 @@ public class AdminController {
     }
 
     @PostMapping("/providers")
-    public ResponseEntity<Provider> createProvider(@RequestBody Provider provider) {
-        return ResponseEntity.ok(adminService.createProvider(provider));
+    public ResponseEntity<Provider> createProvider(@RequestBody ProviderRequest request) {
+        return ResponseEntity.ok(adminService.createProvider(adminMapper.toEntity(request)));
     }
 
     @PutMapping("/providers/{id}")
-    public ResponseEntity<Provider> updateProvider(@PathVariable Long id, @RequestBody Provider provider) {
-        return ResponseEntity.ok(adminService.updateProvider(id, provider));
+    public ResponseEntity<Provider> updateProvider(@PathVariable Long id, @RequestBody ProviderRequest request) {
+        return ResponseEntity.ok(adminService.updateProvider(id, adminMapper.toEntity(request)));
     }
 
     @DeleteMapping("/providers/{id}")
@@ -82,13 +85,13 @@ public class AdminController {
     }
 
     @PostMapping("/vehicles")
-    public ResponseEntity<Vehicle> createVehicle(@RequestBody Vehicle vehicle) {
-        return ResponseEntity.ok(adminService.createVehicle(vehicle));
+    public ResponseEntity<Vehicle> createVehicle(@RequestBody VehicleRequest request) {
+        return ResponseEntity.ok(adminService.createVehicle(adminMapper.toEntity(request)));
     }
 
     @PutMapping("/vehicles/{id}")
-    public ResponseEntity<Vehicle> updateVehicle(@PathVariable Long id, @RequestBody Vehicle vehicle) {
-        return ResponseEntity.ok(adminService.updateVehicle(id, vehicle));
+    public ResponseEntity<Vehicle> updateVehicle(@PathVariable Long id, @RequestBody VehicleRequest request) {
+        return ResponseEntity.ok(adminService.updateVehicle(id, adminMapper.toEntity(request)));
     }
 
     @DeleteMapping("/vehicles/{id}")
@@ -109,13 +112,13 @@ public class AdminController {
     }
 
     @PostMapping("/trips")
-    public ResponseEntity<Trip> createTrip(@RequestBody Trip trip) {
-        return ResponseEntity.ok(adminService.createTrip(trip));
+    public ResponseEntity<Trip> createTrip(@RequestBody TripRequest request) {
+        return ResponseEntity.ok(adminService.createTrip(adminMapper.toEntity(request)));
     }
 
     @PutMapping("/trips/{id}")
-    public ResponseEntity<Trip> updateTrip(@PathVariable Long id, @RequestBody Trip trip) {
-        return ResponseEntity.ok(adminService.updateTrip(id, trip));
+    public ResponseEntity<Trip> updateTrip(@PathVariable Long id, @RequestBody TripRequest request) {
+        return ResponseEntity.ok(adminService.updateTrip(id, adminMapper.toEntity(request)));
     }
 
     @PutMapping("/trips/{id}/price")
@@ -147,4 +150,3 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getProviderRevenue());
     }
 }
-

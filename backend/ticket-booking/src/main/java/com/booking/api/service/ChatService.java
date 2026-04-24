@@ -62,7 +62,7 @@ public class ChatService {
             String type = trip.getVehicle().getVehicleType();
             String provider = trip.getVehicle().getProvider() != null ? trip.getVehicle().getProvider()
                     .getProviderName() : "Không rõ";
-            contextBuilder.append(String.format("%s→%s | %s | %s | %s | %s VND\n",
+            contextBuilder.append(String.format("%s→%s | %s | %s | %s | %s VND%n",
                     origin, dest, provider, type, time, price));
         }
 
@@ -73,7 +73,7 @@ public class ChatService {
             if (userBookings != null && !userBookings.isEmpty()) {
                 bookingContext.append("\nDỮ LIỆU ĐƠN HÀNG CỦA KHÁCH (Dùng để trả lời khi khách hỏi vé của họ):\n");
                 for (Booking b : userBookings) {
-                    String status = b.getStatus() != null ? b.getStatus().toString() : "UNKNOWN";
+                    String status = b.getStatus() != null ? b.getStatus() : "UNKNOWN";
                     String bookingTime = b.getBookingDate() != null ? b.getBookingDate().format(fmt) : "N/A";
                     String tripOrigin = "N/A";
                     String tripDest = "N/A";
@@ -83,7 +83,7 @@ public class ChatService {
                         tripDest = b.getTickets().get(0).getTrip().getRoute().getDestination();
                     }
                     bookingContext.append(String.format(
-                            "- Mã đơn: %s | Tuyến: %s→%s | Ngày đặt: %s | Trạng thái: %s | Tổng tiền: %s VND\n",
+                            "- Mã đơn: %s | Tuyến: %s→%s | Ngày đặt: %s | Trạng thái: %s | Tổng tiền: %s VND%n",
                             b.getId(), tripOrigin, tripDest, bookingTime, status, df.format(b.getTotalPrice())));
                 }
             }

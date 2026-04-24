@@ -40,7 +40,7 @@ public interface BookingMapper {
             return null;
         return tickets.stream()
                 .map(t -> t.getSeat().getSeatNumber())
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Named("ticketsToDetails")
@@ -56,7 +56,7 @@ public interface BookingMapper {
                         t.getPrice(),
                         t.getStatus() != null ? t.getStatus() : "ACTIVE"
                 ))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Named("servicesToNames")
@@ -66,7 +66,7 @@ public interface BookingMapper {
         }
         return services.stream()
                 .map(AdditionalService::getServiceName)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Named("calculateRefundAmount")

@@ -25,7 +25,7 @@ public class SavedPassengerService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         return savedPassengerRepository.findByUserId(user.getId())
-                .stream().map(this::toDTO).collect(Collectors.toList());
+                .stream().map(this::toDTO).toList();
     }
 
     @Transactional
