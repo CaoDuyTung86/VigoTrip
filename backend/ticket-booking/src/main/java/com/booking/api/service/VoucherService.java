@@ -3,6 +3,8 @@ package com.booking.api.service;
 import com.booking.api.entity.Voucher;
 import com.booking.api.repository.VoucherRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ public class VoucherService {
      * Validate và tính toán giảm giá cho một mã voucher.
      * Trả về Map chứa thông tin: valid, discountAmount, message, voucher.
      */
+    @Cacheable(value = "vouchers", key = "#code + #orderAmount")
     public Map<String, Object> validateVoucher(String code, Double orderAmount) {
         Map<String, Object> result = new HashMap<>();
 
@@ -81,6 +84,7 @@ public class VoucherService {
      * Tăng lượt sử dụng khi voucher được apply vào đơn hàng thật.
      */
     @Transactional
+    @CacheEvict(value = "vouchers", allEntries = true)
     public void useVoucher(Long voucherId) {
         Voucher voucher = voucherRepository.findById(voucherId).orElse(null);
         if (voucher != null) {

@@ -1,12 +1,19 @@
 package com.booking.api.service;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+
+import java.io.ByteArrayOutputStream;
 
 @Service
 @RequiredArgsConstructor
@@ -85,31 +92,58 @@ public class EmailService {
             helper.setTo(toEmail);
             helper.setSubject("Xác nhận đặt vé thành công #" + bookingId + " - Datxe.com");
 
-            String htmlContent = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
-                    + "<h2 style='color: #4f7cff;'>Cảm ơn bạn đã đặt vé!</h2>"
-                    + "<p>Xin chào,</p>"
-                    + "<p>Chúng tôi đã nhận được thanh toán và xác nhận đặt vé của bạn. Dưới đây là thông tin chi tiết:</p>"
-                    + "<div style='background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 20px 0;'>"
-                    + "<p><strong>Mã Booking:</strong> #" + bookingId + "</p>"
-                    + "<p><strong>Ghế đã đặt:</strong> " + (seats != null ? seats : "Không có") + "</p>"
-                    + "<p><strong>Tổng thanh toán:</strong> <span style='color: #ff6b00; font-weight: bold;'>" + String.format("%,.0f đ", totalPrice) + "</span></p>"
+            byte[] qrCodeImage = generateQRCodeImage("BOOKING_" + bookingId, 250, 250);
+
+            String htmlContent = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 16px;'>"
+                    + "<div style='text-align: center; margin-bottom: 20px;'>"
+                    + "<h1 style='color: #4f7cff; margin: 0;'>Datxe.com</h1>"
+                    + "<p style='color: #6b7280; margin: 5px 0;'>Hành trình vạn dặm, bắt đầu từ một lần chạm</p>"
                     + "</div>"
-                    + "<div style='background-color: #eff6ff; border-left: 4px solid #4f7cff; padding: 10px 15px; margin: 20px 0;'>"
-                    + "<strong>✨ Quà tặng đặc biệt:</strong><br/>"
-                    + "Sử dụng mã giảm giá <strong>WELCOME20</strong> cho chuyến đi tiếp theo để nhận ưu đãi 20%!"
+                    + "<div style='background-color: #f0fdf4; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 25px;'>"
+                    + "<h2 style='color: #16a34a; margin-top: 0;'>Thanh toán thành công!</h2>"
+                    + "<p style='margin-bottom: 0;'>Mã đặt vé của bạn đã được xác nhận. Hãy xuất trình mã QR dưới đây khi lên xe/tàu/máy bay.</p>"
                     + "</div>"
-                    + "<p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ tổng đài hỗ trợ.</p>"
-                    + "<hr style='border: 1px solid #eee; margin-top: 30px;'/>"
-                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br/>Đội ngũ Datxe.com</p>"
+                    + "<div style='display: flex; gap: 20px; margin-bottom: 25px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 25px;'>"
+                    + "<div style='flex: 1;'>"
+                    + "<p style='margin: 5px 0; color: #6b7280;'>Mã Booking</p>"
+                    + "<p style='margin: 0; font-weight: bold; font-size: 18px;'>#" + bookingId + "</p>"
+                    + "<p style='margin: 15px 0 5px; color: #6b7280;'>Chỗ ngồi</p>"
+                    + "<p style='margin: 0; font-weight: bold;'>" + (seats != null ? seats : "Đang cập nhật") + "</p>"
+                    + "<p style='margin: 15px 0 5px; color: #6b7280;'>Tổng thanh toán</p>"
+                    + "<p style='margin: 0; font-weight: bold; color: #ff6b00; font-size: 18px;'>" + String.format("%,.0f đ", totalPrice) + "</p>"
+                    + "</div>"
+                    + "<div style='text-align: center;'>"
+                    + "<img src='cid:qrCode' alt='QR Code' style='width: 150px; height: 150px; border: 1px solid #eee; padding: 5px; border-radius: 8px;'/>"
+                    + "<p style='font-size: 11px; color: #9ca3af; margin-top: 5px;'>Quét để làm thủ tục nhanh</p>"
+                    + "</div>"
+                    + "</div>"
+                    + "<div style='background-color: #eff6ff; border-radius: 12px; padding: 15px; margin-bottom: 25px;'>"
+                    + "<p style='margin: 0; font-size: 14px; color: #1e40af;'>"
+                    + "<strong>💡 Lưu ý:</strong> Quý khách vui lòng có mặt tại điểm đón trước 30 phút. Mang theo giấy tờ tùy thân để đối chiếu nếu cần thiết."
+                    + "</p>"
+                    + "</div>"
+                    + "<div style='text-align: center; color: #9ca3af; font-size: 12px;'>"
+                    + "<p>© 2026 Datxe.com - Hệ thống đặt vé đa phương tiện hàng đầu Việt Nam</p>"
+                    + "</div>"
                     + "</div>";
 
             helper.setText(htmlContent, true);
-            mailSender.send(message);
+            helper.addInline("qrCode", new ByteArrayResource(qrCodeImage), "image/png");
             
-            log.info("Booking confirmation email sent successfully to {}", toEmail);
+            mailSender.send(message);
+            log.info("Booking confirmation email with QR code sent successfully to {}", toEmail);
         } catch (Exception e) {
-            log.error("Failed to send booking confirmation email to {}", toEmail, e);
+            log.error("Failed to send booking confirmation email with QR code to {}", toEmail, e);
         }
+    }
+
+    private byte[] generateQRCodeImage(String text, int width, int height) throws Exception {
+        QRCodeWriter qrCodeWriter = new QRCodeWriter();
+        BitMatrix bitMatrix = qrCodeWriter.encode(text, BarcodeFormat.QR_CODE, width, height);
+        
+        ByteArrayOutputStream pngOutputStream = new ByteArrayOutputStream();
+        MatrixToImageWriter.writeToStream(bitMatrix, "PNG", pngOutputStream);
+        return pngOutputStream.toByteArray();
     }
 
     public void sendSurveyEmail(String toEmail, Long bookingId) {

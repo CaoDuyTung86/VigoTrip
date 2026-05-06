@@ -12,6 +12,7 @@ import com.booking.api.repository.TicketRepository;
 import com.booking.api.repository.TripRepository;
 import com.booking.api.service.SeatLockService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,7 @@ public class TripService {
         private final SeatLockService seatLockService;
 
         @Transactional(readOnly = true)
+        @Cacheable(value = "trips", key = "#from + #to + #date.toString() + #type + #passengers")
         public List<TripSearchResponse> searchTrips(String from,
                         String to,
                         LocalDate date,
@@ -106,6 +108,7 @@ public class TripService {
         }
 
         @Transactional(readOnly = true)
+        @Cacheable(value = "calendar_prices", key = "#from + #to + #start.toString() + #end.toString() + #type + #passengers")
         public List<TripCalendarPriceResponse> getCalendarPrices(String from,
                         String to,
                         LocalDate start,

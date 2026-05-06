@@ -46,7 +46,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/additional-services/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/trip/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/api/payment/vnpay-return").permitAll()
+                        .requestMatchers("/api/payment/vnpay-return", "/api/payment/vnpay-ipn").permitAll()
                         .requestMatchers("/api/reviews/all").hasAuthority("ROLE_PROVIDER")
                         .requestMatchers("/api/refunds/all").hasAuthority("ROLE_ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/refunds/*/approve").hasAuthority("ROLE_ADMIN")

@@ -13,7 +13,10 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "chuyen_di")
+@Table(name = "chuyen_di", indexes = {
+    @Index(name = "idx_trip_departure_time", columnList = "departure_time"),
+    @Index(name = "idx_trip_status", columnList = "status")
+})
 @JsonIgnoreProperties({"reviews", "tickets"})
 public class Trip {
 

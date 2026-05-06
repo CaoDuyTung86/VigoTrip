@@ -17,10 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -101,82 +98,150 @@ public class PaymentService {
         }
 
         String responseCode = params.get("vnp_ResponseCode");
-        String orderInfo = params.get("vnp_OrderInfo");
-        String amountStr = params.get("vnp_Amount");
+        Long bookingId = parseBookingId(params.get("vnp_OrderInfo"));
 
-        // Lấy booking ID từ orderInfo: "Thanh_toan_booking_<id>"
-        Long bookingId = null;
-        try {
-            String[] parts = orderInfo.split("_");
-            bookingId = Long.parseLong(parts[parts.length - 1].trim());
-        } catch (Exception e) {
-            return "INVALID_ORDER_INFO";
-        }
+        if (bookingId == null) return "INVALID_ORDER_INFO";
 
         Booking booking = bookingRepository.findById(bookingId).orElse(null);
-        if (booking == null) {
-            return "BOOKING_NOT_FOUND";
-        }
+        if (booking == null) return "BOOKING_NOT_FOUND";
 
         if ("00".equals(responseCode)) {
-            // Thanh toán thành công
-            booking.setStatus("CONFIRMED");
-
-            // Tạo record Payment
-            Payment payment = new Payment();
-            payment.setBooking(booking);
-            payment.setPaymentMethod("VNPAY");
-            payment.setPaymentDate(LocalDateTime.now());
-            payment.setAmount(amountStr != null ? Double.parseDouble(amountStr) / 100 : booking.getTotalPrice());
-            payment.setPaymentStatus("SUCCESS");
-
-            if (booking.getPayments() == null) {
-                booking.setPayments(new java.util.ArrayList<>());
+            // Only process if still pending to ensure idempotency
+            if ("PENDING".equals(booking.getStatus())) {
+                processSuccessfulPayment(booking, params);
             }
-            booking.getPayments().add(payment);
-
-            bookingRepository.save(booking);
-
-            // Tích điểm cho User
-            User user = booking.getUser();
-            if (user != null) {
-                int earnedPoints = (int) (booking.getTotalPrice() / 10000);
-                int currentPoints = user.getPoints() == null ? 0 : user.getPoints();
-                int newPoints = currentPoints + earnedPoints;
-                user.setPoints(newPoints);
-
-                // Nâng hạng thành viên
-                String newLevel = null;
-                if (newPoints >= 2000) {
-                    newLevel = "Kim cương";
-                } else if (newPoints >= 500) {
-                    newLevel = "Vàng";
-                } else if (newPoints >= 100) {
-                    newLevel = "Bạc";
-                }
-
-                if (newLevel != null) {
-                    promotionRepository.findByLevelName(newLevel).ifPresent(user::setPromotion);
-                }
-                userRepository.save(user);
-            }
-
-            String seats = "";
-            if (booking.getTickets() != null) {
-                seats = booking.getTickets().stream().map(t -> t.getSeat().getSeatNumber()).collect(Collectors.joining(", "));
-            }
-
-            emailService.sendBookingConfirmation(
-                    booking.getUser().getEmail(),
-                    booking.getId(),
-                    booking.getTotalPrice(),
-                    seats
-            );
-
             return "SUCCESS";
         } else {
-            // Thanh toán thất bại
+            if ("PENDING".equals(booking.getStatus())) {
+                booking.setStatus("FAILED");
+                bookingRepository.save(booking);
+            }
             return "FAILED_" + responseCode;
         }
+    }
+
+    /**
+     * Xử lý IPN từ VNPay (Server-to-Server)
+     */
+    @Transactional
+    public Map<String, String> handleVNPayIPN(Map<String, String> params) {
+        Map<String, String> response = new HashMap<>();
+        try {
+            // 1. Kiểm tra chữ ký
+            if (!VNPayUtil.validateHash(params, vnPayConfig.getHashSecret())) {
+                response.put("RspCode", "97");
+                response.put("Message", "Invalid Signature");
+                return response;
+            }
+
+            // 2. Kiểm tra đơn hàng
+            Long bookingId = parseBookingId(params.get("vnp_OrderInfo"));
+            if (bookingId == null) {
+                response.put("RspCode", "01");
+                response.put("Message", "Order not found");
+                return response;
+            }
+
+            Booking booking = bookingRepository.findById(bookingId).orElse(null);
+            if (booking == null) {
+                response.put("RspCode", "01");
+                response.put("Message", "Order not found");
+                return response;
+            }
+
+            // 3. Kiểm tra số tiền
+            long vnpAmount = Long.parseLong(params.get("vnp_Amount"));
+            if (vnpAmount != (long) (booking.getTotalPrice() * 100)) {
+                response.put("RspCode", "04");
+                response.put("Message", "Invalid Amount");
+                return response;
+            }
+
+            // 4. Kiểm tra trạng thái đơn hàng
+            if (!"PENDING".equals(booking.getStatus())) {
+                response.put("RspCode", "02");
+                response.put("Message", "Order already confirmed");
+                return response;
+            }
+
+            // 5. Xử lý thanh toán
+            String responseCode = params.get("vnp_ResponseCode");
+            if ("00".equals(responseCode)) {
+                processSuccessfulPayment(booking, params);
+            } else {
+                booking.setStatus("FAILED");
+                bookingRepository.save(booking);
+            }
+
+            response.put("RspCode", "00");
+            response.put("Message", "Confirm Success");
+
+        } catch (Exception e) {
+            response.put("RspCode", "99");
+            response.put("Message", "Unknown Error");
+        }
+        return response;
+    }
+
+    private Long parseBookingId(String orderInfo) {
+        if (orderInfo == null) return null;
+        try {
+            String[] parts = orderInfo.split("_");
+            return Long.parseLong(parts[parts.length - 1].trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void processSuccessfulPayment(Booking booking, Map<String, String> params) {
+        booking.setStatus("CONFIRMED");
+
+        String amountStr = params.get("vnp_Amount");
+        Payment payment = new Payment();
+        payment.setBooking(booking);
+        payment.setPaymentMethod("VNPAY");
+        payment.setPaymentDate(LocalDateTime.now());
+        payment.setAmount(amountStr != null ? Double.parseDouble(amountStr) / 100 : booking.getTotalPrice());
+        payment.setPaymentStatus("SUCCESS");
+
+        if (booking.getPayments() == null) {
+            booking.setPayments(new java.util.ArrayList<>());
+        }
+        booking.getPayments().add(payment);
+
+        bookingRepository.save(booking);
+
+        // Tích điểm cho User
+        User user = booking.getUser();
+        if (user != null) {
+            int earnedPoints = (int) (booking.getTotalPrice() / 10000);
+            int currentPoints = user.getPoints() == null ? 0 : user.getPoints();
+            user.setPoints(currentPoints + earnedPoints);
+
+            String newLevel = null;
+            int newPoints = user.getPoints();
+            if (newPoints >= 2000) newLevel = "Kim cương";
+            else if (newPoints >= 500) newLevel = "Vàng";
+            else if (newPoints >= 100) newLevel = "Bạc";
+
+            if (newLevel != null) {
+                promotionRepository.findByLevelName(newLevel).ifPresent(user::setPromotion);
+            }
+            userRepository.save(user);
+        }
+
+        String seats = "";
+        if (booking.getTickets() != null) {
+            seats = booking.getTickets().stream()
+                    .map(t -> t.getSeat().getSeatNumber())
+                    .collect(Collectors.joining(", "));
+        }
+
+        emailService.sendBookingConfirmation(
+                booking.getUser().getEmail(),
+                booking.getId(),
+                booking.getTotalPrice(),
+                seats
+        );
     }
 }

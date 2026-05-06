@@ -64,6 +64,12 @@ public class PaymentController {
                 .build();
     }
 
+    @Operation(summary = "VNPay IPN", description = "Endpoint VNPay gọi ngầm để cập nhật trạng thái thanh toán (server-to-server)")
+    @GetMapping("/vnpay-ipn")
+    public Map<String, String> vnPayIPN(@RequestParam Map<String, String> params) {
+        return paymentService.handleVNPayIPN(params);
+    }
+
     private String getClientIpAddress(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
         if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {

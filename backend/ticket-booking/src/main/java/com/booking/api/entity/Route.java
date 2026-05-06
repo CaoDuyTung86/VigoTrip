@@ -12,7 +12,10 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "tuyen_duong")
+@Table(name = "tuyen_duong", indexes = {
+    @Index(name = "idx_route_origin", columnList = "origin"),
+    @Index(name = "idx_route_destination", columnList = "destination")
+})
 @JsonIgnoreProperties({"trips"})
 public class Route {
 
