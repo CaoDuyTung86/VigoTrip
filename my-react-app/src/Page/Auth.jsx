@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import G from "../Picture/G.png";
-import FB from "../Picture/FB.png";
-import A from "../Picture/A.svg";
 import { IoIosWarning } from "react-icons/io";
 import { TiTick } from "react-icons/ti";
 import { GoogleLogin } from "@react-oauth/google";
@@ -13,7 +11,7 @@ import { useAuth } from "../context/AuthContext";
 
 const Auth = ({ isOpen, onClose }) => {
   const [step, setStep] = useState(1);
-  const [mode, setMode] = useState("register");
+  const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -237,7 +235,8 @@ const Auth = ({ isOpen, onClose }) => {
         left: 0,
         width: "100vw",
         height: "100vh",
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
+        backgroundColor: "rgba(15, 23, 42, 0.8)",
+        backdropFilter: "blur(8px)",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -247,7 +246,7 @@ const Auth = ({ isOpen, onClose }) => {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        background: "var(--bg-main)",
+        background: "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
         padding: "20px"
       }}
       onClick={onClose}
@@ -280,18 +279,28 @@ const Auth = ({ isOpen, onClose }) => {
       <div
         style={{
           position: "relative",
-          width: "500px",
-          maxWidth: "95vw",
-          display: "flex",
           backgroundColor: "var(--bg-card)",
-          borderRadius: "12px",
+          borderRadius: "24px",
           overflow: "hidden",
-          boxShadow: "0 10px 40px rgba(0,0,0,0.4)",
-          transition: "width 0.3s ease",
-          padding: "10px"
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+          padding: "0"
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Left Side Decorative Panel (Optional, but adds premium feel) */}
+        <div style={{ 
+          width: "180px", 
+          background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)", 
+          display: isModal ? "none" : "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          padding: "40px",
+          color: "white"
+        }}>
+          <h2 style={{ fontSize: "24px", fontWeight: "800", marginBottom: "16px" }}>Datxe.com</h2>
+          <p style={{ fontSize: "14px", opacity: 0.8, lineHeight: "1.6" }}>Khám phá những hành trình tuyệt vời cùng chúng tôi.</p>
+        </div>
         {isModal && (
           <button
             onClick={onClose}
@@ -320,46 +329,59 @@ const Auth = ({ isOpen, onClose }) => {
         {step === 1 && (
           <>
             <div style={{ flex: 1, padding: "50px 40px", display: "flex", flexDirection: "column" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                <h3 style={{ margin: 0, fontSize: "22px", fontWeight: "500" }}>
-                  {t.authTitle}
+              <div style={{ marginBottom: "12px" }}>
+                <h3 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "var(--text-heading)" }}>
+                  {mode === "login" ? "Chào mừng trở lại!" : "Tham gia cùng chúng tôi"}
                 </h3>
+                <p style={{ color: "var(--text-muted)", fontSize: "14px", marginTop: "4px" }}>
+                  {mode === "login" ? "Đăng nhập để tiếp tục hành trình" : "Tạo tài khoản mới trong vài giây"}
+                </p>
+              </div>
+
+              <div style={{ marginBottom: "24px" }}>
                 <button
                   type="button"
                   onClick={handleToggleMode}
                   style={{
-                    border: "none",
-                    background: "none",
-                    color: "var(--primary)",
+                    border: "1px solid var(--border-light)",
+                    background: "var(--bg-hover)",
+                    color: "var(--text-main)",
+                    padding: "8px 16px",
+                    borderRadius: "100px",
                     cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    textDecoration: "underline",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    transition: "0.2s",
                   }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = "var(--border-light)"}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = "var(--bg-hover)"}
                 >
-                  {mode === "register" ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Đăng ký"}
+                  {mode === "login" ? "Đăng ký tài khoản mới" : "Đã có tài khoản? Đăng nhập"}
                 </button>
               </div>
 
-              <input
-                type="email"
-                placeholder={t.emailPlaceholder}
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setEmailError("");
-                }}
-                style={{
-                  padding: "14px",
-                  marginBottom: "8px",
-                  border: emailError ? "1px solid #ff4444" : "1px solid #ccc",
-                  borderRadius: "4px",
-                  backgroundColor: "var(--bg-card)",
-                  color: "var(--text-main)",
-                  fontSize: "15px",
-                  outline: "none",
-                }}
-              />
+                <input
+                  type="email"
+                  placeholder={t.emailPlaceholder}
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setEmailError("");
+                  }}
+                  style={{
+                    padding: "16px",
+                    marginBottom: "8px",
+                    border: emailError ? "1px solid #ef4444" : "1.5px solid var(--border-light)",
+                    borderRadius: "12px",
+                    backgroundColor: "var(--bg-main)",
+                    color: "var(--text-main)",
+                    fontSize: "15px",
+                    outline: "none",
+                    transition: "0.2s",
+                  }}
+                  onFocus={e => e.target.style.borderColor = "var(--primary)"}
+                  onBlur={e => e.target.style.borderColor = emailError ? "#ef4444" : "var(--border-light)"}
+                />
 
               {emailError && (
                 <p style={{
@@ -378,17 +400,21 @@ const Auth = ({ isOpen, onClose }) => {
               <button
                 onClick={() => handleEmailSubmit(email)}
                 style={{
-                  padding: "14px",
+                  padding: "16px",
                   border: "none",
-                  borderRadius: "4px",
+                  borderRadius: "12px",
                   backgroundColor: "var(--primary)",
-                  fontWeight: "600",
+                  fontWeight: "700",
                   cursor: "pointer",
-                  marginBottom: "25px",
+                  marginBottom: "30px",
                   color: "#fff",
+                  boxShadow: "0 10px 15px -3px rgba(79, 70, 229, 0.3)",
+                  transition: "0.2s"
                 }}
+                onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
+                onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
               >
-                {mode === "register" ? t.continueWithEmail : "Tiếp tục để đăng nhập"}
+                {mode === "login" ? "Tiếp tục đăng nhập" : "Tiếp tục đăng ký"}
               </button>
 
               <div
@@ -457,16 +483,7 @@ const Auth = ({ isOpen, onClose }) => {
                 />
               </div>
 
-              <button style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", padding: "12px", marginBottom: "12px", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "15px", fontWeight: "500", width: "100%", backgroundColor: "#1877F2", color: "white" }}>
-                <img src={FB} alt="Facebook" style={iconStyle} />
-                {t.loginWithFacebook}
-              </button>
-
-              <button style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", padding: "12px", marginBottom: "12px", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "15px", fontWeight: "500", width: "100%", backgroundColor: "#000", color: "white" }}>
-                <img src={A} alt="Apple" style={{ ...iconStyle, filter: "invert(1)" }} />
-                {t.loginWithApple}
-              </button>
-            </div>
+              </div>
           </>
         )}
 
@@ -552,27 +569,32 @@ const Auth = ({ isOpen, onClose }) => {
                     >
                       Họ và tên
                     </label>
-                    <input
-                      type="text"
-                      name="fullName"
-                      placeholder="Nhập họ và tên"
-                      value={fullName}
-                      onChange={(e) => {
-                        setFullName(e.target.value);
-                        setApiError("");
-                      }}
-                      style={{
-                        width: "100%",
-                        padding: "14px 16px",
-                        border: "2px solid #e0e0e0",
-                        borderRadius: "10px",
-                        fontSize: "15px",
-                        boxSizing: "border-box",
-                        outline: "none",
-                        marginBottom: "4px",
-                      }}
-                      required
-                    />
+                      <input
+                        type="text"
+                        name="fullName"
+                        placeholder="Nhập họ và tên"
+                        value={fullName}
+                        onChange={(e) => {
+                          setFullName(e.target.value);
+                          setApiError("");
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "16px",
+                          border: "1.5px solid var(--border-light)",
+                          borderRadius: "12px",
+                          fontSize: "15px",
+                          boxSizing: "border-box",
+                          outline: "none",
+                          marginBottom: "4px",
+                          backgroundColor: "var(--bg-main)",
+                          color: "var(--text-main)",
+                          transition: "0.2s"
+                        }}
+                        onFocus={e => e.target.style.borderColor = "var(--primary)"}
+                        onBlur={e => e.target.style.borderColor = "var(--border-light)"}
+                        required
+                      />
                   </div>
 
                   <div style={{ marginBottom: "16px" }}>
@@ -587,27 +609,32 @@ const Auth = ({ isOpen, onClose }) => {
                     >
                       Số điện thoại
                     </label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      placeholder="Nhập số điện thoại"
-                      value={phone}
-                      onChange={(e) => {
-                        setPhone(e.target.value);
-                        setApiError("");
-                      }}
-                      style={{
-                        width: "100%",
-                        padding: "14px 16px",
-                        border: "2px solid #e0e0e0",
-                        borderRadius: "10px",
-                        fontSize: "15px",
-                        boxSizing: "border-box",
-                        outline: "none",
-                        marginBottom: "4px",
-                      }}
-                      required
-                    />
+                      <input
+                        type="tel"
+                        name="phone"
+                        placeholder="Nhập số điện thoại"
+                        value={phone}
+                        onChange={(e) => {
+                          setPhone(e.target.value);
+                          setApiError("");
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "16px",
+                          border: "1.5px solid var(--border-light)",
+                          borderRadius: "12px",
+                          fontSize: "15px",
+                          boxSizing: "border-box",
+                          outline: "none",
+                          marginBottom: "4px",
+                          backgroundColor: "var(--bg-main)",
+                          color: "var(--text-main)",
+                          transition: "0.2s"
+                        }}
+                        onFocus={e => e.target.style.borderColor = "var(--primary)"}
+                        onBlur={e => e.target.style.borderColor = "var(--border-light)"}
+                        required
+                      />
                   </div>
                 </>
               )}
@@ -628,22 +655,26 @@ const Auth = ({ isOpen, onClose }) => {
                   placeholder={t.password}
                   style={{
                     width: "100%",
-                    padding: "14px 16px",
-                    border: passwordError ? "2px solid #ff4444" : "2px solid #e0e0e0",
-                    borderRadius: "10px",
+                    padding: "16px",
+                    border: passwordError ? "2px solid #ef4444" : "1.5px solid var(--border-light)",
+                    borderRadius: "12px",
                     fontSize: "15px",
                     boxSizing: "border-box",
-                    transition: "border-color 0.2s",
+                    transition: "all 0.2s",
                     outline: "none",
+                    backgroundColor: "var(--bg-main)",
+                    color: "var(--text-main)",
                   }}
                   onFocus={(e) => {
                     if (!passwordError) {
-                      e.target.style.borderColor = "#4f7cff";
+                      e.target.style.borderColor = "var(--primary)";
+                      e.target.style.boxShadow = "0 0 0 4px rgba(79, 70, 229, 0.1)";
                     }
                   }}
                   onBlur={(e) => {
                     if (!passwordError) {
-                      e.target.style.borderColor = "#e0e0e0";
+                      e.target.style.borderColor = "var(--border-light)";
+                      e.target.style.boxShadow = "none";
                     }
                   }}
                   onChange={() => setPasswordError("")}

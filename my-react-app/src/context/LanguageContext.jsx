@@ -286,6 +286,9 @@ const translations = {
     revenueByDate: "Chi tiết Doanh thu theo Ngày",
     dateCol: "Ngày",
     revenueCol: "Doanh thu",
+    aiInsights: "Nhận định & Dự báo AI",
+    aiAnalyzing: "AI đang phân tích dữ liệu...",
+    getAIInsights: "Phân tích AI",
 
     // Package
     favoriteTours: "Tour Yêu thích",
@@ -581,6 +584,9 @@ const translations = {
     revenueByDate: "Revenue Details by Date",
     dateCol: "Date",
     revenueCol: "Revenue",
+    aiInsights: "AI Insights & Forecasting",
+    aiAnalyzing: "AI is analyzing data...",
+    getAIInsights: "AI Analysis",
 
     // Package
     favoriteTours: "Favorite Tours",

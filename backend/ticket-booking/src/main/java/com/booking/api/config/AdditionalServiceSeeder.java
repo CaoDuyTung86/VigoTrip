@@ -19,21 +19,17 @@ public class AdditionalServiceSeeder {
     CommandLineRunner seedAdditionalServices() {
         return args -> {
             
-            // 1. Find all combo/meals
             List<AdditionalService> oldMeals = additionalServiceRepository.findAll()
                 .stream()
                 .filter(s -> s.getServiceName().contains("Suất ăn") || s.getServiceName().contains("Combo"))
                 .toList();
             
-            // Delete old meals to avoid duplication (if no foreign keys constrain it)
-            // If they are constrained, this might throw some error, but this is a dev DB.
             try {
                 additionalServiceRepository.deleteAll(oldMeals);
             } catch (Exception e) {
                 System.out.println("Could not delete old meals due to constraints, skipping deletion...");
             }
 
-            // 2. Insert new meals
             List<AdditionalService> newMeals = List.of(
                     new AdditionalService(null, "Combo Mỳ Ý và Nước suối và Hạt điều", 99000.0),
                     new AdditionalService(null, "Combo Cơm chiên Thái và Nước suối và Hạt điều", 99000.0),
@@ -41,13 +37,11 @@ public class AdditionalServiceSeeder {
                     new AdditionalService(null, "Combo Bún xào Singapore và Nước suối và Hạt điều", 99000.0)
             );
             
-            // Save new meals if they don't already exist
             long combosCount = additionalServiceRepository.findAll().stream().filter(s -> s.getServiceName().contains("Combo Mỳ Ý")).count();
             if (combosCount == 0) {
                 additionalServiceRepository.saveAll(newMeals);
             }
 
-            // Normal seeder for other services if not exist
             if (additionalServiceRepository.count() <= 4) {
                 List<AdditionalService> services = List.of(
                         new AdditionalService(null, "Hành lý ký gửi 15kg", 180000.0),

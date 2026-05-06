@@ -24,14 +24,12 @@ public class AdminSeeder {
                 admin -> {
                     boolean changed = false;
 
-                    // Đảm bảo enabled = true
                     if (!Boolean.TRUE.equals(admin.getEnabled())) {
                         admin.setEnabled(true);
                         changed = true;
                         log.info("[AdminSeeder] Đã kích hoạt tài khoản admin@gmail.com (enabled = true)");
                     }
 
-                    // Đảm bảo role đúng
                     if (!"ROLE_ADMIN".equals(admin.getRole())) {
                         admin.setRole("ROLE_ADMIN");
                         changed = true;
@@ -45,7 +43,6 @@ public class AdminSeeder {
                     }
                 },
                 () -> {
-                    // Tạo mới nếu chưa có
                     User admin = new User();
                     admin.setFullName("Administrator");
                     admin.setEmail("admin@gmail.com");

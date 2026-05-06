@@ -33,16 +33,9 @@ public class ChatService {
 
     private final TripRepository tripRepository;
     private final BookingRepository bookingRepository;
-    private final RestTemplate restTemplate = new RestTemplate();
-
-    @Value("${gemini.api-key:}")
-    private String geminiApiKey;
+    private final AIService aiService;
 
     public String getChatResponse(String userMessage, String username) {
-        if (geminiApiKey == null || geminiApiKey.trim().isEmpty() || "YOUR_API_KEY_HERE".equals(geminiApiKey)) {
-            return "Xin lỗi, API Key của hệ thống AI chưa được cấu hình. Vui lòng liên hệ Admin.";
-        }
-
         Page<Trip> upcomingTripsPage = tripRepository
                 .findUpcomingTrips(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")), PageRequest.of(0, 20));
         List<Trip> upcomingTrips = upcomingTripsPage.getContent();
@@ -112,62 +105,10 @@ public class ChatService {
                 "Các đường dẫn có sẵn: Đặt vé máy bay (/ve-may-bay), Tàu hỏa (/ve-tau-hoa), Xe khách (/xe-khach), Lịch sử đặt vé (/my-bookings). "
                 +
                 "Ví dụ: 'Bạn có thể đặt vé tại đây: [LINK: Đặt vé xe khách | /xe-khach]'\n\n" +
-                "VÍ DỤ TRẢ LỜI:\n" +
-                "Người dùng: \"Tôi muốn đặt vé từ Hà Nội đi Sài Gòn\"\n" +
-                "Trợ lý: \"Hiện có 2 chuyến từ Hà Nội đi Sài Gòn...\n Bạn muốn đi xe gì? [BTN: Máy bay] [BTN: Tàu hỏa]\n Hoặc bạn có thể tự đặt tại:\"\n\n"
-                +
                 "DỮ LIỆU CHUYẾN ĐI:\n" +
                 contextBuilder.toString() +
                 bookingContext.toString();
 
-        String url = "https://api.groq.com/openai/v1/chat/completions";
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(geminiApiKey);
-
-        Map<String, Object> systemMessage = new HashMap<>();
-        systemMessage.put("role", "system");
-        systemMessage.put("content", systemInstruction);
-
-        Map<String, Object> userMessageMap = new HashMap<>();
-        userMessageMap.put("role", "user");
-        userMessageMap.put("content", userMessage);
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", "llama-3.3-70b-versatile");
-        body.put("messages", List.of(systemMessage, userMessageMap));
-        body.put("max_tokens", 1024);
-        body.put("temperature", 0.3);
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-
-        try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-            Map<String, Object> responseBody = response.getBody();
-
-            if (responseBody != null && responseBody.containsKey("choices")) {
-                List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
-                if (!choices.isEmpty()) {
-                    Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-                    return (String) message.get("content");
-                }
-            }
-            return "Xin lỗi, tôi không thể xử lý câu trả lời lúc này.";
-
-        } catch (org.springframework.web.client.HttpClientErrorException e) {
-            log.error("Lỗi HTTP khi gọi Groq API: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            if (e.getStatusCode().value() == 429) {
-                return "Hệ thống AI đang bận, vui lòng thử lại sau vài giây nhé! 🥀💔";
-            } else if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
-                return "API Key Groq không hợp lệ hoặc không có quyền truy cập. Vui lòng kiểm tra lại.";
-            } else if (e.getStatusCode().value() == 404) {
-                return "Model AI không khả dụng trên Groq. Vui lòng liên hệ Admin.";
-            }
-            return "Đã có lỗi xảy ra khi kết nối máy chủ AI. Vui lòng thử lại sau.";
-        } catch (Exception e) {
-            log.error("Lỗi khi gọi Groq API", e);
-            return "Đã có lỗi xảy ra khi kết nối với máy chủ AI. Vui lòng thử lại sau.";
-        }
+        return aiService.getChatResponse(systemInstruction, userMessage);
     }
 }

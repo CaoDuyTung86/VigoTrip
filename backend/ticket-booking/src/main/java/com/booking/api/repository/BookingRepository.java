@@ -24,4 +24,23 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("SELECT b FROM Booking b WHERE b.isCheckedIn = true ORDER BY b.checkInDate DESC")
     List<Booking> findRecentCheckInsAdmin(org.springframework.data.domain.Pageable pageable);
+
+    // Thống kê doanh thu theo tháng trong năm hiện tại cho Provider
+    @Query("SELECT MONTH(b.bookingDate) as month, SUM(b.totalPrice) as total " +
+           "FROM Booking b JOIN b.tickets t " +
+           "WHERE t.trip.vehicle.provider.id = :providerId " +
+           "AND b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "AND YEAR(b.bookingDate) = YEAR(CURRENT_DATE) " +
+           "GROUP BY MONTH(b.bookingDate) " +
+           "ORDER BY MONTH(b.bookingDate)")
+    List<Object[]> getMonthlyRevenueByProvider(@Param("providerId") Long providerId);
+
+    // Thống kê Top 5 tuyến đường có doanh thu cao nhất của Provider
+    @Query("SELECT t.trip.route.origin, t.trip.route.destination, SUM(b.totalPrice) " +
+           "FROM Booking b JOIN b.tickets t " +
+           "WHERE t.trip.vehicle.provider.id = :providerId " +
+           "AND b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "GROUP BY t.trip.route.origin, t.trip.route.destination " +
+           "ORDER BY SUM(b.totalPrice) DESC")
+    List<Object[]> getTopRoutesByProvider(@Param("providerId") Long providerId);
 }

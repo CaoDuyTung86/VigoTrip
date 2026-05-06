@@ -22,11 +22,8 @@ public class SeatStatusController {
         if ("SELECTED".equals(update.getStatus())) {
             boolean success = seatLockService.lockSeat(update.getTripId(), update.getSeatId(), update.getUserId());
             if (!success) {
-                // If locking failed, it means someone else has it. 
-                // We return null to not broadcast our failed selection, or we could return a specific message.
-                // Returning null in @SendTo might be ignored by Spring (or send null). Better to throw or handle gracefully.
-                // For simplicity, we just return the existing lock status if we can't lock it.
-                return update; // In a robust app, we'd send an error back to the specific user.
+
+                return update; 
             }
         } else if ("AVAILABLE".equals(update.getStatus())) {
             seatLockService.unlockSeat(update.getSeatId(), update.getUserId());
@@ -41,7 +38,7 @@ public class SeatStatusController {
     public static class SeatStatusUpdate {
         private Long tripId;
         private Long seatId;
-        private String status; // "SELECTED", "AVAILABLE", "BOOKED"
-        private String userId; // Optional, to track who selected it
+        private String status; 
+        private String userId; 
     }
 }

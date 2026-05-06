@@ -13,6 +13,9 @@ const AdminRevenue = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { t } = useLanguage();
 
+  const [aiInsights, setAiInsights] = useState(null);
+  const [analyzingId, setAnalyzingId] = useState(null);
+  const [showAiModal, setShowAiModal] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -38,9 +41,28 @@ const AdminRevenue = () => {
     }
   };
 
+  const fetchAIInsights = async (providerId) => {
+    try {
+      setAnalyzingId(providerId);
+      setAiInsights(null);
+      setShowAiModal(true);
+      const res = await fetch(`/api/analytics/provider/${providerId}/ai-insights`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error("Failed to fetch AI insights");
+      const data = await res.json();
+      setAiInsights(data.insights);
+    } catch (err) {
+      setAiInsights("Lỗi khi tải nhận định từ AI: " + err.message);
+    } finally {
+      setAnalyzingId(null);
+    }
+  };
+
   const totalRevenue = revenues.reduce((sum, item) => sum + (item.totalRevenue || 0), 0);
 
-  // Helper function to map providerType string to standard UI type
   const getMappedType = (type) => {
     const t_local = (type || "").toLowerCase();
     if (t_local.includes("flight") || t_local.includes("air") || t_local.includes("máy bay")) return t.flight;
@@ -48,7 +70,6 @@ const AdminRevenue = () => {
     return t.train;
   };
 
-  // Process data for charts
   const revenueByTypeMap = { [t.flight]: 0, [t.bus]: 0, [t.train]: 0 };
   revenues.forEach(item => {
     const t_type = getMappedType(item.providerType);
@@ -61,7 +82,7 @@ const AdminRevenue = () => {
     { name: t.train, value: revenueByTypeMap[t.train] }
   ].filter(d => d.value > 0);
   
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b']; // Blue, Green, Yellow
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b'];
 
   const topProviders = [...revenues]
     .sort((a, b) => (b.totalRevenue || 0) - (a.totalRevenue || 0))
@@ -71,12 +92,46 @@ const AdminRevenue = () => {
       "Doanh thu": item.totalRevenue || 0
     }));
 
-  // Custom formatting for chart tooltip
   const formatCurrency = (val) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "var(--bg-main)", display: "flex", flexDirection: "column" }}>
       <Header setIsSidebarOpen={setIsSidebarOpen} />
+      
+      {showAiModal && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "var(--bg-card)", width: "100%", maxWidth: 700, borderRadius: 24, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)", overflow: "hidden", animation: "modalFadeIn 0.3s ease-out" }}>
+            <div style={{ padding: "24px 30px", background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 28 }}>✨</span> {t.aiInsights}
+              </h2>
+              <button onClick={() => setShowAiModal(false)} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.3)"} onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.2)"}>×</button>
+            </div>
+            <div style={{ padding: 40, maxHeight: "65vh", overflowY: "auto" }}>
+              {analyzingId ? (
+                <div style={{ textAlign: "center", padding: "40px 0" }}>
+                  <div className="ai-loader" style={{ width: 60, height: 60, border: "5px solid #f1f5f9", borderTopColor: "#6366f1", borderRadius: "50%", margin: "0 auto 24px", animation: "spin 1s linear infinite" }}></div>
+                  <p style={{ color: "var(--text-muted)", fontWeight: 600, fontSize: 18 }}>{t.aiAnalyzing}</p>
+                  <p style={{ color: "#94a3b8", fontSize: 14, marginTop: 8 }}>Vui lòng đợi trong giây lát</p>
+                </div>
+              ) : (
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.8, color: "var(--text-main)", fontSize: 16, textAlign: "justify" }}>
+                  {aiInsights}
+                </div>
+              )}
+            </div>
+            <div style={{ padding: "20px 30px", borderTop: "1px solid var(--border-light)", textAlign: "right", backgroundColor: "var(--bg-hover)" }}>
+              <button onClick={() => setShowAiModal(false)} style={{ padding: "12px 30px", borderRadius: 12, background: "var(--primary)", border: "none", fontWeight: 700, color: "white", cursor: "pointer", boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)" }}>Đã hiểu</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes modalFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+
       <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "70px" }}>
         <Sidebar isOpen={isSidebarOpen} />
         <div className={`page-main ${isSidebarOpen ? "with-sidebar" : ""}`} style={{ padding: "30px", flex: 1, overflowY: "auto" }}>
@@ -158,25 +213,20 @@ const AdminRevenue = () => {
                     <th style={{ padding: "16px 24px", fontWeight: 600, color: "var(--text-muted)", borderBottom: "1px solid var(--border-light)" }}>{t.providerCol}</th>
                     <th style={{ padding: "16px 24px", fontWeight: 600, color: "var(--text-muted)", borderBottom: "1px solid var(--border-light)" }}>Loại dịch vụ</th>
                     <th style={{ padding: "16px 24px", fontWeight: 600, color: "var(--text-muted)", borderBottom: "1px solid var(--border-light)", textAlign: "right" }}>{t.totalRevenue}</th>
+                    <th style={{ padding: "16px 24px", fontWeight: 600, color: "var(--text-muted)", borderBottom: "1px solid var(--border-light)", textAlign: "center" }}>Hành động</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="4" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Đang tải dữ liệu...</td></tr>
+                    <tr><td colSpan="5" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Đang tải dữ liệu...</td></tr>
                   ) : revenues.length === 0 ? (
-                    <tr><td colSpan="4" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Không có dữ liệu</td></tr>
+                    <tr><td colSpan="5" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Không có dữ liệu</td></tr>
                   ) : (
                     [...revenues]
-                      .sort((a, b) => {
-                        const typeA = getMappedType(a.providerType);
-                        const typeB = getMappedType(b.providerType);
-                        if (typeA < typeB) return -1;
-                        if (typeA > typeB) return 1;
-                        return a.providerId - b.providerId;
-                      })
+                      .sort((a, b) => (b.totalRevenue || 0) - (a.totalRevenue || 0))
                       .map((item, index) => (
                         <tr key={item.providerId} style={{ borderBottom: "1px solid var(--border-light)", transition: "0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "var(--bg-hover)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                        <td style={{ padding: "16px 24px", color: "var(--text-muted)", fontSize: "14px" }}>#{index + 1}</td>
+                        <td style={{ padding: "16px 24px", color: "var(--text-muted)", fontSize: "14px", fontWeight: "600" }}>ID_{item.providerId}</td>
                         <td style={{ padding: "16px 24px", fontWeight: 600, color: "var(--text-heading)" }}>{item.providerName}</td>
                         <td style={{ padding: "16px 24px", color: "#64748b" }}>
                           <span style={{ 
@@ -192,6 +242,27 @@ const AdminRevenue = () => {
                         </td>
                         <td style={{ padding: "16px 24px", fontWeight: 700, color: "var(--text-heading)", textAlign: "right" }}>
                           {formatCurrency(item.totalRevenue || 0)}
+                        </td>
+                        <td style={{ padding: "16px 24px", textAlign: "center" }}>
+                          <button 
+                            onClick={() => fetchAIInsights(item.providerId)}
+                            style={{ 
+                              padding: "6px 12px", 
+                              borderRadius: "8px", 
+                              border: "none", 
+                              background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", 
+                              color: "white", 
+                              fontSize: "12px", 
+                              fontWeight: "600", 
+                              cursor: "pointer",
+                              boxShadow: "0 2px 4px rgba(99, 102, 241, 0.2)",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px"
+                            }}
+                          >
+                            <span>✨</span> {t.getAIInsights}
+                          </button>
                         </td>
                       </tr>
                     ))
