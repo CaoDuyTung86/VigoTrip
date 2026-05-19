@@ -7,7 +7,7 @@ import com.booking.api.exception.BookingException;
 import com.booking.api.mapper.BookingMapper;
 import com.booking.api.repository.*;
 
-import io.jsonwebtoken.lang.Collections;
+import java.util.Collections;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

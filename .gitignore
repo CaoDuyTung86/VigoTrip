@@ -13,6 +13,7 @@
 *.swo
 *.DS_Store
 .vs/
+.specstory/
 
 # Sensitive Configuration Files
 **/application.yml
