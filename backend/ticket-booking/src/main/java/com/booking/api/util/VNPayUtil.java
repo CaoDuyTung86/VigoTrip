@@ -42,16 +42,12 @@ public class VNPayUtil {
         StringBuilder queryString = new StringBuilder();
         for (Map.Entry<String, String> entry : params.entrySet()) {
             if (entry.getValue() != null && !entry.getValue().isEmpty()) {
-                try {
-                    String key = URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8.toString());
-                    String value = URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8.toString());
-                    // VNPay yêu cầu khoảng trắng Encode thành %20, nhưng URLEncoder trong Java ra dấu +
-                    key = key.replace("+", "%20");
-                    value = value.replace("+", "%20");
-                    queryString.append(key).append("=").append(value).append("&");
-                } catch (Exception e) {
-                    // ignore
-                }
+                String key = URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8);
+                String value = URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8);
+                // VNPay yêu cầu khoảng trắng Encode thành %20, nhưng URLEncoder trong Java ra dấu +
+                key = key.replace("+", "%20");
+                value = value.replace("+", "%20");
+                queryString.append(key).append("=").append(value).append("&");
             }
         }
         if (queryString.length() > 0) {

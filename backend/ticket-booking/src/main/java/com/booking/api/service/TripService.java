@@ -64,7 +64,7 @@ public class TripService {
                         response.setAvailableSeats(availableSeats);
 
                         return response;
-                }).filter(r -> r != null).collect(Collectors.toList());
+                }).filter(java.util.Objects::nonNull).collect(Collectors.toList());
         }
 
         @Transactional(readOnly = true)
