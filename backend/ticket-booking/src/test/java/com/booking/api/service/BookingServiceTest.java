@@ -64,6 +64,7 @@ public class BookingServiceTest {
     @BeforeEach
     void setUp() {
         user = new User();
+        user.setId(1L);
         user.setEmail("test@example.com");
         user.setFullName("Test User");
         user.setPoints(0);
@@ -75,7 +76,7 @@ public class BookingServiceTest {
         trip = new Trip();
         trip.setId(1L);
         trip.setPrice(100000.0);
-        trip.setDepartureTime(LocalDateTime.now().plusDays(1));
+        trip.setDepartureTime(LocalDateTime.now().plusDays(2));
         trip.setVehicle(vehicle);
 
         seat = new Seat();

@@ -77,6 +77,7 @@ public class ReviewService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<ReviewResponse> getAllReviews() {
         return reviewRepository.findAll().stream()
                 .map(this::toResponse)

@@ -15,7 +15,9 @@ import java.util.List;
 @Entity
 @Table(name = "chuyen_di", indexes = {
     @Index(name = "idx_trip_departure_time", columnList = "departure_time"),
-    @Index(name = "idx_trip_status", columnList = "status")
+    @Index(name = "idx_trip_status", columnList = "status"),
+    @Index(name = "idx_trip_route_departure", columnList = "route_id, departure_time"),
+    @Index(name = "idx_trip_vehicle_id", columnList = "vehicle_id")
 })
 @JsonIgnoreProperties({"reviews", "tickets"})
 public class Trip {

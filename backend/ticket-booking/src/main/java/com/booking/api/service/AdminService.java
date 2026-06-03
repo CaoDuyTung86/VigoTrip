@@ -11,6 +11,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -31,16 +33,19 @@ public class AdminService {
     // ==================== ROUTE ====================
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "routes")
     public List<Route> getAllRoutes() {
         return routeRepository.findAll();
     }
 
     @Transactional
+    @CacheEvict(value = "routes", allEntries = true)
     public Route createRoute(Route route) {
         return routeRepository.save(route);
     }
 
     @Transactional
+    @CacheEvict(value = "routes", allEntries = true)
     public Route updateRoute(Long id, Route routeData) {
         Route route = routeRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tuyến đường với ID: " + id));
@@ -50,6 +55,7 @@ public class AdminService {
     }
 
     @Transactional
+    @CacheEvict(value = "routes", allEntries = true)
     public void deleteRoute(Long id) {
         if (!routeRepository.existsById(id)) {
             throw new IllegalArgumentException("Không tìm thấy tuyến đường với ID: " + id);
@@ -136,11 +142,13 @@ public class AdminService {
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Trip createTrip(Trip trip) {
         return tripRepository.save(trip);
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Trip updateTrip(Long id, Trip tripData) {
         Trip trip = tripRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + id));
@@ -168,6 +176,7 @@ public class AdminService {
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Trip updateTripPrice(Long id, Double price) {
         Trip trip = tripRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + id));
@@ -176,6 +185,7 @@ public class AdminService {
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public void deleteTrip(Long id) {
         if (!tripRepository.existsById(id)) {
             throw new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + id);
@@ -184,6 +194,7 @@ public class AdminService {
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Trip delayTrip(Long tripId, TripUpdateRequest request) {
         Trip trip = tripRepository.findById(tripId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + tripId));
@@ -219,6 +230,7 @@ public class AdminService {
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Trip cancelTripByAdmin(Long tripId, String reason) {
         Trip trip = tripRepository.findById(tripId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + tripId));

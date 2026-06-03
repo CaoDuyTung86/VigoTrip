@@ -11,6 +11,7 @@ import com.booking.api.exception.DuplicateResourceException;
 import com.booking.api.repository.UserRepository;
 import com.booking.api.security.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -24,12 +25,14 @@ import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final EmailService emailService;
     private static final SecureRandom secureRandom = new SecureRandom();
 
     @Transactional
@@ -75,16 +78,7 @@ public class AuthService {
             throw new BadCredentialsException("Email hoặc mật khẩu không đúng");
         }
 
-        var userDetails = new org.springframework.security.core.userdetails.User(
-                user.getEmail(),
-                user.getPassword(),
-                Collections.singletonList(new SimpleGrantedAuthority(user.getRole())));
-        
-        java.util.Map<String, Object> extraClaims = new java.util.HashMap<>();
-        extraClaims.put("role", user.getRole());
-        String token = jwtService.generateToken(extraClaims, userDetails);
-
-        return new AuthResponse(token, user.getEmail(), user.getFullName(), user.getRole());
+        return generateAuthResponse(user);
     }
 
     @Transactional
@@ -104,19 +98,8 @@ public class AuthService {
         user.setVerificationCode(null);
         userRepository.save(user);
 
-        var userDetails = new org.springframework.security.core.userdetails.User(
-                user.getEmail(),
-                user.getPassword() != null ? user.getPassword() : "",
-                Collections.singletonList(new SimpleGrantedAuthority(user.getRole())));
-        
-        java.util.Map<String, Object> extraClaims = new java.util.HashMap<>();
-        extraClaims.put("role", user.getRole());
-        String token = jwtService.generateToken(extraClaims, userDetails);
-
-        return new AuthResponse(token, user.getEmail(), user.getFullName(), user.getRole());
+        return generateAuthResponse(user);
     }
-
-    private final EmailService emailService;
 
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
@@ -133,10 +116,8 @@ public class AuthService {
         try {
             emailService.sendResetPasswordEmail(user.getEmail(), otpCode);
         } catch (Exception e) {
-            System.out.println("\n========================================================");
-            System.out.println("[DEBUG LỖI EMAIL] Không thể gửi email do chưa cấu hình SMTP");
-            System.out.println("Mã OTP của " + request.getEmail() + " là: " + otpCode);
-            System.out.println("========================================================\n");
+            log.error("Failed to send reset password email to {}", request.getEmail(), e);
+            log.warn("SMTP email sending failed. Please check email server configuration.");
         }
     }
 
@@ -177,6 +158,10 @@ public class AuthService {
             userRepository.save(user);
         }
 
+        return generateAuthResponse(user);
+    }
+
+    private AuthResponse generateAuthResponse(User user) {
         var userDetails = new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword() != null ? user.getPassword() : "",
