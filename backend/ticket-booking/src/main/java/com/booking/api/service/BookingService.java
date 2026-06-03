@@ -8,8 +8,10 @@ import com.booking.api.exception.ResourceNotFoundException;
 import com.booking.api.mapper.BookingMapper;
 import com.booking.api.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import com.booking.api.controller.SeatStatusController.SeatStatusUpdate;
 
@@ -21,7 +23,12 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BookingService {
+
+    private static final int POINTS_DIVISION_FACTOR = 10000;
+    private static final int CANCEL_HOURS_CUTOFF = 4;
+    private static final double REFUND_PERCENTAGE_24H = 0.9;
 
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
@@ -36,6 +43,7 @@ public class BookingService {
     private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public BookingResponse createBooking(String email, BookingRequest request) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user"));
@@ -186,10 +194,7 @@ public class BookingService {
 
         return bookings.stream()
                 .map(booking -> {
-                    Trip trip = null;
-                    if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
-                        trip = booking.getTickets().get(0).getTrip();
-                    }
+                    Trip trip = extractTripFromBooking(booking);
                     return bookingMapper.toBookingResponse(booking, trip);
                 })
                 .collect(Collectors.toList());
@@ -207,15 +212,13 @@ public class BookingService {
             throw new BookingException("Bạn không có quyền xem booking này");
         }
 
-        Trip trip = null;
-        if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
-            trip = booking.getTickets().get(0).getTrip();
-        }
+        Trip trip = extractTripFromBooking(booking);
 
         return bookingMapper.toBookingResponse(booking, trip);
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public BookingResponse cancelBooking(String email, Long bookingId) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user"));
@@ -231,17 +234,14 @@ public class BookingService {
             throw new BookingException("Booking này đã được hủy trước đó");
         }
 
-        Trip trip = null;
-        if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
-            trip = booking.getTickets().get(0).getTrip();
-        }
+        Trip trip = extractTripFromBooking(booking);
 
         if (trip != null) {
             LocalDateTime now = LocalDateTime.now();
             long hoursUntilDeparture = java.time.temporal.ChronoUnit.HOURS.between(now, trip.getDepartureTime());
 
             if ("PAID".equals(booking.getStatus()) || "CONFIRMED".equals(booking.getStatus())) {
-                if (hoursUntilDeparture < 4) {
+                if (hoursUntilDeparture < CANCEL_HOURS_CUTOFF) {
                     throw new BookingException(
                             "Không thể hủy/hoàn vé khi chỉ còn dưới 4 tiếng là khởi hành hoặc xe đã chạy");
                 }
@@ -250,7 +250,7 @@ public class BookingService {
                 if (hoursUntilDeparture > 24) {
                     refundAmount = booking.getTotalPrice(); // Hoàn 100%
                 } else {
-                    refundAmount = booking.getTotalPrice() * 0.9; // Phạt 10%, hoàn 90%
+                    refundAmount = booking.getTotalPrice() * REFUND_PERCENTAGE_24H; // Phạt 10%, hoàn 90%
                 }
 
                 Refund refund = new Refund();
@@ -293,7 +293,7 @@ public class BookingService {
 
         // Tích điểm: 1 điểm / 10,000đ
         if (booking.getTotalPrice() != null && booking.getTotalPrice() > 0) {
-            int earnedPoints = (int) (booking.getTotalPrice() / 10000);
+            int earnedPoints = (int) (booking.getTotalPrice() / POINTS_DIVISION_FACTOR);
             int currentPoints = user.getPoints() != null ? user.getPoints() : 0;
             user.setPoints(currentPoints + earnedPoints);
             userRepository.save(user);
@@ -302,12 +302,10 @@ public class BookingService {
         try {
             emailService.sendSurveyEmail(user.getEmail(), booking.getId());
         } catch (Exception e) {
+            log.error("Failed to send survey email for booking: {}", booking.getId(), e);
         }
 
-        Trip trip = null;
-        if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
-            trip = booking.getTickets().get(0).getTrip();
-        }
+        Trip trip = extractTripFromBooking(booking);
 
         return bookingMapper.toBookingResponse(booking, trip);
     }
@@ -354,10 +352,7 @@ public class BookingService {
 
         bookingRepository.save(booking);
 
-        Trip trip = null;
-        if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
-            trip = booking.getTickets().get(0).getTrip();
-        }
+        Trip trip = extractTripFromBooking(booking);
 
         return bookingMapper.toBookingResponse(booking, trip);
     }
@@ -379,10 +374,7 @@ public class BookingService {
         booking.setCheckInDate(LocalDateTime.now());
         bookingRepository.save(booking);
 
-        Trip trip = null;
-        if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
-            trip = booking.getTickets().get(0).getTrip();
-        }
+        Trip trip = extractTripFromBooking(booking);
 
         return bookingMapper.toBookingResponse(booking, trip);
     }
@@ -397,12 +389,16 @@ public class BookingService {
 
         return bookings.stream()
                 .map(booking -> {
-                    Trip trip = null;
-                    if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
-                        trip = booking.getTickets().get(0).getTrip();
-                    }
+                    Trip trip = extractTripFromBooking(booking);
                     return bookingMapper.toBookingResponse(booking, trip);
                 })
                 .collect(Collectors.toList());
+    }
+
+    private Trip extractTripFromBooking(Booking booking) {
+        if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
+            return booking.getTickets().get(0).getTrip();
+        }
+        return null;
     }
 }

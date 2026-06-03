@@ -14,7 +14,10 @@ import java.util.List;
 @Entity
 @Table(name = "dat_ve", indexes = {
     @Index(name = "idx_booking_user_id", columnList = "user_id"),
-    @Index(name = "idx_booking_status", columnList = "status")
+    @Index(name = "idx_booking_status", columnList = "status"),
+    @Index(name = "idx_booking_date", columnList = "booking_date"),
+    @Index(name = "idx_booking_user_status", columnList = "user_id, status"),
+    @Index(name = "idx_booking_checked_in", columnList = "is_checked_in, check_in_date")
 })
 public class Booking {
 

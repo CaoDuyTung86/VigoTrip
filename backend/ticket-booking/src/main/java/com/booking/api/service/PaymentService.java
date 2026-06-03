@@ -218,24 +218,18 @@ public class PaymentService {
             int currentPoints = user.getPoints() == null ? 0 : user.getPoints();
             user.setPoints(currentPoints + earnedPoints);
 
-            String newLevel = null;
-            int newPoints = user.getPoints();
-            if (newPoints >= 2000) newLevel = "Kim cương";
-            else if (newPoints >= 500) newLevel = "Vàng";
-            else if (newPoints >= 100) newLevel = "Bạc";
-
-            if (newLevel != null) {
-                promotionRepository.findByLevelName(newLevel).ifPresent(user::setPromotion);
+            String levelName = UserService.getMembershipLevel(user.getPoints());
+            if (!"Đồng".equalsIgnoreCase(levelName)) {
+                promotionRepository.findByLevelName(levelName)
+                        .or(() -> "Kim Cương".equals(levelName) ? promotionRepository.findByLevelName("Kim cương") : Optional.empty())
+                        .ifPresent(user::setPromotion);
             }
             userRepository.save(user);
         }
 
-        String seats = "";
-        if (booking.getTickets() != null) {
-            seats = booking.getTickets().stream()
-                    .map(t -> t.getSeat().getSeatNumber())
-                    .collect(Collectors.joining(", "));
-        }
+        String seats = booking.getTickets() == null ? "" : booking.getTickets().stream()
+                .map(t -> t.getSeat().getSeatNumber())
+                .collect(Collectors.joining(", "));
 
         emailService.sendBookingConfirmation(
                 booking.getUser().getEmail(),
