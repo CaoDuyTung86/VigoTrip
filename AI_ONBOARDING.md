@@ -15,9 +15,9 @@ This is a full-stack Ticket Booking System (Flights, Buses, Trains).
 ## 2. Mandatory Setup for the Human Developer
 Before running the project, ensure the developer has:
 1. **Docker Desktop** installed and running.
-2. **JDK 17** installed.
-3. **Node.js (v20+)** installed.
-4. **SQL Server** running on the host machine (Windows) or update the connection string.
+2. **JDK 17** installed (optional, only needed for local IDE running).
+3. **Node.js (v20+)** installed (optional, only needed for local IDE running).
+4. **SQL Server:** **Không cần cài đặt SQL Server trên máy thật!** Dự án đã cấu hình sẵn container SQL Server tự động khởi chạy và tạo database thông qua Docker Compose.
 
 ---
 

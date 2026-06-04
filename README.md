@@ -14,14 +14,21 @@ Dự án đồ án tốt nghiệp cung cấp giải pháp đặt vé toàn diệ
 
 ---
 
+## 🌐 Môi Trường Thử Nghiệm (Staging)
+
+Hệ thống đã được triển khai thử nghiệm trên nền tảng điện toán đám mây AWS:
+* **Địa chỉ Website:** [https://datxe.duckdns.org](https://datxe.duckdns.org) *(Hỗ trợ đầy đủ bảo mật HTTPS)*
+
+---
+
 ## 🛠 Công Nghệ Sử Dụng
 
 | Thành phần | Công nghệ |
 | :--- | :--- |
 | **Backend** | Java Spring Boot 3, Spring Security, JWT, JPA/Hibernate |
 | **Frontend** | React (Vite), Recharts (Biểu đồ), WebSocket Client |
-| **Database** | MS SQL Server |
-| **DevOps** | Docker, Prometheus, Grafana, SonarQube |
+| **Database** | AWS RDS SQL Server (Production) / MS SQL Server (Local) |
+| **DevOps & Cloud** | AWS (EC2, RDS), Docker, Nginx, Certbot SSL, Prometheus, Grafana, SonarQube |
 | **AI Engine** | Groq API (Llama 3.3) |
 
 ---
@@ -37,6 +44,10 @@ Dự án đồ án tốt nghiệp cung cấp giải pháp đặt vé toàn diệ
 - [x] **Monitoring:** Triển khai hạ tầng giám sát hệ thống thời gian thực.
 - [x] **Security:** Chuyển đổi quản lý Secret sang biến môi trường (.env) và tích hợp quét bảo mật tự động.
 - [x] **Code Quality:** Kiểm soát chất lượng mã nguồn qua SonarQube.
+- [x] **Cloud Deployment (AWS):** Triển khai dự án lên máy chủ AWS EC2 bằng Docker Compose.
+- [x] **Database Cloud:** Cấu hình cơ sở dữ liệu tách biệt kết nối đến AWS RDS SQL Server.
+- [x] **Web Server & SSL:** Thiết lập Nginx Reverse Proxy điều hướng luồng mạng và cài đặt chứng chỉ SSL bảo mật (Let's Encrypt).
+- [x] **Domain Name:** Đăng ký và cấu hình tên miền `datxe.duckdns.org` trỏ về AWS.
 
 ### Hướng phát triển tiếp theo:
 - [ ] **Map Integration:** Tích hợp bản đồ để theo dõi lộ trình và định vị bến xe/nhà ga.
