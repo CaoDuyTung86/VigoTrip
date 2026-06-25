@@ -47,6 +47,10 @@ vnpay:
   return-url: ${VNP_RETURN_URL:http://localhost:8081/api/payment/vnpay-return}
   api-url: https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
 
+# Frontend URL (dùng cho redirect sau thanh toán VNPay)
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+
 # Swagger
 springdoc:
   swagger-ui:

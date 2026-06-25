@@ -42,6 +42,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - VNP_HASH_SECRET=${VNP_HASH_SECRET}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
     depends_on:
       sqlserver-init:
         condition: service_completed_successfully

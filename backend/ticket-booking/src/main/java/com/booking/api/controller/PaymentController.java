@@ -22,6 +22,9 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
+    @org.springframework.beans.factory.annotation.Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
+
     @Operation(summary = "Tạo link thanh toán VNPay", description = "Tạo URL thanh toán cho booking, trả về link chuyển hướng đến cổng VNPay")
     @PostMapping("/create")
     public ResponseEntity<PaymentResponse> createPayment(
@@ -52,7 +55,7 @@ public class PaymentController {
             @RequestParam Map<String, String> params) {
         String result = paymentService.handleVNPayReturn(params);
 
-        String redirectUrl = "http://localhost:5173/my-bookings";
+        String redirectUrl = frontendUrl + "/my-bookings";
         if ("SUCCESS".equals(result)) {
             redirectUrl += "?payment=success";
         } else {

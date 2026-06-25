@@ -56,20 +56,40 @@ public class DataSeeder {
             ensureSeatsForVehicle(airbusA320);
             ensureSeatsForVehicle(bus40);
             ensureSeatsForVehicle(train120);
-            if (tripRepository.count() == 0) {
-                LocalDate today = LocalDate.now();
+            // Kiểm tra xem có chuyến đi nào từ hôm nay trở đi không
+            LocalDate today = LocalDate.now();
+            LocalDateTime todayStart = today.atStartOfDay();
+            long futureTrips = tripRepository.findUpcomingTrips(todayStart, org.springframework.data.domain.PageRequest.of(0, 1)).getTotalElements();
+
+            if (futureTrips == 0) {
+                // Xóa các trip cũ đã hết hạn (nếu có) để tránh rác DB
+                List<Trip> oldTrips = tripRepository.findAll().stream()
+                        .filter(t -> t.getDepartureTime() != null && t.getDepartureTime().isBefore(todayStart))
+                        .toList();
+                if (!oldTrips.isEmpty()) {
+                    tripRepository.deleteAll(oldTrips);
+                }
+
                 List<Trip> trips = new ArrayList<>();
 
-                for (int i = 0; i < 7; i++) {
+                for (int i = 0; i < 30; i++) {
                     LocalDate date = today.plusDays(i);
 
                     // ===== PLANE =====
                     trips.add(buildTrip(
                             hanSgn,
                             airbusA321,
-                            date.atTime(LocalTime.of(8, 0)),
-                            date.atTime(LocalTime.of(10, 10)),
-                            1_200_000.0 + i * 50_000,
+                            date.atTime(LocalTime.of(6, 0)),
+                            date.atTime(LocalTime.of(8, 10)),
+                            2_100_000.0 + i * 50_000,
+                            "ACTIVE"));
+
+                    trips.add(buildTrip(
+                            hanSgn,
+                            airbusA321,
+                            date.atTime(LocalTime.of(14, 30)),
+                            date.atTime(LocalTime.of(16, 40)),
+                            1_800_000.0 + i * 30_000,
                             "ACTIVE"));
 
                     trips.add(buildTrip(
@@ -77,15 +97,23 @@ public class DataSeeder {
                             airbusA320,
                             date.atTime(LocalTime.of(19, 0)),
                             date.atTime(LocalTime.of(21, 10)),
-                            1_000_000.0 + i * 30_000,
+                            1_500_000.0 + i * 30_000,
                             "ACTIVE"));
 
                     trips.add(buildTrip(
                             sgnHan,
                             airbusA321,
-                            date.atTime(LocalTime.of(14, 0)),
-                            date.atTime(LocalTime.of(16, 10)),
-                            1_150_000.0 + i * 40_000,
+                            date.atTime(LocalTime.of(7, 0)),
+                            date.atTime(LocalTime.of(9, 10)),
+                            2_000_000.0 + i * 40_000,
+                            "ACTIVE"));
+
+                    trips.add(buildTrip(
+                            sgnHan,
+                            airbusA320,
+                            date.atTime(LocalTime.of(20, 0)),
+                            date.atTime(LocalTime.of(22, 10)),
+                            1_600_000.0 + i * 35_000,
                             "ACTIVE"));
 
                     trips.add(buildTrip(
@@ -93,7 +121,15 @@ public class DataSeeder {
                             airbusA320,
                             date.atTime(LocalTime.of(11, 0)),
                             date.atTime(LocalTime.of(12, 15)),
-                            800_000.0 + i * 20_000,
+                            900_000.0 + i * 20_000,
+                            "ACTIVE"));
+
+                    trips.add(buildTrip(
+                            dadHan,
+                            airbusA320,
+                            date.atTime(LocalTime.of(15, 0)),
+                            date.atTime(LocalTime.of(16, 15)),
+                            950_000.0 + i * 20_000,
                             "ACTIVE"));
 
                     // ===== BUS =====
@@ -113,6 +149,14 @@ public class DataSeeder {
                             430_000.0 + i * 10_000,
                             "ACTIVE"));
 
+                    trips.add(buildTrip(
+                            hanSgn,
+                            bus40,
+                            date.atTime(LocalTime.of(18, 0)),
+                            date.plusDays(1).atTime(LocalTime.of(12, 0)),
+                            550_000.0 + i * 15_000,
+                            "ACTIVE"));
+
                     // ===== TRAIN =====
                     trips.add(buildTrip(
                             hanDad,
@@ -120,6 +164,14 @@ public class DataSeeder {
                             date.atTime(LocalTime.of(6, 0)),
                             date.plusDays(1).atTime(LocalTime.of(6, 30)),
                             650_000.0 + i * 15_000,
+                            "ACTIVE"));
+
+                    trips.add(buildTrip(
+                            hanSgn,
+                            train120,
+                            date.atTime(LocalTime.of(19, 30)),
+                            date.plusDays(2).atTime(LocalTime.of(4, 0)),
+                            850_000.0 + i * 20_000,
                             "ACTIVE"));
                 }
 

@@ -22,7 +22,7 @@ public class AIService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${gemini.api-key:}")
-    private String groqApiKey; // Dùng tên này cho đúng bản chất
+    private String groqApiKey;
 
     private final String GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
     private final String MODEL_NAME = "llama-3.3-70b-versatile";
