@@ -41,8 +41,8 @@ jwt:
 
 # VNPay Sandbox Configuration (Demo credentials từ sandbox.vnpayment.vn)
 vnpay:
-  tmn-code: ${VNP_TMN_CODE:3JZ7QBUX}
-  hash-secret: ${VNP_HASH_SECRET}
+  tmn-code: ${VNP_TMN_CODE:2N4UDJHA}
+  hash-secret: ${VNP_HASH_SECRET:AGZ0GSAWUPR788U3WZ2B1BG3AGVTBUQY}
   pay-url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
   return-url: ${VNP_RETURN_URL:http://localhost:8081/api/payment/vnpay-return}
   api-url: https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
