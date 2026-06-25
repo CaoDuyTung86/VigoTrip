@@ -203,7 +203,11 @@ const Auth = ({ isOpen, onClose }) => {
       }, 2000);
 
       setTimeout(() => {
-        onClose();
+        if (onClose) {
+          onClose();
+        } else {
+          navigate("/");
+        }
         setStep(1);
         setEmail("");
         setEmailError("");
@@ -456,8 +460,11 @@ const Auth = ({ isOpen, onClose }) => {
                         setSuccessMessage("Đăng nhập Google thành công!");
                         setShowSuccess(true);
                         setTimeout(() => {
-                          onClose();
-                          window.location.reload();
+                          if (onClose) {
+                            onClose();
+                          } else {
+                            navigate("/");
+                          }
                         }, 1500);
                       } else {
                         setApiError("Backend lỗi: " + (data.message || "Không xác định"));
