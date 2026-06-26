@@ -14,7 +14,7 @@ export const WebSocketProvider = ({ children }) => {
         const client = new Client({
             // Note: Use http/ws based on your environment. 
             // Since we use SockJS fallback, we point to the http endpoint.
-            webSocketFactory: () => new SockJS('http://localhost:8081/ws'),
+            webSocketFactory: () => new SockJS('/ws'),
             connectHeaders: {},
             debug: (str) => {
                 // console.log(str);

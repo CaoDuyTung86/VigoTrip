@@ -12,6 +12,9 @@ import com.booking.api.repository.BookingRepository;
 import com.booking.api.repository.PromotionRepository;
 import com.booking.api.repository.UserRepository;
 import com.booking.api.util.VNPayUtil;
+import com.booking.api.entity.Ticket;
+import com.booking.api.controller.SeatStatusController.SeatStatusUpdate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +32,7 @@ public class PaymentService {
     private final PromotionRepository promotionRepository;
     private final VNPayConfig vnPayConfig;
     private final EmailService emailService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * Tạo URL thanh toán VNPay
@@ -117,8 +121,7 @@ public class PaymentService {
             return "SUCCESS";
         } else {
             if ("PENDING".equals(booking.getStatus())) {
-                booking.setStatus("FAILED");
-                bookingRepository.save(booking);
+                cancelBookingAndBroadcast(booking);
             }
             return "FAILED_" + responseCode;
         }
@@ -173,8 +176,7 @@ public class PaymentService {
             if ("00".equals(responseCode)) {
                 processSuccessfulPayment(booking, params);
             } else {
-                booking.setStatus("FAILED");
-                bookingRepository.save(booking);
+                cancelBookingAndBroadcast(booking);
             }
 
             response.put("RspCode", "00");
@@ -241,5 +243,25 @@ public class PaymentService {
                 booking.getTotalPrice(),
                 seats
         );
+    }
+
+    private void cancelBookingAndBroadcast(Booking booking) {
+        booking.setStatus("FAILED");
+        bookingRepository.save(booking);
+
+        if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
+            Long tripId = booking.getTickets().get(0).getTrip().getId();
+            for (Ticket t : booking.getTickets()) {
+                if (t.getSeat() != null) {
+                    SeatStatusUpdate update = new SeatStatusUpdate(
+                        tripId,
+                        t.getSeat().getId(),
+                        "AVAILABLE",
+                        null
+                    );
+                    messagingTemplate.convertAndSend("/topic/seat-status", update);
+                }
+            }
+        }
     }
 }

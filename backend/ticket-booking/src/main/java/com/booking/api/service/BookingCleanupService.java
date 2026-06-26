@@ -1,9 +1,12 @@
 package com.booking.api.service;
 
 import com.booking.api.entity.Booking;
+import com.booking.api.entity.Ticket;
 import com.booking.api.repository.BookingRepository;
+import com.booking.api.controller.SeatStatusController.SeatStatusUpdate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +20,7 @@ import java.util.List;
 public class BookingCleanupService {
 
     private final BookingRepository bookingRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     // Chạy mỗi 1 phút một lần
     @Scheduled(fixedRate = 60000)
@@ -30,6 +34,20 @@ public class BookingCleanupService {
             log.info("Found {} expired PENDING bookings. Canceling...", expiredBookings.size());
             for (Booking booking : expiredBookings) {
                 booking.setStatus("CANCELLED");
+                // Giải phóng ghế qua WebSocket
+                if (booking.getTickets() != null) {
+                    for (Ticket t : booking.getTickets()) {
+                        if (t.getSeat() != null) {
+                            SeatStatusUpdate update = new SeatStatusUpdate(
+                                t.getTrip().getId(),
+                                t.getSeat().getId(),
+                                "AVAILABLE",
+                                null
+                            );
+                            messagingTemplate.convertAndSend("/topic/seat-status", update);
+                        }
+                    }
+                }
             }
             bookingRepository.saveAll(expiredBookings);
         }

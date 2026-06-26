@@ -84,7 +84,8 @@ public class BookingService {
 
             double seatPrice = trip.getPrice();
             if ("FLIGHT".equalsIgnoreCase(trip.getVehicle().getVehicleType())
-                    || "AIRLINE".equalsIgnoreCase(trip.getVehicle().getVehicleType())) {
+                    || "AIRLINE".equalsIgnoreCase(trip.getVehicle().getVehicleType())
+                    || "PLANE".equalsIgnoreCase(trip.getVehicle().getVehicleType())) {
                 if ("BUSINESS".equalsIgnoreCase(seat.getSeatType())) {
                     seatPrice *= 2.5;
                 }
@@ -269,6 +270,20 @@ public class BookingService {
         booking.setStatus("CANCELLED");
         bookingRepository.save(booking);
 
+        if (booking.getTickets() != null) {
+            for (Ticket t : booking.getTickets()) {
+                if (t.getSeat() != null) {
+                    SeatStatusUpdate update = new SeatStatusUpdate(
+                        trip != null ? trip.getId() : t.getTrip().getId(),
+                        t.getSeat().getId(),
+                        "AVAILABLE",
+                        null
+                    );
+                    messagingTemplate.convertAndSend("/topic/seat-status", update);
+                }
+            }
+        }
+
         return bookingMapper.toBookingResponse(booking, trip);
     }
 
@@ -335,6 +350,16 @@ public class BookingService {
         // Hủy vé
         ticketToCancel.setStatus("CANCELLED");
         ticketRepository.save(ticketToCancel);
+
+        if (ticketToCancel.getSeat() != null) {
+            SeatStatusUpdate update = new SeatStatusUpdate(
+                ticketToCancel.getTrip().getId(),
+                ticketToCancel.getSeat().getId(),
+                "AVAILABLE",
+                null
+            );
+            messagingTemplate.convertAndSend("/topic/seat-status", update);
+        }
 
         // Trừ giá vé khỏi tổng
         if (ticketToCancel.getPrice() != null) {

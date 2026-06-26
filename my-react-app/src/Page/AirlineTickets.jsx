@@ -110,7 +110,11 @@ const AirlineTickets = () => {
           setSeats((prevSeats) =>
             prevSeats.map((s) =>
               s.id === update.seatId 
-                ? { ...s, tempLockedBy: update.status === "SELECTED" ? update.userId : null } 
+                ? { 
+                    ...s, 
+                    booked: update.status === "BOOKED",
+                    tempLockedBy: update.status === "SELECTED" ? update.userId : null 
+                  } 
                 : s
             )
           );

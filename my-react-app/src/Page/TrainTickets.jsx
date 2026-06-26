@@ -107,7 +107,11 @@ const TrainTickets = () => {
           setSeats((prevSeats) =>
             prevSeats.map((s) =>
               s.id === update.seatId 
-                ? { ...s, tempLockedBy: update.status === "SELECTED" ? update.userId : null } 
+                ? { 
+                    ...s, 
+                    booked: update.status === "BOOKED",
+                    tempLockedBy: update.status === "SELECTED" ? update.userId : null 
+                  } 
                 : s
             )
           );
@@ -1245,7 +1249,7 @@ const TrainTickets = () => {
                     ))}
                     <div style={{ borderTop: "1px solid var(--border-light)", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 15, color: "#ff6b00" }}>
                       <span>Tổng cộng</span>
-                      <span>{Number((selectedTrip.price||0)*selectedSeatIds.length + services.filter(s=>selectedServiceIds.includes(s.id)).reduce((sum,s)=>sum+(s.price||0),0)).toLocaleString("vi-VN")} đ</span>
+                      <span>{Number(seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s.seatType), 0) + services.filter(s=>selectedServiceIds.includes(s.id)).reduce((sum,s)=>sum+(s.price||0),0)).toLocaleString("vi-VN")} đ</span>
                     </div>
                   </div>
                 </div>
