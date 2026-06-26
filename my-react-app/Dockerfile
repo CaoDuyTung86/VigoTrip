@@ -8,7 +8,7 @@ RUN npm install --legacy-peer-deps
 
 # Copy source code and build
 COPY . .
-RUN NODE_OPTIONS="--max-old-space-size=512" npm run build
+RUN npm run build
 
 # Serve stage
 FROM nginx:alpine
