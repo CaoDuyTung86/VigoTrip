@@ -68,7 +68,11 @@ public class PaymentService {
         params.put("vnp_OrderType", "billpayment");
         params.put("vnp_Locale", request.getLanguage() != null ? request.getLanguage() : "vn");
         params.put("vnp_ReturnUrl", vnPayConfig.getReturnUrl());
-        params.put("vnp_IpAddr", ipAddress);
+        String cleanIp = ipAddress;
+        if (cleanIp == null || cleanIp.contains(":") || "0:0:0:0:0:0:0:1".equals(cleanIp)) {
+            cleanIp = "127.0.0.1";
+        }
+        params.put("vnp_IpAddr", cleanIp);
         params.put("vnp_CreateDate", VNPayUtil.formatDateTime(LocalDateTime.now()));
 
         if (request.getBankCode() != null && !request.getBankCode().isBlank()) {
