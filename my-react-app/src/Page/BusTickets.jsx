@@ -356,6 +356,12 @@ const BusTickets = () => {
 
     setSelectedSeatIds((prev) => {
       const exists = prev.includes(seat.id);
+      
+      const maxSeats = passengers || 1;
+      if (!exists && prev.length >= maxSeats) {
+        return prev;
+      }
+
       const newStatus = exists ? "AVAILABLE" : "SELECTED";
 
       sendMessage("/app/seat-selection", {
@@ -369,9 +375,6 @@ const BusTickets = () => {
         return prev.filter((id) => id !== seat.id);
       }
 
-      if (prev.length >= (passengers || 1)) {
-        return prev;
-      }
       return [...prev, seat.id];
     });
   };

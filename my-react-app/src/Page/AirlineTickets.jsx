@@ -358,6 +358,13 @@ const AirlineTickets = () => {
 
     setSelectedSeatIds((prev) => {
       const exists = prev.includes(seat.id);
+      
+      // Nếu chưa chọn ghế này và đã chọn đủ số lượng ghế tối đa -> Không làm gì cả, không gửi WS
+      const maxSeats = (passengerCounts.adult + passengerCounts.child + passengerCounts.infant) || 1;
+      if (!exists && prev.length >= maxSeats) {
+        return prev;
+      }
+
       const newStatus = exists ? "AVAILABLE" : "SELECTED";
       
       sendMessage("/app/seat-selection", {
@@ -371,9 +378,6 @@ const AirlineTickets = () => {
         return prev.filter((id) => id !== seat.id);
       }
 
-      if (prev.length >= ((passengerCounts.adult + passengerCounts.child + passengerCounts.infant) || 1)) {
-        return prev;
-      }
       return [...prev, seat.id];
     });
   };
