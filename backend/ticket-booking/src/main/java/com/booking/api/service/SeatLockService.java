@@ -21,10 +21,12 @@ public class SeatLockService {
     // Map of seatId -> SeatLock
     private final Map<Long, SeatLock> locks = new ConcurrentHashMap<>();
 
-    private static final int LOCK_TIMEOUT_MINUTES = 5;
+    private static final int LOCK_TIMEOUT_MINUTES = 10;
 
     public boolean lockSeat(Long tripId, Long seatId, String userId) {
-        if (userId == null) return false; // Anonymous users can't lock
+        if (userId == null || userId.trim().isEmpty()) {
+            userId = "anonymous";
+        }
         SeatLock existingLock = locks.get(seatId);
         if (existingLock != null && existingLock.getExpiresAt().isAfter(LocalDateTime.now()) && !existingLock.getUserId().equals(userId)) {
             // Already locked by someone else
@@ -38,7 +40,9 @@ public class SeatLockService {
     }
 
     public boolean unlockSeat(Long seatId, String userId) {
-        if (userId == null) return false;
+        if (userId == null || userId.trim().isEmpty()) {
+            userId = "anonymous";
+        }
         SeatLock existingLock = locks.get(seatId);
         if (existingLock != null && existingLock.getUserId().equals(userId)) {
             locks.remove(seatId);

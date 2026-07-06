@@ -87,6 +87,8 @@ const TrainTickets = () => {
   const [seats, setSeats] = useState([]);
   const [selectedSeatIds, setSelectedSeatIds] = useState([]);
   const [step, setStep] = useState("search"); 
+  const [lockDeadline, setLockDeadline] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(null);
 
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -123,6 +125,41 @@ const TrainTickets = () => {
       };
     }
   }, [selectedTrip, isConnected, subscribe]);
+
+  // Effect quản lý đếm ngược thời gian giữ ghế (10 phút)
+  useEffect(() => {
+    if (!lockDeadline) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.round((lockDeadline - Date.now()) / 1000));
+      setTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        clearInterval(interval);
+        
+        // Hết thời gian: Giải phóng ghế
+        selectedSeatIds.forEach((seatId) => {
+          sendMessage("/app/seat-selection", {
+            tripId: selectedTrip?.id,
+            seatId: seatId,
+            status: "AVAILABLE",
+            userId: user?.email || "anonymous"
+          });
+        });
+
+        // Reset states
+        setSelectedSeatIds([]);
+        setLockDeadline(null);
+        setError("Hết thời gian giữ ghế (10 phút). Vui lòng chọn ghế và thực hiện lại.");
+        setStep("seatClass");
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [lockDeadline, selectedSeatIds, selectedTrip, user, sendMessage]);
 
   useEffect(() => {
     const newList = [];
@@ -356,7 +393,7 @@ const TrainTickets = () => {
   const isMaxReached = selectedSeatIds.length >= maxSeats;
 
   const toggleSeat = (seat) => {
-    if (seat.booked || (seat.tempLockedBy && seat.tempLockedBy !== user?.email)) return;
+    if (seat.booked || (seat.tempLockedBy && seat.tempLockedBy !== (user?.email || "anonymous"))) return;
 
     const exists = selectedSeatIds.includes(seat.id);
     const maxSeats = passengers || 1;
@@ -364,15 +401,6 @@ const TrainTickets = () => {
     if (!exists && selectedSeatIds.length >= maxSeats) {
       return;
     }
-
-    const newStatus = exists ? "AVAILABLE" : "SELECTED";
-
-    sendMessage("/app/seat-selection", {
-      tripId: selectedTrip.id,
-      seatId: seat.id,
-      status: newStatus,
-      userId: user?.email
-    });
 
     setSelectedSeatIds((prev) => {
       if (exists) {
@@ -432,6 +460,18 @@ const TrainTickets = () => {
       return;
     }
     setError("");
+
+    // Khóa ghế bằng cách gửi SELECTED qua WebSocket cho tất cả ghế đã chọn
+    selectedSeatIds.forEach((seatId) => {
+      sendMessage("/app/seat-selection", {
+        tripId: selectedTrip.id,
+        seatId: seatId,
+        status: "SELECTED",
+        userId: user?.email || "anonymous"
+      });
+    });
+
+    setLockDeadline(Date.now() + 10 * 60 * 1000);
     setStep("passenger");
   };
 
@@ -869,6 +909,28 @@ const TrainTickets = () => {
             
             {["seatClass", "passenger", "extras", "review"].includes(step) && (
               <div style={{ marginBottom: 20, background: "var(--bg-card)", borderRadius: 12, padding: "16px 24px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+                {timeLeft !== null && (
+                  <div style={{
+                    marginBottom: 16,
+                    padding: "10px 16px",
+                    borderRadius: 8,
+                    background: timeLeft < 120 ? "#fef2f2" : "#f0fdf4",
+                    border: timeLeft < 120 ? "1px solid #fecaca" : "1px solid #bbf7d0",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    fontWeight: 700,
+                    color: timeLeft < 120 ? "#991b1b" : "#166534",
+                    fontSize: 14
+                  }}>
+                    <span>⏱️ Thời gian giữ ghế còn lại: </span>
+                    <span style={{ fontSize: 16, fontFamily: "monospace" }}>
+                      {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:
+                      {(timeLeft % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                )}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
                 
                   <div style={{ position: "absolute", top: 20, left: "10%", right: "10%", height: 3, background: "#e0e7ff", zIndex: 0 }} />
@@ -1087,7 +1149,19 @@ const TrainTickets = () => {
 
                   {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
-                    <button type="button" onClick={() => setStep("seatClass")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-card)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
+                    <button type="button" onClick={() => {
+                      // Giải phóng các ghế đã chọn qua WebSocket khi quay lại bước chọn ghế
+                      selectedSeatIds.forEach((seatId) => {
+                        sendMessage("/app/seat-selection", {
+                          tripId: selectedTrip.id,
+                          seatId: seatId,
+                          status: "AVAILABLE",
+                          userId: user?.email || "anonymous"
+                        });
+                      });
+                      setLockDeadline(null);
+                      setStep("seatClass");
+                    }} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-card)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
                     <button type="button" onClick={goToExtrasFromPassenger} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.nextStep} →</button>
                   </div>
                 </div>
