@@ -103,6 +103,7 @@ const BusTickets = () => {
   useEffect(() => {
     if (selectedTrip && isConnected) {
       const subscription = subscribe("/topic/seat-status", (update) => {
+        if (update.status === "LOCK_FAILED") return;
         if (update.tripId === selectedTrip.id) {
           setSeats((prevSeats) =>
             prevSeats.map((s) =>
@@ -350,6 +351,9 @@ const BusTickets = () => {
       setLoading(false);
     }
   };
+
+  const maxSeats = passengers || 1;
+  const isMaxReached = selectedSeatIds.length >= maxSeats;
 
   const toggleSeat = (seat) => {
     if (seat.booked || (seat.tempLockedBy && seat.tempLockedBy !== user?.email)) return;
@@ -987,7 +991,7 @@ const BusTickets = () => {
                               const isLockedByOthers = s.tempLockedBy && s.tempLockedBy !== user?.email;
                               const isSleeper = s.seatType === "SLEEPER" || s.seatType === "BUSINESS";
                               return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked || isLockedByOthers}
+                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked || isLockedByOthers || (!sel && isMaxReached)}
                                   title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
                                   style={{
                                     width: 44, height: isSleeper ? 64 : 44, borderRadius: isSleeper ? "8px" : "12px", border: "none",
@@ -1010,7 +1014,7 @@ const BusTickets = () => {
                               const isLockedByOthers = s.tempLockedBy && s.tempLockedBy !== user?.email;
                               const isSleeper = s.seatType === "SLEEPER" || s.seatType === "BUSINESS";
                               return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked || isLockedByOthers}
+                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked || isLockedByOthers || (!sel && isMaxReached)}
                                   title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
                                   style={{
                                     width: 44, height: isSleeper ? 64 : 44, borderRadius: isSleeper ? "8px" : "12px", border: "none",

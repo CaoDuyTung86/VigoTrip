@@ -22,7 +22,7 @@ public class SeatStatusController {
         if ("SELECTED".equals(update.getStatus())) {
             boolean success = seatLockService.lockSeat(update.getTripId(), update.getSeatId(), update.getUserId());
             if (!success) {
-
+                update.setStatus("LOCK_FAILED");
                 return update; 
             }
         } else if ("AVAILABLE".equals(update.getStatus())) {
