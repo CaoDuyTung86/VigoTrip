@@ -354,27 +354,26 @@ const BusTickets = () => {
   const toggleSeat = (seat) => {
     if (seat.booked || (seat.tempLockedBy && seat.tempLockedBy !== user?.email)) return;
 
+    const exists = selectedSeatIds.includes(seat.id);
+    const maxSeats = passengers || 1;
+
+    if (!exists && selectedSeatIds.length >= maxSeats) {
+      return;
+    }
+
+    const newStatus = exists ? "AVAILABLE" : "SELECTED";
+
+    sendMessage("/app/seat-selection", {
+      tripId: selectedTrip.id,
+      seatId: seat.id,
+      status: newStatus,
+      userId: user?.email
+    });
+
     setSelectedSeatIds((prev) => {
-      const exists = prev.includes(seat.id);
-      
-      const maxSeats = passengers || 1;
-      if (!exists && prev.length >= maxSeats) {
-        return prev;
-      }
-
-      const newStatus = exists ? "AVAILABLE" : "SELECTED";
-
-      sendMessage("/app/seat-selection", {
-        tripId: selectedTrip.id,
-        seatId: seat.id,
-        status: newStatus,
-        userId: user?.email
-      });
-
       if (exists) {
         return prev.filter((id) => id !== seat.id);
       }
-
       return [...prev, seat.id];
     });
   };

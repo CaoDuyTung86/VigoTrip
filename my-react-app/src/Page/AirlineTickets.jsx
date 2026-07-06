@@ -356,28 +356,29 @@ const AirlineTickets = () => {
   const toggleSeat = (seat) => {
     if (seat.booked || (seat.tempLockedBy && seat.tempLockedBy !== user?.email)) return;
 
+    const exists = selectedSeatIds.includes(seat.id);
+    const maxSeats = (passengerCounts.adult + passengerCounts.child + passengerCounts.infant) || 1;
+
+    // 1. Kiểm tra nếu chưa chọn ghế này và đã đạt giới hạn tối đa thì chặn luôn, không làm gì cả
+    if (!exists && selectedSeatIds.length >= maxSeats) {
+      return;
+    }
+
+    const newStatus = exists ? "AVAILABLE" : "SELECTED";
+
+    // 2. Gửi tin nhắn mạng WebSocket
+    sendMessage("/app/seat-selection", {
+      tripId: selectedTrip.id,
+      seatId: seat.id,
+      status: newStatus,
+      userId: user?.email
+    });
+
+    // 3. Cập nhật state UI
     setSelectedSeatIds((prev) => {
-      const exists = prev.includes(seat.id);
-      
-      // Nếu chưa chọn ghế này và đã chọn đủ số lượng ghế tối đa -> Không làm gì cả, không gửi WS
-      const maxSeats = (passengerCounts.adult + passengerCounts.child + passengerCounts.infant) || 1;
-      if (!exists && prev.length >= maxSeats) {
-        return prev;
-      }
-
-      const newStatus = exists ? "AVAILABLE" : "SELECTED";
-      
-      sendMessage("/app/seat-selection", {
-        tripId: selectedTrip.id,
-        seatId: seat.id,
-        status: newStatus,
-        userId: user?.email
-      });
-
       if (exists) {
         return prev.filter((id) => id !== seat.id);
       }
-
       return [...prev, seat.id];
     });
   };
