@@ -29,3 +29,4 @@ npm-debug.log*
 # Infrastructure Data
 prometheus/data/
 grafana/data/
+my-react-app/dist/assets/index-BuS8nFjb.js

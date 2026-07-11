@@ -19,6 +19,11 @@ public class SeatStatusController {
     @MessageMapping("/seat-selection")
     @SendTo("/topic/seat-status")
     public SeatStatusUpdate updateSeatStatus(SeatStatusUpdate update) {
+        if (update.getUserId() == null || update.getUserId().trim().isEmpty()) {
+            update.setStatus("LOCK_FAILED");
+            return update;
+        }
+
         if ("SELECTED".equals(update.getStatus())) {
             boolean success = seatLockService.lockSeat(update.getTripId(), update.getSeatId(), update.getUserId());
             if (!success) {
@@ -30,6 +35,12 @@ public class SeatStatusController {
         }
 
         return update;
+    }
+
+    private boolean isAuthenticatedUser(String userId) {
+        return userId != null
+                && !userId.isBlank()
+                && !"anonymous".equalsIgnoreCase(userId.trim());
     }
 
     @Data

@@ -7,6 +7,14 @@ import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar"; 
 import { useAuth } from "../context/AuthContext";
 import { useWebSocket } from "../context/WebSocketContext";
+import {
+  canSelectSeats,
+  getSeatUserId,
+  isSeatLockedByOthers,
+  LOGIN_REQUIRED_SEAT_MSG,
+  SEAT_CONFLICT_MSG,
+  WS_NOT_CONNECTED_MSG,
+} from "../utils/seatBookingHelpers";
 import { useLocation } from "react-router-dom";
 import { MdOutlineCreditCard } from "react-icons/md";
 import { TbTrain } from "react-icons/tb";
@@ -58,7 +66,7 @@ const getSeatPrice = (base, type) => {
 const TrainTickets = () => {
   const { t } = useLanguage();
   const { token, isAuthenticated, user } = useAuth();
-  const { isConnected, sendMessage, subscribe } = useWebSocket();
+  const { isConnected, subscribe, lockSeats, unlockSeats } = useWebSocket();
   const location = useLocation();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
@@ -141,13 +149,10 @@ const TrainTickets = () => {
         clearInterval(interval);
         
         // Hết thời gian: Giải phóng ghế
-        selectedSeatIds.forEach((seatId) => {
-          sendMessage("/app/seat-selection", {
-            tripId: selectedTrip?.id,
-            seatId: seatId,
-            status: "AVAILABLE",
-            userId: user?.email || "anonymous"
-          });
+        unlockSeats({
+          tripId: selectedTrip?.id,
+          seatIds: selectedSeatIds,
+          userId: getSeatUserId(user),
         });
 
         // Reset states
@@ -159,7 +164,7 @@ const TrainTickets = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [lockDeadline, selectedSeatIds, selectedTrip, user, sendMessage]);
+  }, [lockDeadline, selectedSeatIds, selectedTrip, user, unlockSeats]);
 
   useEffect(() => {
     const newList = [];
@@ -393,7 +398,12 @@ const TrainTickets = () => {
   const isMaxReached = selectedSeatIds.length >= maxSeats;
 
   const toggleSeat = (seat) => {
-    if (seat.booked || (seat.tempLockedBy && seat.tempLockedBy !== (user?.email || "anonymous"))) return;
+    if (!canSelectSeats(isAuthenticated, user)) {
+      setError(LOGIN_REQUIRED_SEAT_MSG);
+      return;
+    }
+
+    if (seat.booked || isSeatLockedByOthers(seat, user)) return;
 
     const exists = selectedSeatIds.includes(seat.id);
     const maxSeats = passengers || 1;
@@ -402,6 +412,7 @@ const TrainTickets = () => {
       return;
     }
 
+    setError("");
     setSelectedSeatIds((prev) => {
       if (exists) {
         return prev.filter((id) => id !== seat.id);
@@ -455,21 +466,38 @@ const TrainTickets = () => {
   };
 
   const goToExtras = async () => {
+    if (!canSelectSeats(isAuthenticated, user)) {
+      setError(LOGIN_REQUIRED_SEAT_MSG);
+      return;
+    }
     if (!selectedSeatIds.length) {
       setError("Vui lòng chọn ghế trước khi tiếp tục.");
       return;
     }
-    setError("");
+    if (!isConnected) {
+      setError(WS_NOT_CONNECTED_MSG);
+      return;
+    }
 
-    // Khóa ghế bằng cách gửi SELECTED qua WebSocket cho tất cả ghế đã chọn
-    selectedSeatIds.forEach((seatId) => {
-      sendMessage("/app/seat-selection", {
-        tripId: selectedTrip.id,
-        seatId: seatId,
-        status: "SELECTED",
-        userId: user?.email || "anonymous"
-      });
+    setError("");
+    const userId = getSeatUserId(user);
+    const { success, failed, error } = await lockSeats({
+      tripId: selectedTrip.id,
+      seatIds: selectedSeatIds,
+      userId,
     });
+
+    if (!success) {
+      if (error === "NOT_CONNECTED") {
+        setError(WS_NOT_CONNECTED_MSG);
+      } else if (failed?.length) {
+        setSelectedSeatIds((prev) => prev.filter((id) => !failed.includes(id)));
+        setError(SEAT_CONFLICT_MSG);
+      } else {
+        setError("Không thể giữ ghế. Vui lòng thử lại.");
+      }
+      return;
+    }
 
     setLockDeadline(Date.now() + 10 * 60 * 1000);
     setStep("passenger");
@@ -966,6 +994,11 @@ const TrainTickets = () => {
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-md)" }}>
                   <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{t.step1}</h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 16 }}>{t.selectSeatInstruction}</p>
+                  {!canSelectSeats(isAuthenticated, user) && (
+                    <p style={{ color: "#b45309", fontSize: 13, marginBottom: 12, padding: "10px 12px", background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a" }}>
+                      {LOGIN_REQUIRED_SEAT_MSG}
+                    </p>
+                  )}
 
                   {loading && <p style={{ color: "var(--text-muted)" }}>Đang tải sơ đồ ghế...</p>}
 
@@ -1030,9 +1063,9 @@ const TrainTickets = () => {
                               const s = smap.get(`${row}${col}`);
                               if (!s) return <div key={col} style={{ width: 44, height: 38 }} />;
                               const sel = selectedSeatIds.includes(s.id);
-                              const isLockedByOthers = s.tempLockedBy && s.tempLockedBy !== user?.email;
+                              const isLockedByOthers = isSeatLockedByOthers(s, user);
                               return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked || isLockedByOthers || (!sel && isMaxReached)}
+                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={!canSelectSeats(isAuthenticated, user) || s.booked || isLockedByOthers || (!sel && isMaxReached)}
                                   title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
                                   style={{ 
         width: 44, height: s.seatType === "BUSINESS" || s.seatType === "VIP" ? 48 : 40, 
@@ -1052,9 +1085,9 @@ const TrainTickets = () => {
                               const s = smap.get(`${row}${col}`);
                               if (!s) return <div key={col} style={{ width: 44, height: 38 }} />;
                               const sel = selectedSeatIds.includes(s.id);
-                              const isLockedByOthers = s.tempLockedBy && s.tempLockedBy !== user?.email;
+                              const isLockedByOthers = isSeatLockedByOthers(s, user);
                               return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={s.booked || isLockedByOthers || (!sel && isMaxReached)}
+                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={!canSelectSeats(isAuthenticated, user) || s.booked || isLockedByOthers || (!sel && isMaxReached)}
                                   title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
                                   style={{ 
         width: 44, height: s.seatType === "BUSINESS" || s.seatType === "VIP" ? 48 : 40, 
@@ -1150,14 +1183,10 @@ const TrainTickets = () => {
                   {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
                     <button type="button" onClick={() => {
-                      // Giải phóng các ghế đã chọn qua WebSocket khi quay lại bước chọn ghế
-                      selectedSeatIds.forEach((seatId) => {
-                        sendMessage("/app/seat-selection", {
-                          tripId: selectedTrip.id,
-                          seatId: seatId,
-                          status: "AVAILABLE",
-                          userId: user?.email || "anonymous"
-                        });
+                      unlockSeats({
+                        tripId: selectedTrip.id,
+                        seatIds: selectedSeatIds,
+                        userId: getSeatUserId(user),
                       });
                       setLockDeadline(null);
                       setStep("seatClass");
