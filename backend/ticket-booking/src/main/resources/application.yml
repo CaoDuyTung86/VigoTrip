@@ -50,6 +50,12 @@ vnpay:
 # Frontend URL (dùng cho redirect sau thanh toán VNPay)
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  admin:
+    email: ${ADMIN_EMAIL:admin@gmail.com}
+    password: ${ADMIN_PASSWORD:Abc123456!}
+  provider:
+    email: ${PROVIDER_EMAIL:provider@gmail.com}
+    password: ${PROVIDER_PASSWORD:Abc123456!}
 
 # Swagger
 springdoc:

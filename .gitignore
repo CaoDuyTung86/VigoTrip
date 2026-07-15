@@ -30,3 +30,5 @@ npm-debug.log*
 prometheus/data/
 grafana/data/
 my-react-app/dist/assets/index-BuS8nFjb.js
+.antigravityignore
+caveman.md
