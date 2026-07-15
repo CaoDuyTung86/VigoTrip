@@ -1183,11 +1183,13 @@ const TrainTickets = () => {
                   {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
                     <button type="button" onClick={() => {
+                      const seatsToUnlock = [...selectedSeatIds];
                       unlockSeats({
                         tripId: selectedTrip.id,
-                        seatIds: selectedSeatIds,
+                        seatIds: seatsToUnlock,
                         userId: getSeatUserId(user),
                       });
+                      setSelectedSeatIds([]);
                       setLockDeadline(null);
                       setStep("seatClass");
                     }} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-card)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>

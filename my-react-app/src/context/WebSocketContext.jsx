@@ -84,7 +84,8 @@ export const WebSocketProvider = ({ children }) => {
                 const update = JSON.parse(message.body);
                 if (update.tripId !== tripId) return;
                 if (!seatIds.includes(update.seatId)) return;
-                if (update.userId !== userId) return;
+                // So sánh case-insensitive để hỗ trợ tài khoản Google OAuth
+                if ((update.userId || '').toLowerCase() !== (userId || '').toLowerCase()) return;
 
                 if (update.status === 'SELECTED') {
                     results.set(update.seatId, true);
@@ -104,6 +105,7 @@ export const WebSocketProvider = ({ children }) => {
             const timer = setTimeout(() => {
                 subscription.unsubscribe();
                 const failed = [...results.entries()].filter(([, ok]) => ok !== true).map(([id]) => id);
+                console.warn('[lockSeats] TIMEOUT - userId sent:', userId, '| pending seatIds:', failed);
                 resolve({ success: false, failed, error: 'TIMEOUT' });
             }, LOCK_RESPONSE_TIMEOUT_MS);
 
