@@ -26,7 +26,6 @@ const FlightSearch = () => {
     { id: 3, from: "", fromCity: null, to: "", toCity: null, departDate: "" },
   ]);
 
-  // State chung
   const [passengers, setPassengers] = useState({
     adult: 1,
     child: 0,
@@ -37,7 +36,7 @@ const FlightSearch = () => {
   const [showCitySelector, setShowCitySelector] = useState(false);
   const [citySelectorType, setCitySelectorType] = useState(null);
   const [currentFlightId, setCurrentFlightId] = useState(null);
-  const [cheapOnly, setCheapOnly] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
   const totalPassengers = useMemo(
     () => passengers.adult + passengers.child + passengers.infant,
@@ -58,23 +57,21 @@ const FlightSearch = () => {
   ];
 
   const handleSearch = () => {
-    if (tripType === "multi") {
-      // Multi-city chưa được hỗ trợ trên trang lịch giá
-      return;
-    }
+    if (tripType === "multi") return;
 
-    if (!fromCity || !toCity || !departDate) {
-      // Có thể hiển thị toast trong tương lai, tạm thời chỉ bỏ qua
-      return;
-    }
+    if (!fromCity) { setSearchError("Vui lòng chọn điểm đi."); return; }
+    if (!toCity) { setSearchError("Vui lòng chọn điểm đến."); return; }
+    if (fromCity.code === toCity.code) { setSearchError("Điểm đi và điểm đến không được trùng nhau."); return; }
+    if (!departDate) { setSearchError("Vui lòng chọn ngày đi."); return; }
+    setSearchError("");
 
     const params = new URLSearchParams({
       from: fromCity.code,
       to: toCity.code,
       date: departDate,
       passengers: String(totalPassengers || 1),
-      mode: cheapOnly ? "calendar" : "search",
     });
+    if (tripType === "roundtrip" && returnDate) params.set("returnDate", returnDate);
 
     navigate(`/ve-may-bay?${params.toString()}`);
   };
@@ -370,28 +367,7 @@ const FlightSearch = () => {
   };
 
   return (
-    <div style={{
-      background: "var(--bg-card)",
-      borderRadius: "16px",
-      padding: "24px",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-      marginTop: "20px",
-    }}>
-      {/* Header với icon máy bay */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "12px",
-        marginBottom: "20px",
-        paddingBottom: "12px",
-        borderBottom: "2px solid #4f7cff",
-      }}>
-        <FaPlane style={{ fontSize: "28px", color: "var(--primary)" }} />
-        <h3 style={{ fontSize: "20px", fontWeight: "600", color: "var(--text-main)", margin: 0 }}>
-          {t.flight || "Máy bay"}
-        </h3>
-      </div>
-
+    <div>
       {/* Trip type tabs */}
       <div style={{
         display: "flex",
@@ -421,24 +397,7 @@ const FlightSearch = () => {
         ))}
       </div>
 
-      {/* Direct flight checkbox - chỉ hiển thị cho roundtrip và oneway */}
-      {tripType !== "multi" && (
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          marginBottom: "16px",
-        }}>
-          <input
-            type="checkbox"
-            id="directFlight"
-            style={{ width: "16px", height: "16px", cursor: "pointer" }}
-          />
-          <label htmlFor="directFlight" style={{ fontSize: "14px", color: "var(--text-secondary)", cursor: "pointer" }}>
-            {t.directFlight}
-          </label>
-        </div>
-      )}
+      {/* Direct flight checkbox - đã bỏ: không có dữ liệu backend hỗ trợ */}
 
       {/* Nội dung theo loại chuyến đi */}
       {tripType === "multi" ? (
@@ -837,59 +796,42 @@ const FlightSearch = () => {
         )}
       </div>
 
-      {/* Flight + Hotel checkbox and search button */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginTop: "20px",
-        paddingTop: "20px",
-        borderTop: "1px solid #e0e0e0",
-      }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <input
-              type="checkbox"
-              id="flightHotel"
-              style={{ width: "16px", height: "16px", cursor: "pointer" }}
-            />
-            <label htmlFor="flightHotel" style={{ fontSize: "14px", color: "var(--text-secondary)", cursor: "pointer" }}>
-              {t.flightHotel}
-              Tìm vé + khách sạn
-            </label>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <input
-              type="checkbox"
-              id="cheapOnly"
-              checked={cheapOnly}
-              onChange={(e) => setCheapOnly(e.target.checked)}
-              style={{ width: "16px", height: "16px", cursor: "pointer" }}
-            />
-            <label htmlFor="cheapOnly" style={{ fontSize: "14px", color: "var(--text-secondary)", cursor: "pointer" }}>
-              Tìm vé rẻ nhất
-            </label>
-          </div>
+      {/* Validation error */}
+      {searchError && (
+        <div style={{
+          padding: "10px 14px",
+          background: "#fff0f0",
+          border: "1px solid #fca5a5",
+          borderRadius: 8,
+          color: "#dc2626",
+          fontSize: 13,
+          marginBottom: 16,
+        }}>
+          ⚠️ {searchError}
         </div>
+      )}
 
+      {/* Search button */}
+      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 16, borderTop: "1px solid var(--border-light)" }}>
         <button
           onClick={handleSearch}
           style={{
-            padding: "12px 32px",
+            padding: "12px 36px",
             background: "var(--primary)",
             color: "#fff",
             border: "none",
             borderRadius: "30px",
-            fontSize: "16px",
+            fontSize: "15px",
             fontWeight: "600",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: "8px",
             transition: "background 0.2s",
+            fontFamily: "inherit",
           }}
-          onMouseEnter={(e) => e.target.style.background = "var(--primary-hover)"}
-          onMouseLeave={(e) => e.target.style.background = "var(--primary)"}
+          onMouseEnter={(e) => e.currentTarget.style.background = "var(--primary-hover)"}
+          onMouseLeave={(e) => e.currentTarget.style.background = "var(--primary)"}
         >
           <FaSearch />
           {t.search}

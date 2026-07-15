@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { useState } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import Header from "./LayOut/Header";
 import Home from "./Page/Home";
@@ -27,15 +26,14 @@ import Chatbot from "./components/Chatbot";
 
 function AppWrapper() {
   const location = useLocation();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const showHeader = location.pathname !== "/auth" && location.pathname !== "/my-bookings" && location.pathname !== "/forgot-password" && location.pathname !== "/verify-email";
   const showFooter = location.pathname !== "/auth" && location.pathname !== "/my-bookings" && location.pathname !== "/forgot-password" && location.pathname !== "/verify-email";
 
   return (
     <>
-      {showHeader && <Header setIsSidebarOpen={setIsSidebarOpen} />}
+      {showHeader && <Header />}
       <Routes>
-        <Route path="/" element={<Home isSidebarOpen={isSidebarOpen} />} />
+        <Route path="/" element={<Home />} />
         <Route path="/ve-may-bay" element={<AirlineTickets />} />
         <Route path="/ve-tau-hoa" element={<TrainTickets />} />
         <Route path="/xe-khach" element={<BusTickets />} />

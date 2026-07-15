@@ -35,6 +35,7 @@ const TrainSearch = () => {
 
   const [showCitySelector, setShowCitySelector] = useState(false);
   const [citySelectorType, setCitySelectorType] = useState(null);
+  const [searchError, setSearchError] = useState("");
 
   const tripTypes = [
     { id: "oneway", label: t.oneWay },
@@ -49,9 +50,11 @@ const TrainSearch = () => {
   ];
 
   const handleSearch = () => {
-    if (!fromCity || !toCity || !departDate) {
-      return;
-    }
+    if (!fromCity) { setSearchError("Vui lòng chọn ga khởi hành."); return; }
+    if (!toCity) { setSearchError("Vui lòng chọn ga đến."); return; }
+    if ((fromCity.code || fromCity.name) === (toCity.code || toCity.name)) { setSearchError("Ga đi và ga đến không được trùng nhau."); return; }
+    if (!departDate) { setSearchError("Vui lòng chọn ngày đi."); return; }
+    setSearchError("");
 
     const totalPassengers = passengers.adult + passengers.child + passengers.infant;
 
@@ -90,29 +93,8 @@ const TrainSearch = () => {
   };
 
   return (
-    <div style={{
-      background: "var(--bg-card)",
-      borderRadius: "16px",
-      padding: "24px",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-      marginTop: "20px",
-    }}>
-      
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "12px",
-        marginBottom: "20px",
-        paddingBottom: "12px",
-        borderBottom: "2px solid #4f7cff",
-      }}>
-        <MdOutlineTrain style={{ fontSize: "28px", color: "var(--primary)" }} />
-        <h3 style={{ fontSize: "20px", fontWeight: "600", color: "var(--text-main)", margin: 0 }}>
-          {t.train}
-        </h3>
-      </div>
-
-      
+    <div>
+      {/* Trip type tabs */}
       <div style={{
         display: "flex",
         gap: "8px",
@@ -289,28 +271,7 @@ const TrainSearch = () => {
         )}
       </div>
 
-      {/* High speed train only */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        marginBottom: "16px",
-        padding: "8px 12px",
-        background: "var(--bg-main)",
-        borderRadius: "8px",
-      }}>
-        <input 
-          type="checkbox" 
-          id="highSpeed"
-          checked={onlyHighSpeed}
-          onChange={(e) => setOnlyHighSpeed(e.target.checked)}
-          style={{ width: "16px", height: "16px", cursor: "pointer" }}
-        />
-        <label htmlFor="highSpeed" style={{ fontSize: "14px", color: "var(--text-main)", cursor: "pointer", flex: 1 }}>
-          {t.onlyHighSpeed || "Chỉ tàu cao tốc"}
-        </label>
-       
-      </div>
+      {/* "Chỉ tàu cao tốc" - ẩn: không có dữ liệu backend hỗ trợ */}
 
       {/* Passengers */}
       <div style={{
@@ -534,32 +495,25 @@ const TrainSearch = () => {
         )}
       </div>
 
-    
+      {/* Validation error */}
+      {searchError && (
+        <div style={{ padding: "10px 14px", background: "#fff0f0", border: "1px solid #fca5a5", borderRadius: 8, color: "#dc2626", fontSize: 13, marginBottom: 16 }}>
+          ⚠️ {searchError}
+        </div>
+      )}
+
       {/* Search button */}
-      <button
-        onClick={handleSearch}
-        style={{
-          width: "100%",
-          padding: "14px",
-          background: "var(--primary)",
-          color: "#fff",
-          border: "none",
-          borderRadius: "12px",
-          fontSize: "16px",
-          fontWeight: "600",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "8px",
-          transition: "background 0.2s",
-        }}
-        onMouseEnter={(e) => e.target.style.background = "var(--primary-hover)"}
-        onMouseLeave={(e) => e.target.style.background = "var(--primary)"}
-      >
-        <FaSearch />
-        {t.search}
-      </button>
+      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 16, borderTop: "1px solid var(--border-light)" }}>
+        <button
+          onClick={handleSearch}
+          style={{ padding: "12px 36px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "30px", fontSize: "15px", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", transition: "background 0.2s", fontFamily: "inherit" }}
+          onMouseEnter={(e) => e.currentTarget.style.background = "var(--primary-hover)"}
+          onMouseLeave={(e) => e.currentTarget.style.background = "var(--primary)"}
+        >
+          <FaSearch />
+          {t.search}
+        </button>
+      </div>
 
       {/* City Selector Modal */}
       <CitySelector
