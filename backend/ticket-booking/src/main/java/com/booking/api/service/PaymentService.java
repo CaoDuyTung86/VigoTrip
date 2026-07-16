@@ -233,15 +233,9 @@ public class PaymentService {
             userRepository.save(user);
         }
 
-        String seats = booking.getTickets() == null ? "" : booking.getTickets().stream()
-                .map(t -> t.getSeat().getSeatNumber())
-                .collect(Collectors.joining(", "));
-
         emailService.sendBookingConfirmation(
                 booking.getUser().getEmail(),
-                booking.getId(),
-                booking.getTotalPrice(),
-                seats
+                booking
         );
     }
 

@@ -13,6 +13,10 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import com.booking.api.entity.Booking;
+import com.booking.api.entity.Trip;
+import com.booking.api.entity.Ticket;
+
 import java.io.ByteArrayOutputStream;
 
 @Service
@@ -84,10 +88,30 @@ public class EmailService {
         }
     }
 
-    public void sendBookingConfirmation(String toEmail, Long bookingId, Double totalPrice, String seats) {
+    public void sendBookingConfirmation(String toEmail, Booking booking) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            Long bookingId = booking.getId();
+            Double totalPrice = booking.getTotalPrice();
+            String seats = booking.getTickets() == null ? "" : booking.getTickets().stream()
+                    .map(t -> t.getSeat().getSeatNumber())
+                    .collect(java.util.stream.Collectors.joining(", "));
+
+            String route = "Đang cập nhật";
+            String departureTime = "Đang cập nhật";
+            if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
+                var trip = booking.getTickets().get(0).getTrip();
+                if (trip != null) {
+                    if (trip.getRoute() != null) {
+                        route = trip.getRoute().getOrigin() + " ➔ " + trip.getRoute().getDestination();
+                    }
+                    if (trip.getDepartureTime() != null) {
+                        departureTime = trip.getDepartureTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm - dd/MM/yyyy"));
+                    }
+                }
+            }
 
             helper.setTo(toEmail);
             helper.setSubject("Xác nhận đặt vé thành công #" + bookingId + " - Datxe.com");
@@ -107,8 +131,12 @@ public class EmailService {
                     + "<div style='flex: 1;'>"
                     + "<p style='margin: 5px 0; color: #6b7280;'>Mã Booking</p>"
                     + "<p style='margin: 0; font-weight: bold; font-size: 18px;'>#" + bookingId + "</p>"
+                    + "<p style='margin: 15px 0 5px; color: #6b7280;'>Chuyến đi</p>"
+                    + "<p style='margin: 0; font-weight: bold;'>" + route + "</p>"
+                    + "<p style='margin: 15px 0 5px; color: #6b7280;'>Thời gian khởi hành</p>"
+                    + "<p style='margin: 0; font-weight: bold; color: #dc2626;'>" + departureTime + "</p>"
                     + "<p style='margin: 15px 0 5px; color: #6b7280;'>Chỗ ngồi</p>"
-                    + "<p style='margin: 0; font-weight: bold;'>" + (seats != null ? seats : "Đang cập nhật") + "</p>"
+                    + "<p style='margin: 0; font-weight: bold;'>" + (seats.isEmpty() ? "Đang cập nhật" : seats) + "</p>"
                     + "<p style='margin: 15px 0 5px; color: #6b7280;'>Tổng thanh toán</p>"
                     + "<p style='margin: 0; font-weight: bold; color: #ff6b00; font-size: 18px;'>" + String.format("%,.0f đ", totalPrice) + "</p>"
                     + "</div>"
@@ -261,6 +289,63 @@ public class EmailService {
             log.info("Trip reminder email sent to {}", toEmail);
         } catch (Exception e) {
             log.error("Failed to send trip reminder email to {}", toEmail, e);
+        }
+    }
+
+    public void sendRefundApprovedEmail(String toEmail, Long refundId, Long bookingId, Double amount) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(toEmail);
+            helper.setSubject("✅ Yêu cầu hoàn vé đã được chấp nhận - Datxe.com");
+
+            String html = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
+                    + "<h2 style='color: #16a34a;'>✅ Yêu cầu hoàn vé thành công</h2>"
+                    + "<p>Xin chào,</p>"
+                    + "<p>Yêu cầu hoàn vé của bạn cho chuyến đi (Mã booking: <strong>#" + bookingId + "</strong>) đã được nhà cung cấp <strong>chấp nhận</strong>.</p>"
+                    + "<div style='background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:16px; margin:20px 0;'>"
+                    + "<p style='margin:0 0 10px 0;'>Số tiền được hoàn lại:</p>"
+                    + "<p style='margin:0; font-size:24px; font-weight:bold; color:#16a34a;'>" + String.format("%,.0f đ", amount) + "</p>"
+                    + "</div>"
+                    + "<p>Số tiền này sẽ được chuyển về tài khoản thanh toán ban đầu của bạn trong vòng 3-5 ngày làm việc tùy thuộc vào ngân hàng.</p>"
+                    + "<p>Cảm ơn bạn đã sử dụng dịch vụ của Datxe.com. Hy vọng sẽ được phục vụ bạn trong những chuyến đi tiếp theo.</p>"
+                    + "<hr style='border: 1px solid #eee; margin-top: 30px;'/>"
+                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br>Đội ngũ Datxe.com</p>"
+                    + "</div>";
+
+            helper.setText(html, true);
+            mailSender.send(message);
+            log.info("Refund approved email sent to {}", toEmail);
+        } catch (Exception e) {
+            log.error("Failed to send refund approved email to {}", toEmail, e);
+        }
+    }
+
+    public void sendRefundRejectedEmail(String toEmail, Long refundId, Long bookingId, String note) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(toEmail);
+            helper.setSubject("❌ Yêu cầu hoàn vé không được chấp nhận - Datxe.com");
+
+            String html = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
+                    + "<h2 style='color: #dc2626;'>❌ Yêu cầu hoàn vé bị từ chối</h2>"
+                    + "<p>Xin chào,</p>"
+                    + "<p>Rất tiếc, yêu cầu hoàn vé của bạn cho chuyến đi (Mã booking: <strong>#" + bookingId + "</strong>) đã bị nhà cung cấp <strong>từ chối</strong>.</p>"
+                    + "<div style='background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:16px; margin:20px 0;'>"
+                    + "<p style='margin:0 0 5px 0; font-weight:bold;'>Lý do từ chối:</p>"
+                    + "<p style='margin:0; color:#dc2626;'>" + (note != null && !note.trim().isEmpty() ? note : "Không đáp ứng chính sách hoàn hủy của nhà cung cấp.") + "</p>"
+                    + "</div>"
+                    + "<p>Vé của bạn vẫn có giá trị sử dụng bình thường. Xin vui lòng kiểm tra lại chính sách hoàn hủy hoặc liên hệ bộ phận hỗ trợ khách hàng để được giải đáp chi tiết.</p>"
+                    + "<hr style='border: 1px solid #eee; margin-top: 30px;'/>"
+                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br>Đội ngũ Datxe.com</p>"
+                    + "</div>";
+
+            helper.setText(html, true);
+            mailSender.send(message);
+            log.info("Refund rejected email sent to {}", toEmail);
+        } catch (Exception e) {
+            log.error("Failed to send refund rejected email to {}", toEmail, e);
         }
     }
 }

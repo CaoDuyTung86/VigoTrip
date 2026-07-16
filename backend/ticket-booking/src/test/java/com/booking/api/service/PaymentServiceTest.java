@@ -85,7 +85,7 @@ public class PaymentServiceTest {
             assertEquals("Confirm Success", result.get("Message"));
             assertEquals("CONFIRMED", booking.getStatus());
             verify(bookingRepository, times(1)).save(booking);
-            verify(emailService, times(1)).sendBookingConfirmation(eq(user.getEmail()), eq(123L), anyDouble(), anyString());
+            verify(emailService, times(1)).sendBookingConfirmation(eq(user.getEmail()), eq(booking));
         }
     }
 

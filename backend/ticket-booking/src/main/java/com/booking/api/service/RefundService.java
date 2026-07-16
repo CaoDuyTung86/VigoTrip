@@ -25,6 +25,7 @@ public class RefundService {
     private final RefundRepository refundRepository;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
+    private final EmailService emailService;
 
     /** User gửi yêu cầu hoàn tiền */
     @Transactional
@@ -99,6 +100,9 @@ public class RefundService {
 
         Refund saved = refundRepository.save(refund);
         log.info("Refund {} approved for booking {}", refundId, booking.getId());
+        
+        emailService.sendRefundApprovedEmail(booking.getUser().getEmail(), saved.getId(), booking.getId(), saved.getRefundAmount());
+        
         return toResponse(saved);
     }
 
@@ -118,6 +122,9 @@ public class RefundService {
 
         Refund saved = refundRepository.save(refund);
         log.info("Refund {} rejected for booking {}", refundId, refund.getBooking().getId());
+        
+        emailService.sendRefundRejectedEmail(refund.getBooking().getUser().getEmail(), saved.getId(), refund.getBooking().getId(), note);
+        
         return toResponse(saved);
     }
 
