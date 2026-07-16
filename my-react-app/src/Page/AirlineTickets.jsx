@@ -193,6 +193,19 @@ const AirlineTickets = () => {
   const [appliedVoucher, setAppliedVoucher] = useState("");
   const [voucherDiscount, setVoucherDiscount] = useState(0);
   const [selectedSeatClass, setSelectedSeatClass] = useState("");
+  const [showInsuranceInfo, setShowInsuranceInfo] = useState(false);
+
+  // Tính giảm giá hạng thành viên từ promotion của user
+  const membershipDiscount = useMemo(() => {
+    if (!user?.promotion?.discountRate) return 0;
+    const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
+    const ecoCount = selSeats.filter(s => s.seatType !== "BUSINESS").length;
+    const bizCount = selSeats.filter(s => s.seatType === "BUSINESS").length;
+    const basePrice = Number(selectedTrip?.price || 0);
+    const seatsTotal = ecoCount * basePrice + bizCount * basePrice * 2.5;
+    const extraTotal = services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum, s) => sum + (s.price || 0), 0);
+    return Math.round((seatsTotal + extraTotal) * (user.promotion.discountRate / 100));
+  }, [user, seats, selectedSeatIds, selectedTrip, services, selectedServiceIds]);
 
   const API_BASE = "/api";
   const todayISO = useMemo(() => new Date().toISOString().split("T")[0], []);
@@ -1361,74 +1374,143 @@ const AirlineTickets = () => {
                           </label>
                         </div>
 
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                          {categories.meal.map((s, index) => {
-                            const images = [
-                              "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?q=80&w=400&auto=format&fit=crop",
-                              "https://images.unsplash.com/photo-1603133872878-684f208fb84b?q=80&w=400&auto=format&fit=crop",
-                              "https://images.unsplash.com/photo-1585032226651-759b368d7246?q=80&w=400&auto=format&fit=crop",
-                              "https://images.unsplash.com/photo-1555126634-323283e090fa?q=80&w=400&auto=format&fit=crop"
-                            ];
-                            const img = images[index % images.length];
-                            const isSelected = selectedServiceIds.includes(s.id);
-                            return (
-                              <div key={s.id} onClick={() => setSingleServiceInCategory(s.id, categories.meal)}
-                                style={{
-                                  borderRadius: 12, overflow: "hidden", border: `2px solid ${isSelected ? "#f59e0b" : "#eee"}`,
-                                  background: isSelected ? "#fffbeb" : "#fff", cursor: "pointer", position: "relative", transition: "all 0.2s",
-                                  boxShadow: isSelected ? "0 4px 12px rgba(245, 158, 11, 0.2)" : "0 2px 8px rgba(0,0,0,0.05)"
-                                }}>
-                                <div style={{ height: 120, backgroundImage: `url(${img})`, backgroundSize: "cover", backgroundPosition: "center" }} />
-                                <div style={{ padding: 12 }}>
-                                  <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-main)", lineHeight: 1.4, minHeight: 40 }}>{s.serviceName}</div>
-                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-                                    <span style={{ color: "#d97706", fontWeight: 800, fontSize: 14 }}>{Number(s.price || 0).toLocaleString("vi-VN")} VND</span>
-                                    <div style={{
-                                      width: 24, height: 24, borderRadius: "50%", background: isSelected ? "#f59e0b" : "#f3f4f6",
-                                      display: "flex", alignItems: "center", justifyContent: "center", color: isSelected ? "#fff" : "#9ca3af", fontWeight: "bold"
-                                    }}>
-                                      {isSelected ? "✓" : "+"}
+                        {categories.meal.length === 0 ? (
+                          <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>
+                            🍽 Hãng bay này hiện chưa cung cấp suất ăn trực tuyến.<br />
+                            <span style={{ fontSize: 11 }}>Bạn có thể mua trực tiếp trên chuyến bay.</span>
+                          </div>
+                        ) : (
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                            {categories.meal.map((s, index) => {
+                              const images = [
+                                "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?q=80&w=400&auto=format&fit=crop",
+                                "https://images.unsplash.com/photo-1603133872878-684f208fb84b?q=80&w=400&auto=format&fit=crop",
+                                "https://images.unsplash.com/photo-1585032226651-759b368d7246?q=80&w=400&auto=format&fit=crop",
+                                "https://images.unsplash.com/photo-1555126634-323283e090fa?q=80&w=400&auto=format&fit=crop"
+                              ];
+                              const img = images[index % images.length];
+                              const isSelected = selectedServiceIds.includes(s.id);
+                              return (
+                                <div key={s.id} onClick={() => setSingleServiceInCategory(s.id, categories.meal)}
+                                  style={{
+                                    borderRadius: 12, overflow: "hidden", border: `2px solid ${isSelected ? "#f59e0b" : "#eee"}`,
+                                    background: isSelected ? "#fffbeb" : "#fff", cursor: "pointer", position: "relative", transition: "all 0.2s",
+                                    boxShadow: isSelected ? "0 4px 12px rgba(245, 158, 11, 0.2)" : "0 2px 8px rgba(0,0,0,0.05)"
+                                  }}>
+                                  <div style={{ height: 120, backgroundImage: `url(${img})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                                  <div style={{ padding: 12 }}>
+                                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-main)", lineHeight: 1.4, minHeight: 40 }}>{s.serviceName}</div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+                                      <span style={{ color: "#d97706", fontWeight: 800, fontSize: 14 }}>{Number(s.price || 0).toLocaleString("vi-VN")} đ</span>
+                                      <div style={{
+                                        width: 24, height: 24, borderRadius: "50%", background: isSelected ? "#f59e0b" : "#f3f4f6",
+                                        display: "flex", alignItems: "center", justifyContent: "center", color: isSelected ? "#fff" : "#9ca3af", fontWeight: "bold"
+                                      }}>
+                                        {isSelected ? "✓" : "+"}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
 
-                      {[{ cat: categories.insurance, icon: <FaShieldAlt />, title: "Bảo hiểm du lịch", sub: "An tâm hơn với bảo hiểm chuyến đi", color: "#f0fdf4", border: "#86efac", accent: "#16a34a" },
+                      {[{ cat: categories.insurance, icon: <FaShieldAlt />, title: "Bảo hiểm du lịch", sub: "Bảo vệ chuyến đi của bạn", color: "#f0fdf4", border: "#86efac", accent: "#16a34a" },
                       { cat: categories.taxi, icon: <FaTaxi />, title: "Xe đưa đón sân bay", sub: "Tiện lợi với dịch vụ xe riêng", color: "#fef9c3", border: "#fde68a", accent: "#b45309" }]
                         .map(({ cat, icon, title, sub, color, border, accent }) => (
                           cat.length > 0 && (
                             <div key={title} style={{ border: `1px solid ${border}`, borderRadius: 12, padding: 16, background: "var(--bg-input)" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                                <span style={{ fontSize: 26 }}>{icon}</span>
-                                <div>
-                                  <div style={{ fontWeight: 800, fontSize: 15, fontFamily: "'Segoe UI', sans-serif" }}>{title}</div>
-                                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{sub}</div>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                  <span style={{ fontSize: 26 }}>{icon}</span>
+                                  <div>
+                                    <div style={{ fontWeight: 800, fontSize: 15, fontFamily: "'Segoe UI', sans-serif" }}>{title}</div>
+                                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{sub}</div>
+                                  </div>
                                 </div>
+                                {title === "Bảo hiểm du lịch" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowInsuranceInfo(v => !v)}
+                                    style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, border: "1px solid #86efac", background: "#f0fdf4", color: "#16a34a", cursor: "pointer", fontWeight: 600 }}
+                                  >
+                                    {showInsuranceInfo ? "Ẩn" : "❓ So sánh gói"}
+                                  </button>
+                                )}
                               </div>
+
+                              {title === "Bảo hiểm du lịch" && showInsuranceInfo && (
+                                <div style={{ marginBottom: 14, padding: 14, background: "#fff", borderRadius: 10, border: "1px solid #bbf7d0", fontSize: 13 }}>
+                                  <div style={{ fontWeight: 700, marginBottom: 8, color: "#166534" }}>📋 So sánh gói bảo hiểm</div>
+                                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                                    <thead>
+                                      <tr style={{ background: "#f0fdf4" }}>
+                                        <th style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid #d1fae5" }}>Quyền lợi</th>
+                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid #d1fae5", color: "#16a34a" }}>Cơ bản</th>
+                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid #d1fae5", color: "#1d4ed8" }}>Cao cấp</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {[
+                                        ["Tai nạn chuyến bay", "250 triệu đ", "500 triệu đ"],
+                                        ["Hủy chuyến đột xuất", "✗", "Hoàn 100%"],
+                                        ["Hành lý thất lạc", "2 triệu đ", "5 triệu đ"],
+                                        ["Chi phí y tế", "10 triệu đ", "50 triệu đ"],
+                                        ["Trễ chuyến > 3 tiếng", "✗", "200.000đ"],
+                                      ].map(([benefit, basic, premium]) => (
+                                        <tr key={benefit} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                                          <td style={{ padding: "6px 8px" }}>{benefit}</td>
+                                          <td style={{ padding: "6px 8px", textAlign: "center", color: basic === "✗" ? "#9ca3af" : "#166534" }}>{basic}</td>
+                                          <td style={{ padding: "6px 8px", textAlign: "center", color: premium === "✗" ? "#9ca3af" : "#1d4ed8", fontWeight: 600 }}>{premium}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                  <div style={{ marginTop: 10, padding: "8px 10px", background: "#eff6ff", borderRadius: 8, color: "#1e40af", fontSize: 11 }}>
+                                    💡 <b>Gợi ý:</b> Nếu bạn đi công tác hoặc du lịch ngắn ngày, gói <b>Cơ bản</b> là đủ. Chọn <b>Cao cấp</b> nếu bạn đi xa, mang nhiều hành lý hoặc lo lắng về rủi ro hủy chuyến.
+                                  </div>
+                                </div>
+                              )}
+
+                              <label style={{
+                                display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10,
+                                border: `1.5px solid ${!selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? (title === "Bảo hiểm du lịch" ? "#86efac" : "#fde68a") : "#e5e7eb"}`,
+                                background: !selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? (title === "Bảo hiểm du lịch" ? "#f0fdf4" : "#fef9c3") : "#fff",
+                                cursor: "pointer", marginBottom: 8, fontWeight: 600, fontSize: 14,
+                                color: !selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? accent : "#555"
+                              }}>
+                                <input type="radio" name={`cat_${title}`} style={{ display: "none" }}
+                                  checked={!selectedServiceIds.some(id => cat.map(s => s.id).includes(id))}
+                                  onChange={() => setSingleServiceInCategory(null, cat)} />
+                                <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${!selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? accent : "#ddd"}`, background: !selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? accent : "#fff", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  {!selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
+                                </div>
+                                Không chọn
+                              </label>
+
                               {cat.map(s => {
                                 const shortName = s.serviceName.replace(/^(Bảo hiểm du lịch|Taxi đưa đón sân bay)\s*/i, '');
                                 const sel = selectedServiceIds.includes(s.id);
                                 return (
-                                  <label key={s.id} onClick={() => toggleService(s.id)} style={{
-                                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                                    padding: "12px 14px", borderRadius: 10, background: sel ? color : "#fff",
-                                    border: `1.5px solid ${sel ? border : "#e5e7eb"}`,
-                                    cursor: "pointer", marginBottom: 8
-                                  }}>
+                                  <label key={s.id}
+                                    onClick={() => setSingleServiceInCategory(s.id, cat)}
+                                    style={{
+                                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                                      padding: "12px 14px", borderRadius: 10, background: sel ? color : "#fff",
+                                      border: `1.5px solid ${sel ? border : "#e5e7eb"}`,
+                                      cursor: "pointer", marginBottom: 8
+                                    }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                       <div style={{
-                                        width: 22, height: 22, borderRadius: 11, border: `2px solid ${sel ? accent : "#ddd"}`,
-                                        background: sel ? accent : "#fff",
-                                        display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700
+                                        width: 18, height: 18, borderRadius: "50%", border: `2px solid ${sel ? accent : "#ddd"}`,
+                                        background: sel ? accent : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
                                       }}>
-                                        {sel ? "✓" : ""}
+                                        {sel && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
                                       </div>
                                       <div>
-                                        <div style={{ fontWeight: 700, fontSize: 14 }}>{shortName}</div>
+                                        <div style={{ fontWeight: 700, fontSize: 14 }}>{shortName || s.serviceName}</div>
                                         {sel && <div style={{ fontSize: 11, color: accent }}>✓ Đã chọn</div>}
                                       </div>
                                     </div>
@@ -1472,9 +1554,15 @@ const AirlineTickets = () => {
                           {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}><span style={{ color: "var(--text-muted)" }}>+ {s.serviceName}</span><span>{Number(s.price || 0).toLocaleString("vi-VN")} đ</span></div>
                           ))}
+                          {membershipDiscount > 0 && (
+                            <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", marginTop: 4, fontWeight: 600 }}>
+                              <span>🏅 Ưu đãi hạng thành viên ({user.promotion.discountRate}%)</span>
+                              <span>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
+                            </div>
+                          )}
                           <div style={{ borderTop: "1px solid var(--border-light)", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 15, color: "#ff6b00" }}>
                             <span>Tổng cộng</span>
-                            <span>{(seatsTotal + extraTotal).toLocaleString("vi-VN")} đ</span>
+                            <span>{Math.max(0, seatsTotal + extraTotal - membershipDiscount).toLocaleString("vi-VN")} đ</span>
                           </div>
                         </>
                       );
@@ -1498,7 +1586,15 @@ const AirlineTickets = () => {
                         <div style={{ fontWeight: 700, fontSize: 16 }}>{selectedTrip.origin} → {selectedTrip.destination}</div>
                         <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 4 }}>{selectedTrip.departureTime} · {selectedTrip.providerName}</div>
                       </div>
-                      <div style={{ fontWeight: 800, color: "#ff6b00", fontSize: 16 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
+                      <div style={{ fontWeight: 800, color: "#ff6b00", fontSize: 16 }}>
+                        {(() => {
+                          const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
+                          const ecoCount = selSeats.filter(s => s.seatType !== "BUSINESS").length;
+                          const bizCount = selSeats.filter(s => s.seatType === "BUSINESS").length;
+                          const basePrice = Number(selectedTrip.price || 0);
+                          return (ecoCount * basePrice + bizCount * basePrice * 2.5).toLocaleString("vi-VN");
+                        })()} đ
+                      </div>
                     </div>
                   </div>
 
@@ -1589,10 +1685,16 @@ const AirlineTickets = () => {
                           {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}><span style={{ color: "var(--text-muted)" }}>+ {s.serviceName}</span><span>{Number(s.price || 0).toLocaleString("vi-VN")} đ</span></div>
                           ))}
-                          {appliedVoucher && <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", marginTop: 4 }}><span>Mã: {appliedVoucher}</span><span>-{voucherDiscount.toLocaleString("vi-VN")} đ</span></div>}
+                          {membershipDiscount > 0 && (
+                            <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", marginTop: 4, fontWeight: 600 }}>
+                              <span>🏅 Ưu đãi hạng thành viên ({user.promotion.discountRate}%)</span>
+                              <span>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
+                            </div>
+                          )}
+                          {appliedVoucher && <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", marginTop: 4 }}><span>🎟 Mã: {appliedVoucher}</span><span>-{voucherDiscount.toLocaleString("vi-VN")} đ</span></div>}
                           <div style={{ borderTop: "1px solid var(--border-light)", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 16, color: "#ff6b00" }}>
                             <span>Tổng cộng</span>
-                            <span>{Math.max(0, seatsTotal + extraTotal - voucherDiscount).toLocaleString("vi-VN")} đ</span>
+                            <span>{Math.max(0, seatsTotal + extraTotal - membershipDiscount - voucherDiscount).toLocaleString("vi-VN")} đ</span>
                           </div>
                         </>
                       );
