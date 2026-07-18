@@ -43,4 +43,36 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            "GROUP BY t.trip.route.origin, t.trip.route.destination " +
            "ORDER BY SUM(b.totalPrice) DESC")
     List<Object[]> getTopRoutesByProvider(@Param("providerId") Long providerId);
+
+    // Thống kê doanh thu theo tháng toàn hệ thống trong năm hiện tại
+    @Query("SELECT MONTH(b.bookingDate) as month, SUM(b.totalPrice) as total " +
+           "FROM Booking b " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "AND YEAR(b.bookingDate) = YEAR(CURRENT_DATE) " +
+           "GROUP BY MONTH(b.bookingDate) " +
+           "ORDER BY MONTH(b.bookingDate)")
+    List<Object[]> getMonthlyRevenueSystem();
+
+    // Thống kê doanh thu theo loại phương tiện toàn hệ thống
+    @Query("SELECT t.trip.vehicle.provider.providerType, SUM(b.totalPrice) " +
+           "FROM Booking b JOIN b.tickets t " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "GROUP BY t.trip.vehicle.provider.providerType")
+    List<Object[]> getRevenueByVehicleTypeSystem();
+
+    // Top 5 tuyến đường doanh thu cao nhất toàn hệ thống
+    @Query("SELECT t.trip.route.origin, t.trip.route.destination, SUM(b.totalPrice) " +
+           "FROM Booking b JOIN b.tickets t " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "GROUP BY t.trip.route.origin, t.trip.route.destination " +
+           "ORDER BY SUM(b.totalPrice) DESC")
+    List<Object[]> getTopSystemRoutes();
+
+    // Top 5 nhà cung cấp doanh thu cao nhất toàn hệ thống
+    @Query("SELECT t.trip.vehicle.provider.providerName, t.trip.vehicle.provider.providerType, SUM(b.totalPrice) " +
+           "FROM Booking b JOIN b.tickets t " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "GROUP BY t.trip.vehicle.provider.providerName, t.trip.vehicle.provider.providerType " +
+           "ORDER BY SUM(b.totalPrice) DESC")
+    List<Object[]> getTopProviderRevenues();
 }

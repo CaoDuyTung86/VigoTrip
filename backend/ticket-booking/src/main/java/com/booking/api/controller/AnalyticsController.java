@@ -24,4 +24,11 @@ public class AnalyticsController {
         String insights = analyticsService.getProviderAIInsights(providerId);
         return ResponseEntity.ok(Map.of("insights", insights));
     }
+
+    @GetMapping("/system/ai-insights")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ADMIN')")
+    public ResponseEntity<Map<String, String>> getSystemAIInsights() {
+        String insights = analyticsService.getSystemAIInsights();
+        return ResponseEntity.ok(Map.of("insights", insights));
+    }
 }
