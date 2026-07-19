@@ -6,7 +6,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const AdminRevenue = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [revenues, setRevenues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

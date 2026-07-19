@@ -17,7 +17,7 @@ public class ChatController {
     @PostMapping("/chat")
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request, java.security.Principal principal) {
         String username = principal != null ? principal.getName() : null;
-        String reply = chatService.getChatResponse(request.getMessage(), username);
+        String reply = chatService.getChatResponse(request.getMessage(), username, request.getHistory());
         return ResponseEntity.ok(new ChatResponse(reply));
     }
 }

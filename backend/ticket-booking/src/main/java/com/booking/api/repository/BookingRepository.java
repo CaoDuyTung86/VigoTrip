@@ -36,12 +36,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Object[]> getMonthlyRevenueByProvider(@Param("providerId") Long providerId);
 
     // Thống kê Top 5 tuyến đường có doanh thu cao nhất của Provider
-    @Query("SELECT t.trip.route.origin, t.trip.route.destination, SUM(b.totalPrice) " +
+    @Query("SELECT t.trip.route.origin, t.trip.route.destination, SUM(t.price) " +
            "FROM Booking b JOIN b.tickets t " +
            "WHERE t.trip.vehicle.provider.id = :providerId " +
            "AND b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
            "GROUP BY t.trip.route.origin, t.trip.route.destination " +
-           "ORDER BY SUM(b.totalPrice) DESC")
+           "ORDER BY SUM(t.price) DESC")
     List<Object[]> getTopRoutesByProvider(@Param("providerId") Long providerId);
 
     // Thống kê doanh thu theo tháng toàn hệ thống trong năm hiện tại
@@ -54,25 +54,25 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Object[]> getMonthlyRevenueSystem();
 
     // Thống kê doanh thu theo loại phương tiện toàn hệ thống
-    @Query("SELECT t.trip.vehicle.provider.providerType, SUM(b.totalPrice) " +
+    @Query("SELECT t.trip.vehicle.provider.providerType, SUM(t.price) " +
            "FROM Booking b JOIN b.tickets t " +
            "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
            "GROUP BY t.trip.vehicle.provider.providerType")
     List<Object[]> getRevenueByVehicleTypeSystem();
 
     // Top 5 tuyến đường doanh thu cao nhất toàn hệ thống
-    @Query("SELECT t.trip.route.origin, t.trip.route.destination, SUM(b.totalPrice) " +
+    @Query("SELECT t.trip.route.origin, t.trip.route.destination, SUM(t.price) " +
            "FROM Booking b JOIN b.tickets t " +
            "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
            "GROUP BY t.trip.route.origin, t.trip.route.destination " +
-           "ORDER BY SUM(b.totalPrice) DESC")
+           "ORDER BY SUM(t.price) DESC")
     List<Object[]> getTopSystemRoutes();
 
     // Top 5 nhà cung cấp doanh thu cao nhất toàn hệ thống
-    @Query("SELECT t.trip.vehicle.provider.providerName, t.trip.vehicle.provider.providerType, SUM(b.totalPrice) " +
+    @Query("SELECT t.trip.vehicle.provider.providerName, t.trip.vehicle.provider.providerType, SUM(t.price) " +
            "FROM Booking b JOIN b.tickets t " +
            "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
            "GROUP BY t.trip.vehicle.provider.providerName, t.trip.vehicle.provider.providerType " +
-           "ORDER BY SUM(b.totalPrice) DESC")
+           "ORDER BY SUM(t.price) DESC")
     List<Object[]> getTopProviderRevenues();
 }

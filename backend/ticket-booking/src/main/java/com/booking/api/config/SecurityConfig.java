@@ -52,7 +52,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/refunds/*/approve").hasAuthority("ROLE_ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/refunds/*/reject").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/api/admin/revenue").hasAnyAuthority("ROLE_PROVIDER", "PROVIDER", "ROLE_ADMIN", "ADMIN")
-                        .requestMatchers("/api/analytics/**").hasAnyAuthority("ROLE_ADMIN", "ADMIN")
+                        .requestMatchers("/api/analytics/provider/**").hasAnyAuthority("ROLE_PROVIDER", "PROVIDER", "ROLE_ADMIN", "ADMIN")
+                        .requestMatchers("/api/analytics/system/**").hasAnyAuthority("ROLE_ADMIN", "ADMIN", "ROLE_PROVIDER", "PROVIDER")
                         .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN", "ADMIN")
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session

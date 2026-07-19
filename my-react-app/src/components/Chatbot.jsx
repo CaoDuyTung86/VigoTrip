@@ -4,12 +4,15 @@ import { Send, X, MessageCircle, RefreshCcw, Search, Calendar, History, Bot, Use
 
 const API_BASE = '/api';
 
+const MAX_HISTORY_PAIRS_FRONTEND = 10; // Sliding window: chỉ giữ 10 cặp cuối
+
 const Chatbot = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     { sender: 'bot', text: 'Xin chào! Tôi là trợ lý ảo của **Datxe.com**. Tôi có thể giúp bạn tìm kiếm chuyến đi hoặc giải đáp thắc mắc về dịch vụ. Bạn muốn đi đâu hôm nay?' }
   ]);
+  const [chatHistory, setChatHistory] = useState([]); // Lịch sử gửi lên AI
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
@@ -26,25 +29,47 @@ const Chatbot = () => {
     const messageToSend = typeof text === 'string' ? text.trim() : input.trim();
     if (!messageToSend) return;
 
+    // Giới hạn độ dài tin nhắn phía Frontend
+    if (messageToSend.length > 500) {
+      setMessages(prev => [...prev, { sender: 'bot', text: 'Tin nhắn quá dài (tối đa 500 ký tự). Vui lòng rút gọn nhé! 😊' }]);
+      return;
+    }
+
     setMessages(prev => [...prev, { sender: 'user', text: messageToSend }]);
     setInput('');
     setLoading(true);
+    setShowFaq(false); // Tự động thu gọn FAQ khi gửi tin nhắn
+
+    // Sliding window: chỉ lấy MAX_HISTORY_PAIRS_FRONTEND cặp cuối
+    const trimmedHistory = chatHistory.slice(-MAX_HISTORY_PAIRS_FRONTEND * 2);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const response = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ message: messageToSend })
+        body: JSON.stringify({ message: messageToSend, history: trimmedHistory })
       });
 
       if (!response.ok) throw new Error('Lỗi máy chủ');
 
       const data = await response.json();
-      setMessages(prev => [...prev, { sender: 'bot', text: data.reply || 'Xin lỗi, tôi không hiểu ý bạn.' }]);
+      const botReply = data.reply || 'Xin lỗi, tôi không hiểu ý bạn.';
+      setMessages(prev => [...prev, { sender: 'bot', text: botReply }]);
+
+      // Cập nhật chatHistory với cặp mới (user + assistant)
+      setChatHistory(prev => {
+        const updated = [
+          ...prev,
+          { role: 'user', content: messageToSend },
+          { role: 'assistant', content: botReply }
+        ];
+        // Giữ tối đa MAX_HISTORY_PAIRS_FRONTEND cặp
+        return updated.slice(-MAX_HISTORY_PAIRS_FRONTEND * 2);
+      });
     } catch (error) {
       console.error('Chat API Error:', error);
       setMessages(prev => [...prev, { sender: 'bot', text: 'Xin lỗi, hệ thống AI đang bận. Vui lòng thử lại sau vài giây nhé! 🥀💔' }]);
@@ -53,9 +78,15 @@ const Chatbot = () => {
     }
   };
 
-  const quickReplies = [
-    { text: 'Tìm vé rẻ nhất', icon: <RefreshCcw size={14} /> },
-    { text: 'Chuyến từ Hà Nội', icon: <Search size={14} /> },
+  const [showFaq, setShowFaq] = useState(true);
+
+  const faqItems = [
+    { icon: '✈️', text: 'Tìm vé máy bay rẻ nhất' },
+    { icon: '🚌', text: 'Có xe khách đi Đà Nẵng không?' },
+    { icon: '🔄', text: 'Hủy vé thì làm sao?' },
+    { icon: '🎁', text: 'Có mã giảm giá không?' },
+    { icon: '📋', text: 'Xem vé đã đặt của tôi' },
+    { icon: '💳', text: 'Thanh toán bằng gì?' },
   ];
 
   // Mini Markdown & Table Parser
@@ -367,9 +398,23 @@ const Chatbot = () => {
               </div>
             </div>
           </div>
-          <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.7 }}>
-            <X size={20} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Nút xóa lịch sử chat */}
+            <button
+              onClick={() => {
+                setMessages([{ sender: 'bot', text: 'Cuộc hội thoại mới. Tôi có thể giúp gì cho bạn? 😊' }]);
+                setChatHistory([]);
+                setShowFaq(true);
+              }}
+              title="Xóa lịch sử chat"
+              style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.7, borderRadius: 8, padding: '4px 8px', fontSize: 12 }}
+            >
+              🗑 Xóa
+            </button>
+            <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.7 }}>
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Nội dung Chat */}
@@ -437,47 +482,87 @@ const Chatbot = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Quick Replies */}
-        {!loading && (
+        {/* FAQ Panel - hiện khi showFaq = true */}
+        {!loading && showFaq && (
+          <div style={{
+            padding: '0 16px 12px',
+            backgroundColor: 'var(--bg-card)',
+            borderTop: '1px solid var(--border-light)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>💡 Có thể bạn muốn hỏi</span>
+              <button
+                onClick={() => setShowFaq(false)}
+                style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer' }}
+              >Ẩn</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {faqItems.map((item, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSend(item.text)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-main)',
+                    color: 'var(--text-primary)',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s',
+                    gap: 10,
+                  }}
+                  onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                  onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>{item.icon}</span>
+                    <span>{item.text}</span>
+                  </span>
+                  <span style={{ fontSize: 16, opacity: 0.4 }}>›</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Quick chips - hiện khi FAQ Panel bị ẩn */}
+        {!loading && !showFaq && (
           <div style={{
             display: 'flex',
-            gap: 8,
-            padding: '12px 20px',
+            gap: 6,
+            padding: '10px 16px',
             overflowX: 'auto',
             backgroundColor: 'var(--bg-card)',
             borderTop: '1px solid var(--border-light)',
             scrollbarWidth: 'none'
           }}>
-            {quickReplies.map((reply, idx) => (
+            {faqItems.map((item, idx) => (
               <button
                 key={idx}
-                onClick={() => handleSend(reply.text)}
+                onClick={() => handleSend(item.text)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
-                  padding: '8px 14px',
+                  gap: 4,
+                  padding: '6px 12px',
                   borderRadius: 20,
                   border: '1px solid #e0e7ff',
                   backgroundColor: 'white',
                   color: 'var(--text-secondary)',
-                  fontSize: 13,
+                  fontSize: 12,
                   whiteSpace: 'nowrap',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.02)'
                 }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--primary)';
-                  e.currentTarget.style.color = 'var(--primary)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = '#e0e7ff';
-                  e.currentTarget.style.color = 'var(--text-secondary)';
-                }}
+                onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                onMouseOut={e => { e.currentTarget.style.borderColor = '#e0e7ff'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
               >
-                {reply.icon}
-                {reply.text}
+                {item.icon} {item.text}
               </button>
             ))}
           </div>
@@ -492,6 +577,27 @@ const Chatbot = () => {
           gap: 12,
           alignItems: 'center'
         }}>
+          {/* Nút toggle bật/tắt FAQ Panel */}
+          <button
+            onClick={() => setShowFaq(!showFaq)}
+            title="Hiện gợi ý câu hỏi"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              backgroundColor: showFaq ? 'rgba(99, 102, 241, 0.15)' : '#f1f5f9',
+              color: showFaq ? 'var(--primary)' : 'var(--text-secondary)',
+              border: '1px solid var(--border-light)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '18px',
+              transition: 'all 0.2s'
+            }}
+          >
+            💡
+          </button>
           <input
             type="text"
             value={input}

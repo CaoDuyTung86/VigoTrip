@@ -19,14 +19,14 @@ public class AnalyticsController {
     private final AnalyticsService analyticsService;
 
     @GetMapping("/provider/{providerId}/ai-insights")
-    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ADMIN', 'ROLE_PROVIDER', 'PROVIDER')")
     public ResponseEntity<Map<String, String>> getProviderAIInsights(@PathVariable Long providerId) {
         String insights = analyticsService.getProviderAIInsights(providerId);
         return ResponseEntity.ok(Map.of("insights", insights));
     }
 
     @GetMapping("/system/ai-insights")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ADMIN', 'ROLE_PROVIDER', 'PROVIDER')")
     public ResponseEntity<Map<String, String>> getSystemAIInsights() {
         String insights = analyticsService.getSystemAIInsights();
         return ResponseEntity.ok(Map.of("insights", insights));

@@ -37,7 +37,7 @@ public class AnalyticsService {
         double totalProviderRevenue = 0;
         reportBuilder.append("BÁO CÁO DOANH THU NĂM 2026:\n");
         for (Object[] row : monthlyData) {
-            double monthRev = ((Number) row[1]).doubleValue();
+            double monthRev = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
             totalProviderRevenue += monthRev;
             reportBuilder.append(String.format("- Tháng %s: %s VND\n", row[0], df.format(monthRev)));
         }
@@ -47,7 +47,8 @@ public class AnalyticsService {
         int count = 0;
         for (Object[] row : routeData) {
             if (count++ >= 5) break;
-            reportBuilder.append(String.format("- %s -> %s: %s VND\n", row[0], row[1], df.format(row[2])));
+            double routeRev = row[2] != null ? ((Number) row[2]).doubleValue() : 0.0;
+            reportBuilder.append(String.format("- %s -> %s: %s VND\n", row[0], row[1], df.format(routeRev)));
         }
 
         String systemInstruction = "Bạn là chuyên gia phân tích dữ liệu kinh doanh vận tải hành khách. " +
@@ -85,7 +86,7 @@ public class AnalyticsService {
         if (!monthlyData.isEmpty()) {
             reportBuilder.append("DOANH THU THEO THÁNG (NĂM " + currentYear + "):\n");
             for (Object[] row : monthlyData) {
-                double monthRevenue = ((Number) row[1]).doubleValue();
+                double monthRevenue = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
                 totalSystem += monthRevenue;
                 reportBuilder.append(String.format("- Tháng %s: %s VND\n", row[0], df.format(monthRevenue)));
             }
@@ -96,7 +97,7 @@ public class AnalyticsService {
             reportBuilder.append("DOANH THU THEO LOẠI PHƯƠNG TIỆN:\n");
             for (Object[] row : typeData) {
                 String type = String.valueOf(row[0]);
-                double rev = ((Number) row[1]).doubleValue();
+                double rev = row[1] != null ? ((Number) row[1]).doubleValue() : 0.0;
                 double pct = totalSystem > 0 ? (rev / totalSystem) * 100 : 100;
                 reportBuilder.append(String.format("- %s: %s VND (%.1f%% thị phần)\n", type, df.format(rev), pct));
             }
@@ -108,7 +109,8 @@ public class AnalyticsService {
             int i = 0;
             for (Object[] row : topRoutes) {
                 if (i++ >= 5) break;
-                reportBuilder.append(String.format("- %s -> %s: %s VND\n", row[0], row[1], df.format(row[2])));
+                double routeRev = row[2] != null ? ((Number) row[2]).doubleValue() : 0.0;
+                reportBuilder.append(String.format("- %s -> %s: %s VND\n", row[0], row[1], df.format(routeRev)));
             }
             reportBuilder.append("\n");
         }
@@ -118,7 +120,8 @@ public class AnalyticsService {
             int i = 0;
             for (Object[] row : providerRevenues) {
                 if (i++ >= 5) break;
-                reportBuilder.append(String.format("- %s (%s): %s VND\n", row[0], row[1], df.format(row[2])));
+                double provRev = row[2] != null ? ((Number) row[2]).doubleValue() : 0.0;
+                reportBuilder.append(String.format("- %s (%s): %s VND\n", row[0], row[1], df.format(provRev)));
             }
         }
 
