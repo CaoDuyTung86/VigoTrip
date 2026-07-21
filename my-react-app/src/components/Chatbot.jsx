@@ -16,6 +16,32 @@ const Chatbot = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const chipsRef = useRef(null);
+  const [isMouseDown, setIsMouseDown] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeftState, setScrollLeftState] = useState(0);
+  const dragDistance = useRef(0);
+
+  const handleChipsMouseDown = (e) => {
+    if (!chipsRef.current) return;
+    setIsMouseDown(true);
+    dragDistance.current = 0;
+    setStartX(e.pageX - chipsRef.current.offsetLeft);
+    setScrollLeftState(chipsRef.current.scrollLeft);
+  };
+
+  const handleChipsMouseLeaveOrUp = () => {
+    setIsMouseDown(false);
+  };
+
+  const handleChipsMouseMove = (e) => {
+    if (!isMouseDown || !chipsRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - chipsRef.current.offsetLeft;
+    const walk = (x - startX) * 1.8;
+    dragDistance.current += Math.abs(e.movementX);
+    chipsRef.current.scrollLeft = scrollLeftState - walk;
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -532,19 +558,32 @@ const Chatbot = () => {
 
         {/* Quick chips - hiện khi FAQ Panel bị ẩn */}
         {!loading && !showFaq && (
-          <div style={{
-            display: 'flex',
-            gap: 6,
-            padding: '10px 16px',
-            overflowX: 'auto',
-            backgroundColor: 'var(--bg-card)',
-            borderTop: '1px solid var(--border-light)',
-            scrollbarWidth: 'none'
-          }}>
+          <div
+            ref={chipsRef}
+            onMouseDown={handleChipsMouseDown}
+            onMouseLeave={handleChipsMouseLeaveOrUp}
+            onMouseUp={handleChipsMouseLeaveOrUp}
+            onMouseMove={handleChipsMouseMove}
+            style={{
+              display: 'flex',
+              gap: 6,
+              padding: '10px 16px',
+              overflowX: 'auto',
+              backgroundColor: 'var(--bg-card)',
+              borderTop: '1px solid var(--border-light)',
+              scrollbarWidth: 'none',
+              cursor: isMouseDown ? 'grabbing' : 'grab',
+              userSelect: 'none',
+              msOverflowStyle: 'none'
+            }}
+          >
             {faqItems.map((item, idx) => (
               <button
                 key={idx}
-                onClick={() => handleSend(item.text)}
+                onClick={() => {
+                  if (dragDistance.current > 6) return;
+                  handleSend(item.text);
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -558,6 +597,7 @@ const Chatbot = () => {
                   whiteSpace: 'nowrap',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
+                  userSelect: 'none'
                 }}
                 onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
                 onMouseOut={e => { e.currentTarget.style.borderColor = '#e0e7ff'; e.currentTarget.style.color = 'var(--text-secondary)'; }}

@@ -1,13 +1,12 @@
 package com.booking.api.service;
 
 import com.booking.api.dto.MessageDto;
-import com.booking.api.entity.Trip;
 import com.booking.api.entity.Booking;
-import com.booking.api.repository.TripRepository;
+import com.booking.api.entity.Trip;
 import com.booking.api.repository.BookingRepository;
+import com.booking.api.repository.TripRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
@@ -19,11 +18,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ChatService {
+public class ChatService implements AIService.ToolHandler {
 
     private final TripRepository tripRepository;
     private final BookingRepository bookingRepository;
@@ -33,74 +33,108 @@ public class ChatService {
     private static final int MAX_USER_MESSAGE_LENGTH = 500; // ký tự
     private static final int MAX_HISTORY_PAIRS_FRONTEND = 10; // cặp tối đa nhận từ Frontend
 
+    @Override
+    public String executeTool(String functionName, Map<String, Object> arguments) {
+        log.info("Executing Tool: {} with args: {}", functionName, arguments);
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.getDefault());
+        symbols.setGroupingSeparator('.');
+        DecimalFormat df = new DecimalFormat("#,###", symbols);
+
+        if ("search_trips".equals(functionName)) {
+            String origin = arguments != null && arguments.containsKey("origin")
+                    ? String.valueOf(arguments.get("origin"))
+                    : null;
+            String destination = arguments != null && arguments.containsKey("destination")
+                    ? String.valueOf(arguments.get("destination"))
+                    : null;
+            String vehicleType = arguments != null && arguments.containsKey("vehicleType")
+                    ? String.valueOf(arguments.get("vehicleType"))
+                    : null;
+
+            List<Trip> trips = tripRepository.searchTripsFlexible(origin, destination, vehicleType,
+                    PageRequest.of(0, 6));
+
+            if (trips.isEmpty()) {
+                return "Không tìm thấy chuyến đi phù hợp nào trong hệ thống.";
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("DANH SÁCH CHUYẾN ĐI TÌM THẤY:\n");
+            for (Trip t : trips) {
+                String orig = t.getRoute() != null ? t.getRoute().getOrigin() : "N/A";
+                String dest = t.getRoute() != null ? t.getRoute().getDestination() : "N/A";
+                String time = t.getDepartureTime() != null ? t.getDepartureTime().format(fmt) : "N/A";
+                String price = t.getPrice() != null ? df.format(t.getPrice()) : "0";
+                String type = t.getVehicle() != null ? t.getVehicle().getVehicleType() : "N/A";
+                String provider = t.getVehicle() != null && t.getVehicle().getProvider() != null
+                        ? t.getVehicle().getProvider().getProviderName()
+                        : "N/A";
+
+                sb.append(String.format("- Tuyến: %s → %s | Hãng: %s | Loại: %s | Giờ đi: %s | Giá: %s VND%n",
+                        orig, dest, provider, type, time, price));
+            }
+            return sb.toString();
+
+        } else if ("get_user_bookings".equals(functionName)) {
+            String username = arguments != null && arguments.containsKey("username")
+                    ? String.valueOf(arguments.get("username"))
+                    : null;
+            if (username == null || username.isBlank() || "null".equals(username)) {
+                return "Khách hàng chưa đăng nhập nên không có lịch sử đơn hàng.";
+            }
+
+            List<Booking> userBookings = bookingRepository.findByUserEmailOrderByBookingDateDesc(username);
+            if (userBookings == null || userBookings.isEmpty()) {
+                return "Khách hàng hiện chưa có đơn hàng/vé đã đặt nào.";
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("DANH SÁCH VÉ ĐÃ ĐẶT CỦA KHÁCH:\n");
+            for (Booking b : userBookings) {
+                String status = b.getStatus() != null ? b.getStatus() : "UNKNOWN";
+                String bookingTime = b.getBookingDate() != null ? b.getBookingDate().format(fmt) : "N/A";
+                String tripOrigin = "N/A";
+                String tripDest = "N/A";
+                if (b.getTickets() != null && !b.getTickets().isEmpty() && b.getTickets().get(0).getTrip() != null) {
+                    tripOrigin = b.getTickets().get(0).getTrip().getRoute().getOrigin();
+                    tripDest = b.getTickets().get(0).getTrip().getRoute().getDestination();
+                }
+                sb.append(String.format(
+                        "- Mã đơn: #%s | Tuyến: %s→%s | Ngày đặt: %s | Trạng thái: %s | Tổng tiền: %s VND%n",
+                        b.getId(), tripOrigin, tripDest, bookingTime, status, df.format(b.getTotalPrice())));
+            }
+            return sb.toString();
+        }
+
+        return "Công cụ không hợp lệ.";
+    }
+
     public String getChatResponse(String userMessage, String username, List<MessageDto> history) {
         // --- Phòng thủ đầu vào ---
         if (userMessage == null || userMessage.isBlank()) {
             return "Bạn chưa nhập câu hỏi.";
         }
-        // Giới hạn độ dài tin nhắn
         if (userMessage.length() > MAX_USER_MESSAGE_LENGTH) {
             return "Tin nhắn của bạn quá dài (tối đa 500 ký tự). Vui lòng rút gọn và thử lại.";
         }
 
-        // Sliding window: chỉ lấy tối đa MAX_HISTORY_PAIRS_FRONTEND*2 items từ Frontend
         List<MessageDto> safeHistory = new ArrayList<>();
         if (history != null && !history.isEmpty()) {
             int startIndex = Math.max(0, history.size() - MAX_HISTORY_PAIRS_FRONTEND * 2);
             safeHistory = history.subList(startIndex, history.size());
         }
 
-        // --- Lấy dữ liệu RAG ---
-        Page<Trip> upcomingTripsPage = tripRepository
-                .findUpcomingTrips(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")), PageRequest.of(0, 20));
-        List<Trip> upcomingTrips = upcomingTripsPage.getContent();
-
-        StringBuilder contextBuilder = new StringBuilder();
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
-
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.getDefault());
-        symbols.setGroupingSeparator('.');
-        DecimalFormat df = new DecimalFormat("#,###", symbols);
-
-        for (Trip trip : upcomingTrips) {
-            String origin = trip.getRoute().getOrigin();
-            String dest = trip.getRoute().getDestination();
-            String time = trip.getDepartureTime() != null ? trip.getDepartureTime().format(fmt) : "N/A";
-            String price = trip.getPrice() != null ? df.format(trip.getPrice()) : "0";
-            String type = trip.getVehicle().getVehicleType();
-            String provider = trip.getVehicle().getProvider() != null ? trip.getVehicle().getProvider()
-                    .getProviderName() : "Không rõ";
-            contextBuilder.append(String.format("%s→%s | %s | %s | %s | %s VND%n",
-                    origin, dest, provider, type, time, price));
-        }
-
-        // Lấy lịch sử đặt vé của User (nếu đã đăng nhập)
-        StringBuilder bookingContext = new StringBuilder();
-        if (username != null) {
-            List<Booking> userBookings = bookingRepository.findByUserEmailOrderByBookingDateDesc(username);
-            if (userBookings != null && !userBookings.isEmpty()) {
-                bookingContext.append("\nDỮ LIỆU ĐƠN HÀNG CỦA KHÁCH (Dùng để trả lời khi khách hỏi vé của họ):\n");
-                for (Booking b : userBookings) {
-                    String status = b.getStatus() != null ? b.getStatus() : "UNKNOWN";
-                    String bookingTime = b.getBookingDate() != null ? b.getBookingDate().format(fmt) : "N/A";
-                    String tripOrigin = "N/A";
-                    String tripDest = "N/A";
-                    if (b.getTickets() != null && !b.getTickets().isEmpty()
-                            && b.getTickets().get(0).getTrip() != null) {
-                        tripOrigin = b.getTickets().get(0).getTrip().getRoute().getOrigin();
-                        tripDest = b.getTickets().get(0).getTrip().getRoute().getDestination();
-                    }
-                    bookingContext.append(String.format(
-                            "- Mã đơn: %s | Tuyến: %s→%s | Ngày đặt: %s | Trạng thái: %s | Tổng tiền: %s VND%n",
-                            b.getId(), tripOrigin, tripDest, bookingTime, status, df.format(b.getTotalPrice())));
-                }
-            }
-        }
-
         String currentTime = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
                 .format(DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM/yyyy"));
+
+        String userContextStr = username != null ? "Email khách hàng hiện tại: " + username
+                : "Khách hàng chưa đăng nhập";
+
         String systemInstruction = "Bạn là Son — trợ lý đặt vé siêu thân thiện và nhiệt tình của Datxe.com. Thời gian hiện tại: "
-                + currentTime + ".\n\n" +
+                + currentTime + ".\n" +
+                userContextStr + ".\n\n" +
 
                 "PHONG CÁCH GIAO TIẾP:\n" +
                 "- Nói chuyện như một người bạn thực sự: tự nhiên, xưng hô lịch sự nhưng gần gũi (mình - bạn, Son - bạn), vui vẻ và ấm áp.\n"
@@ -110,21 +144,15 @@ public class ChatService {
                 "- TUYỆT ĐỐI CẤM sử dụng các từ ngữ mang tính kỹ thuật, lộ thông tin hệ thống hoặc data dump như:\n" +
                 "  + 'trong danh sách được cung cấp', 'theo danh sách của bạn', 'dữ liệu chuyến đi của chúng tôi'\n" +
                 "  + 'không tìm thấy chuyến nào trong cơ sở dữ liệu', 'danh sách chuyến đi hiện có'\n" +
-                "  Thay vào đó hãy nói tự nhiên: 'Tiếc quá chặng này hiện mình chưa thấy chuyến bay nào nè', 'Hiện tại mình chỉ thấy có xe khách chạy tuyến này thôi á, bạn xem thử nha'.\n\n"
+                "  Thay vào đó hãy nói tự nhiên: 'Tiếc quá chặng này hiện Son chưa thấy có chuyến bay nào nè', 'Hiện tại Son thấy có xe khách chạy tuyến này thôi á, bạn xem thử nha'.\n\n"
                 +
 
-                "QUY TẮC TÌM KIẾM & HỎI THÔNG TIN:\n" +
-                "- Khi khách hàng yêu cầu tìm vé hoặc hỏi vé rẻ nhất (ví dụ: 'Tìm vé máy bay rẻ nhất', 'Có chuyến nào đi Đà Nẵng không?'):\n"
+                "HƯỚNG DẪN DÙNG CÔNG CỤ (TOOLS):\n" +
+                "- Bạn có công cụ `search_trips` để tìm chuyến đi động từ hệ thống. Hãy chủ động gọi công cụ này khi khách hỏi về chuyến đi, tuyến đường, hoặc tìm vé rẻ nhất!\n"
                 +
-                "  1. KHÔNG được vội vã trả lời ngay là 'Không có chuyến nào'.\n" +
-                "  2. Hãy hỏi khách các thông tin còn thiếu để lọc chuyến chính xác: **Điểm đi, Điểm đến, và Ngày đi mong muốn**.\n"
+                "- Bạn có công cụ `get_user_bookings` để tra cứu vé đã đặt của khách. Hãy gọi công cụ này khi khách hỏi về đơn hàng hoặc vé của họ.\n"
                 +
-                "  Ví dụ: 'Bạn muốn đi từ đâu đến đâu và đi vào ngày nào để Son tìm vé máy bay rẻ nhất giúp bạn nè?' hoặc 'Bạn đi từ đâu đến Đà Nẵng và đi ngày nào thế?'\n"
-                +
-                "- Khi khách đã cung cấp đủ thông tin (hoặc thông tin đã rõ ràng trong ngữ cảnh):\n" +
-                "  1. Đối chiếu với dữ liệu chuyến đi bên dưới.\n" +
-                "  2. Nếu có: Liệt kê tối đa 3 chuyến rẻ nhất/phù hợp nhất và gợi ý họ đặt vé kèm LINK.\n" +
-                "  3. Nếu không có phương tiện họ yêu cầu (ví dụ: không có máy bay) nhưng có phương tiện khác (xe khách, tàu hỏa) trên cùng chặng: Gợi ý phương tiện thay thế một cách tinh tế. Ví dụ: 'Tuyến HAN-SGN hiện mình không có chuyến bay nào nhưng có xe khách giường nằm chạy lúc 05:00 giá chỉ 420.000đ nè, bạn có muốn xem thử không?'\n\n"
+                "- Khi khách hỏi tìm vé mà thiếu thông tin (điểm đi, điểm đến, ngày đi) → bạn có thể hỏi thêm điểm đi/đến hoặc gọi `search_trips` với thông tin hiện có.\n\n"
                 +
 
                 "KIẾN THỨC VỀ DỊCH VỤ:\n" +
@@ -140,12 +168,20 @@ public class ChatService {
                 "- Đặt vé tàu hỏa: [LINK: Đặt vé tàu hỏa | /ve-tau-hoa]\n" +
                 "- Đặt vé xe khách: [LINK: Đặt vé xe khách | /xe-khach]\n" +
                 "- Lịch sử đặt vé: [LINK: Lịch sử đặt vé | /my-bookings]\n" +
-                "- Gợi ý nút lựa chọn nếu cần hỏi thêm: [BTN: Vé máy bay] [BTN: Vé xe khách]\n\n" +
+                "- Gợi ý nút lựa chọn nếu cần hỏi thêm: [BTN: Vé máy bay] [BTN: Vé xe khách]\n";
 
-                "DỮ LIỆU CHUYẾN ĐI HỆ THỐNG:\n" +
-                contextBuilder.toString() +
-                bookingContext.toString();
-
-        return aiService.getChatResponse(systemInstruction, safeHistory, userMessage);
+        // Pass ToolHandler callback
+        return aiService.getChatResponse(systemInstruction, safeHistory, userMessage, (fnName, args) -> {
+            if ("get_user_bookings".equals(fnName) && username != null) {
+                if (args == null)
+                    args = Map.of("username", username);
+                else {
+                    Map<String, Object> newArgs = new java.util.HashMap<>(args);
+                    newArgs.put("username", username);
+                    args = newArgs;
+                }
+            }
+            return executeTool(fnName, args);
+        });
     }
 }

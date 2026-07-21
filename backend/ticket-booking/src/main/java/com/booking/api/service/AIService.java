@@ -1,6 +1,7 @@
 package com.booking.api.service;
 
 import com.booking.api.dto.MessageDto;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,7 @@ import java.util.Map;
 public class AIService {
 
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${gemini.api-key:}")
     private String groqApiKey;
@@ -40,16 +42,50 @@ public class AIService {
     private static final int CHAT_MAX_TOKENS = 512;     // tiết kiệm TPM cho chat
     private static final int ANALYSIS_MAX_TOKENS = 1024;
 
+    public interface ToolHandler {
+        String executeTool(String functionName, Map<String, Object> arguments);
+    }
+
     public String getAIAnalysis(String systemInstruction, String dataToAnalyze) {
         return callGroqApi(ANALYSIS_MODEL, systemInstruction, null, dataToAnalyze, 0.3, ANALYSIS_MAX_TOKENS);
     }
 
-    public String getChatResponse(String systemInstruction, List<MessageDto> history, String userMessage) {
-        return callGroqApi(CHAT_MODEL, systemInstruction, history, userMessage, 0.7, CHAT_MAX_TOKENS);
+    public String getChatResponse(String systemInstruction, List<MessageDto> history, String userMessage, ToolHandler toolHandler) {
+        return callGroqApiWithTools(CHAT_MODEL, systemInstruction, history, userMessage, 0.7, CHAT_MAX_TOKENS, toolHandler);
     }
 
-    private String callGroqApi(String model, String systemInstruction, List<MessageDto> history,
-                                String userContent, double temperature, int maxTokens) {
+    private List<Map<String, Object>> buildToolsDefinition() {
+        List<Map<String, Object>> tools = new ArrayList<>();
+
+        // Tool 1: search_trips
+        Map<String, Object> searchTripsFn = new HashMap<>();
+        searchTripsFn.put("name", "search_trips");
+        searchTripsFn.put("description", "Tra cứu chuyến đi (vé máy bay, xe khách, tàu hỏa) theo điểm đi, điểm đến hoặc loại phương tiện.");
+
+        Map<String, Object> props = new HashMap<>();
+        props.put("origin", Map.of("type", "string", "description", "Điểm khởi hành (ví dụ: 'Hà Nội', 'Sài Gòn')"));
+        props.put("destination", Map.of("type", "string", "description", "Điểm đến (ví dụ: 'Đà Nẵng', 'Phú Quốc')"));
+        props.put("vehicleType", Map.of("type", "string", "description", "Loại phương tiện: 'BUS' (xe khách), 'FLIGHT' (máy bay), 'TRAIN' (tàu hỏa)"));
+
+        Map<String, Object> params = Map.of(
+            "type", "object",
+            "properties", props
+        );
+        searchTripsFn.put("parameters", params);
+        tools.add(Map.of("type", "function", "function", searchTripsFn));
+
+        // Tool 2: get_user_bookings
+        Map<String, Object> getBookingsFn = new HashMap<>();
+        getBookingsFn.put("name", "get_user_bookings");
+        getBookingsFn.put("description", "Tra cứu danh sách vé đã đặt / lịch sử đơn hàng của người dùng hiện tại.");
+        getBookingsFn.put("parameters", Map.of("type", "object", "properties", Map.of()));
+        tools.add(Map.of("type", "function", "function", getBookingsFn));
+
+        return tools;
+    }
+
+    private String callGroqApiWithTools(String model, String systemInstruction, List<MessageDto> history,
+                                        String userContent, double temperature, int maxTokens, ToolHandler toolHandler) {
         if (groqApiKey == null || groqApiKey.trim().isEmpty() || "YOUR_API_KEY_HERE".equals(groqApiKey)) {
             return "Hệ thống AI chưa được cấu hình. Vui lòng kiểm tra API Key.";
         }
@@ -66,15 +102,13 @@ public class AIService {
         systemMessage.put("content", systemInstruction);
         messages.add(systemMessage);
 
-        // 2. Lịch sử hội thoại (có kiểm soát sliding window + cắt nội dung)
+        // 2. Lịch sử hội thoại
         if (history != null && !history.isEmpty()) {
-            // Phòng thủ backend: chỉ lấy MAX_HISTORY_PAIRS cặp cuối (= 2*MAX_HISTORY_PAIRS items)
             int startIndex = Math.max(0, history.size() - MAX_HISTORY_PAIRS * 2);
             List<MessageDto> trimmedHistory = history.subList(startIndex, history.size());
 
             for (MessageDto msg : trimmedHistory) {
                 if (msg.getRole() == null || msg.getContent() == null) continue;
-                // Cắt nội dung mỗi tin nhắn trong history nếu quá dài
                 String content = msg.getContent();
                 if (content.length() > MAX_CONTENT_LENGTH) {
                     content = content.substring(0, MAX_CONTENT_LENGTH) + "...";
@@ -86,7 +120,7 @@ public class AIService {
             }
         }
 
-        // 3. Tin nhắn mới của user
+        // 3. User message
         Map<String, Object> userMessage = new HashMap<>();
         userMessage.put("role", "user");
         userMessage.put("content", userContent);
@@ -97,6 +131,10 @@ public class AIService {
         body.put("messages", messages);
         body.put("max_tokens", maxTokens);
         body.put("temperature", temperature);
+        if (toolHandler != null) {
+            body.put("tools", buildToolsDefinition());
+            body.put("tool_choice", "auto");
+        }
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
@@ -107,8 +145,66 @@ public class AIService {
             if (responseBody != null && responseBody.containsKey("choices")) {
                 List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
                 if (!choices.isEmpty()) {
-                    Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-                    return (String) message.get("content");
+                    Map<String, Object> choiceObj = choices.get(0);
+                    Map<String, Object> messageObj = (Map<String, Object>) choiceObj.get("message");
+
+                    // Check if AI requested Tool Calling
+                    if (messageObj != null && messageObj.containsKey("tool_calls") && toolHandler != null) {
+                        List<Map<String, Object>> toolCalls = (List<Map<String, Object>>) messageObj.get("tool_calls");
+                        if (toolCalls != null && !toolCalls.isEmpty()) {
+                            log.info("Groq AI requested {} tool calls", toolCalls.size());
+
+                            // Add assistant message with tool_calls
+                            messages.add(messageObj);
+
+                            for (Map<String, Object> toolCall : toolCalls) {
+                                String callId = (String) toolCall.get("id");
+                                Map<String, Object> fnObj = (Map<String, Object>) toolCall.get("function");
+                                String fnName = (String) fnObj.get("name");
+                                String argsJson = String.valueOf(fnObj.get("arguments"));
+
+                                Map<String, Object> argsMap = new HashMap<>();
+                                if (argsJson != null && !argsJson.isBlank()) {
+                                    try {
+                                        argsMap = objectMapper.readValue(argsJson, Map.class);
+                                    } catch (Exception parseEx) {
+                                        log.error("Failed to parse tool args JSON", parseEx);
+                                    }
+                                }
+
+                                String toolResult = toolHandler.executeTool(fnName, argsMap);
+
+                                Map<String, Object> toolMsg = new HashMap<>();
+                                toolMsg.put("role", "tool");
+                                toolMsg.put("tool_call_id", callId);
+                                toolMsg.put("content", toolResult != null ? toolResult : "[]");
+                                messages.add(toolMsg);
+                            }
+
+                            // Second API call to Groq with tool results
+                            Map<String, Object> secondBody = new HashMap<>();
+                            secondBody.put("model", model);
+                            secondBody.put("messages", messages);
+                            secondBody.put("max_tokens", maxTokens);
+                            secondBody.put("temperature", temperature);
+
+                            HttpEntity<Map<String, Object>> secondEntity = new HttpEntity<>(secondBody, headers);
+                            ResponseEntity<Map> secondResponse = restTemplate.postForEntity(GROQ_URL, secondEntity, Map.class);
+                            Map<String, Object> secondBodyObj = secondResponse.getBody();
+
+                            if (secondBodyObj != null && secondBodyObj.containsKey("choices")) {
+                                List<Map<String, Object>> secondChoices = (List<Map<String, Object>>) secondBodyObj.get("choices");
+                                if (!secondChoices.isEmpty()) {
+                                    Map<String, Object> secondMsg = (Map<String, Object>) secondChoices.get(0).get("message");
+                                    return (String) secondMsg.get("content");
+                                }
+                            }
+                        }
+                    }
+
+                    if (messageObj != null && messageObj.containsKey("content")) {
+                        return (String) messageObj.get("content");
+                    }
                 }
             }
             return "Xin lỗi, AI không thể xử lý yêu cầu lúc này.";
@@ -124,4 +220,10 @@ public class AIService {
             return "Đã có lỗi xảy ra khi kết nối với máy chủ AI.";
         }
     }
+
+    private String callGroqApi(String model, String systemInstruction, List<MessageDto> history,
+                                String userContent, double temperature, int maxTokens) {
+        return callGroqApiWithTools(model, systemInstruction, history, userContent, temperature, maxTokens, null);
+    }
 }
+
