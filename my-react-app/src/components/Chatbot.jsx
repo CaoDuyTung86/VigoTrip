@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, X, MessageCircle, RefreshCcw, Search, Calendar, History, Bot, User, Link as LinkIcon } from 'lucide-react';
+import { Send, X, MessageCircle, Search, Bot, User, Link as LinkIcon, HelpCircle, Tag, Ticket, CreditCard, RotateCcw } from 'lucide-react';
 
 const API_BASE = '/api';
 
@@ -10,7 +10,7 @@ const Chatbot = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { sender: 'bot', text: 'Xin chào! Tôi là trợ lý ảo của **Datxe.com**. Tôi có thể giúp bạn tìm kiếm chuyến đi hoặc giải đáp thắc mắc về dịch vụ. Bạn muốn đi đâu hôm nay?' }
+    { sender: 'bot', text: 'Xin chào! Tôi là trợ lý của **Datxe.com**. Tôi có thể giúp bạn tìm kiếm chuyến đi hoặc giải đáp thắc mắc dịch vụ. Bạn cần hỗ trợ gì hôm nay?' }
   ]);
   const [chatHistory, setChatHistory] = useState([]); // Lịch sử gửi lên AI
   const [input, setInput] = useState('');
@@ -55,65 +55,123 @@ const Chatbot = () => {
     const messageToSend = typeof text === 'string' ? text.trim() : input.trim();
     if (!messageToSend) return;
 
-    // Giới hạn độ dài tin nhắn phía Frontend
     if (messageToSend.length > 500) {
-      setMessages(prev => [...prev, { sender: 'bot', text: 'Tin nhắn quá dài (tối đa 500 ký tự). Vui lòng rút gọn nhé! 😊' }]);
+      setMessages(prev => [...prev, { sender: 'bot', text: 'Tin nhắn quá dài (tối đa 500 ký tự). Vui lòng rút gọn và thử lại.' }]);
       return;
     }
 
     setMessages(prev => [...prev, { sender: 'user', text: messageToSend }]);
     setInput('');
-    setLoading(true);
-    setShowFaq(false); // Tự động thu gọn FAQ khi gửi tin nhắn
+    setLoading(true);   // Loading = true → typing-loader hiện, KHÔNG thêm bubble rỗng
+    setShowFaq(false);
 
-    // Sliding window: chỉ lấy MAX_HISTORY_PAIRS_FRONTEND cặp cuối
     const trimmedHistory = chatHistory.slice(-MAX_HISTORY_PAIRS_FRONTEND * 2);
 
+    const token = localStorage.getItem('authToken');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+
+    let botReply = '';
+    let streamSuccess = false;
+
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE}/chat`, {
+      const response = await fetch(`${API_BASE}/chat/stream`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
+        headers,
         body: JSON.stringify({ message: messageToSend, history: trimmedHistory })
       });
 
-      if (!response.ok) throw new Error('Lỗi máy chủ');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-      const data = await response.json();
-      const botReply = data.reply || 'Xin lỗi, tôi không hiểu ý bạn.';
-      setMessages(prev => [...prev, { sender: 'bot', text: botReply }]);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let streamBubbleAdded = false;
 
-      // Cập nhật chatHistory với cặp mới (user + assistant)
-      setChatHistory(prev => {
-        const updated = [
-          ...prev,
-          { role: 'user', content: messageToSend },
-          { role: 'assistant', content: botReply }
-        ];
-        // Giữ tối đa MAX_HISTORY_PAIRS_FRONTEND cặp
-        return updated.slice(-MAX_HISTORY_PAIRS_FRONTEND * 2);
-      });
-    } catch (error) {
-      console.error('Chat API Error:', error);
-      setMessages(prev => [...prev, { sender: 'bot', text: 'Xin lỗi, hệ thống AI đang bận. Vui lòng thử lại sau vài giây nhé! 🥀💔' }]);
-    } finally {
-      setLoading(false);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (let line of lines) {
+          line = line.trim();
+          if (!line.startsWith('data:')) continue;
+
+          const dataStr = line.substring(5).trim();
+          try {
+            const parsed = JSON.parse(dataStr);
+            // Kiểm tra signal [DONE]
+            if (parsed.content === '[DONE]') break;
+
+            if (parsed.content) {
+              botReply += parsed.content;
+              streamSuccess = true;
+              if (!streamBubbleAdded) {
+                // Lần đầu nhận ký tự → tắt loader, thêm bubble bot
+                setLoading(false);
+                setMessages(prev => [...prev, { sender: 'bot', text: botReply }]);
+                streamBubbleAdded = true;
+              } else {
+                setMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = { sender: 'bot', text: botReply };
+                  return updated;
+                });
+              }
+            }
+          } catch (e) {}
+        }
+      }
+    } catch (streamError) {
+      console.warn('SSE stream lỗi, fallback sang POST /api/chat:', streamError);
     }
+
+    if (!streamSuccess) {
+      // Fallback sang POST /api/chat chuẩn
+      try {
+        const response = await fetch(`${API_BASE}/chat`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ message: messageToSend, history: trimmedHistory })
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        botReply = data.reply || 'Xin lỗi, không thể xử lý câu hỏi lúc này.';
+        setMessages(prev => [...prev, { sender: 'bot', text: botReply }]);
+      } catch (fallbackError) {
+        console.error('Fallback chat cũng lỗi:', fallbackError);
+        setMessages(prev => [...prev, { sender: 'bot', text: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối và thử lại.' }]);
+      }
+    }
+
+    // Lưu lịch sử
+    if (botReply) {
+      setChatHistory(prev => [
+        ...prev,
+        { role: 'user', content: messageToSend },
+        { role: 'assistant', content: botReply }
+      ].slice(-MAX_HISTORY_PAIRS_FRONTEND * 2));
+    }
+
+    setLoading(false);
   };
 
   const [showFaq, setShowFaq] = useState(true);
 
   const faqItems = [
-    { icon: '✈️', text: 'Tìm vé máy bay rẻ nhất' },
-    { icon: '🚌', text: 'Có xe khách đi Đà Nẵng không?' },
-    { icon: '🔄', text: 'Hủy vé thì làm sao?' },
-    { icon: '🎁', text: 'Có mã giảm giá không?' },
-    { icon: '📋', text: 'Xem vé đã đặt của tôi' },
-    { icon: '💳', text: 'Thanh toán bằng gì?' },
+    { icon: <Search size={14} />, text: 'Tìm vé máy bay rẻ nhất' },
+    { icon: <Search size={14} />, text: 'Có xe khách đi Đà Nẵng không?' },
+    { icon: <RotateCcw size={14} />, text: 'Hủy vé thì làm sao?' },
+    { icon: <Tag size={14} />, text: 'Có mã giảm giá không?' },
+    { icon: <Ticket size={14} />, text: 'Xem vé đã đặt của tôi' },
+    { icon: <CreditCard size={14} />, text: 'Thanh toán bằng gì?' },
   ];
+
 
   // Mini Markdown & Table Parser
   const renderMessageContent = (text) => {
@@ -258,8 +316,9 @@ const Chatbot = () => {
                   boxShadow: '0 4px 15px rgba(255, 107, 0, 0.3)',
                 }}
               >
-                <div style={{ position: 'absolute', top: '-10px', right: '-10px', fontSize: '60px', opacity: 0.15 }}>🎫</div>
-                <div style={{ fontSize: '11px', opacity: 0.9, marginBottom: '4px' }}>🎁 Mã giảm giá dành cho bạn</div>
+                <div style={{ fontSize: '11px', opacity: 0.9, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Tag size={12} /> Mã giảm giá dành cho bạn
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{
                     background: 'rgba(255,255,255,0.25)',
@@ -276,7 +335,6 @@ const Chatbot = () => {
                     id={`copy-btn-${idx}`}
                     onClick={(e) => {
                       const btn = e.currentTarget;
-                      // Fallback copy method
                       const textarea = document.createElement('textarea');
                       textarea.value = code;
                       textarea.style.position = 'fixed';
@@ -285,11 +343,10 @@ const Chatbot = () => {
                       textarea.select();
                       document.execCommand('copy');
                       document.body.removeChild(textarea);
-                      // Visual feedback
-                      btn.textContent = '✅ Đã sao chép!';
+                      btn.textContent = 'Đã sao chép!';
                       btn.style.background = 'rgba(255,255,255,0.5)';
                       setTimeout(() => {
-                        btn.textContent = '📋 Sao chép';
+                        btn.textContent = 'Sao chép';
                         btn.style.background = 'rgba(255,255,255,0.3)';
                       }, 2000);
                     }}
@@ -305,7 +362,7 @@ const Chatbot = () => {
                       transition: 'background 0.2s',
                     }}
                   >
-                    📋 Sao chép
+                    Sao chép
                   </button>
                 </div>
               </div>
@@ -350,7 +407,7 @@ const Chatbot = () => {
 
   return (
     <>
-      {/* Nút mở Chatbot (Được thiết kế lại to và rõ ràng hơn) */}
+      {/* Nút mở Chatbot */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
@@ -379,7 +436,7 @@ const Chatbot = () => {
         <span style={{ fontSize: '16px', fontWeight: 600 }}>Hỗ trợ đặt vé</span>
       </button>
 
-      {/* Cửa sổ Chatbot (Được thiết kế rộng rãi hơn) */}
+      {/* Cửa sổ Chatbot */}
       <div
         style={{
           position: 'fixed',
@@ -428,14 +485,14 @@ const Chatbot = () => {
             {/* Nút xóa lịch sử chat */}
             <button
               onClick={() => {
-                setMessages([{ sender: 'bot', text: 'Cuộc hội thoại mới. Tôi có thể giúp gì cho bạn? 😊' }]);
+                setMessages([{ sender: 'bot', text: 'Cuộc hội thoại mới. Tôi có thể giúp gì cho bạn?' }]);
                 setChatHistory([]);
                 setShowFaq(true);
               }}
               title="Xóa lịch sử chat"
               style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.7, borderRadius: 8, padding: '4px 8px', fontSize: 12 }}
             >
-              🗑 Xóa
+              Xóa
             </button>
             <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.7 }}>
               <X size={20} />
@@ -516,7 +573,9 @@ const Chatbot = () => {
             borderTop: '1px solid var(--border-light)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px' }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>💡 Có thể bạn muốn hỏi</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <HelpCircle size={14} style={{ color: 'var(--primary)' }} /> Câu hỏi phổ biến
+              </span>
               <button
                 onClick={() => setShowFaq(false)}
                 style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer' }}
@@ -632,11 +691,10 @@ const Chatbot = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '18px',
               transition: 'all 0.2s'
             }}
           >
-            💡
+            <HelpCircle size={20} />
           </button>
           <input
             type="text"

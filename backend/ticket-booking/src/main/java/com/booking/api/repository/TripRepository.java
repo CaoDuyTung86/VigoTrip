@@ -37,14 +37,16 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     Page<Trip> findUpcomingTrips(@Param("now") LocalDateTime now, Pageable pageable);
 
     @Query("SELECT t FROM Trip t " +
-           "WHERE t.departureTime >= CURRENT_TIMESTAMP " +
+           "WHERE t.departureTime >= :startOfDay " +
+           "AND t.departureTime <= :endOfDay " +
            "AND (:origin IS NULL OR :origin = '' OR LOWER(t.route.origin) LIKE LOWER(CONCAT('%', :origin, '%'))) " +
            "AND (:destination IS NULL OR :destination = '' OR LOWER(t.route.destination) LIKE LOWER(CONCAT('%', :destination, '%'))) " +
            "AND (:vehicleType IS NULL OR :vehicleType = '' OR LOWER(t.vehicle.vehicleType) = LOWER(:vehicleType)) " +
            "ORDER BY t.price ASC")
     List<Trip> searchTripsFlexible(@Param("origin") String origin,
-                                  @Param("destination") String destination,
-                                  @Param("vehicleType") String vehicleType,
-                                  Pageable pageable);
+                                   @Param("destination") String destination,
+                                   @Param("vehicleType") String vehicleType,
+                                   @Param("startOfDay") LocalDateTime startOfDay,
+                                   @Param("endOfDay") LocalDateTime endOfDay,
+                                   Pageable pageable);
 }
-

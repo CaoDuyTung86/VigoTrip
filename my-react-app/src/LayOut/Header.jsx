@@ -16,6 +16,7 @@ import VNFlag from "../Picture/flags/vn.png";
 import UKFlag from "../Picture/flags/uk.png";
 import JPFlag from "../Picture/flags/jp.png";
 import TWFlag from "../Picture/flags/tw.png";
+import { User, Ticket, LogOut } from "lucide-react";
 
 const Header = ({ setIsSidebarOpen }) => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -359,8 +360,8 @@ const Header = ({ setIsSidebarOpen }) => {
                   overflow: "hidden",
                 }}>
                   {[
-                    { label: t.account, path: "/account", icon: "👤" },
-                    { label: t.bookingHistory, path: "/my-bookings", icon: "🎫" },
+                    { label: t.account, path: "/account", icon: <User size={16} /> },
+                    { label: t.bookingHistory, path: "/my-bookings", icon: <Ticket size={16} /> },
                   ].map((item) => (
                     <button
                       key={item.path}
@@ -369,7 +370,7 @@ const Header = ({ setIsSidebarOpen }) => {
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
-                      <span>{item.icon}</span> {item.label}
+                      <span style={{ display: "flex", alignItems: "center" }}>{item.icon}</span> {item.label}
                     </button>
                   ))}
                   <div style={{ borderTop: "1px solid var(--border-light)", margin: "4px 0" }} />
@@ -379,7 +380,7 @@ const Header = ({ setIsSidebarOpen }) => {
                     onMouseEnter={(e) => e.currentTarget.style.background = "#fff0f0"}
                     onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                   >
-                    <span>🚪</span> {t.logout}
+                    <span style={{ display: "flex", alignItems: "center" }}><LogOut size={16} /></span> {t.logout}
                   </button>
                 </div>
               )}

@@ -51,8 +51,6 @@ Hệ thống đã được triển khai thử nghiệm trên nền tảng điệ
 
 ### Hướng phát triển tiếp theo:
 - [ ] **Map Integration:** Tích hợp bản đồ để theo dõi lộ trình và định vị bến xe/nhà ga.
-- [ ] **Notification Center:** Mở rộng thông báo qua nhiều kênh (Zalo, SMS) thay vì chỉ Email.
-
 ---
 
 ## 📸 Hướng Dẫn Cài Đặt

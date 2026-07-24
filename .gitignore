@@ -32,3 +32,8 @@ grafana/data/
 my-react-app/dist/assets/index-BuS8nFjb.js
 .antigravityignore
 caveman.md
+test_gemini_models.js
+test_gemini_native.js
+test_gemini_native2.js
+test_gemini_native3.js
+test_gemini.js

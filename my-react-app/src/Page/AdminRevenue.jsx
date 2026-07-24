@@ -5,6 +5,8 @@ import Header from "../LayOut/Header";
 import { useLanguage } from "../context/LanguageContext";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+import { Sparkles, DollarSign, TrendingUp } from 'lucide-react';
+
 const AdminRevenue = () => {
   const { token, user } = useAuth();
   const [revenues, setRevenues] = useState([]);
@@ -165,7 +167,7 @@ const AdminRevenue = () => {
           <div style={{ background: "var(--bg-card)", width: "100%", maxWidth: 700, borderRadius: 24, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)", overflow: "hidden", animation: "modalFadeIn 0.3s ease-out" }}>
             <div style={{ padding: "24px 30px", background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 28 }}>✨</span> {t.aiInsights}
+                <Sparkles size={24} /> {t.aiInsights}
               </h2>
               <button onClick={() => setShowAiModal(false)} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.3)"} onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.2)"}>×</button>
             </div>
@@ -220,7 +222,7 @@ const AdminRevenue = () => {
                 onMouseEnter={e => e.currentTarget.style.transform = "translateY(-1px)"}
                 onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
               >
-                <span>✨</span> Báo cáo điều hành AI (Hệ thống)
+                <Sparkles size={16} /> Báo cáo điều hành AI (Hệ thống)
               </button>
             </div>
 
@@ -228,7 +230,7 @@ const AdminRevenue = () => {
 
             {/* Total Revenue Summary Card */}
             <div style={{ background: "linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)", padding: 30, borderRadius: 16, boxShadow: "0 10px 25px rgba(59, 130, 246, 0.2)", marginBottom: 30, display: "flex", alignItems: "center", gap: 24, color: "white" }}>
-              <div style={{ width: 70, height: 70, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>💰</div>
+              <div style={{ width: 70, height: 70, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}><TrendingUp size={36} /></div>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8, opacity: 0.9 }}>{t.totalRevenue.toUpperCase()}</div>
                 <div style={{ fontSize: 40, fontWeight: 800 }}>{totalRevenue.toLocaleString("vi-VN")} đ</div>
@@ -347,7 +349,7 @@ const AdminRevenue = () => {
                                 gap: "4px"
                               }}
                             >
-                              <span>✨</span> {t.getAIInsights}
+                              <Sparkles size={14} /> {t.getAIInsights}
                             </button>
                           </td>
                         </tr>

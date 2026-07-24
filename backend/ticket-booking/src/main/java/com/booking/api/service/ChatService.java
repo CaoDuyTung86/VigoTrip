@@ -33,6 +33,18 @@ public class ChatService implements AIService.ToolHandler {
     private static final int MAX_USER_MESSAGE_LENGTH = 500; // ký tự
     private static final int MAX_HISTORY_PAIRS_FRONTEND = 10; // cặp tối đa nhận từ Frontend
 
+    // State Caching cho từng User Session
+    private final Map<String, Map<String, String>> sessionCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    // RAG Knowledge Base (Simple Keyword-based)
+    private static final Map<String, String> FAQ_DB = Map.of(
+        "hành lý", "Quy định hành lý: Mỗi hành khách được mang tối đa 7kg hành lý xách tay và 20kg hành lý ký gửi (đối với máy bay). Xe khách miễn phí mang theo 20kg/người.",
+        "chó mèo", "Quy định thú cưng: Máy bay không cho phép mang thú cưng lên khoang hành khách. Xe khách cho phép mang thú cưng nhỏ nếu để trong lồng chuyên dụng dưới gầm xe.",
+        "thú cưng", "Quy định thú cưng: Máy bay không cho phép mang thú cưng lên khoang hành khách. Xe khách cho phép mang thú cưng nhỏ nếu để trong lồng chuyên dụng dưới gầm xe.",
+        "hủy vé", "Chính sách hủy vé: Hủy trước 24h khởi hành được hoàn 100%. Hủy trước 12h hoàn 50%. Dưới 12h không được hoàn tiền. Khách hàng vui lòng truy cập Lịch sử đặt vé để thao tác.",
+        "trẻ em", "Vé trẻ em: Dưới 2 tuổi miễn phí (ngồi chung ghế). Từ 2-12 tuổi tính 75% giá vé người lớn."
+    );
+
     @Override
     public String executeTool(String functionName, Map<String, Object> arguments) {
         log.info("Executing Tool: {} with args: {}", functionName, arguments);
@@ -43,17 +55,32 @@ public class ChatService implements AIService.ToolHandler {
         DecimalFormat df = new DecimalFormat("#,###", symbols);
 
         if ("search_trips".equals(functionName)) {
-            String origin = arguments != null && arguments.containsKey("origin")
-                    ? String.valueOf(arguments.get("origin"))
-                    : null;
-            String destination = arguments != null && arguments.containsKey("destination")
-                    ? String.valueOf(arguments.get("destination"))
-                    : null;
-            String vehicleType = arguments != null && arguments.containsKey("vehicleType")
-                    ? String.valueOf(arguments.get("vehicleType"))
-                    : null;
+            String origin = arguments != null && arguments.containsKey("origin") ? String.valueOf(arguments.get("origin")) : null;
+            String destination = arguments != null && arguments.containsKey("destination") ? String.valueOf(arguments.get("destination")) : null;
+            String vehicleType = arguments != null && arguments.containsKey("vehicleType") ? String.valueOf(arguments.get("vehicleType")) : null;
+            String dateStr = arguments != null && arguments.containsKey("departureDate") ? String.valueOf(arguments.get("departureDate")) : null;
 
-            List<Trip> trips = tripRepository.searchTripsFlexible(origin, destination, vehicleType,
+            LocalDateTime startOfDay = LocalDateTime.now();
+            LocalDateTime endOfDay = LocalDateTime.of(2099, 12, 31, 23, 59, 59);
+
+            if (dateStr != null && !dateStr.isBlank() && !"null".equals(dateStr)) {
+                try {
+                    java.time.LocalDate date = java.time.LocalDate.parse(dateStr);
+                    startOfDay = date.atStartOfDay();
+                    endOfDay = date.atTime(23, 59, 59);
+                } catch (Exception e) {
+                    log.warn("Lỗi parse ngày: {}", dateStr);
+                }
+            }
+
+            // Lưu vào State Caching theo thread hoặc username (tạm dùng mặc định do AI Tools chưa pass username vào đây dễ dàng)
+            // Tạm thời dùng key là "default_session" nếu hệ thống chưa có SessionID
+            Map<String, String> cache = sessionCache.computeIfAbsent("default_session", k -> new java.util.concurrent.ConcurrentHashMap<>());
+            if (origin != null && !origin.isBlank() && !"null".equals(origin)) cache.put("origin", origin);
+            if (destination != null && !destination.isBlank() && !"null".equals(destination)) cache.put("destination", destination);
+            if (dateStr != null && !dateStr.isBlank() && !"null".equals(dateStr)) cache.put("date", dateStr);
+
+            List<Trip> trips = tripRepository.searchTripsFlexible(origin, destination, vehicleType, startOfDay, endOfDay,
                     PageRequest.of(0, 6));
 
             if (trips.isEmpty()) {
@@ -111,30 +138,39 @@ public class ChatService implements AIService.ToolHandler {
         return "Công cụ không hợp lệ.";
     }
 
-    public String getChatResponse(String userMessage, String username, List<MessageDto> history) {
-        // --- Phòng thủ đầu vào ---
-        if (userMessage == null || userMessage.isBlank()) {
-            return "Bạn chưa nhập câu hỏi.";
-        }
-        if (userMessage.length() > MAX_USER_MESSAGE_LENGTH) {
-            return "Tin nhắn của bạn quá dài (tối đa 500 ký tự). Vui lòng rút gọn và thử lại.";
-        }
-
-        List<MessageDto> safeHistory = new ArrayList<>();
-        if (history != null && !history.isEmpty()) {
-            int startIndex = Math.max(0, history.size() - MAX_HISTORY_PAIRS_FRONTEND * 2);
-            safeHistory = history.subList(startIndex, history.size());
-        }
-
+    private String buildSystemInstruction(String username, String userMessage) {
         String currentTime = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
                 .format(DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM/yyyy"));
-
         String userContextStr = username != null ? "Email khách hàng hiện tại: " + username
                 : "Khách hàng chưa đăng nhập";
 
-        String systemInstruction = "Bạn là Son — trợ lý đặt vé siêu thân thiện và nhiệt tình của Datxe.com. Thời gian hiện tại: "
+        // Retrieve RAG Context
+        StringBuilder ragContext = new StringBuilder();
+        if (userMessage != null) {
+            String lowerMsg = userMessage.toLowerCase();
+            FAQ_DB.forEach((keyword, answer) -> {
+                if (lowerMsg.contains(keyword)) {
+                    ragContext.append("- ").append(answer).append("\n");
+                }
+            });
+        }
+
+        // Retrieve State Cache
+        StringBuilder cacheContext = new StringBuilder();
+        Map<String, String> cache = sessionCache.get("default_session");
+        if (cache != null && !cache.isEmpty()) {
+            cacheContext.append("Khách hàng đang quan tâm tuyến đường: ");
+            if (cache.containsKey("origin")) cacheContext.append("Từ ").append(cache.get("origin")).append(" ");
+            if (cache.containsKey("destination")) cacheContext.append("Đến ").append(cache.get("destination")).append(" ");
+            if (cache.containsKey("date")) cacheContext.append("Ngày ").append(cache.get("date"));
+            cacheContext.append(". ");
+        }
+
+        return "Bạn là Son — trợ lý đặt vé siêu thân thiện và nhiệt tình của Datxe.com. Thời gian hiện tại: "
                 + currentTime + ".\n" +
-                userContextStr + ".\n\n" +
+                userContextStr + ".\n" +
+                (cacheContext.length() > 0 ? cacheContext.toString() + "\n" : "") +
+                "\n" +
 
                 "PHONG CÁCH GIAO TIẾP:\n" +
                 "- Nói chuyện như một người bạn thực sự: tự nhiên, xưng hô lịch sự nhưng gần gũi (mình - bạn, Son - bạn), vui vẻ và ấm áp.\n"
@@ -150,17 +186,18 @@ public class ChatService implements AIService.ToolHandler {
                 "HƯỚNG DẪN DÙNG CÔNG CỤ (TOOLS):\n" +
                 "- Bạn có công cụ `search_trips` để tìm chuyến đi động từ hệ thống. Hãy chủ động gọi công cụ này khi khách hỏi về chuyến đi, tuyến đường, hoặc tìm vé rẻ nhất!\n"
                 +
+                "- QUAN TRỌNG - Khi gọi `search_trips`, phải dùng MÃ sân bay/ga/bến xe, KHÔNG dùng tên thành phố:\n" +
+                "  Hà Nội → HAN | TP.HCM/Sài Gòn/HCM → SGN | Đà Nẵng → DAD | Hải Phòng → HPH\n" +
+                "  Huế → HUE | Vinh → VIN | Sapa → SAP | Quy Nhơn → QNH | Nha Trang → NTR | Đà Lạt → DLT\n" +
+                "  Ví dụ: 'Hà Nội đi Sài Gòn' → origin='HAN', destination='SGN'\n" +
                 "- Bạn có công cụ `get_user_bookings` để tra cứu vé đã đặt của khách. Hãy gọi công cụ này khi khách hỏi về đơn hàng hoặc vé của họ.\n"
                 +
                 "- Khi khách hỏi tìm vé mà thiếu thông tin (điểm đi, điểm đến, ngày đi) → bạn có thể hỏi thêm điểm đi/đến hoặc gọi `search_trips` với thông tin hiện có.\n\n"
                 +
 
-                "KIẾN THỨC VỀ DỊCH VỤ:\n" +
-                "- Hủy vé: Trước 24h hoàn 100%. Từ 4h - 24h: liên hệ hỗ trợ. Dưới 4h: không được hoàn hủy.\n" +
-                "- Cách hủy: Vào phần [LINK: Lịch sử đặt vé | /my-bookings] rồi chọn hủy.\n" +
-                "- Thanh toán: Cổng VNPAY.\n" +
-                "- Hỗ trợ khẩn cấp: Hotline 0397148398.\n" +
-                "- Tặng mã giảm giá khi khách hỏi ưu đãi: WELCOME20 (giảm 20% tối đa 100k cho đơn từ 200k), SUMMER2026 (giảm 15% tối đa 200k cho đơn từ 500k), AI_PROMO_10 (giảm 10% tối đa 50k - mã độc quyền AI). Sử dụng cú pháp [VOUCHER: MÃ_VOUCHER].\n\n"
+                "KIẾN THỨC VỀ DỊCH VỤ (RAG Context):\n" +
+                (ragContext.length() > 0 ? ragContext.toString() : "- Không có FAQ bổ sung.\n") +
+                "- Tặng mã giảm giá khi khách hỏi ưu đãi: WELCOME20 (giảm 20%), SUMMER2026 (giảm 15%), AI_PROMO_10 (giảm 10%). Sử dụng cú pháp [VOUCHER: MÃ_VOUCHER].\n\n"
                 +
 
                 "ĐIỀU HƯỚNG:\n" +
@@ -169,6 +206,24 @@ public class ChatService implements AIService.ToolHandler {
                 "- Đặt vé xe khách: [LINK: Đặt vé xe khách | /xe-khach]\n" +
                 "- Lịch sử đặt vé: [LINK: Lịch sử đặt vé | /my-bookings]\n" +
                 "- Gợi ý nút lựa chọn nếu cần hỏi thêm: [BTN: Vé máy bay] [BTN: Vé xe khách]\n";
+    }
+
+    public String getChatResponse(String userMessage, String username, List<MessageDto> history) {
+        // --- Phòng thủ đầu vào ---
+        if (userMessage == null || userMessage.isBlank()) {
+            return "Bạn chưa nhập câu hỏi.";
+        }
+        if (userMessage.length() > MAX_USER_MESSAGE_LENGTH) {
+            return "Tin nhắn của bạn quá dài (tối đa 500 ký tự). Vui lòng rút gọn và thử lại.";
+        }
+
+        List<MessageDto> safeHistory = new ArrayList<>();
+        if (history != null && !history.isEmpty()) {
+            int startIndex = Math.max(0, history.size() - MAX_HISTORY_PAIRS_FRONTEND * 2);
+            safeHistory = history.subList(startIndex, history.size());
+        }
+
+        String systemInstruction = buildSystemInstruction(username, userMessage);
 
         // Pass ToolHandler callback
         return aiService.getChatResponse(systemInstruction, safeHistory, userMessage, (fnName, args) -> {
@@ -183,5 +238,38 @@ public class ChatService implements AIService.ToolHandler {
             }
             return executeTool(fnName, args);
         });
+    }
+
+    public void streamChatResponse(String userMessage, String username, List<MessageDto> history,
+            java.util.function.Consumer<String> chunkConsumer) {
+        if (userMessage == null || userMessage.isBlank()) {
+            chunkConsumer.accept("Bạn chưa nhập câu hỏi.");
+            return;
+        }
+        if (userMessage.length() > MAX_USER_MESSAGE_LENGTH) {
+            chunkConsumer.accept("Tin nhắn của bạn quá dài (tối đa 500 ký tự). Vui lòng rút gọn và thử lại.");
+            return;
+        }
+
+        List<MessageDto> safeHistory = new ArrayList<>();
+        if (history != null && !history.isEmpty()) {
+            int startIndex = Math.max(0, history.size() - MAX_HISTORY_PAIRS_FRONTEND * 2);
+            safeHistory = history.subList(startIndex, history.size());
+        }
+
+        String systemInstruction = buildSystemInstruction(username, userMessage);
+
+        aiService.streamChatResponse(systemInstruction, safeHistory, userMessage, (fnName, args) -> {
+            if ("get_user_bookings".equals(fnName) && username != null) {
+                if (args == null)
+                    args = Map.of("username", username);
+                else {
+                    Map<String, Object> newArgs = new java.util.HashMap<>(args);
+                    newArgs.put("username", username);
+                    args = newArgs;
+                }
+            }
+            return executeTool(fnName, args);
+        }, chunkConsumer);
     }
 }

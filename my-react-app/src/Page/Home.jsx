@@ -3,12 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import BookingTabs from "../components/BookingTabs";
 import beachBanner from "../Picture/beach_banner.jpg";
+import { ShieldCheck, Zap, Headphones, RefreshCw, Plane, TrainTrack, Bus, Package, Sparkles, MapPin } from "lucide-react";
 
 const PROMO_ITEMS = [
-  { icon: "✈️", label: "Vé máy bay", desc: "Giá tốt nhất mọi hãng", path: "/ve-may-bay" },
-  { icon: "🚂", label: "Vé tàu hỏa", desc: "Đặt nhanh, chọn chỗ ngồi", path: "/ve-tau-hoa" },
-  { icon: "🚌", label: "Xe khách", desc: "Hàng trăm nhà xe uy tín", path: "/xe-khach" },
-  { icon: "🎁", label: "Đặt theo gói", desc: "Combo tiết kiệm hơn", path: "/dat-theo-goi" },
+  { icon: <Plane size={24} style={{ color: "var(--primary)" }} />, label: "Vé máy bay", desc: "Giá tốt nhất mọi hãng", path: "/ve-may-bay" },
+  { icon: <TrainTrack size={24} style={{ color: "var(--primary)" }} />, label: "Vé tàu hỏa", desc: "Đặt nhanh, chọn chỗ ngồi", path: "/ve-tau-hoa" },
+  { icon: <Bus size={24} style={{ color: "var(--primary)" }} />, label: "Xe khách", desc: "Hàng trăm nhà xe uy tín", path: "/xe-khach" },
+  { icon: <Package size={24} style={{ color: "var(--primary)" }} />, label: "Đặt theo gói", desc: "Combo tiết kiệm hơn", path: "/dat-theo-goi" },
 ];
 
 const DESTINATIONS = [
@@ -19,10 +20,10 @@ const DESTINATIONS = [
 ];
 
 const TRUST_ITEMS = [
-  { icon: "🔒", text: "Thanh toán an toàn" },
-  { icon: "⚡", text: "Xác nhận tức thì" },
-  { icon: "🎧", text: "Hỗ trợ 24/7" },
-  { icon: "💸", text: "Hoàn tiền dễ dàng" },
+  { icon: <ShieldCheck size={16} />, text: "Thanh toán an toàn" },
+  { icon: <Zap size={16} />, text: "Xác nhận tức thì" },
+  { icon: <Headphones size={16} />, text: "Hỗ trợ 24/7" },
+  { icon: <RefreshCw size={16} />, text: "Hoàn tiền dễ dàng" },
 ];
 
 const Home = () => {
@@ -42,7 +43,7 @@ const Home = () => {
 
           <div className="hero-badges">
             {TRUST_ITEMS.map((item) => (
-              <span key={item.text} className="hero-badge">
+              <span key={item.text} className="hero-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                 {item.icon} {item.text}
               </span>
             ))}
@@ -60,7 +61,9 @@ const Home = () => {
       {/* ===== QUICK ACCESS ===== */}
       <div style={{ height: 40 }} />
       <div className="home-section">
-        <p className="section-title">🚀 Đặt vé nhanh</p>
+        <p className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Sparkles size={20} style={{ color: 'var(--primary)' }} /> Đặt vé nhanh
+        </p>
         <div className="promo-grid">
           {PROMO_ITEMS.map((item) => (
             <div
@@ -68,7 +71,9 @@ const Home = () => {
               className="promo-card"
               onClick={() => navigate(item.path)}
             >
-              <div className="promo-icon">{item.icon}</div>
+              <div className="promo-icon" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '8px' }}>
+                {item.icon}
+              </div>
               <div className="promo-label">{item.label}</div>
               <div className="promo-desc">{item.desc}</div>
             </div>
@@ -79,7 +84,9 @@ const Home = () => {
       {/* ===== DESTINATIONS ===== */}
       <div style={{ height: 40 }} />
       <div className="home-section">
-        <p className="section-title">🗺️ Điểm đến phổ biến</p>
+        <p className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <MapPin size={20} style={{ color: 'var(--primary)' }} /> Điểm đến phổ biến
+        </p>
         <div className="dest-grid">
           {DESTINATIONS.map((dest) => (
             <div key={dest.name} className="dest-card">
@@ -109,8 +116,8 @@ const Home = () => {
       }}>
         <div className="trust-row">
           {TRUST_ITEMS.map((item) => (
-            <div key={item.text} className="trust-item">
-              <span className="trust-icon">{item.icon}</span>
+            <div key={item.text} className="trust-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="trust-icon" style={{ display: 'flex', alignItems: 'center', color: 'var(--primary)' }}>{item.icon}</span>
               <span>{item.text}</span>
             </div>
           ))}

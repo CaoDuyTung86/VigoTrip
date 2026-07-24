@@ -28,18 +28,18 @@ public class AIService {
     @Value("${gemini.api-key:}")
     private String groqApiKey;
 
-    private static final String GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+    private static final String AI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
-    // Model nhẹ, nhanh, 14,400 req/ngày - dùng cho chatbot customer support
-    private static final String CHAT_MODEL = "llama-3.1-8b-instant";
+    // Model nhẹ, nhanh, dùng cho chatbot customer support
+    private static final String CHAT_MODEL = "gemini-3.6-flash";
 
-    // Model mạnh, dùng cho phân tích báo cáo AI (Analytics) - 1,000 req/ngày
-    private static final String ANALYSIS_MODEL = "llama-3.3-70b-versatile";
+    // Model mạnh, dùng cho phân tích báo cáo AI (Analytics)
+    private static final String ANALYSIS_MODEL = "gemini-3.6-flash";
 
-    // Giới hạn an toàn
-    private static final int MAX_HISTORY_PAIRS = 8;     // tối đa 8 cặp user/assistant = 16 items
-    private static final int MAX_CONTENT_LENGTH = 500;  // tối đa 500 ký tự/tin nhắn trong history
-    private static final int CHAT_MAX_TOKENS = 512;     // tiết kiệm TPM cho chat
+    // Giới hạn an toàn - Cắt giảm để tránh Rate Limit của Groq (6000 TPM)
+    private static final int MAX_HISTORY_PAIRS = 3;     // Chỉ lấy 3 lượt chat gần nhất
+    private static final int MAX_CONTENT_LENGTH = 250;  // Tối đa 250 ký tự/tin nhắn trong history
+    private static final int CHAT_MAX_TOKENS = 512;     // Tiết kiệm TPM cho chat
     private static final int ANALYSIS_MAX_TOKENS = 1024;
 
     public interface ToolHandler {
@@ -60,12 +60,18 @@ public class AIService {
         // Tool 1: search_trips
         Map<String, Object> searchTripsFn = new HashMap<>();
         searchTripsFn.put("name", "search_trips");
-        searchTripsFn.put("description", "Tra cứu chuyến đi (vé máy bay, xe khách, tàu hỏa) theo điểm đi, điểm đến hoặc loại phương tiện.");
+        searchTripsFn.put("description",
+            "Tra cứu chuyến đi (vé máy bay, xe khách, tàu hỏa) theo điểm đi, điểm đến hoặc loại phương tiện. " +
+            "QUAN TRỌNG: Điểm đi và điểm đến phải dùng MÃ sân bay/bến xe/ga tàu, KHÔNG dùng tên thành phố. " +
+            "Bảng quy đổi: Hà Nội=HAN, TP.HCM/Sài Gòn/HCM=SGN, Đà Nẵng=DAD, Hải Phòng=HPH, Huế=HUE, " +
+            "Vinh=VIN, Sapa=SAP, Quy Nhơn=QNH, Nha Trang=NTR, Đà Lạt=DLT. " +
+            "Ví dụ: tuyến Hà Nội đi Sài Gòn thì origin='HAN', destination='SGN'.");
 
         Map<String, Object> props = new HashMap<>();
-        props.put("origin", Map.of("type", "string", "description", "Điểm khởi hành (ví dụ: 'Hà Nội', 'Sài Gòn')"));
-        props.put("destination", Map.of("type", "string", "description", "Điểm đến (ví dụ: 'Đà Nẵng', 'Phú Quốc')"));
-        props.put("vehicleType", Map.of("type", "string", "description", "Loại phương tiện: 'BUS' (xe khách), 'FLIGHT' (máy bay), 'TRAIN' (tàu hỏa)"));
+        props.put("origin", Map.of("type", "string", "description", "Mã điểm khởi hành (VD: HAN, SGN, DAD, HPH, HUE, VIN, SAP, QNH, NTR, DLT)"));
+        props.put("destination", Map.of("type", "string", "description", "Mã điểm đến (VD: HAN, SGN, DAD, HPH, HUE, VIN, SAP, QNH, NTR, DLT)"));
+        props.put("vehicleType", Map.of("type", "string", "description", "Loại phương tiện: 'BUS' (xe khách), 'PLANE' (máy bay), 'TRAIN' (tàu hỏa)"));
+        props.put("departureDate", Map.of("type", "string", "description", "Ngày đi theo định dạng YYYY-MM-DD. NẾU KHÁCH KHÔNG CUNG CẤP NGÀY CỤ THỂ HOẶC NÓI TÌM VÉ BẤT KỲ, HÃY TRUYỀN GIÁ TRỊ RỖNG ''. NẾU KHÁCH HỎI 'NGÀY MAI' HÃY TRUYỀN NGÀY TƯƠNG ỨNG."));
 
         Map<String, Object> params = Map.of(
             "type", "object",
@@ -139,7 +145,7 @@ public class AIService {
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
         try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(GROQ_URL, entity, Map.class);
+            ResponseEntity<Map> response = restTemplate.postForEntity(AI_API_URL, entity, Map.class);
             Map<String, Object> responseBody = response.getBody();
 
             if (responseBody != null && responseBody.containsKey("choices")) {
@@ -189,7 +195,7 @@ public class AIService {
                             secondBody.put("temperature", temperature);
 
                             HttpEntity<Map<String, Object>> secondEntity = new HttpEntity<>(secondBody, headers);
-                            ResponseEntity<Map> secondResponse = restTemplate.postForEntity(GROQ_URL, secondEntity, Map.class);
+                            ResponseEntity<Map> secondResponse = restTemplate.postForEntity(AI_API_URL, secondEntity, Map.class);
                             Map<String, Object> secondBodyObj = secondResponse.getBody();
 
                             if (secondBodyObj != null && secondBodyObj.containsKey("choices")) {
@@ -221,9 +227,182 @@ public class AIService {
         }
     }
 
+    public void streamChatResponse(String systemInstruction, List<MessageDto> history, String userMessage, ToolHandler toolHandler, java.util.function.Consumer<String> chunkConsumer) {
+        if (groqApiKey == null || groqApiKey.trim().isEmpty() || "YOUR_API_KEY_HERE".equals(groqApiKey)) {
+            chunkConsumer.accept("Hệ thống AI chưa được cấu hình. Vui lòng kiểm tra API Key.");
+            return;
+        }
+
+        List<Map<String, Object>> messages = new ArrayList<>();
+
+        Map<String, Object> systemMessage = new HashMap<>();
+        systemMessage.put("role", "system");
+        systemMessage.put("content", systemInstruction);
+        messages.add(systemMessage);
+
+        if (history != null && !history.isEmpty()) {
+            int startIndex = Math.max(0, history.size() - MAX_HISTORY_PAIRS * 2);
+            List<MessageDto> trimmedHistory = history.subList(startIndex, history.size());
+
+            for (MessageDto msg : trimmedHistory) {
+                if (msg.getRole() == null || msg.getContent() == null) continue;
+                String content = msg.getContent();
+                if (content.length() > MAX_CONTENT_LENGTH) {
+                    content = content.substring(0, MAX_CONTENT_LENGTH) + "...";
+                }
+                Map<String, Object> historyMsg = new HashMap<>();
+                historyMsg.put("role", msg.getRole());
+                historyMsg.put("content", content);
+                messages.add(historyMsg);
+            }
+        }
+
+        Map<String, Object> userMessageObj = new HashMap<>();
+        userMessageObj.put("role", "user");
+        userMessageObj.put("content", userMessage);
+        messages.add(userMessageObj);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(groqApiKey);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", CHAT_MODEL);
+        body.put("messages", messages);
+        body.put("max_tokens", CHAT_MAX_TOKENS);
+        body.put("temperature", 0.7);
+        if (toolHandler != null) {
+            body.put("tools", buildToolsDefinition());
+            body.put("tool_choice", "auto");
+        }
+
+        try {
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity(AI_API_URL, entity, Map.class);
+            Map<String, Object> responseBody = response.getBody();
+
+            if (responseBody != null && responseBody.containsKey("choices")) {
+                List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
+                if (!choices.isEmpty()) {
+                    Map<String, Object> choiceObj = choices.get(0);
+                    Map<String, Object> messageObj = (Map<String, Object>) choiceObj.get("message");
+
+                    if (messageObj != null && messageObj.containsKey("tool_calls") && toolHandler != null) {
+                        List<Map<String, Object>> toolCalls = (List<Map<String, Object>>) messageObj.get("tool_calls");
+                        if (toolCalls != null && !toolCalls.isEmpty()) {
+                            log.info("Groq AI requested {} tool calls during stream setup", toolCalls.size());
+                            messages.add(messageObj);
+
+                            for (Map<String, Object> toolCall : toolCalls) {
+                                String callId = (String) toolCall.get("id");
+                                Map<String, Object> fnObj = (Map<String, Object>) toolCall.get("function");
+                                String fnName = (String) fnObj.get("name");
+                                String argsJson = String.valueOf(fnObj.get("arguments"));
+
+                                Map<String, Object> argsMap = new HashMap<>();
+                                if (argsJson != null && !argsJson.isBlank()) {
+                                    try {
+                                        argsMap = objectMapper.readValue(argsJson, Map.class);
+                                    } catch (Exception parseEx) {
+                                        log.error("Failed to parse tool args JSON", parseEx);
+                                    }
+                                }
+
+                                String toolResult = toolHandler.executeTool(fnName, argsMap);
+
+                                Map<String, Object> toolMsg = new HashMap<>();
+                                toolMsg.put("role", "tool");
+                                toolMsg.put("tool_call_id", callId);
+                                toolMsg.put("content", toolResult != null ? toolResult : "[]");
+                                messages.add(toolMsg);
+                            }
+
+                            streamGroqApiCall(CHAT_MODEL, messages, 0.7, CHAT_MAX_TOKENS, chunkConsumer);
+                            return;
+                        }
+                    }
+
+                    if (messageObj != null && messageObj.containsKey("content")) {
+                        String fullText = (String) messageObj.get("content");
+                        if (fullText != null) {
+                            String[] words = fullText.split("(?<=\\s)|(?=\\s)");
+                            for (String word : words) {
+                                chunkConsumer.accept(word);
+                                try { Thread.sleep(15); } catch (InterruptedException ignored) {}
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error during setup for streaming AI response", e);
+        }
+
+        streamGroqApiCall(CHAT_MODEL, messages, 0.7, CHAT_MAX_TOKENS, chunkConsumer);
+    }
+
+    private void streamGroqApiCall(String model, List<Map<String, Object>> messages, double temperature, int maxTokens, java.util.function.Consumer<String> chunkConsumer) {
+        try {
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", model);
+            body.put("messages", messages);
+            body.put("max_tokens", maxTokens);
+            body.put("temperature", temperature);
+            body.put("stream", true);
+
+            String jsonBody = objectMapper.writeValueAsString(body);
+
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(AI_API_URL))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + groqApiKey)
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            java.net.http.HttpResponse<java.io.InputStream> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofInputStream());
+
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(response.body(), java.nio.charset.StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if (line.startsWith("data:")) {
+                        String data = line.substring(5).trim();
+                        if ("[DONE]".equals(data)) {
+                            break;
+                        }
+                        try {
+                            Map<String, Object> map = objectMapper.readValue(data, Map.class);
+                            if (map.containsKey("choices")) {
+                                List<Map<String, Object>> choices = (List<Map<String, Object>>) map.get("choices");
+                                if (choices != null && !choices.isEmpty()) {
+                                    Map<String, Object> choice = choices.get(0);
+                                    Map<String, Object> delta = (Map<String, Object>) choice.get("delta");
+                                    if (delta != null && delta.containsKey("content")) {
+                                        String content = (String) delta.get("content");
+                                        if (content != null && !content.isEmpty()) {
+                                            chunkConsumer.accept(content);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception parseEx) {
+                            // ignore partial line parse
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error streaming from Groq API", e);
+            chunkConsumer.accept(" [Đã gián đoạn kết nối AI]");
+        }
+    }
+
     private String callGroqApi(String model, String systemInstruction, List<MessageDto> history,
                                 String userContent, double temperature, int maxTokens) {
         return callGroqApiWithTools(model, systemInstruction, history, userContent, temperature, maxTokens, null);
     }
 }
+
 
