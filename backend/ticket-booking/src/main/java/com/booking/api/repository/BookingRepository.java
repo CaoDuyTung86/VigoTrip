@@ -75,4 +75,28 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            "GROUP BY t.trip.vehicle.provider.providerName, t.trip.vehicle.provider.providerType " +
            "ORDER BY SUM(t.price) DESC")
     List<Object[]> getTopProviderRevenues();
+
+    // Thống kê doanh thu theo năm/tháng tùy chọn cho Provider
+    @Query("SELECT MONTH(b.bookingDate) as month, SUM(b.totalPrice) as total " +
+           "FROM Booking b JOIN b.tickets t " +
+           "WHERE t.trip.vehicle.provider.id = :providerId " +
+           "AND b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "AND (:targetYear IS NULL OR YEAR(b.bookingDate) = :targetYear) " +
+           "AND (:targetMonth IS NULL OR MONTH(b.bookingDate) = :targetMonth) " +
+           "GROUP BY MONTH(b.bookingDate) " +
+           "ORDER BY MONTH(b.bookingDate)")
+    List<Object[]> getMonthlyRevenueByProviderFiltered(@Param("providerId") Long providerId,
+                                                       @Param("targetYear") Integer targetYear,
+                                                       @Param("targetMonth") Integer targetMonth);
+
+    // Thống kê doanh thu theo năm/tháng tùy chọn toàn hệ thống
+    @Query("SELECT MONTH(b.bookingDate) as month, SUM(b.totalPrice) as total " +
+           "FROM Booking b " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "AND (:targetYear IS NULL OR YEAR(b.bookingDate) = :targetYear) " +
+           "AND (:targetMonth IS NULL OR MONTH(b.bookingDate) = :targetMonth) " +
+           "GROUP BY MONTH(b.bookingDate) " +
+           "ORDER BY MONTH(b.bookingDate)")
+    List<Object[]> getMonthlyRevenueSystemFiltered(@Param("targetYear") Integer targetYear,
+                                                    @Param("targetMonth") Integer targetMonth);
 }

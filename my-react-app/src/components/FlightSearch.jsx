@@ -587,9 +587,9 @@ const FlightSearch = () => {
               right: 0,
               background: "var(--bg-card)",
               borderRadius: "12px",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+              boxShadow: "0 8px 30px rgba(0,0,0,0.18)",
               padding: "16px",
-              zIndex: 10,
+              zIndex: 1000,
               marginTop: "4px",
             }}
             onClick={(e) => e.stopPropagation()}

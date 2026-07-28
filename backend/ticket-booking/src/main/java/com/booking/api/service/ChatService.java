@@ -36,18 +36,40 @@ public class ChatService implements AIService.ToolHandler {
     // State Caching cho từng User Session
     private final Map<String, Map<String, String>> sessionCache = new java.util.concurrent.ConcurrentHashMap<>();
 
-    // RAG Knowledge Base (Simple Keyword-based)
+    // RAG Knowledge Base với Tiếng Việt & Từ đồng nghĩa (Synonym-aware RAG Engine)
     private static final Map<String, String> FAQ_DB = Map.of(
-        "hành lý", "Quy định hành lý: Mỗi hành khách được mang tối đa 7kg hành lý xách tay và 20kg hành lý ký gửi (đối với máy bay). Xe khách miễn phí mang theo 20kg/người.",
-        "chó mèo", "Quy định thú cưng: Máy bay không cho phép mang thú cưng lên khoang hành khách. Xe khách cho phép mang thú cưng nhỏ nếu để trong lồng chuyên dụng dưới gầm xe.",
-        "thú cưng", "Quy định thú cưng: Máy bay không cho phép mang thú cưng lên khoang hành khách. Xe khách cho phép mang thú cưng nhỏ nếu để trong lồng chuyên dụng dưới gầm xe.",
-        "hủy vé", "Chính sách hủy vé: Hủy trước 24h khởi hành được hoàn 100%. Hủy trước 12h hoàn 50%. Dưới 12h không được hoàn tiền. Khách hàng vui lòng truy cập Lịch sử đặt vé để thao tác.",
-        "trẻ em", "Vé trẻ em: Dưới 2 tuổi miễn phí (ngồi chung ghế). Từ 2-12 tuổi tính 75% giá vé người lớn."
+        "PETS", "Quy định thú cưng: Máy bay không cho phép mang thú cưng lên khoang hành khách. Xe khách cho phép mang thú cưng nhỏ nếu để trong lồng chuyên dụng dưới gầm xe.",
+        "CANCEL", "Chính sách hủy vé: Hủy trước 24h khởi hành được hoàn 100%. Hủy trước 12h hoàn 50%. Dưới 12h không được hoàn tiền. Khách hàng truy cập mục [Lịch sử đặt vé] để hủy.",
+        "BAGGAGE", "Quy định hành lý: Máy bay bao gồm 7kg xách tay + 20kg ký gửi. Xe khách miễn phí tối đa 20kg/hành khách.",
+        "CHILDREN", "Vé trẻ em: Dưới 2 tuổi miễn phí (ngồi cùng người lớn). Từ 2-12 tuổi tính 75% giá vé người lớn.",
+        "PAYMENT", "Phương thức thanh toán: Hệ thống hỗ trợ thanh toán trực tuyến qua VNPAY (Thẻ ATM, QR Code, Visa/Mastercard, Ví điện tử).",
+        "PROMO", "Mã giảm giá hiện có: WELCOME20 (giảm 20%), SUMMER2026 (giảm 15%), AI_PROMO_10 (giảm 10% độc quyền AI)."
     );
+
+    // Từ điển đồng nghĩa & Không dấu (Synonyms & Normalized Keywords)
+    private static final Map<String, List<String>> SYNONYM_MAP = Map.of(
+        "PETS", List.of("thú cưng", "thu cung", "chó", "cho", "mèo", "meo", "pet", "động vật", "dong vat", "cún", "cun"),
+        "CANCEL", List.of("hủy vé", "huy ve", "trả vé", "tra ve", "đổi vé", "doi ve", "hoàn vé", "hoan ve", "bùng vé", "bung ve", "cancel"),
+        "BAGGAGE", List.of("hành lý", "hanh ly", "vali", "xách tay", "xach tay", "ký gửi", "ky gui", "mấy kg", "may kg", "mấy cân", "may can", "luggage", "baggage"),
+        "CHILDREN", List.of("trẻ em", "tre em", "em bé", "em be", "bé", "be", "trẻ nhỏ", "tre nho", "baby", "kid", "nhỏ tuổi"),
+        "PAYMENT", List.of("thanh toán", "thanh toan", "chuyển khoản", "chuyen khoan", "vnpay", "ví", "vi", "thẻ", "the", "trả tiền", "tra tien", "pay"),
+        "PROMO", List.of("khuyến mãi", "khuyen mai", "giảm giá", "giam gia", "voucher", "mã", "ma", "discount", "ưu đãi", "uu dai", "rẻ hơn", "re hon")
+    );
+
+    private String removeAccents(String str) {
+        if (str == null) return "";
+        String nfdNormalizedString = java.text.Normalizer.normalize(str, java.text.Normalizer.Form.NFD);
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
+        return pattern.matcher(nfdNormalizedString).replaceAll("").replace('đ', 'd').replace('Đ', 'D');
+    }
 
     @Override
     public String executeTool(String functionName, Map<String, Object> arguments) {
-        log.info("Executing Tool: {} with args: {}", functionName, arguments);
+        return executeTool(functionName, arguments, "default_session");
+    }
+
+    public String executeTool(String functionName, Map<String, Object> arguments, String sessionKey) {
+        log.info("Executing Tool: {} with args: {} (sessionKey={})", functionName, arguments, sessionKey);
 
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
         DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.getDefault());
@@ -59,6 +81,7 @@ public class ChatService implements AIService.ToolHandler {
             String destination = arguments != null && arguments.containsKey("destination") ? String.valueOf(arguments.get("destination")) : null;
             String vehicleType = arguments != null && arguments.containsKey("vehicleType") ? String.valueOf(arguments.get("vehicleType")) : null;
             String dateStr = arguments != null && arguments.containsKey("departureDate") ? String.valueOf(arguments.get("departureDate")) : null;
+            String timeSlot = arguments != null && arguments.containsKey("timeSlot") ? String.valueOf(arguments.get("timeSlot")) : null;
 
             LocalDateTime startOfDay = LocalDateTime.now();
             LocalDateTime endOfDay = LocalDateTime.of(2099, 12, 31, 23, 59, 59);
@@ -68,17 +91,44 @@ public class ChatService implements AIService.ToolHandler {
                     java.time.LocalDate date = java.time.LocalDate.parse(dateStr);
                     startOfDay = date.atStartOfDay();
                     endOfDay = date.atTime(23, 59, 59);
+
+                    // Nâng cấp lọc theo khung giờ (Time Slot Filter)
+                    if (timeSlot != null && !timeSlot.isBlank() && !"null".equals(timeSlot)) {
+                        String ts = timeSlot.toUpperCase();
+                        if ("MORNING".equals(ts) || ts.contains("SÁNG") || ts.contains("SANG")) {
+                            startOfDay = date.atTime(5, 0, 0);
+                            endOfDay = date.atTime(12, 0, 0);
+                        } else if ("AFTERNOON".equals(ts) || ts.contains("CHIỀU") || ts.contains("CHIEU") || ts.contains("TRƯA") || ts.contains("TRUA")) {
+                            startOfDay = date.atTime(12, 0, 0);
+                            endOfDay = date.atTime(18, 0, 0);
+                        } else if ("EVENING".equals(ts) || ts.contains("TỐI") || ts.contains("TOI") || ts.contains("ĐÊM") || ts.contains("DEM")) {
+                            startOfDay = date.atTime(18, 0, 0);
+                            endOfDay = date.atTime(23, 59, 59);
+                        } else if ("EARLY_MORNING".equals(ts)) {
+                            startOfDay = date.atTime(0, 0, 0);
+                            endOfDay = date.atTime(5, 0, 0);
+                        } else if (timeSlot.matches("\\d{1,2}:\\d{2}")) {
+                            try {
+                                java.time.LocalTime targetTime = java.time.LocalTime.parse(timeSlot);
+                                startOfDay = date.atTime(targetTime.minusHours(2));
+                                endOfDay = date.atTime(targetTime.plusHours(2));
+                            } catch (Exception ex) {
+                                log.warn("Lỗi parse exact timeSlot: {}", timeSlot);
+                            }
+                        }
+                    }
                 } catch (Exception e) {
                     log.warn("Lỗi parse ngày: {}", dateStr);
                 }
             }
 
-            // Lưu vào State Caching theo thread hoặc username (tạm dùng mặc định do AI Tools chưa pass username vào đây dễ dàng)
-            // Tạm thời dùng key là "default_session" nếu hệ thống chưa có SessionID
-            Map<String, String> cache = sessionCache.computeIfAbsent("default_session", k -> new java.util.concurrent.ConcurrentHashMap<>());
+            // Lưu vào State Caching theo sessionKey
+            String effectiveKey = (sessionKey != null && !sessionKey.isBlank()) ? sessionKey : "default_session";
+            Map<String, String> cache = sessionCache.computeIfAbsent(effectiveKey, k -> new java.util.concurrent.ConcurrentHashMap<>());
             if (origin != null && !origin.isBlank() && !"null".equals(origin)) cache.put("origin", origin);
             if (destination != null && !destination.isBlank() && !"null".equals(destination)) cache.put("destination", destination);
             if (dateStr != null && !dateStr.isBlank() && !"null".equals(dateStr)) cache.put("date", dateStr);
+            if (timeSlot != null && !timeSlot.isBlank() && !"null".equals(timeSlot)) cache.put("timeSlot", timeSlot);
 
             List<Trip> trips = tripRepository.searchTripsFlexible(origin, destination, vehicleType, startOfDay, endOfDay,
                     PageRequest.of(0, 6));
@@ -138,31 +188,45 @@ public class ChatService implements AIService.ToolHandler {
         return "Công cụ không hợp lệ.";
     }
 
-    private String buildSystemInstruction(String username, String userMessage) {
+    private String buildSystemInstruction(String username, String sessionKey, String userMessage) {
         String currentTime = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
                 .format(DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM/yyyy"));
         String userContextStr = username != null ? "Email khách hàng hiện tại: " + username
                 : "Khách hàng chưa đăng nhập";
 
-        // Retrieve RAG Context
+        // Retrieve RAG Context (Synonym & Accent-aware RAG Engine)
         StringBuilder ragContext = new StringBuilder();
-        if (userMessage != null) {
+        if (userMessage != null && !userMessage.isBlank()) {
             String lowerMsg = userMessage.toLowerCase();
-            FAQ_DB.forEach((keyword, answer) -> {
-                if (lowerMsg.contains(keyword)) {
-                    ragContext.append("- ").append(answer).append("\n");
+            String normalizedMsg = removeAccents(lowerMsg);
+
+            java.util.Set<String> matchedCategories = new java.util.HashSet<>();
+            SYNONYM_MAP.forEach((category, synonyms) -> {
+                for (String syn : synonyms) {
+                    if (lowerMsg.contains(syn) || normalizedMsg.contains(syn)) {
+                        matchedCategories.add(category);
+                        break;
+                    }
+                }
+            });
+
+            matchedCategories.forEach(cat -> {
+                if (FAQ_DB.containsKey(cat)) {
+                    ragContext.append("- ").append(FAQ_DB.get(cat)).append("\n");
                 }
             });
         }
 
         // Retrieve State Cache
         StringBuilder cacheContext = new StringBuilder();
-        Map<String, String> cache = sessionCache.get("default_session");
+        String effectiveKey = (sessionKey != null && !sessionKey.isBlank()) ? sessionKey : "default_session";
+        Map<String, String> cache = sessionCache.get(effectiveKey);
         if (cache != null && !cache.isEmpty()) {
             cacheContext.append("Khách hàng đang quan tâm tuyến đường: ");
             if (cache.containsKey("origin")) cacheContext.append("Từ ").append(cache.get("origin")).append(" ");
             if (cache.containsKey("destination")) cacheContext.append("Đến ").append(cache.get("destination")).append(" ");
-            if (cache.containsKey("date")) cacheContext.append("Ngày ").append(cache.get("date"));
+            if (cache.containsKey("date")) cacheContext.append("Ngày ").append(cache.get("date")).append(" ");
+            if (cache.containsKey("timeSlot")) cacheContext.append("Giờ: ").append(cache.get("timeSlot"));
             cacheContext.append(". ");
         }
 
@@ -180,7 +244,7 @@ public class ChatService implements AIService.ToolHandler {
                 "- TUYỆT ĐỐI CẤM sử dụng các từ ngữ mang tính kỹ thuật, lộ thông tin hệ thống hoặc data dump như:\n" +
                 "  + 'trong danh sách được cung cấp', 'theo danh sách của bạn', 'dữ liệu chuyến đi của chúng tôi'\n" +
                 "  + 'không tìm thấy chuyến nào trong cơ sở dữ liệu', 'danh sách chuyến đi hiện có'\n" +
-                "  Thay vào đó hãy nói tự nhiên: 'Tiếc quá chặng này hiện Son chưa thấy có chuyến bay nào nè', 'Hiện tại Son thấy có xe khách chạy tuyến này thôi á, bạn xem thử nha'.\n\n"
+                "  Thay vào đó hãy nói tự nhiên: 'Tiếc quá chặng này hiện Son chưa thấy có chuyến bay nào', 'Hiện tại Son thấy có xe khách chạy tuyến này thôi á, bạn xem thử nha'.\n\n"
                 +
 
                 "HƯỚNG DẪN DÙNG CÔNG CỤ (TOOLS):\n" +
@@ -208,7 +272,7 @@ public class ChatService implements AIService.ToolHandler {
                 "- Gợi ý nút lựa chọn nếu cần hỏi thêm: [BTN: Vé máy bay] [BTN: Vé xe khách]\n";
     }
 
-    public String getChatResponse(String userMessage, String username, List<MessageDto> history) {
+    public String getChatResponse(String userMessage, String username, String sessionKey, List<MessageDto> history) {
         // --- Phòng thủ đầu vào ---
         if (userMessage == null || userMessage.isBlank()) {
             return "Bạn chưa nhập câu hỏi.";
@@ -223,7 +287,8 @@ public class ChatService implements AIService.ToolHandler {
             safeHistory = history.subList(startIndex, history.size());
         }
 
-        String systemInstruction = buildSystemInstruction(username, userMessage);
+        String effectiveKey = (username != null && !username.isBlank()) ? username : sessionKey;
+        String systemInstruction = buildSystemInstruction(username, effectiveKey, userMessage);
 
         // Pass ToolHandler callback
         return aiService.getChatResponse(systemInstruction, safeHistory, userMessage, (fnName, args) -> {
@@ -236,11 +301,11 @@ public class ChatService implements AIService.ToolHandler {
                     args = newArgs;
                 }
             }
-            return executeTool(fnName, args);
+            return executeTool(fnName, args, effectiveKey);
         });
     }
 
-    public void streamChatResponse(String userMessage, String username, List<MessageDto> history,
+    public void streamChatResponse(String userMessage, String username, String sessionKey, List<MessageDto> history,
             java.util.function.Consumer<String> chunkConsumer) {
         if (userMessage == null || userMessage.isBlank()) {
             chunkConsumer.accept("Bạn chưa nhập câu hỏi.");
@@ -257,7 +322,8 @@ public class ChatService implements AIService.ToolHandler {
             safeHistory = history.subList(startIndex, history.size());
         }
 
-        String systemInstruction = buildSystemInstruction(username, userMessage);
+        String effectiveKey = (username != null && !username.isBlank()) ? username : sessionKey;
+        String systemInstruction = buildSystemInstruction(username, effectiveKey, userMessage);
 
         aiService.streamChatResponse(systemInstruction, safeHistory, userMessage, (fnName, args) -> {
             if ("get_user_bookings".equals(fnName) && username != null) {
@@ -269,7 +335,7 @@ public class ChatService implements AIService.ToolHandler {
                     args = newArgs;
                 }
             }
-            return executeTool(fnName, args);
+            return executeTool(fnName, args, effectiveKey);
         }, chunkConsumer);
     }
 }

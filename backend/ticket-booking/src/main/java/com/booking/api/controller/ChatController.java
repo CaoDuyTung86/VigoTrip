@@ -25,7 +25,7 @@ public class ChatController {
     @PostMapping("/chat")
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request, Principal principal) {
         String username = principal != null ? principal.getName() : null;
-        String reply = chatService.getChatResponse(request.getMessage(), username, request.getHistory());
+        String reply = chatService.getChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory());
         return ResponseEntity.ok(new ChatResponse(reply));
     }
 
@@ -36,7 +36,7 @@ public class ChatController {
 
         CompletableFuture.runAsync(() -> {
             try {
-                chatService.streamChatResponse(request.getMessage(), username, request.getHistory(), chunk -> {
+                chatService.streamChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory(), chunk -> {
                     try {
                         Map<String, String> data = Map.of("content", chunk);
                         emitter.send(SseEmitter.event().data(data));

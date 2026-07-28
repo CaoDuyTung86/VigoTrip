@@ -65,6 +65,16 @@ const Chatbot = () => {
     setLoading(true);   // Loading = true → typing-loader hiện, KHÔNG thêm bubble rỗng
     setShowFaq(false);
 
+    const getGuestSessionId = () => {
+      let sid = sessionStorage.getItem('chat_session_id');
+      if (!sid) {
+        sid = 'guest_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+        sessionStorage.setItem('chat_session_id', sid);
+      }
+      return sid;
+    };
+    const sessionId = getGuestSessionId();
+
     const trimmedHistory = chatHistory.slice(-MAX_HISTORY_PAIRS_FRONTEND * 2);
 
     const token = localStorage.getItem('authToken');
@@ -80,7 +90,7 @@ const Chatbot = () => {
       const response = await fetch(`${API_BASE}/chat/stream`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ message: messageToSend, history: trimmedHistory })
+        body: JSON.stringify({ message: messageToSend, sessionId, history: trimmedHistory })
       });
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -124,7 +134,7 @@ const Chatbot = () => {
                 });
               }
             }
-          } catch (e) {}
+          } catch (e) { }
         }
       }
     } catch (streamError) {
@@ -137,7 +147,7 @@ const Chatbot = () => {
         const response = await fetch(`${API_BASE}/chat`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ message: messageToSend, history: trimmedHistory })
+          body: JSON.stringify({ message: messageToSend, sessionId, history: trimmedHistory })
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -165,7 +175,7 @@ const Chatbot = () => {
 
   const faqItems = [
     { icon: <Search size={14} />, text: 'Tìm vé máy bay rẻ nhất' },
-    { icon: <Search size={14} />, text: 'Có xe khách đi Đà Nẵng không?' },
+    { icon: <Search size={14} />, text: 'Có chuyến bay đi Sài Gòn không?' },
     { icon: <RotateCcw size={14} />, text: 'Hủy vé thì làm sao?' },
     { icon: <Tag size={14} />, text: 'Có mã giảm giá không?' },
     { icon: <Ticket size={14} />, text: 'Xem vé đã đặt của tôi' },
@@ -180,7 +190,7 @@ const Chatbot = () => {
     const dynamicButtons = [];
     let matchBtn;
     let contentWithoutButtons = text;
-    
+
     while ((matchBtn = buttonRegex.exec(text)) !== null) {
       dynamicButtons.push(matchBtn[1]);
       contentWithoutButtons = contentWithoutButtons.replace(matchBtn[0], '');
@@ -212,8 +222,8 @@ const Chatbot = () => {
     let parsedContent = null;
     if (contentWithoutButtons.includes('|') && contentWithoutButtons.includes('---')) {
       const lines = contentWithoutButtons.split('\n').filter(l => l.trim());
-      const tableStartIndex = lines.findIndex(l => l.includes('|') && lines[lines.indexOf(l)+1]?.includes('---'));
-      
+      const tableStartIndex = lines.findIndex(l => l.includes('|') && lines[lines.indexOf(l) + 1]?.includes('---'));
+
       if (tableStartIndex !== -1) {
         const tableLines = lines.slice(tableStartIndex);
         const headers = tableLines[0].split('|').filter(c => c.trim()).map(c => c.trim());
