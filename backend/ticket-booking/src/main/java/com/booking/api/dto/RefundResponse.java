@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -20,8 +21,8 @@ public class RefundResponse {
     private String destination;
     private String vehicleType;
     private String providerName;
-    private Double totalPrice;
-    private Double refundAmount;
+    private BigDecimal totalPrice;
+    private BigDecimal refundAmount;
     private String reason;
     private String status;
     private String providerNote;

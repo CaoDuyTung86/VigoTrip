@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -14,7 +15,7 @@ public class BookingResponse {
 
     private Long id;
     private LocalDateTime bookingDate;
-    private Double totalPrice;
+    private BigDecimal totalPrice;
     private String status;
 
     // Trip info
@@ -35,7 +36,7 @@ public class BookingResponse {
     private List<String> additionalServices;
 
     // Refund
-    private Double refundAmount;
+    private BigDecimal refundAmount;
 
     // Refund status (for checking pending refund requests)
     private String refundStatus;
@@ -51,7 +52,7 @@ public class BookingResponse {
         private String passengerName;
         private String seatNumber;
         private String seatType;
-        private Double price;
+        private BigDecimal price;
         private String status;
     }
 }

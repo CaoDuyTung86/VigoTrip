@@ -9,6 +9,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Mapper(componentModel = "spring")
@@ -69,11 +70,12 @@ public interface BookingMapper {
     }
 
     @Named("calculateRefundAmount")
-    default Double calculateRefundAmount(List<com.booking.api.entity.Refund> refunds) {
+    default BigDecimal calculateRefundAmount(List<com.booking.api.entity.Refund> refunds) {
         if (refunds == null || refunds.isEmpty()) return null;
         return refunds.stream()
                 .filter(r -> "APPROVED".equals(r.getStatus()) || "COMPLETED".equals(r.getStatus()))
-                .mapToDouble(r -> r.getRefundAmount() != null ? r.getRefundAmount() : 0.0).sum();
+                .map(r -> r.getRefundAmount() != null ? r.getRefundAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     @Named("getRefundStatus")

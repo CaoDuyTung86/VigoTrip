@@ -105,7 +105,7 @@ class BookingServiceIntegrationTest {
         Trip trip = new Trip();
         trip.setVehicle(savedVehicle);
         trip.setRoute(savedRoute);
-        trip.setPrice(150000.0);
+        trip.setPrice(java.math.BigDecimal.valueOf(150000));
         trip.setDepartureTime(LocalDateTime.now().plusDays(5));
         trip.setArrivalTime(LocalDateTime.now().plusDays(5).plusHours(6));
         trip.setStatus("SCHEDULED");
@@ -126,7 +126,7 @@ class BookingServiceIntegrationTest {
         assertNotNull(bookingResponse);
         assertNotNull(bookingResponse.getId());
         assertEquals("PENDING", bookingResponse.getStatus());
-        assertEquals(150000.0, bookingResponse.getTotalPrice());
+        assertEquals(0, java.math.BigDecimal.valueOf(150000).compareTo(bookingResponse.getTotalPrice()));
 
         // Verify record in Database
         Booking entityInDb = bookingRepository.findById(bookingResponse.getId()).orElse(null);

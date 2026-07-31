@@ -76,7 +76,7 @@ class PaymentServiceTest {
         booking = new Booking();
         booking.setId(123L);
         booking.setUser(user);
-        booking.setTotalPrice(100000.0);
+        booking.setTotalPrice(java.math.BigDecimal.valueOf(100000));
         booking.setStatus("PENDING");
     }
 

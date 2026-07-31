@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -41,8 +42,8 @@ public class Trip {
     @Column(name = "arrival_time")
     private LocalDateTime arrivalTime;
 
-    @Column(name = "price")
-    private Double price;
+    @Column(name = "price", precision = 15, scale = 2)
+    private BigDecimal price;
 
     @Column(name = "status")
     private String status;

@@ -1,6 +1,7 @@
 package com.booking.api.dto;
 
 import lombok.Data;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -32,7 +33,7 @@ public class AdminDTO {
         private Long vehicleId;
         private LocalDateTime departureTime;
         private LocalDateTime arrivalTime;
-        private Double price;
+        private BigDecimal price;
         private String status;
     }
 }

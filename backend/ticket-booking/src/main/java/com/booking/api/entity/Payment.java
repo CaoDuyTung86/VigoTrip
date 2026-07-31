@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -29,8 +30,8 @@ public class Payment {
     @Column(name = "payment_date")
     private LocalDateTime paymentDate;
 
-    @Column(name = "amount")
-    private Double amount;
+    @Column(name = "amount", precision = 15, scale = 2)
+    private BigDecimal amount;
 
     @Column(name = "payment_status")
     private String paymentStatus;

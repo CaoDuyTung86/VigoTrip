@@ -64,7 +64,7 @@ public class BookingService {
         }
 
         List<Ticket> tickets = new ArrayList<>();
-        double totalPrice = 0;
+        java.math.BigDecimal totalPrice = java.math.BigDecimal.ZERO;
 
         for (int i = 0; i < request.getSeatIds().size(); i++) {
             Long seatId = request.getSeatIds().get(i);
@@ -81,20 +81,20 @@ public class BookingService {
                         "Ghế " + seat.getSeatNumber() + " đang được giữ bởi người khác. Vui lòng chọn ghế khác.");
             }
 
-            double seatPrice = trip.getPrice();
+            java.math.BigDecimal seatPrice = trip.getPrice();
             if ("FLIGHT".equalsIgnoreCase(trip.getVehicle().getVehicleType())
                     || "AIRLINE".equalsIgnoreCase(trip.getVehicle().getVehicleType())
                     || "PLANE".equalsIgnoreCase(trip.getVehicle().getVehicleType())) {
                 if ("BUSINESS".equalsIgnoreCase(seat.getSeatType())) {
-                    seatPrice *= 2.5;
+                    seatPrice = seatPrice.multiply(java.math.BigDecimal.valueOf(2.5));
                 }
             } else {
                 if ("VIP".equalsIgnoreCase(seat.getSeatType())) {
-                    seatPrice *= 2; // Ghế VIP xe/tàu giá gấp đôi
+                    seatPrice = seatPrice.multiply(java.math.BigDecimal.valueOf(2));
                 } else if ("BUSINESS".equalsIgnoreCase(seat.getSeatType())) {
-                    seatPrice += 100000;
+                    seatPrice = seatPrice.add(java.math.BigDecimal.valueOf(100000));
                 } else if ("SLEEPER".equalsIgnoreCase(seat.getSeatType())) {
-                    seatPrice += 50000;
+                    seatPrice = seatPrice.add(java.math.BigDecimal.valueOf(50000));
                 }
             }
 
@@ -113,7 +113,7 @@ public class BookingService {
 
             tickets.add(ticket);
 
-            totalPrice += seatPrice;
+            totalPrice = totalPrice.add(seatPrice);
         }
 
         Booking booking = new Booking();
@@ -126,8 +126,10 @@ public class BookingService {
             List<AdditionalService> services = additionalServiceRepository
                     .findAllById(request.getAdditionalServiceIds());
             booking.setAdditionalServices(services);
-            double servicesTotal = services.stream().mapToDouble(s -> s.getPrice() != null ? s.getPrice() : 0).sum();
-            booking.setTotalPrice(totalPrice + servicesTotal);
+            java.math.BigDecimal servicesTotal = services.stream()
+                    .map(s -> s.getPrice() != null ? s.getPrice() : java.math.BigDecimal.ZERO)
+                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+            booking.setTotalPrice(totalPrice.add(servicesTotal));
         } else {
             booking.setAdditionalServices(Collections.emptyList());
         }
@@ -135,8 +137,10 @@ public class BookingService {
         // Apply membership discount
         double discountPercent = UserService.getDiscount(user.getPoints() != null ? user.getPoints() : 0);
         if (discountPercent > 0) {
-            double discountAmount = booking.getTotalPrice() * (discountPercent / 100.0);
-            booking.setTotalPrice(booking.getTotalPrice() - discountAmount);
+            java.math.BigDecimal discountAmount = booking.getTotalPrice()
+                    .multiply(java.math.BigDecimal.valueOf(discountPercent / 100.0))
+                    .setScale(2, java.math.RoundingMode.HALF_UP);
+            booking.setTotalPrice(booking.getTotalPrice().subtract(discountAmount));
         }
 
         // Apply voucher if provided
@@ -151,8 +155,10 @@ public class BookingService {
             java.util.Map<String, Object> validation = voucherService.validateVoucher(request.getVoucherCode(),
                     booking.getTotalPrice());
             if (Boolean.TRUE.equals(validation.get("valid"))) {
-                double discount = (double) validation.get("discountAmount");
-                booking.setTotalPrice(Math.max(0, booking.getTotalPrice() - discount));
+                java.math.BigDecimal discount = (java.math.BigDecimal) validation.get("discountAmount");
+                java.math.BigDecimal newTotal = booking.getTotalPrice().subtract(discount);
+                booking.setTotalPrice(newTotal.compareTo(java.math.BigDecimal.ZERO) < 0
+                        ? java.math.BigDecimal.ZERO : newTotal);
 
                 // Track usage (at this stage it's locked to this booking)
                 Long voucherId = (Long) validation.get("voucherId");
@@ -164,8 +170,8 @@ public class BookingService {
         }
 
         // Final price consistency check
-        if (booking.getTotalPrice() == null || booking.getTotalPrice() < 0) {
-            booking.setTotalPrice(0.0);
+        if (booking.getTotalPrice() == null || booking.getTotalPrice().compareTo(java.math.BigDecimal.ZERO) < 0) {
+            booking.setTotalPrice(java.math.BigDecimal.ZERO);
         }
 
         for (Ticket ticket : tickets) {
@@ -246,11 +252,13 @@ public class BookingService {
                             "Không thể hủy/hoàn vé khi chỉ còn dưới 4 tiếng là khởi hành hoặc xe đã chạy");
                 }
 
-                double refundAmount = 0.0;
+                java.math.BigDecimal refundAmount;
                 if (hoursUntilDeparture > 24) {
                     refundAmount = booking.getTotalPrice(); // Hoàn 100%
                 } else {
-                    refundAmount = booking.getTotalPrice() * REFUND_PERCENTAGE_24H; // Phạt 10%, hoàn 90%
+                    refundAmount = booking.getTotalPrice()
+                            .multiply(java.math.BigDecimal.valueOf(REFUND_PERCENTAGE_24H))
+                            .setScale(2, java.math.RoundingMode.HALF_UP); // Phạt 10%, hoàn 90%
                 }
 
                 Refund refund = new Refund();
@@ -357,9 +365,11 @@ public class BookingService {
 
         // Trừ giá vé khỏi tổng
         if (ticketToCancel.getPrice() != null) {
-            double newTotal = (booking.getTotalPrice() != null ? booking.getTotalPrice() : 0)
-                    - ticketToCancel.getPrice();
-            booking.setTotalPrice(Math.max(0, newTotal));
+            java.math.BigDecimal currentTotal = booking.getTotalPrice() != null
+                    ? booking.getTotalPrice() : java.math.BigDecimal.ZERO;
+            java.math.BigDecimal newTotal = currentTotal.subtract(ticketToCancel.getPrice());
+            booking.setTotalPrice(newTotal.compareTo(java.math.BigDecimal.ZERO) < 0
+                    ? java.math.BigDecimal.ZERO : newTotal);
         }
 
         // Nếu tất cả vé đều CANCELLED thì hủy cả booking

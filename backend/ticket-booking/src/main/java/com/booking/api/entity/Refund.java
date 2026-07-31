@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -23,8 +24,8 @@ public class Refund {
     @JoinColumn(name = "booking_id", nullable = false)
     private Booking booking;
 
-    @Column(name = "refund_amount")
-    private Double refundAmount;
+    @Column(name = "refund_amount", precision = 15, scale = 2)
+    private BigDecimal refundAmount;
 
     @Column(name = "refund_date")
     private LocalDateTime refundDate;

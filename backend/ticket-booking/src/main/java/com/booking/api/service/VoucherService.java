@@ -24,7 +24,7 @@ public class VoucherService {
      * Trả về Map chứa thông tin: valid, discountAmount, message, voucher.
      */
     @Cacheable(value = "vouchers", key = "#code + #orderAmount")
-    public Map<String, Object> validateVoucher(String code, Double orderAmount) {
+    public Map<String, Object> validateVoucher(String code, java.math.BigDecimal orderAmount) {
         Map<String, Object> result = new HashMap<>();
 
         if (code == null || code.isBlank()) {
@@ -60,22 +60,25 @@ public class VoucherService {
             return result;
         }
 
-        if (voucher.getMinOrderAmount() != null && orderAmount < voucher.getMinOrderAmount()) {
+        if (voucher.getMinOrderAmount() != null
+                && orderAmount.compareTo(java.math.BigDecimal.valueOf(voucher.getMinOrderAmount())) < 0) {
             result.put("valid", false);
             result.put("message", String.format("Đơn hàng tối thiểu %,.0f VND để áp dụng mã này.", voucher.getMinOrderAmount()));
             return result;
         }
 
         // Tính số tiền giảm
-        double discountAmount = orderAmount * (voucher.getDiscountPercent() / 100.0);
-        if (voucher.getMaxDiscountAmount() != null && discountAmount > voucher.getMaxDiscountAmount()) {
-            discountAmount = voucher.getMaxDiscountAmount();
+        double discountDouble = orderAmount.doubleValue() * (voucher.getDiscountPercent() / 100.0);
+        if (voucher.getMaxDiscountAmount() != null && discountDouble > voucher.getMaxDiscountAmount()) {
+            discountDouble = voucher.getMaxDiscountAmount();
         }
+        java.math.BigDecimal discountAmount = java.math.BigDecimal.valueOf(discountDouble)
+                .setScale(2, java.math.RoundingMode.HALF_UP);
 
         result.put("valid", true);
         result.put("discountAmount", discountAmount);
         result.put("discountPercent", voucher.getDiscountPercent());
-        result.put("message", String.format("Áp dụng thành công! Giảm %,.0f VND (%.0f%%).", discountAmount, voucher.getDiscountPercent()));
+        result.put("message", String.format("Áp dụng thành công! Giảm %,.0f VND (%.0f%%).", discountDouble, voucher.getDiscountPercent()));
         result.put("voucherId", voucher.getId());
         return result;
     }

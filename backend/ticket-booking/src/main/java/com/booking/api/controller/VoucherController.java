@@ -21,9 +21,9 @@ public class VoucherController {
     @PostMapping("/validate")
     public ResponseEntity<Map<String, Object>> validateVoucher(@RequestBody Map<String, Object> request) {
         String code = (String) request.get("code");
-        Double orderAmount = request.get("orderAmount") != null
-                ? Double.parseDouble(request.get("orderAmount").toString())
-                : 0.0;
+        java.math.BigDecimal orderAmount = request.get("orderAmount") != null
+                ? new java.math.BigDecimal(request.get("orderAmount").toString())
+                : java.math.BigDecimal.ZERO;
 
         Map<String, Object> result = voucherService.validateVoucher(code, orderAmount);
         return ResponseEntity.ok(result);

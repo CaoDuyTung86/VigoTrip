@@ -180,7 +180,7 @@ public class AdminService {
     public Trip updateTripPrice(Long id, Double price) {
         Trip trip = tripRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + id));
-        trip.setPrice(price);
+        trip.setPrice(price != null ? java.math.BigDecimal.valueOf(price) : null);
         return tripRepository.save(trip);
     }
 
@@ -242,7 +242,8 @@ public class AdminService {
         // Hủy tất cả booking và hoàn tiền 100%, gửi email
         List<Booking> bookings = bookingRepository.findActiveBookingsByTripId(tripId);
         for (Booking booking : bookings) {
-            double refundAmount = booking.getTotalPrice() != null ? booking.getTotalPrice() : 0;
+            java.math.BigDecimal refundAmount = booking.getTotalPrice() != null
+                    ? booking.getTotalPrice() : java.math.BigDecimal.ZERO;
 
             Refund refund = new Refund();
             refund.setBooking(booking);
@@ -257,7 +258,7 @@ public class AdminService {
             booking.setStatus("CANCELLED");
 
             try {
-                emailService.sendTripCancelledEmail(booking.getUser().getEmail(), booking.getId(), route, refundAmount);
+                emailService.sendTripCancelledEmail(booking.getUser().getEmail(), booking.getId(), route, refundAmount.doubleValue());
             } catch (Exception e) {
                 log.error("Failed to send cancel email to {}", booking.getUser().getEmail(), e);
             }
@@ -273,8 +274,9 @@ public class AdminService {
         List<Provider> providers = providerRepository.findAll();
         List<ProviderRevenueDTO> result = new ArrayList<>();
         for (Provider p : providers) {
-            Double revenue = bookingRepository.calculateTotalRevenueByProvider(p.getId());
-            if (revenue == null) revenue = 0.0;
+            Double revenueDouble = bookingRepository.calculateTotalRevenueByProvider(p.getId());
+            java.math.BigDecimal revenue = revenueDouble != null
+                    ? java.math.BigDecimal.valueOf(revenueDouble) : java.math.BigDecimal.ZERO;
             result.add(new ProviderRevenueDTO(p.getId(), p.getProviderName(), p.getProviderType(), revenue));
         }
         return result;

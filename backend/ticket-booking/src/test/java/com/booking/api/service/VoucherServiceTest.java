@@ -48,11 +48,12 @@ class VoucherServiceTest {
         when(voucherRepository.findByCodeIgnoreCase("DISCOUNT10")).thenReturn(Optional.of(mockVoucher));
 
         // Chạy hàm thật
-        Map<String, Object> result = voucherService.validateVoucher("DISCOUNT10", 100000.0);
+        Map<String, Object> result = voucherService.validateVoucher("DISCOUNT10", java.math.BigDecimal.valueOf(100000));
 
         // Kiểm tra kết quả (Assert)
         assertTrue((Boolean) result.get("valid"));
-        assertEquals(10000.0, (Double) result.get("discountAmount")); // 10% của 100k là 10k
+        assertEquals(java.math.BigDecimal.valueOf(10000.0).setScale(2, java.math.RoundingMode.HALF_UP),
+                result.get("discountAmount")); // 10% của 100k là 10k
 
         // Kiểm tra message có chứa các thông tin quan trọng (không check cứng dấu
         // chấm/phẩy)
@@ -68,7 +69,7 @@ class VoucherServiceTest {
         when(voucherRepository.findByCodeIgnoreCase("DISCOUNT10")).thenReturn(Optional.of(mockVoucher));
 
         // Đơn hàng chỉ 30k, trong khi tối thiểu là 50k
-        Map<String, Object> result = voucherService.validateVoucher("DISCOUNT10", 30000.0);
+        Map<String, Object> result = voucherService.validateVoucher("DISCOUNT10", java.math.BigDecimal.valueOf(30000));
 
         assertFalse((Boolean) result.get("valid"));
         assertTrue(result.get("message").toString().contains("Đơn hàng tối thiểu"));
@@ -79,7 +80,7 @@ class VoucherServiceTest {
     void shouldReturnInvalidWhenVoucherNotFound() {
         when(voucherRepository.findByCodeIgnoreCase("WRONG")).thenReturn(Optional.empty());
 
-        Map<String, Object> result = voucherService.validateVoucher("WRONG", 100000.0);
+        Map<String, Object> result = voucherService.validateVoucher("WRONG", java.math.BigDecimal.valueOf(100000));
 
         assertFalse((Boolean) result.get("valid"));
         assertEquals("Mã giảm giá \"WRONG\" không tồn tại.", result.get("message"));

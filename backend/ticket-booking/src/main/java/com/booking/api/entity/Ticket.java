@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -29,8 +31,8 @@ public class Ticket {
     @JoinColumn(name = "seat_id", nullable = false)
     private Seat seat;
 
-    @Column(name = "price")
-    private Double price;
+    @Column(name = "price", precision = 15, scale = 2)
+    private BigDecimal price;
 
     @Column(name = "passenger_name")
     private String passengerName;

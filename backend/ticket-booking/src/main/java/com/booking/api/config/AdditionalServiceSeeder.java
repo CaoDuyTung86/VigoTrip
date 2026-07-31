@@ -2,21 +2,20 @@ package com.booking.api.config;
 
 import com.booking.api.entity.AdditionalService;
 import com.booking.api.repository.AdditionalServiceRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.math.BigDecimal;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Configuration
-@RequiredArgsConstructor
 public class AdditionalServiceSeeder {
 
-    private final AdditionalServiceRepository additionalServiceRepository;
-
     @Bean
-    CommandLineRunner seedAdditionalServices() {
+    public CommandLineRunner initAdditionalServices(AdditionalServiceRepository additionalServiceRepository) {
         return args -> {
             
             List<AdditionalService> oldMeals = additionalServiceRepository.findAll()
@@ -27,14 +26,14 @@ public class AdditionalServiceSeeder {
             try {
                 additionalServiceRepository.deleteAll(oldMeals);
             } catch (Exception e) {
-                System.out.println("Could not delete old meals due to constraints, skipping deletion...");
+                log.warn("Could not delete old meals due to constraints, skipping deletion...");
             }
 
             List<AdditionalService> newMeals = List.of(
-                    new AdditionalService(null, "Combo Mỳ Ý và Nước suối và Hạt điều", 99000.0),
-                    new AdditionalService(null, "Combo Cơm chiên Thái và Nước suối và Hạt điều", 99000.0),
-                    new AdditionalService(null, "Combo Miến xào Tôm cua và Nước suối và Hạt điều", 99000.0),
-                    new AdditionalService(null, "Combo Bún xào Singapore và Nước suối và Hạt điều", 99000.0)
+                    new AdditionalService(null, "Combo Mỳ Ý và Nước suối và Hạt điều", BigDecimal.valueOf(99000)),
+                    new AdditionalService(null, "Combo Cơm chiên Thái và Nước suối và Hạt điều", BigDecimal.valueOf(99000)),
+                    new AdditionalService(null, "Combo Miến xào Tôm cua và Nước suối và Hạt điều", BigDecimal.valueOf(99000)),
+                    new AdditionalService(null, "Combo Bún xào Singapore và Nước suối và Hạt điều", BigDecimal.valueOf(99000))
             );
             
             long combosCount = additionalServiceRepository.findAll().stream().filter(s -> s.getServiceName().contains("Combo Mỳ Ý")).count();
@@ -44,12 +43,12 @@ public class AdditionalServiceSeeder {
 
             if (additionalServiceRepository.count() <= 4) {
                 List<AdditionalService> services = List.of(
-                        new AdditionalService(null, "Hành lý ký gửi 15kg", 180000.0),
-                        new AdditionalService(null, "Hành lý ký gửi 20kg", 250000.0),
-                        new AdditionalService(null, "Hành lý ký gửi 30kg", 350000.0),
-                        new AdditionalService(null, "Bảo hiểm du lịch cơ bản", 49000.0),
-                        new AdditionalService(null, "Bảo hiểm du lịch cao cấp", 99000.0),
-                        new AdditionalService(null, "Taxi đưa đón sân bay (Xanh SM)", 199000.0)
+                        new AdditionalService(null, "Hành lý ký gửi 15kg", BigDecimal.valueOf(180000)),
+                        new AdditionalService(null, "Hành lý ký gửi 20kg", BigDecimal.valueOf(250000)),
+                        new AdditionalService(null, "Hành lý ký gửi 30kg", BigDecimal.valueOf(350000)),
+                        new AdditionalService(null, "Bảo hiểm du lịch cơ bản", BigDecimal.valueOf(49000)),
+                        new AdditionalService(null, "Bảo hiểm du lịch cao cấp", BigDecimal.valueOf(99000)),
+                        new AdditionalService(null, "Taxi đưa đón sân bay (Xanh SM)", BigDecimal.valueOf(199000))
                 );
                 additionalServiceRepository.saveAll(services);
             }

@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -254,7 +255,7 @@ public class TripDataSeeder {
                         t.setDepartureTime(base.withHour(planeHours[hi][0]).withMinute(planeHours[hi][1]));
                         t.setArrivalTime(
                                 t.getDepartureTime().plusHours(1 + rng.nextInt(2)).plusMinutes(rng.nextInt(30)));
-                        t.setPrice(planePrices[rng.nextInt(planePrices.length)]);
+                        t.setPrice(BigDecimal.valueOf(planePrices[rng.nextInt(planePrices.length)]));
                         t.setStatus("ACTIVE");
                         allTrips.add(t);
                     }
@@ -274,7 +275,7 @@ public class TripDataSeeder {
                         t.setDepartureTime(base.withHour(busHours[hi][0]).withMinute(busHours[hi][1]));
                         t.setArrivalTime(
                                 t.getDepartureTime().plusHours(3 + rng.nextInt(6)).plusMinutes(rng.nextInt(45)));
-                        t.setPrice(busPrices[rng.nextInt(busPrices.length)]);
+                        t.setPrice(BigDecimal.valueOf(busPrices[rng.nextInt(busPrices.length)]));
                         t.setStatus("ACTIVE");
                         allTrips.add(t);
                     }
@@ -294,7 +295,7 @@ public class TripDataSeeder {
                         t.setDepartureTime(base.withHour(trainHours[hi][0]).withMinute(trainHours[hi][1]));
                         t.setArrivalTime(
                                 t.getDepartureTime().plusHours(4 + rng.nextInt(8)).plusMinutes(rng.nextInt(50)));
-                        t.setPrice(trainPrices[rng.nextInt(trainPrices.length)]);
+                        t.setPrice(BigDecimal.valueOf(trainPrices[rng.nextInt(trainPrices.length)]));
                         t.setStatus("ACTIVE");
                         allTrips.add(t);
                     }

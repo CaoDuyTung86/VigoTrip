@@ -125,7 +125,7 @@ public class TripService {
                 String vehicleType = (type == null || type.isBlank()) ? null : type;
                 List<Trip> trips = tripRepository.searchTrips(from, to, startTime, endTime, vehicleType);
 
-                Map<LocalDate, Double> minPriceByDate = trips.stream()
+                Map<LocalDate, java.math.BigDecimal> minPriceByDate = trips.stream()
                                 .filter(trip -> {
                                         if (passengers == null) {
                                                 return true;
@@ -143,16 +143,14 @@ public class TripService {
                                                                 null,
                                                                 Trip::getPrice,
                                                                 (a, b) -> {
-                                                                        if (a == null)
-                                                                                return b;
-                                                                        if (b == null)
-                                                                                return a;
-                                                                        return Math.min(a, b);
+                                                                        if (a == null) return b;
+                                                                        if (b == null) return a;
+                                                                        return a.compareTo(b) <= 0 ? a : b;
                                                                 })));
 
                 return start.datesUntil(end.plusDays(1))
                                 .map(d -> {
-                                        Double minPrice = minPriceByDate.get(d);
+                                        java.math.BigDecimal minPrice = minPriceByDate.get(d);
                                         return new TripCalendarPriceResponse(d, minPrice, minPrice != null);
                                 })
                                 .collect(Collectors.toList());

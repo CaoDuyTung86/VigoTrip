@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -20,6 +22,6 @@ public class AdditionalService {
     @Column(name = "service_name")
     private String serviceName;
 
-    @Column(name = "price")
-    private Double price;
+    @Column(name = "price", precision = 15, scale = 2)
+    private BigDecimal price;
 }

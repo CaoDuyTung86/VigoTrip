@@ -11,6 +11,7 @@ import com.booking.api.repository.SeatRepository;
 import com.booking.api.repository.TripRepository;
 import com.booking.api.repository.VehicleRepository;
 import lombok.RequiredArgsConstructor;
+import java.math.BigDecimal;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -59,7 +60,9 @@ public class DataSeeder {
             // Kiểm tra xem có chuyến đi nào từ hôm nay trở đi không
             LocalDate today = LocalDate.now();
             LocalDateTime todayStart = today.atStartOfDay();
-            long futureTrips = tripRepository.findUpcomingTrips(todayStart, org.springframework.data.domain.PageRequest.of(0, 1)).getTotalElements();
+            long futureTrips = tripRepository
+                    .findUpcomingTrips(todayStart, org.springframework.data.domain.PageRequest.of(0, 1))
+                    .getTotalElements();
 
             if (futureTrips == 0) {
                 // Xóa các trip cũ đã hết hạn (nếu có) để tránh rác DB
@@ -222,8 +225,10 @@ public class DataSeeder {
     }
 
     private void ensureSeatsForVehicle(Vehicle vehicle) {
-        if (vehicle == null || vehicle.getId() == null) return;
-        if (!seatRepository.findByVehicleId(vehicle.getId()).isEmpty()) return;
+        if (vehicle == null || vehicle.getId() == null)
+            return;
+        if (!seatRepository.findByVehicleId(vehicle.getId()).isEmpty())
+            return;
 
         List<Seat> seats = new ArrayList<>();
         String type = vehicle.getVehicleType() == null ? "" : vehicle.getVehicleType().toUpperCase();
@@ -231,7 +236,7 @@ public class DataSeeder {
 
         if ("PLANE".equals(type)) {
             for (int row = 1; row <= 30; row++) {
-                for (char col : new char[]{'A', 'B', 'C', 'D', 'E', 'F'}) {
+                for (char col : new char[] { 'A', 'B', 'C', 'D', 'E', 'F' }) {
                     Seat seat = new Seat();
                     seat.setVehicle(vehicle);
                     seat.setSeatNumber(row + String.valueOf(col));
@@ -256,19 +261,18 @@ public class DataSeeder {
     }
 
     private Trip buildTrip(Route route,
-                           Vehicle vehicle,
-                           LocalDateTime departure,
-                           LocalDateTime arrival,
-                           Double price,
-                           String status) {
+            Vehicle vehicle,
+            LocalDateTime departure,
+            LocalDateTime arrival,
+            double price,
+            String status) {
         Trip trip = new Trip();
         trip.setRoute(route);
         trip.setVehicle(vehicle);
         trip.setDepartureTime(departure);
         trip.setArrivalTime(arrival);
-        trip.setPrice(price);
+        trip.setPrice(BigDecimal.valueOf(price));
         trip.setStatus(status);
         return trip;
     }
 }
-

@@ -76,13 +76,13 @@ class BookingServiceTest {
 
         busTrip = new Trip();
         busTrip.setId(1L);
-        busTrip.setPrice(100000.0);
+        busTrip.setPrice(java.math.BigDecimal.valueOf(100000));
         busTrip.setDepartureTime(LocalDateTime.now().plusDays(2));
         busTrip.setVehicle(bus);
 
         flightTrip = new Trip();
         flightTrip.setId(2L);
-        flightTrip.setPrice(1000000.0);
+        flightTrip.setPrice(java.math.BigDecimal.valueOf(1000000));
         flightTrip.setDepartureTime(LocalDateTime.now().plusDays(3));
         flightTrip.setVehicle(plane);
 
@@ -136,7 +136,7 @@ class BookingServiceTest {
 
         assertNotNull(response);
         verify(bookingRepository).save(argThat(booking -> {
-            assertEquals(2500000.0, booking.getTotalPrice()); // 1,000,000 * 2.5
+            assertEquals(java.math.BigDecimal.valueOf(2500000.0), booking.getTotalPrice()); // 1,000,000 * 2.5
             return true;
         }));
     }
@@ -149,11 +149,11 @@ class BookingServiceTest {
 
         AdditionalService addService = new AdditionalService();
         addService.setId(10L);
-        addService.setPrice(50000.0);
+        addService.setPrice(java.math.BigDecimal.valueOf(50000));
 
         Map<String, Object> voucherResult = new HashMap<>();
         voucherResult.put("valid", true);
-        voucherResult.put("discountAmount", 30000.0);
+        voucherResult.put("discountAmount", java.math.BigDecimal.valueOf(30000).setScale(2, java.math.RoundingMode.HALF_UP));
         voucherResult.put("voucherId", 99L);
 
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
@@ -165,7 +165,7 @@ class BookingServiceTest {
                 .thenReturn(Collections.singletonList(addService));
         when(bookingRepository.existsByUserIdAndVoucherCodeAndStatusNot(1L, "SALE20", "CANCELLED"))
                 .thenReturn(false);
-        when(voucherService.validateVoucher(eq("SALE20"), anyDouble())).thenReturn(voucherResult);
+        when(voucherService.validateVoucher(eq("SALE20"), any(java.math.BigDecimal.class))).thenReturn(voucherResult);
         when(bookingMapper.toBookingResponse(any(), any())).thenReturn(new BookingResponse());
 
         BookingResponse response = bookingService.createBooking("test@example.com", request);
@@ -174,7 +174,8 @@ class BookingServiceTest {
         verify(voucherService).useVoucher(99L);
         verify(bookingRepository).save(argThat(b -> {
             // (100,000 vé + 50,000 dịch vụ) - 30,000 giảm giá = 120,000
-            assertEquals(120000.0, b.getTotalPrice());
+            // So sánh bằng compareTo để tránh lỗi scale của BigDecimal
+            assertEquals(0, java.math.BigDecimal.valueOf(120000).compareTo(b.getTotalPrice()));
             assertEquals("SALE20", b.getVoucherCode());
             return true;
         }));
@@ -243,7 +244,7 @@ class BookingServiceTest {
         booking.setUser(user);
 
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
-        when(bookingRepository.findByUserIdOrderByBookingDateDesc(1L)).thenReturn(Collections.singletonList(booking));
+        when(bookingRepository.findByUserIdWithDetails(1L)).thenReturn(Collections.singletonList(booking));
         when(bookingMapper.toBookingResponse(any(), any())).thenReturn(new BookingResponse());
 
         List<BookingResponse> responses = bookingService.getMyBookings("test@example.com");
@@ -293,7 +294,7 @@ class BookingServiceTest {
         booking.setId(100L);
         booking.setUser(user);
         booking.setStatus("CONFIRMED");
-        booking.setTotalPrice(200000.0);
+        booking.setTotalPrice(java.math.BigDecimal.valueOf(200000));
 
         Ticket ticket = new Ticket();
         ticket.setTrip(busTrip);
@@ -307,7 +308,7 @@ class BookingServiceTest {
 
         assertEquals("CANCELLED", booking.getStatus());
         assertEquals(1, booking.getRefunds().size());
-        assertEquals(200000.0, booking.getRefunds().get(0).getRefundAmount());
+        assertEquals(0, java.math.BigDecimal.valueOf(200000).compareTo(booking.getRefunds().get(0).getRefundAmount()));
     }
 
     @Test
@@ -319,7 +320,7 @@ class BookingServiceTest {
         booking.setId(100L);
         booking.setUser(user);
         booking.setStatus("PAID");
-        booking.setTotalPrice(200000.0);
+        booking.setTotalPrice(java.math.BigDecimal.valueOf(200000));
 
         Ticket ticket = new Ticket();
         ticket.setTrip(busTrip);
@@ -332,7 +333,8 @@ class BookingServiceTest {
         bookingService.cancelBooking("test@example.com", 100L);
 
         assertEquals("CANCELLED", booking.getStatus());
-        assertEquals(180000.0, booking.getRefunds().get(0).getRefundAmount()); // 200,000 * 0.9
+        assertEquals(java.math.BigDecimal.valueOf(180000.0).setScale(2, java.math.RoundingMode.HALF_UP),
+                booking.getRefunds().get(0).getRefundAmount()); // 200,000 * 0.9
     }
 
     @Test
@@ -344,7 +346,7 @@ class BookingServiceTest {
         booking.setId(100L);
         booking.setUser(user);
         booking.setStatus("CONFIRMED");
-        booking.setTotalPrice(200000.0);
+        booking.setTotalPrice(java.math.BigDecimal.valueOf(200000));
 
         Ticket ticket = new Ticket();
         ticket.setTrip(busTrip);
@@ -359,13 +361,13 @@ class BookingServiceTest {
     }
 
     @Test
-    @DisplayName("Hoàn thành chuyến đi thành công (Cộng điểm thưởng & Gửi email khảo sát)")
+    @DisplayName("Đã hoàn thành chuyến đi thành công (Status COMPLETED & Gửi email khảo sát)")
     void completeBooking_Success_EarnsPointsAndSendsSurvey() {
         Booking booking = new Booking();
         booking.setId(100L);
         booking.setUser(user);
         booking.setStatus("CONFIRMED");
-        booking.setTotalPrice(500000.0); // 500,000đ -> 50 điểm
+        booking.setTotalPrice(java.math.BigDecimal.valueOf(500000));
 
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(bookingRepository.findById(100L)).thenReturn(Optional.of(booking));
@@ -373,9 +375,8 @@ class BookingServiceTest {
 
         bookingService.completeBooking("test@example.com", 100L);
 
+        // Điểm chỉ tích tại PaymentService khi VNPay xác nhận, KHÔNG tích tại completeBooking
         assertEquals("COMPLETED", booking.getStatus());
-        assertEquals(50, user.getPoints());
-        verify(userRepository).save(user);
         verify(emailService).sendSurveyEmail("test@example.com", 100L);
     }
 
@@ -399,19 +400,19 @@ class BookingServiceTest {
         Booking booking = new Booking();
         booking.setId(100L);
         booking.setUser(user);
-        booking.setTotalPrice(300000.0);
+        booking.setTotalPrice(java.math.BigDecimal.valueOf(300000));
 
         Ticket ticket1 = new Ticket();
         ticket1.setId(10L);
         ticket1.setStatus("ACTIVE");
-        ticket1.setPrice(100000.0);
+        ticket1.setPrice(java.math.BigDecimal.valueOf(100000));
         ticket1.setTrip(busTrip);
         ticket1.setSeat(normalSeat);
 
         Ticket ticket2 = new Ticket();
         ticket2.setId(11L);
         ticket2.setStatus("ACTIVE");
-        ticket2.setPrice(200000.0);
+        ticket2.setPrice(java.math.BigDecimal.valueOf(200000));
         ticket2.setTrip(busTrip);
 
         booking.setTickets(Arrays.asList(ticket1, ticket2));
@@ -423,7 +424,7 @@ class BookingServiceTest {
         bookingService.cancelTicket("test@example.com", 100L, 10L);
 
         assertEquals("CANCELLED", ticket1.getStatus());
-        assertEquals(200000.0, booking.getTotalPrice());
+        assertEquals(java.math.BigDecimal.valueOf(200000), booking.getTotalPrice());
         verify(ticketRepository).save(ticket1);
     }
 
@@ -434,12 +435,12 @@ class BookingServiceTest {
         booking.setId(100L);
         booking.setUser(user);
         booking.setStatus("PENDING");
-        booking.setTotalPrice(100000.0);
+        booking.setTotalPrice(java.math.BigDecimal.valueOf(100000));
 
         Ticket ticket1 = new Ticket();
         ticket1.setId(10L);
         ticket1.setStatus("ACTIVE");
-        ticket1.setPrice(100000.0);
+        ticket1.setPrice(java.math.BigDecimal.valueOf(100000));
         ticket1.setTrip(busTrip);
 
         booking.setTickets(Collections.singletonList(ticket1));
@@ -452,7 +453,7 @@ class BookingServiceTest {
 
         assertEquals("CANCELLED", ticket1.getStatus());
         assertEquals("CANCELLED", booking.getStatus());
-        assertEquals(0.0, booking.getTotalPrice());
+        assertEquals(0, java.math.BigDecimal.ZERO.compareTo(booking.getTotalPrice()));
     }
 
     @Test

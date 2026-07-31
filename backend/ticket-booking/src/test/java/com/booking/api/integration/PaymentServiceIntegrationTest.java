@@ -56,7 +56,7 @@ class PaymentServiceIntegrationTest {
         Booking booking = new Booking();
         booking.setUser(savedUser);
         booking.setBookingDate(LocalDateTime.now());
-        booking.setTotalPrice(250000.0);
+        booking.setTotalPrice(java.math.BigDecimal.valueOf(250000));
         booking.setStatus("PENDING");
         savedBooking = bookingRepository.save(booking);
     }

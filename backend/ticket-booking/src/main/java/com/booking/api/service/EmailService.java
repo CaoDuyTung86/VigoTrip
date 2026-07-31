@@ -96,7 +96,7 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             Long bookingId = booking.getId();
-            Double totalPrice = booking.getTotalPrice();
+            java.math.BigDecimal totalPrice = booking.getTotalPrice();
             String seats = booking.getTickets() == null ? "" : booking.getTickets().stream()
                     .map(t -> t.getSeat().getSeatNumber())
                     .collect(java.util.stream.Collectors.joining(", "));
@@ -294,7 +294,7 @@ public class EmailService {
         }
     }
 
-    public void sendRefundApprovedEmail(String toEmail, Long refundId, Long bookingId, Double amount) {
+    public void sendRefundApprovedEmail(String toEmail, Long refundId, Long bookingId, java.math.BigDecimal amount) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");

@@ -3,6 +3,7 @@ package com.booking.api.dto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -14,7 +15,7 @@ public class TripSearchResponse {
     private String destination;
     private LocalDateTime departureTime;
     private LocalDateTime arrivalTime;
-    private Double price;
+    private BigDecimal price;
     private String vehicleType;
     private String providerName;
     private Integer totalSeats;

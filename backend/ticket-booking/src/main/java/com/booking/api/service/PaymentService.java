@@ -58,7 +58,7 @@ public class PaymentService {
         String txnRef = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
 
         // Tính tiền (VNPay yêu cầu nhân 100 vì không dùng dấu thập phân)
-        long amount = (long) (booking.getTotalPrice() * 100);
+        long amount = booking.getTotalPrice().multiply(java.math.BigDecimal.valueOf(100)).longValue();
 
         // Xây dựng VNPay params
         SortedMap<String, String> params = new TreeMap<>();
@@ -158,7 +158,7 @@ public class PaymentService {
 
             // 3. Kiểm tra số tiền
             long vnpAmount = Long.parseLong(params.get("vnp_Amount"));
-            if (vnpAmount != (long) (booking.getTotalPrice() * 100)) {
+            if (vnpAmount != booking.getTotalPrice().multiply(java.math.BigDecimal.valueOf(100)).longValue()) {
                 response.put("RspCode", "04");
                 response.put("Message", "Invalid Amount");
                 return response;
@@ -207,7 +207,9 @@ public class PaymentService {
         payment.setBooking(booking);
         payment.setPaymentMethod("VNPAY");
         payment.setPaymentDate(LocalDateTime.now());
-        payment.setAmount(amountStr != null ? Double.parseDouble(amountStr) / 100 : booking.getTotalPrice());
+        payment.setAmount(amountStr != null
+                ? new java.math.BigDecimal(amountStr).divide(java.math.BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP)
+                : booking.getTotalPrice());
         payment.setPaymentStatus("SUCCESS");
 
         if (booking.getPayments() == null) {
@@ -220,7 +222,9 @@ public class PaymentService {
         // Tích điểm cho User
         User user = booking.getUser();
         if (user != null) {
-            int earnedPoints = (int) (booking.getTotalPrice() / 10000);
+            int earnedPoints = booking.getTotalPrice()
+                    .divide(java.math.BigDecimal.valueOf(10000), 0, java.math.RoundingMode.DOWN)
+                    .intValue();
             int currentPoints = user.getPoints() == null ? 0 : user.getPoints();
             user.setPoints(currentPoints + earnedPoints);
 
