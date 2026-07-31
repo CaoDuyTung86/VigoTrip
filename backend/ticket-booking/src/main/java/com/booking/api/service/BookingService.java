@@ -190,7 +190,7 @@ public class BookingService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user"));
 
-        List<Booking> bookings = bookingRepository.findByUserIdOrderByBookingDateDesc(user.getId());
+        List<Booking> bookings = bookingRepository.findByUserIdWithDetails(user.getId());
 
         return bookings.stream()
                 .map(booking -> {

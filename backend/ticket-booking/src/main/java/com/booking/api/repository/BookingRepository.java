@@ -9,6 +9,34 @@ import java.util.List;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
+    @Query("SELECT DISTINCT b FROM Booking b " +
+           "LEFT JOIN FETCH b.tickets t " +
+           "LEFT JOIN FETCH t.trip tr " +
+           "LEFT JOIN FETCH tr.route " +
+           "LEFT JOIN FETCH tr.vehicle v " +
+           "LEFT JOIN FETCH v.provider " +
+           "WHERE b.user.id = :userId ORDER BY b.bookingDate DESC")
+    List<Booking> findByUserIdWithDetails(@Param("userId") Long userId);
+
+    @Query("SELECT DISTINCT b FROM Booking b " +
+           "LEFT JOIN FETCH b.tickets t " +
+           "LEFT JOIN FETCH t.trip tr " +
+           "LEFT JOIN FETCH tr.route " +
+           "LEFT JOIN FETCH tr.vehicle v " +
+           "LEFT JOIN FETCH v.provider " +
+           "WHERE b.user.email = :email ORDER BY b.bookingDate DESC")
+    List<Booking> findByUserEmailWithDetails(@Param("email") String email);
+
+    @Query("SELECT DISTINCT b FROM Booking b " +
+           "JOIN FETCH b.user u " +
+           "JOIN FETCH b.tickets t " +
+           "JOIN FETCH t.trip tr " +
+           "JOIN FETCH tr.route " +
+           "WHERE b.status = 'CONFIRMED' " +
+           "AND tr.departureTime BETWEEN :startTime AND :endTime")
+    List<Booking> findConfirmedBookingsForReminder(@Param("startTime") java.time.LocalDateTime startTime,
+                                                   @Param("endTime") java.time.LocalDateTime endTime);
+
     List<Booking> findByUserIdOrderByBookingDateDesc(Long userId);
     List<Booking> findByUserEmailOrderByBookingDateDesc(String email);
 
@@ -22,7 +50,13 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     boolean existsByUserIdAndVoucherCodeAndStatusNot(Long userId, String voucherCode, String status);
 
-    @Query("SELECT b FROM Booking b WHERE b.isCheckedIn = true ORDER BY b.checkInDate DESC")
+    @Query("SELECT DISTINCT b FROM Booking b " +
+           "LEFT JOIN FETCH b.tickets t " +
+           "LEFT JOIN FETCH t.trip tr " +
+           "LEFT JOIN FETCH tr.route " +
+           "LEFT JOIN FETCH tr.vehicle v " +
+           "LEFT JOIN FETCH v.provider " +
+           "WHERE b.isCheckedIn = true ORDER BY b.checkInDate DESC")
     List<Booking> findRecentCheckInsAdmin(org.springframework.data.domain.Pageable pageable);
 
     // Thống kê doanh thu theo tháng trong năm hiện tại cho Provider

@@ -33,8 +33,11 @@ public class ChatService implements AIService.ToolHandler {
     private static final int MAX_USER_MESSAGE_LENGTH = 500; // ký tự
     private static final int MAX_HISTORY_PAIRS_FRONTEND = 10; // cặp tối đa nhận từ Frontend
 
-    // State Caching cho từng User Session
-    private final Map<String, Map<String, String>> sessionCache = new java.util.concurrent.ConcurrentHashMap<>();
+    // State Caching cho từng User Session (Caffeine Cache với TTL 30 phút chống rò rỉ bộ nhớ)
+    private final com.github.benmanes.caffeine.cache.Cache<String, Map<String, String>> sessionCache = com.github.benmanes.caffeine.cache.Caffeine.newBuilder()
+            .expireAfterAccess(30, java.util.concurrent.TimeUnit.MINUTES)
+            .maximumSize(2000)
+            .build();
 
     // RAG Knowledge Base với Tiếng Việt & Từ đồng nghĩa (Synonym-aware RAG Engine)
     private static final Map<String, String> FAQ_DB = Map.of(
@@ -124,7 +127,7 @@ public class ChatService implements AIService.ToolHandler {
 
             // Lưu vào State Caching theo sessionKey
             String effectiveKey = (sessionKey != null && !sessionKey.isBlank()) ? sessionKey : "default_session";
-            Map<String, String> cache = sessionCache.computeIfAbsent(effectiveKey, k -> new java.util.concurrent.ConcurrentHashMap<>());
+            Map<String, String> cache = sessionCache.get(effectiveKey, k -> new java.util.concurrent.ConcurrentHashMap<>());
             if (origin != null && !origin.isBlank() && !"null".equals(origin)) cache.put("origin", origin);
             if (destination != null && !destination.isBlank() && !"null".equals(destination)) cache.put("destination", destination);
             if (dateStr != null && !dateStr.isBlank() && !"null".equals(dateStr)) cache.put("date", dateStr);
@@ -220,7 +223,7 @@ public class ChatService implements AIService.ToolHandler {
         // Retrieve State Cache
         StringBuilder cacheContext = new StringBuilder();
         String effectiveKey = (sessionKey != null && !sessionKey.isBlank()) ? sessionKey : "default_session";
-        Map<String, String> cache = sessionCache.get(effectiveKey);
+        Map<String, String> cache = sessionCache.getIfPresent(effectiveKey);
         if (cache != null && !cache.isEmpty()) {
             cacheContext.append("Khách hàng đang quan tâm tuyến đường: ");
             if (cache.containsKey("origin")) cacheContext.append("Từ ").append(cache.get("origin")).append(" ");

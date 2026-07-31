@@ -29,18 +29,18 @@ public class TripReminderScheduler {
     @Scheduled(fixedRate = 3600000) // Mỗi 1 giờ
     public void sendTripReminders() {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
-        LocalDateTime next24h = now.plusHours(24);
+        LocalDateTime startWindow = now.plusHours(23);
+        LocalDateTime endWindow = now.plusHours(25);
 
-        log.info("[Scheduler] Checking trip reminders: {} → {}", now, next24h);
+        log.info("[Scheduler] Checking trip reminders for departures between: {} → {}", startWindow, endWindow);
 
-        // Lấy tất cả bookings CONFIRMED
-        List<Booking> confirmedBookings = bookingRepository.findByStatusAndBookingDateBefore("CONFIRMED",
-                LocalDateTime.now().plusYears(10)); // Lấy hết booking CONFIRMED
+        // Chỉ lọc trực tiếp từ Database các booking CONFIRMED có giờ đi trong khoảng 23h-25h tới
+        List<Booking> upcomingBookings = bookingRepository.findConfirmedBookingsForReminder(startWindow, endWindow);
 
         int sent = 0;
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM/yyyy");
 
-        for (Booking booking : confirmedBookings) {
+        for (Booking booking : upcomingBookings) {
             if (booking.getTickets() == null || booking.getTickets().isEmpty())
                 continue;
 
@@ -48,18 +48,13 @@ public class TripReminderScheduler {
             if (firstTicket.getTrip() == null || firstTicket.getTrip().getDepartureTime() == null)
                 continue;
 
-            LocalDateTime departure = firstTicket.getTrip().getDepartureTime();
+            String route = firstTicket.getTrip().getRoute().getOrigin() + " → "
+                    + firstTicket.getTrip().getRoute().getDestination();
+            String departureStr = firstTicket.getTrip().getDepartureTime().format(fmt);
+            String email = booking.getUser().getEmail();
 
-            // Chỉ gửi nếu chuyến khởi hành trong khoảng 23h–25h tới (tránh gửi trùng)
-            if (departure.isAfter(now.plusHours(23)) && departure.isBefore(now.plusHours(25))) {
-                String route = firstTicket.getTrip().getRoute().getOrigin() + " → "
-                        + firstTicket.getTrip().getRoute().getDestination();
-                String departureStr = departure.format(fmt);
-                String email = booking.getUser().getEmail();
-
-                emailService.sendTripReminderEmail(email, booking.getId(), route, departureStr);
-                sent++;
-            }
+            emailService.sendTripReminderEmail(email, booking.getId(), route, departureStr);
+            sent++;
         }
 
         log.info("[Scheduler] Sent {} trip reminder emails.", sent);
