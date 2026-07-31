@@ -81,10 +81,11 @@ To keep the project stable, please enforce these rules on the developer:
 ---
 
 ## 6. Project Architecture for AI Context
-- **Backend:** Spring Boot 3 + JPA + WebSocket (STOMP).
-- **Frontend:** React + Vite + CSS Variables.
-- **Real-time:** Handled via `/ws` endpoint for seat synchronization.
-- **Security:** JWT stateless filter + Spring Security.
+- **Backend:** Spring Boot 3 + JPA + WebSocket (STOMP) + MapStruct + Caffeine Cache.
+- **Frontend:** React + Vite + CSS Variables + Recharts + PWA.
+- **Real-time:** Handled via `/ws` endpoint for seat synchronization (`SeatLockService`).
+- **AI Engine:** Google Gemini AI API with RAG (Retrieval-Augmented Generation) for Assistant Chatbot & BI Analytics.
+- **Security:** JWT stateless filter + Spring Security 6 + Google OAuth2.
 - **Static Analysis:** Excluded `target/` and generated `MapperImpl` files to maintain high quality scores.
 
 ---
