@@ -6,6 +6,7 @@ import com.booking.api.service.BookingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -67,9 +68,17 @@ public class BookingController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Check-in vé — CHỈ ADMIN hoặc PROVIDER (nhân viên soát vé) được phép.
+     * User thường KHÔNG thể tự check-in vé của mình.
+     */
     @PostMapping("/{id}/check-in")
-    public ResponseEntity<BookingResponse> checkIn(@PathVariable Long id) {
-        BookingResponse response = bookingService.checkIn(id);
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ADMIN', 'ROLE_PROVIDER', 'PROVIDER')")
+    public ResponseEntity<BookingResponse> checkIn(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        String performedBy = userDetails.getUsername();
+        BookingResponse response = bookingService.checkIn(id, performedBy);
         return ResponseEntity.ok(response);
     }
 

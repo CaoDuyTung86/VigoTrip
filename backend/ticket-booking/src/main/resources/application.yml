@@ -79,3 +79,8 @@ management:
 # Gemini AI Configuration
 gemini:
   api-key: ${GEMINI_API_KEY}
+
+# Google OAuth2 — dùng để verify Google ID Token phía server
+# Lấy Client ID từ: https://console.cloud.google.com → Credentials → OAuth 2.0 Client IDs
+google:
+  client-id: ${GOOGLE_CLIENT_ID:}

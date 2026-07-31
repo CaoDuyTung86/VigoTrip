@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class BookingService {
 
-    private static final int POINTS_DIVISION_FACTOR = 10000;
     private static final int CANCEL_HOURS_CUTOFF = 4;
     private static final double REFUND_PERCENTAGE_24H = 0.9;
 
@@ -306,13 +305,8 @@ public class BookingService {
         booking.setStatus("COMPLETED");
         bookingRepository.save(booking);
 
-        // Tích điểm: 1 điểm / 10,000đ
-        if (booking.getTotalPrice() != null && booking.getTotalPrice() > 0) {
-            int earnedPoints = (int) (booking.getTotalPrice() / POINTS_DIVISION_FACTOR);
-            int currentPoints = user.getPoints() != null ? user.getPoints() : 0;
-            user.setPoints(currentPoints + earnedPoints);
-            userRepository.save(user);
-        }
+        // Điểm thành viên đã được tích khi thanh toán thành công (PaymentService.processSuccessfulPayment).
+        // KHÔNG tích điểm ở đây để tránh tích 2 lần cho cùng 1 booking.
 
         try {
             emailService.sendSurveyEmail(user.getEmail(), booking.getId());
@@ -383,7 +377,7 @@ public class BookingService {
     }
 
     @Transactional
-    public BookingResponse checkIn(Long bookingId) {
+    public BookingResponse checkIn(Long bookingId, String performedBy) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
 
@@ -398,6 +392,8 @@ public class BookingService {
         booking.setIsCheckedIn(true);
         booking.setCheckInDate(LocalDateTime.now());
         bookingRepository.save(booking);
+
+        log.info("[CheckIn] Booking #{} checked-in bởi {} lúc {}", bookingId, performedBy, booking.getCheckInDate());
 
         Trip trip = extractTripFromBooking(booking);
 

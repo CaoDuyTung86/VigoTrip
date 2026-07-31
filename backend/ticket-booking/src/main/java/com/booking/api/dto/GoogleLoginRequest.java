@@ -1,6 +1,5 @@
 package com.booking.api.dto;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -11,14 +10,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class GoogleLoginRequest {
 
-    @NotBlank(message = "Email không được để trống")
-    @Email(message = "Email không đúng định dạng")
-    private String email;
-
-    @NotBlank(message = "Tên không được để trống")
-    private String fullName;
-
-    @NotBlank(message = "Google ID không được để trống")
-    private String googleId;
+    /**
+     * Google ID Token (JWT) do Google SDK trả về sau khi user đăng nhập Google.
+     * Backend sẽ verify token này với Google để lấy email và tên thật.
+     * Frontend KHÔNG được tự truyền email/fullName nữa.
+     */
+    @NotBlank(message = "Google ID Token không được để trống")
+    private String idToken;
 }
-

@@ -449,9 +449,7 @@ const Auth = ({ isOpen, onClose }) => {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
-                          email: decoded.email,
-                          fullName: decoded.name,
-                          googleId: decoded.sub
+                          idToken: credentialResponse.credential
                         }),
                       });
                       const data = await response.json();

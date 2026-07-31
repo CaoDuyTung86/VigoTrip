@@ -43,6 +43,7 @@ services:
       - VNP_HASH_SECRET=${VNP_HASH_SECRET}
       - VNP_TMN_CODE=${VNP_TMN_CODE}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
     depends_on:
       sqlserver-init:
