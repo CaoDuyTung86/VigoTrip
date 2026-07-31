@@ -4,7 +4,6 @@ import com.booking.api.dto.BookingRequest;
 import com.booking.api.dto.BookingResponse;
 import com.booking.api.entity.*;
 import com.booking.api.exception.BookingException;
-import com.booking.api.exception.ResourceNotFoundException;
 import com.booking.api.mapper.BookingMapper;
 import com.booking.api.repository.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -467,7 +466,7 @@ class BookingServiceTest {
         when(bookingRepository.findById(100L)).thenReturn(Optional.of(booking));
         when(bookingMapper.toBookingResponse(any(), any())).thenReturn(new BookingResponse());
 
-        BookingResponse response = bookingService.checkIn(100L);
+        BookingResponse response = bookingService.checkIn(100L, "admin@gmail.com");
 
         assertNotNull(response);
         assertTrue(booking.getIsCheckedIn());
@@ -491,7 +490,7 @@ class BookingServiceTest {
         when(bookingRepository.findById(100L)).thenReturn(Optional.of(unpaidBooking));
         when(bookingRepository.findById(101L)).thenReturn(Optional.of(checkedInBooking));
 
-        assertThrows(BookingException.class, () -> bookingService.checkIn(100L));
-        assertThrows(BookingException.class, () -> bookingService.checkIn(101L));
+        assertThrows(BookingException.class, () -> bookingService.checkIn(100L, "admin@gmail.com"));
+        assertThrows(BookingException.class, () -> bookingService.checkIn(101L, "admin@gmail.com"));
     }
 }
