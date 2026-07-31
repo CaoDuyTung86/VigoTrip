@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: booking-service-test
+  datasource:
+    url: jdbc:h2:mem:ticket_booking_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+  cache:
+    type: none
+  mail:
+    host: localhost
+    port: 2525
+    username: test@example.com
+    password: testpassword
+
+jwt:
+  secret: dGVzdHNlY3JldGtleWZvcmp1bml0dGVzdGluZ3B1cnBvc2Vzb25seTEyMzQ1Njc4OTA=
+  expiration: 86400000
+
+vnpay:
+  tmn-code: TEST_TMN
+  hash-secret: TEST_SECRET
+  pay-url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+  return-url: http://localhost:8081/api/payment/vnpay-return
+  api-url: https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
+
+app:
+  frontend-url: http://localhost:5173
+  admin:
+    email: admin@gmail.com
+    password: Abc123456!
+  provider:
+    email: provider@gmail.com
+    password: Abc123456!
+
+gemini:
+  api-key: test-dummy-gemini-api-key-1234567890
+
+GEMINI_API_KEY: test-dummy-gemini-api-key-1234567890
+SPRING_DATASOURCE_PASSWORD: testpassword
+SPRING_MAIL_PASSWORD: testpassword
+JWT_SECRET: dGVzdHNlY3JldGtleWZvcmp1bml0dGVzdGluZ3B1cnBvc2Vzb25seTEyMzQ1Njc4OTA=
+VNP_HASH_SECRET: TEST_SECRET
+VNP_TMN_CODE: TEST_TMN
