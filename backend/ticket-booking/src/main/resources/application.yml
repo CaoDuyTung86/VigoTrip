@@ -13,12 +13,12 @@ spring:
       idle-timeout: 30000
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     show-sql: true
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.SQLServerDialect
+        dialect: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.SQLServerDialect}
         use_nationalized_character_data: true
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
