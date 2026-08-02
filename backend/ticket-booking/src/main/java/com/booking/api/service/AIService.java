@@ -30,17 +30,17 @@ public class AIService {
 
     private static final String AI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
-    // Model nhẹ, nhanh, dùng cho chatbot customer support
-    private static final String CHAT_MODEL = "gemini-flash-latest";
+    // Model nhẹ hơn cho chatbot — free tier quota cao hơn, đủ mạnh cho function calling
+    private static final String CHAT_MODEL = "gemini-flash-lite-latest";
 
-    // Model mạnh, dùng cho phân tích báo cáo AI (Analytics)
+    // Model thông minh hơn cho phân tích doanh thu (Analytics)
     private static final String ANALYSIS_MODEL = "gemini-flash-latest";
 
-    // Giới hạn an toàn - Cắt giảm để tránh Rate Limit của Groq (6000 TPM)
+    // Giới hạn an toàn — tiết kiệm token, tránh Rate Limit Gemini Free Tier
     private static final int MAX_HISTORY_PAIRS = 3;     // Chỉ lấy 3 lượt chat gần nhất
-    private static final int MAX_CONTENT_LENGTH = 250;  // Tối đa 250 ký tự/tin nhắn trong history
-    private static final int CHAT_MAX_TOKENS = 512;     // Tiết kiệm TPM cho chat
-    private static final int ANALYSIS_MAX_TOKENS = 1024;
+    private static final int MAX_CONTENT_LENGTH = 200;  // Tối đa 200 ký tự/tin nhắn trong history
+    private static final int CHAT_MAX_TOKENS = 800;     // Đủ để AI trả lời đầy đủ sau khi dùng tools
+    private static final int ANALYSIS_MAX_TOKENS = 1200;
 
     public interface ToolHandler {
         String executeTool(String functionName, Map<String, Object> arguments);

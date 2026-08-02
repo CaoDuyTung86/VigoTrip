@@ -134,7 +134,7 @@ public class ChatService implements AIService.ToolHandler {
             if (timeSlot != null && !timeSlot.isBlank() && !"null".equals(timeSlot)) cache.put("timeSlot", timeSlot);
 
             List<Trip> trips = tripRepository.searchTripsFlexible(origin, destination, vehicleType, startOfDay, endOfDay,
-                    PageRequest.of(0, 6));
+                    PageRequest.of(0, 4));  // Giới hạn 4 kết quả — tránh bloat token ở lần gọi API 2 (function calling)
 
             if (trips.isEmpty()) {
                 return "Không tìm thấy chuyến đi phù hợp nào trong hệ thống.";
@@ -165,7 +165,8 @@ public class ChatService implements AIService.ToolHandler {
                 return "Khách hàng chưa đăng nhập nên không có lịch sử đơn hàng.";
             }
 
-            List<Booking> userBookings = bookingRepository.findByUserEmailOrderByBookingDateDesc(username);
+            List<Booking> userBookings = bookingRepository.findByUserEmailOrderByBookingDateDesc(username)
+                    .stream().limit(5).toList(); // Chỉ lấy 5 booking gần nhất — tránh bloat token
             if (userBookings == null || userBookings.isEmpty()) {
                 return "Khách hàng hiện chưa có đơn hàng/vé đã đặt nào.";
             }
