@@ -336,6 +336,14 @@ public class AIService {
                     }
                 }
             }
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            log.error("Gemini API Error during setup: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            if (e.getStatusCode().value() == 429) {
+                chunkConsumer.accept("AI đang quá tải (Rate limit), vui lòng thử lại sau vài giây.");
+            } else {
+                chunkConsumer.accept("Lỗi kết nối AI (" + e.getStatusCode() + ").");
+            }
+            return;
         } catch (Exception e) {
             log.error("Error during setup for streaming AI response", e);
         }
@@ -363,6 +371,12 @@ public class AIService {
                     .build();
 
             java.net.http.HttpResponse<java.io.InputStream> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofInputStream());
+
+            if (response.statusCode() == 429) {
+                log.error("Gemini API Rate Limit 429 in stream");
+                chunkConsumer.accept("AI đang quá tải (Rate limit), vui lòng thử lại sau vài giây.");
+                return;
+            }
 
             try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(response.body(), java.nio.charset.StandardCharsets.UTF_8))) {
                 String line;

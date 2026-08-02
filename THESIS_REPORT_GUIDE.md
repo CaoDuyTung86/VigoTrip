@@ -10,8 +10,9 @@ Tài liệu này tóm tắt các điểm mạnh kỹ thuật và tính năng đ�
 *   **Database:** MS SQL Server 2022 (Quản lý dữ liệu quan hệ), Caffeine Cache (Bộ nhớ đệm hiệu năng cao).
 *   **Real-time:** WebSocket (STOMP / SockJS) để đồng bộ và khóa ghế thời gian thực (`SeatLockService`).
 *   **AI Engine:** Google Gemini AI API kết hợp kiến trúc RAG (Retrieval-Augmented Generation) cho Chatbot & Business Intelligence.
-*   **Infrastructure:** 
-    *   **Docker & Docker Compose:** Đóng gói 7 container tự động hóa toàn bộ hệ thống.
+*   **Infrastructure & Deployment:** 
+    *   **Mô hình Serverless (Vercel + Render + Neon):** Tách biệt Frontend (Vercel Edge Network), Backend (Render Container) và Database (Neon Serverless PostgreSQL). Tối ưu chi phí 0$, tự động mở rộng và không cần quản trị hạ tầng.
+    *   **Mô hình Docker IaaS (AWS EC2):** Đóng gói 7 container (Spring Boot, Nginx, Prometheus, Grafana, SonarQube, SQL Server) phục vụ giám sát và triển khai toàn diện.
     *   **PWA (Progressive Web App):** Cho phép cài đặt ứng dụng trên điện thoại không cần qua App Store/Google Play.
 
 ---

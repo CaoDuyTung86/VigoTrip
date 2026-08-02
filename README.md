@@ -14,10 +14,19 @@ Dự án đồ án tốt nghiệp cung cấp giải pháp đặt vé toàn diệ
 
 ---
 
-## 🌐 Môi Trường Thử Nghiệm (Staging)
+## 🌐 Môi Trường Thử Nghiệm (Staging & Production)
 
-Hệ thống đã được triển khai thử nghiệm trên nền tảng điện toán đám mây AWS:
-* **Địa chỉ Website:** [https://datxe.duckdns.org](https://datxe.duckdns.org) *(Hỗ trợ đầy đủ bảo mật HTTPS)*
+Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây linh hoạt:
+
+1. **Môi trường Serverless Cloud (Khuyên dùng - 0$ Cost & Auto Scaling):**
+   - **Frontend:** [https://datxe-booking.vercel.app](https://datxe-booking.vercel.app) *(Vercel Global Edge Network)*
+   - **Backend API:** `https://datxe-com.onrender.com` *(Render Container Service)*
+   - **Database:** Neon Cloud PostgreSQL *(Serverless Database)*
+   - **Ưu điểm:** Tự động mở rộng, tự cấp SSL, không tốn phí duy trì hạ tầng, không lo sập server.
+
+2. **Môi trường AWS EC2 (Truyền thống):**
+   - **Website:** `https://datxe.duckdns.org` *(AWS EC2 t3.micro)*
+   - **Cấu hình:** Docker Compose (7 Container), Nginx Reverse Proxy, Let's Encrypt SSL, AWS RDS SQL Server.
 
 ---
 
@@ -26,10 +35,11 @@ Hệ thống đã được triển khai thử nghiệm trên nền tảng điệ
 | Thành phần | Công nghệ |
 | :--- | :--- |
 | **Backend** | Java Spring Boot 3, Spring Security 6, JWT, JPA/Hibernate, MapStruct, Caffeine Cache |
-| **Frontend** | React (Vite), CSS Variables, Recharts (Biểu đồ), WebSocket Client, PWA (Progressive Web App) |
-| **Database** | AWS RDS SQL Server (Production) / MS SQL Server 2022 (Local Docker) |
-| **DevOps & Cloud** | AWS (EC2, RDS), Docker Compose, Nginx, Certbot SSL, Prometheus, Grafana, SonarQube |
-| **AI Engine** | Google Gemini AI API (RAG Architecture) |
+| **Frontend** | React (Vite), CSS Variables, Recharts (Biểu đồ), WebSocket Client, PWA |
+| **Database** | Neon Cloud PostgreSQL (Serverless) / AWS RDS SQL Server / MS SQL Server 2022 (Local Docker) |
+| **Hosting & Cloud** | Vercel (Frontend Edge), Render (Backend Container), Neon (Database), AWS EC2 |
+| **DevOps & Tools** | Docker Compose, Nginx Reverse Proxy, Prometheus, Grafana, SonarQube |
+| **AI Engine** | Google Gemini AI API (`gemini-2.0-flash` / `gemini-flash-latest`) |
 | **Real-time & Security** | WebSocket STOMP, Google OAuth2, ZXing QR Code |
 
 ---
