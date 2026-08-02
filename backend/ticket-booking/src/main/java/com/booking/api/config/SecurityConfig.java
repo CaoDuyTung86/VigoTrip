@@ -75,7 +75,9 @@ public class SecurityConfig {
                 "http://localhost:*",
                 "https://*.ngrok-free.dev",
                 "https://*.ngrok.io",
-                "https://*.duckdns.org"
+                "https://*.duckdns.org",
+                "https://*.vercel.app",
+                "https://*.onrender.com"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
