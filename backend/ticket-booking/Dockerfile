@@ -19,5 +19,11 @@ COPY --from=builder /app/target/*.jar app.jar
 # Expose the application port
 EXPOSE 8080
 
-# Command to run the application with RAM limit for free hosting (Render 512MB limit)
-ENTRYPOINT ["java", "-Xmx384m", "-Xms256m", "-jar", "app.jar"]
+# Command to run the application with strict RAM limit for Render free tier (512MB total)
+ENTRYPOINT ["java", \
+  "-Xmx256m", \
+  "-Xms128m", \
+  "-XX:MaxMetaspaceSize=128m", \
+  "-XX:+UseSerialGC", \
+  "-XX:+UseStringDeduplication", \
+  "-jar", "app.jar"]
