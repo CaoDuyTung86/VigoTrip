@@ -31,10 +31,10 @@ public class AIService {
     private static final String AI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
     // Model nhẹ, nhanh, dùng cho chatbot customer support
-    private static final String CHAT_MODEL = "gemini-3.6-flash";
+    private static final String CHAT_MODEL = "gemini-1.5-flash";
 
     // Model mạnh, dùng cho phân tích báo cáo AI (Analytics)
-    private static final String ANALYSIS_MODEL = "gemini-3.6-flash";
+    private static final String ANALYSIS_MODEL = "gemini-1.5-flash";
 
     // Giới hạn an toàn - Cắt giảm để tránh Rate Limit của Groq (6000 TPM)
     private static final int MAX_HISTORY_PAIRS = 3;     // Chỉ lấy 3 lượt chat gần nhất
