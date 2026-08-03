@@ -2249,150 +2249,156 @@ const AirlineTicketsDetail = () => {
           </div>
 
           {/* Flight Cards */}
-          {flights.map((flight, index) => (
-            <div
-              key={index}
-              style={{
-                backgroundColor: "var(--bg-card)",
-                borderRadius: "12px",
-                padding: "20px",
-                marginBottom: "15px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                transition: "all 0.2s",
-                cursor: "pointer",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
-                e.currentTarget.style.transform = "scale(1.01)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.05)";
-                e.currentTarget.style.transform = "scale(1)";
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "30px" }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: "18px", fontWeight: "600" }}>{flight.departure}</div>
-                  <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{flight.departureAirport}</div>
-                </div>
+          {flights.map((flight, index) => {
+            const airlineInitials = (flight.airline || "VN")
+              .split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+            const airlineColors = {
+              "VJ": "#e3001b", "VN": "#005baa", "BB": "#f7941d",
+              "QH": "#00843d", "VU": "#7b2d8b", "VB": "#ff6600",
+            };
+            const logoColor = airlineColors[airlineInitials] || "#4f7cff";
 
-                <div style={{ textAlign: "center", minWidth: "100px" }}>
-                  <div style={{ 
-                    fontSize: "12px", 
-                    color: "var(--primary)", 
-                    background: "#e8f4ff", 
-                    padding: "4px 8px", 
-                    borderRadius: "4px", 
-                    display: "inline-block",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--primary)";
-                    e.currentTarget.style.color = "#fff";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#e8f4ff";
-                    e.currentTarget.style.color = "#4f7cff";
-                  }}
-                  >
-                    {flight.type}
+            return (
+              <div
+                key={index}
+                style={{
+                  backgroundColor: "var(--bg-card)",
+                  border: "1.5px solid var(--border-light)",
+                  borderRadius: "16px",
+                  padding: "18px 22px",
+                  marginBottom: "15px",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                  transition: "all 0.22s cubic-bezier(.4,0,.2,1)",
+                  cursor: "pointer",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = "0 8px 28px rgba(79,124,255,0.14)";
+                  e.currentTarget.style.borderColor = "#4f7cff55";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.05)";
+                  e.currentTarget.style.borderColor = "var(--border-light)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  {/* Airline logo circle */}
+                  <div style={{
+                    width: 52, height: 52, borderRadius: 14,
+                    background: `linear-gradient(135deg,${logoColor}22,${logoColor}44)`,
+                    border: `2px solid ${logoColor}55`,
+                    display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center",
+                    flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: logoColor, lineHeight: 1 }}>
+                      {airlineInitials}
+                    </span>
+                    <span style={{ fontSize: 8, color: logoColor + "bb", fontWeight: 600, marginTop: 2 }}>
+                      AIRLINE
+                    </span>
                   </div>
-                  <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "5px" }}>
-                    {flight.duration}
+
+                  {/* Provider name */}
+                  <div style={{ minWidth: 100, flexShrink: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)" }}>
+                      {flight.airline}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
+                      Máy bay
+                    </div>
                   </div>
-                </div>
 
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: "18px", fontWeight: "600" }}>{flight.arrival}</div>
-                  <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{flight.arrivalAirport}</div>
-                </div>
+                  {/* Separator */}
+                  <div style={{ width: 1, height: 44, background: "var(--border-light)", flexShrink: 0 }} />
 
-                <div style={{ display: "flex", gap: "10px", marginLeft: "20px" }}>
-                  <FaSuitcase 
-                    style={{ 
-                      color: "var(--text-secondary)", 
-                      fontSize: "16px", 
-                      cursor: "pointer", 
-                      opacity: 0.6,
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#4f7cff";
-                      e.currentTarget.style.opacity = "1";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "#666";
-                      e.currentTarget.style.opacity = "0.6";
-                    }}
-                  />
-                  <FaUtensils 
-                    style={{ 
-                      color: flight.meals ? "#4f7cff" : "#666", 
-                      fontSize: "16px", 
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "scale(1.2)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "scale(1)";
-                    }}
-                  />
-                  <FaWifi 
-                    style={{ 
-                      color: flight.wifi ? "#4f7cff" : "#666", 
-                      fontSize: "16px", 
-                      cursor: "pointer", 
-                      opacity: 0.6,
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#4f7cff";
-                      e.currentTarget.style.opacity = "1";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "#666";
-                      e.currentTarget.style.opacity = "0.6";
-                    }}
-                  />
+                  {/* Time + route block */}
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 12 }}>
+                    {/* Departure */}
+                    <div style={{ textAlign: "center", minWidth: 70 }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>
+                        {flight.departure}
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginTop: 3 }}>
+                        {flight.departureAirport}
+                      </div>
+                    </div>
+
+                    {/* Route line */}
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 80 }}>
+                      <div style={{
+                        fontSize: 11, color: "#4f7cff", fontWeight: 700,
+                        background: "#e8f0ff", padding: "2px 10px", borderRadius: 20,
+                      }}>
+                        ⏱ {flight.duration}
+                      </div>
+                      <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 4 }}>
+                        <div style={{ flex: 1, height: 2, background: "linear-gradient(90deg,#4f7cff44,#4f7cff)" }} />
+                        <span style={{ fontSize: 14, color: "#4f7cff" }}>✈</span>
+                        <div style={{ flex: 1, height: 2, background: "linear-gradient(90deg,#4f7cff,#4f7cff44)" }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--text-secondary)" }}>{flight.type}</div>
+                    </div>
+
+                    {/* Arrival */}
+                    <div style={{ textAlign: "center", minWidth: 70 }}>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>
+                        {flight.arrival}
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginTop: 3 }}>
+                        {flight.arrivalAirport}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Separator */}
+                  <div style={{ width: 1, height: 44, background: "var(--border-light)", flexShrink: 0 }} />
+
+                  {/* Amenities */}
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
+                    <FaSuitcase style={{ color: "#4f7cff", fontSize: 16 }} title="Hành lý kí gửi" />
+                    <FaUtensils style={{ color: flight.meals ? "#4f7cff" : "#ccc", fontSize: 16 }} title="Suất ăn" />
+                    <FaWifi style={{ color: flight.wifi ? "#4f7cff" : "#ccc", fontSize: 16 }} title="Wifi" />
+                  </div>
+
+                  {/* Separator */}
+                  <div style={{ width: 1, height: 44, background: "var(--border-light)", flexShrink: 0 }} />
+
+                  {/* Price + CTA */}
+                  <div style={{ textAlign: "center", minWidth: 130, flexShrink: 0 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>Giá/người</div>
+                    <div style={{
+                      fontSize: 22, fontWeight: 900,
+                      background: "linear-gradient(135deg,#f97316,#ef4444)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      lineHeight: 1,
+                      marginBottom: 8,
+                    }}>
+                      {flight.price}
+                    </div>
+                    <button
+                      onClick={() => handleFlightSelect(flight)}
+                      style={{
+                        background: "linear-gradient(135deg,#4f7cff,#6a3de8)",
+                        color: "#fff", border: "none",
+                        padding: "8px 22px", borderRadius: 10,
+                        fontWeight: 700, fontSize: 14, cursor: "pointer",
+                        width: "100%",
+                        boxShadow: "0 4px 12px rgba(79,124,255,0.35)",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      Chọn {activeTab === "roundTrip" ? "Khứ hồi" : "Một chiều"}
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: "20px", fontWeight: "600", color: "var(--primary)" }}>{flight.price}</div>
-                <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "5px" }}>{flight.airline}</div>
-                <button
-                  onClick={() => handleFlightSelect(flight)}
-                  style={{
-                    marginTop: "10px",
-                    padding: "8px 20px",
-                    backgroundColor: "var(--primary)",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = "var(--primary-hover)";
-                    e.target.style.transform = "scale(1.05)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = "var(--primary)";
-                    e.target.style.transform = "scale(1)";
-                  }}
-                >
-                  Chọn {activeTab === "roundTrip" ? "Khứ hồi" : "Một chiều"}
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
