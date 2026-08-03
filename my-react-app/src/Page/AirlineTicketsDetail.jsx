@@ -1,25 +1,20 @@
 import React, { useState } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { useSavedPassengers } from "../context/SavedPassengersContext";
-import PassengerInfoForm from "../components/PassengerInfoForm";
-import { FiSearch, FiFilter, FiClock, FiInfo, FiChevronDown, FiX, FiUsers, FiCalendar, FiGift } from "react-icons/fi";
+import { FiSearch, FiClock, FiInfo, FiChevronDown, FiX, FiCalendar, FiGift } from "react-icons/fi";
 import { IoIosArrowForward, IoIosArrowBack } from "react-icons/io";
 import { MdFlightTakeoff, MdFlightLand } from "react-icons/md";
-import { FaSuitcase, FaUtensils, FaWifi, FaUserFriends, FaChair, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
+import { FaSuitcase, FaUtensils, FaWifi, FaUserFriends } from "react-icons/fa";
 import { GiCommercialAirplane } from "react-icons/gi";
 import VNFlag from "../Picture/flags/vn.png";
-import JPFlag from "../Picture/flags/jp.png";
-import TWFlag from "../Picture/flags/tw.png";
-import UKFlag from "../Picture/flags/uk.png";
 
 // Flight Booking Detail Component
 const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts }) => {
-  const { t } = useLanguage();
   const [selectedClass, setSelectedClass] = useState("economy");
   const [selectedPayment, setSelectedPayment] = useState("momo");
   const [passengerInfoList, setPassengerInfoList] = React.useState([]);
-  const [globalContact, setGlobalContact] = React.useState({ promoOptIn: true, remember: false });
-  const { savedPassengers, addPassenger } = useSavedPassengers();
+  const [globalContact] = React.useState({ promoOptIn: true, remember: false });
+  const { addPassenger } = useSavedPassengers();
 
   React.useEffect(() => {
     if(!passengerCounts) return;
@@ -29,14 +24,6 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
     for (let i = 0; i < passengerCounts.infant; i++) newList.push({ type: "INFANT", data: {} });
     setPassengerInfoList(prev => newList.map((item, idx) => prev[idx] ? { ...item, data: prev[idx].data } : item));
   }, [passengerCounts]);
-
-  const handlePassengerChange = (index, type, data) => {
-    setPassengerInfoList(prev => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], data };
-      return copy;
-    });
-  };
 
   // Dữ liệu mẫu - có thể nhận từ props
   const data = flightData || {
@@ -638,48 +625,40 @@ const CitySelector = ({ type, onSelect, onClose }) => {
       ]
     },
     {
-      id: "japan",
-      name: "Nhật Bản",
-      flag: JPFlag,
+      id: "north",
+      name: "Miền Bắc",
+      flag: VNFlag,
       cities: [
-        { name: "Tokyo", code: "HND", airport: "Haneda", district: "Tokyo" },
-        { name: "Tokyo", code: "NRT", airport: "Narita", district: "Chiba" },
-        { name: "Osaka", code: "KIX", airport: "Kansai", district: "Osaka" },
-        { name: "Nagoya", code: "NGO", airport: "Chubu", district: "Aichi" },
-        { name: "Sapporo", code: "CTS", airport: "New Chitose", district: "Hokkaido" },
-        { name: "Fukuoka", code: "FUK", airport: "Fukuoka", district: "Fukuoka" },
-        { name: "Okinawa", code: "OKA", airport: "Naha", district: "Okinawa" },
-        { name: "Hiroshima", code: "HIJ", airport: "Hiroshima", district: "Hiroshima" },
-        { name: "Sendai", code: "SDJ", airport: "Sendai", district: "Miyagi" },
-        { name: "Kagoshima", code: "KOJ", airport: "Kagoshima", district: "Kagoshima" },
+        { name: "Hà Nội", code: "HAN", airport: "Nội Bài", district: "Mọi sân bay" },
+        { name: "Hải Phòng", code: "HPH", airport: "Cát Bi", district: "Hải Phòng" },
+        { name: "Vinh", code: "VII", airport: "Vinh", district: "Nghệ An" },
+        { name: "Vân Đồn", code: "VDO", airport: "Vân Đồn", district: "Quảng Ninh" },
+        { name: "Điện Biên", code: "DIN", airport: "Điện Biên", district: "Điện Biên" },
       ]
     },
     {
-      id: "taiwan",
-      name: "Đài Loan",
-      flag: TWFlag,
+      id: "central",
+      name: "Miền Trung",
+      flag: VNFlag,
       cities: [
-        { name: "Đài Bắc", code: "TPE", airport: "Đào Viên", district: "Đài Bắc" },
-        { name: "Đài Bắc", code: "TSA", airport: "Tùng Sơn", district: "Đài Bắc" },
-        { name: "Cao Hùng", code: "KHH", airport: "Cao Hùng", district: "Cao Hùng" },
-        { name: "Đài Trung", code: "RMQ", airport: "Đài Trung", district: "Đài Trung" },
-        { name: "Đài Nam", code: "TNN", airport: "Đài Nam", district: "Đài Nam" },
-        { name: "Hoa Liên", code: "HUN", airport: "Hoa Liên", district: "Hoa Liên" },
+        { name: "Đà Nẵng", code: "DAD", airport: "Đà Nẵng", district: "Mọi sân bay" },
+        { name: "Nha Trang", code: "CXR", airport: "Cam Ranh", district: "Khánh Hòa" },
+        { name: "Huế", code: "HUI", airport: "Phú Bài", district: "Thừa Thiên Huế" },
+        { name: "Quy Nhơn", code: "UIH", airport: "Phù Cát", district: "Bình Định" },
+        { name: "Đà Lạt", code: "DLI", airport: "Liên Khương", district: "Lâm Đồng" },
+        { name: "Tuy Hòa", code: "TBB", airport: "Tuy Hòa", district: "Phú Yên" },
       ]
     },
     {
-      id: "uk",
-      name: "Anh Quốc",
-      flag: UKFlag,
+      id: "south",
+      name: "Miền Nam",
+      flag: VNFlag,
       cities: [
-        { name: "Luân Đôn", code: "LHR", airport: "Heathrow", district: "London" },
-        { name: "Luân Đôn", code: "LGW", airport: "Gatwick", district: "London" },
-        { name: "Luân Đôn", code: "STN", airport: "Stansted", district: "London" },
-        { name: "Manchester", code: "MAN", airport: "Manchester", district: "Manchester" },
-        { name: "Edinburgh", code: "EDI", airport: "Edinburgh", district: "Edinburgh" },
-        { name: "Birmingham", code: "BHX", airport: "Birmingham", district: "Birmingham" },
-        { name: "Glasgow", code: "GLA", airport: "Glasgow", district: "Glasgow" },
-        { name: "Liverpool", code: "LPL", airport: "Liverpool", district: "Liverpool" },
+        { name: "TP. Hồ Chí Minh", code: "SGN", airport: "Tân Sơn Nhất", district: "Mọi sân bay" },
+        { name: "Phú Quốc", code: "PQC", airport: "Phú Quốc", district: "Kiên Giang" },
+        { name: "Cần Thơ", code: "VCA", airport: "Cần Thơ", district: "Cần Thơ" },
+        { name: "Rạch Giá", code: "VKG", airport: "Rạch Giá", district: "Kiên Giang" },
+        { name: "Côn Đảo", code: "VCS", airport: "Côn Đảo", district: "Bà Rịa - Vũng Tàu" },
       ]
     },
   ];
@@ -864,7 +843,7 @@ const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialC
   ];
 
   const updatePassenger = (type, increment) => {
-    setPassengerCounts(prev => {
+    setPassengers(prev => {
       const newValue = increment ? prev[type] + 1 : Math.max(0, prev[type] - 1);
       const total = Object.values({...prev, [type]: newValue}).reduce((a, b) => a + b, 0);
       if (total > 9) return prev;
@@ -1404,7 +1383,6 @@ const AirlineTicketsDetail = () => {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState("roundTrip");
   const [selectedDate, setSelectedDate] = useState(null);
-  const [showFilters, setShowFilters] = useState(false);
   const [showCitySelector, setShowCitySelector] = useState(false);
   const [showDateSelector, setShowDateSelector] = useState(false);
   const [showPassengerSelector, setShowPassengerSelector] = useState(false);
@@ -1550,7 +1528,8 @@ const AirlineTicketsDetail = () => {
         return `${date.getDate()}/${date.getMonth() + 1}`;
       };
       
-      const randomPrice = basePrice + Math.floor(Math.random() * 500000) - 250000;
+      const priceVariance = ((i * 137 + Math.abs(offset) * 97) % 50) * 10000 - 250000;
+      const randomPrice = basePrice + priceVariance;
       const formattedPrice = randomPrice.toLocaleString('vi-VN') + '₫';
       
       prices.push({

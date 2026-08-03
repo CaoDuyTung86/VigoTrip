@@ -33,34 +33,50 @@ public class ChatService implements AIService.ToolHandler {
     private static final int MAX_USER_MESSAGE_LENGTH = 500; // ký tự
     private static final int MAX_HISTORY_PAIRS_FRONTEND = 10; // cặp tối đa nhận từ Frontend
 
-    // State Caching cho từng User Session (Caffeine Cache với TTL 30 phút chống rò rỉ bộ nhớ)
-    private final com.github.benmanes.caffeine.cache.Cache<String, Map<String, String>> sessionCache = com.github.benmanes.caffeine.cache.Caffeine.newBuilder()
+    // State Caching cho từng User Session (Caffeine Cache với TTL 30 phút chống rò
+    // rỉ bộ nhớ)
+    private final com.github.benmanes.caffeine.cache.Cache<String, Map<String, String>> sessionCache = com.github.benmanes.caffeine.cache.Caffeine
+            .newBuilder()
             .expireAfterAccess(30, java.util.concurrent.TimeUnit.MINUTES)
             .maximumSize(2000)
             .build();
 
     // RAG Knowledge Base với Tiếng Việt & Từ đồng nghĩa (Synonym-aware RAG Engine)
     private static final Map<String, String> FAQ_DB = Map.of(
-        "PETS", "Quy định thú cưng: Máy bay không cho phép mang thú cưng lên khoang hành khách. Xe khách cho phép mang thú cưng nhỏ nếu để trong lồng chuyên dụng dưới gầm xe.",
-        "CANCEL", "Chính sách hủy vé: Hủy trước 24h khởi hành được hoàn 100%. Hủy trước 12h hoàn 50%. Dưới 12h không được hoàn tiền. Khách hàng truy cập mục [Lịch sử đặt vé] để hủy.",
-        "BAGGAGE", "Quy định hành lý: Máy bay bao gồm 7kg xách tay + 20kg ký gửi. Xe khách miễn phí tối đa 20kg/hành khách.",
-        "CHILDREN", "Vé trẻ em: Dưới 2 tuổi miễn phí (ngồi cùng người lớn). Từ 2-12 tuổi tính 75% giá vé người lớn.",
-        "PAYMENT", "Phương thức thanh toán: Hệ thống hỗ trợ thanh toán trực tuyến qua VNPAY (Thẻ ATM, QR Code, Visa/Mastercard, Ví điện tử).",
-        "PROMO", "Mã giảm giá hiện có: WELCOME20 (giảm 20%), SUMMER2026 (giảm 15%), AI_PROMO_10 (giảm 10% độc quyền AI)."
-    );
+            "PETS",
+            "Quy định thú cưng: Máy bay không cho phép mang thú cưng lên khoang hành khách. Xe khách cho phép mang thú cưng nhỏ nếu để trong lồng chuyên dụng dưới gầm xe.",
+            "CANCEL",
+            "Chính sách hủy vé: Hủy trước 24h khởi hành được hoàn 100%. Hủy trước 12h hoàn 50%. Dưới 12h không được hoàn tiền. Khách hàng truy cập mục [Lịch sử đặt vé] để hủy.",
+            "BAGGAGE",
+            "Quy định hành lý: Máy bay bao gồm 7kg xách tay + 20kg ký gửi. Xe khách miễn phí tối đa 20kg/hành khách.",
+            "CHILDREN",
+            "Vé trẻ em: Dưới 2 tuổi miễn phí (ngồi cùng người lớn). Từ 2-12 tuổi tính 75% giá vé người lớn.",
+            "PAYMENT",
+            "Phương thức thanh toán: Hệ thống hỗ trợ thanh toán trực tuyến qua VNPAY (Thẻ ATM, QR Code, Visa/Mastercard, Ví điện tử).",
+            "PROMO",
+            "Mã giảm giá hiện có: WELCOME20 (giảm 20%), SUMMER2026 (giảm 15%), AI_PROMO_10 (giảm 10% độc quyền AI).");
 
     // Từ điển đồng nghĩa & Không dấu (Synonyms & Normalized Keywords)
     private static final Map<String, List<String>> SYNONYM_MAP = Map.of(
-        "PETS", List.of("thú cưng", "thu cung", "chó", "cho", "mèo", "meo", "pet", "động vật", "dong vat", "cún", "cun"),
-        "CANCEL", List.of("hủy vé", "huy ve", "trả vé", "tra ve", "đổi vé", "doi ve", "hoàn vé", "hoan ve", "bùng vé", "bung ve", "cancel"),
-        "BAGGAGE", List.of("hành lý", "hanh ly", "vali", "xách tay", "xach tay", "ký gửi", "ky gui", "mấy kg", "may kg", "mấy cân", "may can", "luggage", "baggage"),
-        "CHILDREN", List.of("trẻ em", "tre em", "em bé", "em be", "bé", "be", "trẻ nhỏ", "tre nho", "baby", "kid", "nhỏ tuổi"),
-        "PAYMENT", List.of("thanh toán", "thanh toan", "chuyển khoản", "chuyen khoan", "vnpay", "ví", "vi", "thẻ", "the", "trả tiền", "tra tien", "pay"),
-        "PROMO", List.of("khuyến mãi", "khuyen mai", "giảm giá", "giam gia", "voucher", "mã", "ma", "discount", "ưu đãi", "uu dai", "rẻ hơn", "re hon")
-    );
+            "PETS",
+            List.of("thú cưng", "thu cung", "chó", "cho", "mèo", "meo", "pet", "động vật", "dong vat", "cún", "cun"),
+            "CANCEL",
+            List.of("hủy vé", "huy ve", "trả vé", "tra ve", "đổi vé", "doi ve", "hoàn vé", "hoan ve", "bùng vé",
+                    "bung ve", "cancel"),
+            "BAGGAGE",
+            List.of("hành lý", "hanh ly", "vali", "xách tay", "xach tay", "ký gửi", "ky gui", "mấy kg", "may kg",
+                    "mấy cân", "may can", "luggage", "baggage"),
+            "CHILDREN",
+            List.of("trẻ em", "tre em", "em bé", "em be", "bé", "be", "trẻ nhỏ", "tre nho", "baby", "kid", "nhỏ tuổi"),
+            "PAYMENT",
+            List.of("thanh toán", "thanh toan", "chuyển khoản", "chuyen khoan", "vnpay", "ví", "vi", "thẻ", "the",
+                    "trả tiền", "tra tien", "pay"),
+            "PROMO", List.of("khuyến mãi", "khuyen mai", "giảm giá", "giam gia", "voucher", "mã", "ma", "discount",
+                    "ưu đãi", "uu dai", "rẻ hơn", "re hon"));
 
     private String removeAccents(String str) {
-        if (str == null) return "";
+        if (str == null)
+            return "";
         String nfdNormalizedString = java.text.Normalizer.normalize(str, java.text.Normalizer.Form.NFD);
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
         return pattern.matcher(nfdNormalizedString).replaceAll("").replace('đ', 'd').replace('Đ', 'D');
@@ -80,11 +96,21 @@ public class ChatService implements AIService.ToolHandler {
         DecimalFormat df = new DecimalFormat("#,###", symbols);
 
         if ("search_trips".equals(functionName)) {
-            String origin = arguments != null && arguments.containsKey("origin") ? String.valueOf(arguments.get("origin")) : null;
-            String destination = arguments != null && arguments.containsKey("destination") ? String.valueOf(arguments.get("destination")) : null;
-            String vehicleType = arguments != null && arguments.containsKey("vehicleType") ? String.valueOf(arguments.get("vehicleType")) : null;
-            String dateStr = arguments != null && arguments.containsKey("departureDate") ? String.valueOf(arguments.get("departureDate")) : null;
-            String timeSlot = arguments != null && arguments.containsKey("timeSlot") ? String.valueOf(arguments.get("timeSlot")) : null;
+            String origin = arguments != null && arguments.containsKey("origin")
+                    ? String.valueOf(arguments.get("origin"))
+                    : null;
+            String destination = arguments != null && arguments.containsKey("destination")
+                    ? String.valueOf(arguments.get("destination"))
+                    : null;
+            String vehicleType = arguments != null && arguments.containsKey("vehicleType")
+                    ? String.valueOf(arguments.get("vehicleType"))
+                    : null;
+            String dateStr = arguments != null && arguments.containsKey("departureDate")
+                    ? String.valueOf(arguments.get("departureDate"))
+                    : null;
+            String timeSlot = arguments != null && arguments.containsKey("timeSlot")
+                    ? String.valueOf(arguments.get("timeSlot"))
+                    : null;
 
             LocalDateTime startOfDay = LocalDateTime.now();
             LocalDateTime endOfDay = LocalDateTime.of(2099, 12, 31, 23, 59, 59);
@@ -101,10 +127,12 @@ public class ChatService implements AIService.ToolHandler {
                         if ("MORNING".equals(ts) || ts.contains("SÁNG") || ts.contains("SANG")) {
                             startOfDay = date.atTime(5, 0, 0);
                             endOfDay = date.atTime(12, 0, 0);
-                        } else if ("AFTERNOON".equals(ts) || ts.contains("CHIỀU") || ts.contains("CHIEU") || ts.contains("TRƯA") || ts.contains("TRUA")) {
+                        } else if ("AFTERNOON".equals(ts) || ts.contains("CHIỀU") || ts.contains("CHIEU")
+                                || ts.contains("TRƯA") || ts.contains("TRUA")) {
                             startOfDay = date.atTime(12, 0, 0);
                             endOfDay = date.atTime(18, 0, 0);
-                        } else if ("EVENING".equals(ts) || ts.contains("TỐI") || ts.contains("TOI") || ts.contains("ĐÊM") || ts.contains("DEM")) {
+                        } else if ("EVENING".equals(ts) || ts.contains("TỐI") || ts.contains("TOI")
+                                || ts.contains("ĐÊM") || ts.contains("DEM")) {
                             startOfDay = date.atTime(18, 0, 0);
                             endOfDay = date.atTime(23, 59, 59);
                         } else if ("EARLY_MORNING".equals(ts)) {
@@ -127,14 +155,20 @@ public class ChatService implements AIService.ToolHandler {
 
             // Lưu vào State Caching theo sessionKey
             String effectiveKey = (sessionKey != null && !sessionKey.isBlank()) ? sessionKey : "default_session";
-            Map<String, String> cache = sessionCache.get(effectiveKey, k -> new java.util.concurrent.ConcurrentHashMap<>());
-            if (origin != null && !origin.isBlank() && !"null".equals(origin)) cache.put("origin", origin);
-            if (destination != null && !destination.isBlank() && !"null".equals(destination)) cache.put("destination", destination);
-            if (dateStr != null && !dateStr.isBlank() && !"null".equals(dateStr)) cache.put("date", dateStr);
-            if (timeSlot != null && !timeSlot.isBlank() && !"null".equals(timeSlot)) cache.put("timeSlot", timeSlot);
+            Map<String, String> cache = sessionCache.get(effectiveKey,
+                    k -> new java.util.concurrent.ConcurrentHashMap<>());
+            if (origin != null && !origin.isBlank() && !"null".equals(origin))
+                cache.put("origin", origin);
+            if (destination != null && !destination.isBlank() && !"null".equals(destination))
+                cache.put("destination", destination);
+            if (dateStr != null && !dateStr.isBlank() && !"null".equals(dateStr))
+                cache.put("date", dateStr);
+            if (timeSlot != null && !timeSlot.isBlank() && !"null".equals(timeSlot))
+                cache.put("timeSlot", timeSlot);
 
-            List<Trip> trips = tripRepository.searchTripsFlexible(origin, destination, vehicleType, startOfDay, endOfDay,
-                    PageRequest.of(0, 4));  // Giới hạn 4 kết quả — tránh bloat token ở lần gọi API 2 (function calling)
+            List<Trip> trips = tripRepository.searchTripsFlexible(origin, destination, vehicleType, startOfDay,
+                    endOfDay,
+                    PageRequest.of(0, 4)); // Giới hạn 4 kết quả — tránh bloat token ở lần gọi API 2 (function calling)
 
             if (trips.isEmpty()) {
                 return "Không tìm thấy chuyến đi phù hợp nào trong hệ thống.";
@@ -227,10 +261,14 @@ public class ChatService implements AIService.ToolHandler {
         Map<String, String> cache = sessionCache.getIfPresent(effectiveKey);
         if (cache != null && !cache.isEmpty()) {
             cacheContext.append("Khách hàng đang quan tâm tuyến đường: ");
-            if (cache.containsKey("origin")) cacheContext.append("Từ ").append(cache.get("origin")).append(" ");
-            if (cache.containsKey("destination")) cacheContext.append("Đến ").append(cache.get("destination")).append(" ");
-            if (cache.containsKey("date")) cacheContext.append("Ngày ").append(cache.get("date")).append(" ");
-            if (cache.containsKey("timeSlot")) cacheContext.append("Giờ: ").append(cache.get("timeSlot"));
+            if (cache.containsKey("origin"))
+                cacheContext.append("Từ ").append(cache.get("origin")).append(" ");
+            if (cache.containsKey("destination"))
+                cacheContext.append("Đến ").append(cache.get("destination")).append(" ");
+            if (cache.containsKey("date"))
+                cacheContext.append("Ngày ").append(cache.get("date")).append(" ");
+            if (cache.containsKey("timeSlot"))
+                cacheContext.append("Giờ: ").append(cache.get("timeSlot"));
             cacheContext.append(". ");
         }
 
@@ -243,7 +281,7 @@ public class ChatService implements AIService.ToolHandler {
                 "PHONG CÁCH GIAO TIẾP:\n" +
                 "- Nói chuyện như một người bạn thực sự: tự nhiên, xưng hô lịch sự nhưng gần gũi (mình - bạn, Son - bạn), vui vẻ và ấm áp.\n"
                 +
-                "- Sử dụng các từ đệm tự nhiên như: 'nhé', 'nha', 'thế', 'nè', 'ạ', 'giúp mình'.\n" +
+                "- Sử dụng các từ đệm tự nhiên như: 'nhé', 'ạ', 'giúp mình'.\n" +
                 "- Câu trả lời phải ngắn gọn, súc tích (dưới 120 từ), không giải thích dài dòng lê thê.\n" +
                 "- TUYỆT ĐỐI CẤM sử dụng các từ ngữ mang tính kỹ thuật, lộ thông tin hệ thống hoặc data dump như:\n" +
                 "  + 'trong danh sách được cung cấp', 'theo danh sách của bạn', 'dữ liệu chuyến đi của chúng tôi'\n" +

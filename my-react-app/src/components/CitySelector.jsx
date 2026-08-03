@@ -3,45 +3,56 @@ import { useLanguage } from "../context/LanguageContext";
 import { IoClose, IoSearch } from "react-icons/io5";
 
 const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
-  const { t, currentLanguage } = useLanguage();
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedTab, setSelectedTab] = useState("vietnam");
+  const [selectedTab, setSelectedTab] = useState("all");
 
   const cities = {
-    vietnam: [
-      { code: "HAN", name: t.hanoi, en: "Hanoi", ja: "ハノイ", zh: "河內" },
-      { code: "SGN", name: t.hcmc, en: "Ho Chi Minh City", ja: "ホーチミン", zh: "胡志明市" },
-      { code: "DAD", name: t.danang, en: "Da Nang", ja: "ダナン", zh: "峴港" },
+    all: [
+      { code: "HAN", name: "Hà Nội", airport: "Sân bay Nội Bài / Ga Hà Nội / Bến xe Mỹ Đình" },
+      { code: "SGN", name: "TP. Hồ Chí Minh", airport: "Sân bay Tân Sơn Nhất / Ga Sài Gòn / Bến xe Miền Đông" },
+      { code: "DAD", name: "Đà Nẵng", airport: "Sân bay Đà Nẵng / Ga Đà Nẵng" },
+      { code: "CXR", name: "Nha Trang (Cam Ranh)", airport: "Sân bay Cam Ranh / Ga Nha Trang" },
+      { code: "PQC", name: "Phú Quốc", airport: "Sân bay Phú Quốc" },
+      { code: "HUI", name: "Huế", airport: "Sân bay Phú Bài / Ga Huế" },
+      { code: "DLI", name: "Đà Lạt", airport: "Sân bay Liên Khương / Bến xe Đà Lạt" },
+      { code: "VCA", name: "Cần Thơ", airport: "Sân bay Cần Thơ / Bến xe Cần Thơ" },
+      { code: "HPH", name: "Hải Phòng", airport: "Sân bay Cát Bi / Ga Hải Phòng" },
+      { code: "VII", name: "Vinh", airport: "Sân bay Vinh / Ga Vinh" },
+      { code: "SAP", name: "Sa Pa", airport: "Bến xe Sa Pa / Ga Lào Cai" },
+      { code: "QNH", name: "Quy Nhơn", airport: "Sân bay Phù Cát / Bến xe Quy Nhơn" },
     ],
-    taiwan: [
-      { code: "TPE", name: t.taipei, en: "Taipei", ja: "台北", zh: "台北" },
-      { code: "KHH", name: t.kaohsiung, en: "Kaohsiung", ja: "高雄", zh: "高雄" },
-      { code: "TXG", name: t.taichung, en: "Taichung", ja: "台中", zh: "台中" },
+    north: [
+      { code: "HAN", name: "Hà Nội", airport: "Sân bay Nội Bài / Ga Hà Nội / Bến xe Mỹ Đình" },
+      { code: "HPH", name: "Hải Phòng", airport: "Sân bay Cát Bi / Ga Hải Phòng" },
+      { code: "SAP", name: "Sa Pa (Lào Cai)", airport: "Bến xe Sa Pa / Ga Lào Cai" },
+      { code: "VII", name: "Vinh (Nghệ An)", airport: "Sân bay Vinh / Ga Vinh" },
+      { code: "VDO", name: "Vân Đồn (Quảng Ninh)", airport: "Sân bay Vân Đồn" },
     ],
-    japan: [
-      { code: "NRT", name: t.tokyo, en: "Tokyo", ja: "東京", zh: "東京" },
-      { code: "KIX", name: t.osaka, en: "Osaka", ja: "大阪", zh: "大阪" },
-      { code: "NGO", name: t.nagoya, en: "Nagoya", ja: "名古屋", zh: "名古屋" },
-      { code: "CTS", name: t.sapporo, en: "Sapporo", ja: "札幌", zh: "札幌" },
-      { code: "FUK", name: t.fukuoka, en: "Fukuoka", ja: "福岡", zh: "福岡" },
+    central: [
+      { code: "DAD", name: "Đà Nẵng", airport: "Sân bay Đà Nẵng / Ga Đà Nẵng" },
+      { code: "HUI", name: "Thừa Thiên Huế", airport: "Sân bay Phú Bài / Ga Huế" },
+      { code: "CXR", name: "Nha Trang (Khánh Hòa)", airport: "Sân bay Cam Ranh / Ga Nha Trang" },
+      { code: "QNH", name: "Quy Nhơn (Bình Định)", airport: "Sân bay Phù Cát" },
+      { code: "DLI", name: "Đà Lạt (Lâm Đồng)", airport: "Sân bay Liên Khương / Bến xe Đà Lạt" },
     ],
-    uk: [
-      { code: "LHR", name: t.london, en: "London", ja: "ロンドン", zh: "倫敦" },
-      { code: "MAN", name: t.manchester, en: "Manchester", ja: "マンチェスター", zh: "曼徹斯特" },
-      { code: "EDI", name: t.edinburgh, en: "Edinburgh", ja: "エディンバラ", zh: "愛丁堡" },
-      { code: "BHX", name: t.birmingham, en: "Birmingham", ja: "バーミンガム", zh: "伯明翰" },
+    south: [
+      { code: "SGN", name: "TP. Hồ Chí Minh", airport: "Sân bay Tân Sơn Nhất / Ga Sài Gòn" },
+      { code: "PQC", name: "Phú Quốc (Kiên Giang)", airport: "Sân bay Phú Quốc" },
+      { code: "VCA", name: "Cần Thơ", airport: "Sân bay Cần Thơ" },
+      { code: "VKG", name: "Rạch Giá (Kiên Giang)", airport: "Sân bay Rạch Giá" },
+      { code: "VCS", name: "Côn Đảo (Bà Rịa - Vũng Tàu)", airport: "Sân bay Côn Đảo" },
     ],
   };
 
   const tabs = [
-    { id: "vietnam", label: t.vietnam },
-    { id: "taiwan", label: t.taiwan },
-    { id: "japan", label: t.japan },
-    { id: "uk", label: t.uk },
+    { id: "all", label: "Tất cả Việt Nam" },
+    { id: "north", label: "Miền Bắc" },
+    { id: "central", label: "Miền Trung" },
+    { id: "south", label: "Miền Nam" },
   ];
 
   const getCityName = (city) => {
-    
     return city.name;
   };
 
@@ -175,7 +186,7 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
           paddingRight: "8px",
         }}>
          
-          {selectedTab === "vietnam" && (
+          {cities[selectedTab] && (
             <div>
               <h4 style={{
                 fontSize: "14px",
@@ -184,7 +195,7 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
                 marginBottom: "12px",
                 textTransform: "uppercase",
               }}>
-                {t.vietnam}
+                {tabs.find(t => t.id === selectedTab)?.label || "ĐỊA ĐIỂM VIỆT NAM"}
               </h4>
               <div style={{
                 display: "grid",
@@ -192,7 +203,7 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
                 gap: "8px",
                 marginBottom: "16px",
               }}>
-                {filteredCities(cities.vietnam).map(city => (
+                {filteredCities(cities[selectedTab]).map(city => (
                   <button
                     key={city.code}
                     onClick={() => {
@@ -221,172 +232,7 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
                       {getCityName(city)}
                     </div>
                     <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                      {city.code}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-         
-          {selectedTab === "taiwan" && (
-            <div>
-              <h4 style={{
-                fontSize: "14px",
-                fontWeight: "600",
-                color: "var(--text-secondary)",
-                marginBottom: "12px",
-                textTransform: "uppercase",
-              }}>
-                {t.taiwan}
-              </h4>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "8px",
-                marginBottom: "16px",
-              }}>
-                {filteredCities(cities.taiwan).map(city => (
-                  <button
-                    key={city.code}
-                    onClick={() => {
-                      onSelect(city);
-                      onClose();
-                    }}
-                    style={{
-                      padding: "12px",
-                      border: "1px solid #e0e0e0",
-                      borderRadius: "8px",
-                      background: "var(--bg-card)",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.borderColor = "#4f7cff";
-                      e.target.style.boxShadow = "0 2px 8px rgba(79,124,255,0.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.borderColor = "#e0e0e0";
-                      e.target.style.boxShadow = "none";
-                    }}
-                  >
-                    <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                      {getCityName(city)}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                      {city.code}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-        
-          {selectedTab === "japan" && (
-            <div>
-              <h4 style={{
-                fontSize: "14px",
-                fontWeight: "600",
-                color: "var(--text-secondary)",
-                marginBottom: "12px",
-                textTransform: "uppercase",
-              }}>
-                {t.japan}
-              </h4>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "8px",
-                marginBottom: "16px",
-              }}>
-                {filteredCities(cities.japan).map(city => (
-                  <button
-                    key={city.code}
-                    onClick={() => {
-                      onSelect(city);
-                      onClose();
-                    }}
-                    style={{
-                      padding: "12px",
-                      border: "1px solid #e0e0e0",
-                      borderRadius: "8px",
-                      background: "var(--bg-card)",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.borderColor = "#4f7cff";
-                      e.target.style.boxShadow = "0 2px 8px rgba(79,124,255,0.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.borderColor = "#e0e0e0";
-                      e.target.style.boxShadow = "none";
-                    }}
-                  >
-                    <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                      {getCityName(city)}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                      {city.code}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          
-          {selectedTab === "uk" && (
-            <div>
-              <h4 style={{
-                fontSize: "14px",
-                fontWeight: "600",
-                color: "var(--text-secondary)",
-                marginBottom: "12px",
-                textTransform: "uppercase",
-              }}>
-                {t.uk}
-              </h4>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "8px",
-                marginBottom: "16px",
-              }}>
-                {filteredCities(cities.uk).map(city => (
-                  <button
-                    key={city.code}
-                    onClick={() => {
-                      onSelect(city);
-                      onClose();
-                    }}
-                    style={{
-                      padding: "12px",
-                      border: "1px solid #e0e0e0",
-                      borderRadius: "8px",
-                      background: "var(--bg-card)",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.borderColor = "#4f7cff";
-                      e.target.style.boxShadow = "0 2px 8px rgba(79,124,255,0.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.borderColor = "#e0e0e0";
-                      e.target.style.boxShadow = "none";
-                    }}
-                  >
-                    <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                      {getCityName(city)}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                      {city.code}
+                      {city.code} {city.airport ? `• ${city.airport}` : ""}
                     </div>
                   </button>
                 ))}

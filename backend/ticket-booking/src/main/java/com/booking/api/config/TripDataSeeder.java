@@ -30,19 +30,20 @@ public class TripDataSeeder {
         return args -> {
             LocalDateTime now = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
 
-            // Kiểm tra: nếu đã có chuyến đi TRONG TƯƠNG LAI thì bỏ qua
-            long futureTrips = tripRepository.findAll().stream()
-                    .filter(t -> t.getDepartureTime() != null && t.getDepartureTime().isAfter(now))
+            // Kiểm tra: nếu đã có đủ chuyến đi xa trong tương lai (sau 45 ngày) thì bỏ qua
+            LocalDateTime checkPoint = now.plusDays(45);
+            long farFutureTrips = tripRepository.findAll().stream()
+                    .filter(t -> t.getDepartureTime() != null && t.getDepartureTime().isAfter(checkPoint))
                     .count();
 
-            if (futureTrips > 1000) {
-                log.info("[TripDataSeeder] Đã có {} chuyến đi trong tương lai, bỏ qua.", futureTrips);
+            if (farFutureTrips > 200) {
+                log.info("[TripDataSeeder] Đã có {} chuyến đi trong 45-60 ngày tới, bỏ qua.", farFutureTrips);
                 return;
             }
 
             log.info(
-                    "[TripDataSeeder] Phát hiện chỉ có {} chuyến đi trong tương lai. Bắt đầu sinh dữ liệu mới cho 30 ngày tới...",
-                    futureTrips);
+                    "[TripDataSeeder] Phát hiện thiếu dữ liệu tương lai (chỉ có {} chuyến sau 45 ngày). Bắt đầu sinh dữ liệu mới cho 60 ngày tới...",
+                    farFutureTrips);
 
             // ── 1. Routes ──
             String[][] routePairs = {
@@ -196,7 +197,7 @@ public class TripDataSeeder {
                 }
             }
 
-            // ── 4. Trips (30 ngày kể từ HÔM NAY) ──
+            // ── 4. Trips (60 ngày kể từ HÔM NAY) ──
             java.security.SecureRandom rng = new java.security.SecureRandom();
 
             // Plane routes + config
@@ -237,8 +238,8 @@ public class TripDataSeeder {
 
             List<Trip> allTrips = new ArrayList<>();
 
-            // Sinh dữ liệu cho 30 ngày tới (tính từ hôm nay)
-            for (int day = 0; day < 30; day++) {
+            // Sinh dữ liệu cho 60 ngày tới (tính từ hôm nay)
+            for (int day = 0; day < 60; day++) {
                 LocalDateTime base = now.plusDays(day);
 
                 // Plane trips
@@ -303,7 +304,7 @@ public class TripDataSeeder {
             }
 
             tripRepository.saveAll(allTrips);
-            log.info("[TripDataSeeder] ✅ Đã tạo {} chuyến đi mới cho 30 ngày tới (PLANE/BUS/TRAIN).", allTrips.size());
+            log.info("[TripDataSeeder] ✅ Đã tạo {} chuyến đi mới cho 60 ngày tới (PLANE/BUS/TRAIN).", allTrips.size());
         };
     }
 }

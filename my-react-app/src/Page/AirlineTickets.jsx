@@ -19,51 +19,9 @@ import { useLocation } from "react-router-dom";
 import { CgSandClock } from "react-icons/cg";
 import { IoMdSearch } from "react-icons/io";
 import { FiChevronDown } from "react-icons/fi";
-import { FaPlaneDeparture } from "react-icons/fa";
-import { FaPlaneArrival } from "react-icons/fa";
+import { FaPlaneDeparture, FaPlaneArrival, FaRegCalendarAlt, FaUser, FaBell, FaShieldAlt, FaTaxi, FaChair, FaTicketAlt } from "react-icons/fa";
 import { MdOutlineDone } from "react-icons/md";
-import { FaRegCalendarAlt } from "react-icons/fa";
 import { CiCreditCard1 } from "react-icons/ci";
-import { FaUser } from "react-icons/fa";
-import { FaBell } from "react-icons/fa";
-import { FaShieldAlt } from "react-icons/fa";
-import { FaTaxi } from "react-icons/fa";
-import { FaChair } from "react-icons/fa";
-import { FaTicketAlt } from "react-icons/fa";
-
-const toLatinUpper = (str) => {
-  const map = {
-    à: 'a', á: 'a', â: 'a', ã: 'a', ả: 'a', ạ: 'a', ă: 'a', ằ: 'a', ắ: 'a', ẵ: 'a', ẳ: 'a', ặ: 'a',
-    ầ: 'a', ấ: 'a', ẫ: 'a', ẩ: 'a', ậ: 'a',
-
-    è: 'e', é: 'e', ê: 'e', ề: 'e', ế: 'e', ễ: 'e', ể: 'e', ẹ: 'e', ẻ: 'e', ẽ: 'e', ệ: 'e',
-    ì: 'i', í: 'i', ị: 'i', ỉ: 'i', ĩ: 'i',
-    ò: 'o', ó: 'o', ô: 'o', ồ: 'o', ố: 'o', ỗ: 'o', ổ: 'o', ọ: 'o', ỏ: 'o', õ: 'o', ộ: 'o',
-    ơ: 'o', ờ: 'o', ớ: 'o', ỡ: 'o', ở: 'o', ợ: 'o',
-    ù: 'u', ú: 'u', ư: 'u', ừ: 'u', ứ: 'u', ữ: 'u', ử: 'u', ụ: 'u', ủ: 'u', ũ: 'u', ự: 'u',
-    ỳ: 'y', ý: 'y', ỵ: 'y', ỷ: 'y', ỹ: 'y',
-    đ: 'd',
-  };
-  return str.split('').map(c => map[c.toLowerCase()] ? (map[c.toLowerCase()]).toUpperCase() : c.toUpperCase()).join('');
-};
-
-
-const formatDob = (raw) => {
-  const digits = raw.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 4) return digits.slice(0, 2) + '/' + digits.slice(2);
-  return digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4);
-};
-
-
-
-const getSeatPrice = (base, type) => {
-  let price = Number(base || 0);
-  if (type === "VIP") price *= 2;
-  else if (type === "BUSINESS") price += 100000;
-  else if (type === "SLEEPER") price += 50000;
-  return price;
-};
 
 const AirlineTickets = () => {
   const { t } = useLanguage();
@@ -234,10 +192,6 @@ const AirlineTickets = () => {
     }
 
   }, []);
-
-
-
-
 
   const handleSearch = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -455,13 +409,6 @@ const AirlineTickets = () => {
     });
   };
 
-  const toggleService = (serviceId) => {
-    setSelectedServiceIds((prev) => {
-      if (prev.includes(serviceId)) return prev.filter((id) => id !== serviceId);
-      return [...prev, serviceId];
-    });
-  };
-
   const validatePassenger = () => {
     for (const [idx, pi] of passengerInfoList.entries()) {
       const d = pi.data || {};
@@ -558,7 +505,7 @@ const AirlineTickets = () => {
         setVoucherDiscount(0);
         alert("Lỗi: " + res.data.message);
       }
-    } catch (err) {
+    } catch {
       alert("Có lỗi xảy ra khi áp mã giảm giá.");
     }
   };
@@ -623,37 +570,6 @@ const AirlineTickets = () => {
       setSubmitLoading(false);
     }
   };
-
-  const seatsByRow = useMemo(() => {
-    const parse = (seatNumber) => {
-      const match = String(seatNumber || "").match(/^(\d+)([A-Za-z])$/);
-      if (!match) return null;
-      return { row: Number(match[1]), col: match[2].toUpperCase() };
-    };
-
-    const items = seats
-      .map((s) => {
-        const parsed = parse(s.seatNumber);
-        if (!parsed) return null;
-        return { ...s, row: parsed.row, col: parsed.col };
-      })
-      .filter(Boolean);
-
-    const cols = Array.from(new Set(items.map((i) => i.col))).sort();
-    const rows = Array.from(new Set(items.map((i) => i.row))).sort((a, b) => a - b);
-
-    const map = new Map();
-    for (const item of items) {
-      map.set(`${item.row}${item.col}`, item);
-    }
-
-    return { cols, rows, map };
-  }, [seats]);
-
-  const selectedSeatNumbers = useMemo(() => {
-    const byId = new Map(seats.map((s) => [s.id, s.seatNumber]));
-    return selectedSeatIds.map((id) => byId.get(id)).filter(Boolean);
-  }, [seats, selectedSeatIds]);
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "var(--bg-main)" }}>
@@ -947,72 +863,235 @@ const AirlineTickets = () => {
               )}
             </div>
 
-            {step === "chooseTrip" && trips.length > 0 && (
-              <div
-                style={{
-                  background: "var(--bg-card)",
-                  borderRadius: 12,
-                  padding: 24,
-                  boxShadow: "var(--shadow-md)",
-                  marginBottom: 24,
-                }}
-              >
-                <h2
-                  style={{
-                    fontSize: 20,
-                    fontWeight: 600,
-                    marginBottom: 16,
-                  }}
-                >
-                  Danh sách chuyến bay
-                </h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {trips.map((trip) => (
-                    <button
-                      key={trip.id}
-                      onClick={() => handleSelectTrip(trip)}
-                      style={{
-                        textAlign: "left",
-                        padding: 16,
-                        borderRadius: 10,
-                        border: "1px solid var(--border-light)",
-                        backgroundColor:
-                          selectedTrip && selectedTrip.id === trip.id ? "#fff7ec" : "#fff",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: 8,
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: 600 }}>
-                            {trip.origin} → {trip.destination}
-                          </div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                            Khởi hành: {trip.departureTime}
+            {step === "chooseTrip" && trips.length > 0 && (() => {
+              const minPrice = Math.min(...trips.map(t => t.price || Infinity));
+              return (
+                <div style={{ marginBottom: 24 }}>
+                  {/* Header */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                    <div>
+                      <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
+                        ✈️ Danh sách chuyến bay
+                      </h2>
+                      <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "4px 0 0" }}>
+                        {trips.length} chuyến phù hợp · Sắp xếp theo: Giá thấp nhất
+                      </p>
+                    </div>
+                    <div style={{
+                      background: "linear-gradient(135deg,#4f7cff,#6a3de8)",
+                      color: "#fff", borderRadius: 20, padding: "6px 14px", fontSize: 13, fontWeight: 600
+                    }}>
+                      {airports.find(a => a.code === from)?.name || from} → {airports.find(a => a.code === to)?.name || to}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {trips.map((trip) => {
+                      const isSelected = selectedTrip?.id === trip.id;
+                      const isCheapest = trip.price === minPrice;
+                      const seatPct = trip.availableSeats / (trip.totalSeats || 1);
+                      const seatWarning = trip.availableSeats <= 5;
+
+                      // Calculate flight duration
+                      const dep = trip.departureTime ? new Date(`2000-01-01T${trip.departureTime}`) : null;
+                      const arr = trip.arrivalTime ? new Date(`2000-01-01T${trip.arrivalTime}`) : null;
+                      let duration = "";
+                      if (dep && arr) {
+                        let diff = (arr - dep) / 60000;
+                        if (diff < 0) diff += 1440;
+                        duration = `${Math.floor(diff / 60)}g${diff % 60 > 0 ? ` ${diff % 60}ph` : ""}`;
+                      }
+
+                      const airlineInitials = (trip.providerName || "VN")
+                        .split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+                      const airlineColors = {
+                        "VJ": "#e3001b", "VN": "#005baa", "BB": "#f7941d",
+                        "QH": "#00843d", "VU": "#7b2d8b", "VB": "#ff6600",
+                      };
+                      const logoColor = airlineColors[airlineInitials] || "#4f7cff";
+
+                      return (
+                        <div
+                          key={trip.id}
+                          onClick={() => handleSelectTrip(trip)}
+                          style={{
+                            background: isSelected
+                              ? "linear-gradient(135deg,#fff7ed,#fef3ff)"
+                              : "var(--bg-card)",
+                            border: isSelected
+                              ? "2px solid #f97316"
+                              : "1.5px solid var(--border-light)",
+                            borderRadius: 16,
+                            padding: "18px 22px",
+                            cursor: "pointer",
+                            transition: "all 0.22s cubic-bezier(.4,0,.2,1)",
+                            boxShadow: isSelected
+                              ? "0 6px 24px rgba(249,115,22,0.18)"
+                              : "0 2px 8px rgba(0,0,0,0.05)",
+                            position: "relative",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {/* Cheapest badge ribbon */}
+                          {isCheapest && (
+                            <div style={{
+                              position: "absolute", top: 0, right: 0,
+                              background: "linear-gradient(135deg,#22c55e,#16a34a)",
+                              color: "#fff", fontSize: 11, fontWeight: 700,
+                              padding: "4px 12px 4px 16px",
+                              borderBottomLeftRadius: 12,
+                              letterSpacing: "0.5px",
+                            }}>
+                              🏷️ RẺ NHẤT
+                            </div>
+                          )}
+
+                          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                            {/* Airline logo circle */}
+                            <div style={{
+                              width: 52, height: 52, borderRadius: 14,
+                              background: `linear-gradient(135deg,${logoColor}22,${logoColor}44)`,
+                              border: `2px solid ${logoColor}55`,
+                              display: "flex", flexDirection: "column",
+                              alignItems: "center", justifyContent: "center",
+                              flexShrink: 0,
+                            }}>
+                              <span style={{ fontSize: 15, fontWeight: 800, color: logoColor, lineHeight: 1 }}>
+                                {airlineInitials}
+                              </span>
+                              <span style={{ fontSize: 8, color: logoColor + "bb", fontWeight: 600, marginTop: 2 }}>
+                                AIRLINE
+                              </span>
+                            </div>
+
+                            {/* Provider name */}
+                            <div style={{ minWidth: 100, flexShrink: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)" }}>
+                                {trip.providerName}
+                              </div>
+                              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
+                                Máy bay
+                              </div>
+                            </div>
+
+                            {/* Separator */}
+                            <div style={{ width: 1, height: 44, background: "var(--border-light)", flexShrink: 0 }} />
+
+                            {/* Time + route block */}
+                            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 12 }}>
+                              {/* Departure */}
+                              <div style={{ textAlign: "center", minWidth: 70 }}>
+                                <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>
+                                  {trip.departureTime?.slice(0, 5) || "--:--"}
+                                </div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginTop: 3 }}>
+                                  {trip.origin}
+                                </div>
+                              </div>
+
+                              {/* Route line */}
+                              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 80 }}>
+                                {duration && (
+                                  <div style={{
+                                    fontSize: 11, color: "#4f7cff", fontWeight: 700,
+                                    background: "#e8f0ff", padding: "2px 10px", borderRadius: 20,
+                                  }}>
+                                    ⏱ {duration}
+                                  </div>
+                                )}
+                                <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 4 }}>
+                                  <div style={{ flex: 1, height: 2, background: "linear-gradient(90deg,#4f7cff44,#4f7cff)" }} />
+                                  <span style={{ fontSize: 14, color: "#4f7cff" }}>✈</span>
+                                  <div style={{ flex: 1, height: 2, background: "linear-gradient(90deg,#4f7cff,#4f7cff44)" }} />
+                                </div>
+                                <div style={{ fontSize: 10, color: "var(--text-secondary)" }}>Bay thẳng</div>
+                              </div>
+
+                              {/* Arrival */}
+                              <div style={{ textAlign: "center", minWidth: 70 }}>
+                                <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>
+                                  {trip.arrivalTime?.slice(0, 5) || "--:--"}
+                                </div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginTop: 3 }}>
+                                  {trip.destination}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Separator */}
+                            <div style={{ width: 1, height: 44, background: "var(--border-light)", flexShrink: 0 }} />
+
+                            {/* Seat availability */}
+                            <div style={{ minWidth: 90, textAlign: "center", flexShrink: 0 }}>
+                              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>Chỗ trống</div>
+                              <div style={{
+                                fontSize: 13, fontWeight: 700,
+                                color: seatWarning ? "#ef4444" : "#22c55e",
+                              }}>
+                                {trip.availableSeats}/{trip.totalSeats}
+                              </div>
+                              {/* Seat bar */}
+                              <div style={{ marginTop: 5, height: 4, borderRadius: 4, background: "#e5e7eb", overflow: "hidden" }}>
+                                <div style={{
+                                  height: "100%", borderRadius: 4,
+                                  width: `${Math.round(seatPct * 100)}%`,
+                                  background: seatWarning
+                                    ? "linear-gradient(90deg,#ef4444,#f97316)"
+                                    : "linear-gradient(90deg,#22c55e,#4ade80)",
+                                  transition: "width 0.4s",
+                                }} />
+                              </div>
+                              {seatWarning && (
+                                <div style={{ fontSize: 10, color: "#ef4444", marginTop: 3, fontWeight: 600 }}>
+                                  Sắp hết chỗ!
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Separator */}
+                            <div style={{ width: 1, height: 44, background: "var(--border-light)", flexShrink: 0 }} />
+
+                            {/* Price + CTA */}
+                            <div style={{ textAlign: "center", minWidth: 130, flexShrink: 0 }}>
+                              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>Giá/người</div>
+                              <div style={{
+                                fontSize: 22, fontWeight: 900,
+                                background: "linear-gradient(135deg,#f97316,#ef4444)",
+                                WebkitBackgroundClip: "text",
+                                WebkitTextFillColor: "transparent",
+                                lineHeight: 1,
+                              }}>
+                                {trip.price?.toLocaleString("vi-VN")}
+                              </div>
+                              <div style={{ fontSize: 12, color: "#f97316", fontWeight: 600, marginBottom: 8 }}>đ</div>
+                              <button
+                                onClick={e => { e.stopPropagation(); handleSelectTrip(trip); }}
+                                style={{
+                                  background: isSelected
+                                    ? "linear-gradient(135deg,#22c55e,#16a34a)"
+                                    : "linear-gradient(135deg,#4f7cff,#6a3de8)",
+                                  color: "#fff", border: "none",
+                                  padding: "8px 22px", borderRadius: 10,
+                                  fontWeight: 700, fontSize: 14, cursor: "pointer",
+                                  width: "100%",
+                                  boxShadow: isSelected
+                                    ? "0 4px 12px rgba(34,197,94,0.35)"
+                                    : "0 4px 12px rgba(79,124,255,0.35)",
+                                  transition: "all 0.2s",
+                                }}
+                              >
+                                {isSelected ? "✓ Đã chọn" : "Chọn"}
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontWeight: 700, color: "#ff6b00" }}>
-                            {trip.price?.toLocaleString("vi-VN")} đ
-                          </div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                            Còn {trip.availableSeats}/{trip.totalSeats} chỗ
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                        {trip.providerName} · {trip.vehicleType}
-                      </div>
-                    </button>
-                  ))}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
 
             {["seatClass", "passenger", "extras", "review"].includes(step) && (
@@ -1047,7 +1126,7 @@ const AirlineTickets = () => {
                     { key: "passenger", icon: <FaUser />, label: "Hành khách" },
                     { key: "extras", icon: <FaBell />, label: "Dịch vụ" },
                     { key: "review", icon: <CiCreditCard1 />, label: "Thanh toán" },
-                  ].map((s, idx) => {
+                  ].map((s) => {
                     const orderMap = { seatClass: 0, passenger: 1, extras: 2, review: 3 };
                     const current = orderMap[step];
                     const isDone = orderMap[s.key] < current;
