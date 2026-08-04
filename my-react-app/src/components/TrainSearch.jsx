@@ -1,11 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
-import { FaCalendarAlt, FaSearch, FaTrain, FaClock } from "react-icons/fa";
+import { FaCalendarAlt, FaSearch, FaTrain } from "react-icons/fa";
 import { IoIosSwap } from "react-icons/io";
-import { MdOutlineTrain } from "react-icons/md";
-import { GiSteeringWheel } from "react-icons/gi";
-import { FaHotel } from "react-icons/fa";
 import CitySelector from "./CitySelector";
 
 const TrainSearch = () => {
@@ -20,6 +17,11 @@ const TrainSearch = () => {
   const [to, setTo] = useState("");
   const [toCity, setToCity] = useState(null);
   
+  const todayISO = React.useMemo(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split("T")[0];
+  }, []);
   const [departDate, setDepartDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [passengers, setPassengers] = useState({
@@ -29,8 +31,6 @@ const TrainSearch = () => {
     class: "all"
   });
   const [showPassengerModal, setShowPassengerModal] = useState(false);
-  const [onlyHighSpeed, setOnlyHighSpeed] = useState(false);
-  const [showHotel, setShowHotel] = useState(false);
   
 
   const [showCitySelector, setShowCitySelector] = useState(false);
@@ -226,6 +226,7 @@ const TrainSearch = () => {
             <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "14px" }} />
             <input
               type="date"
+              min={todayISO}
               value={departDate}
               onChange={(e) => setDepartDate(e.target.value)}
               style={{
@@ -256,6 +257,7 @@ const TrainSearch = () => {
               <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "14px" }} />
               <input
                 type="date"
+                min={departDate || todayISO}
                 value={returnDate}
                 onChange={(e) => setReturnDate(e.target.value)}
                 style={{

@@ -23,6 +23,27 @@ import { FaPlaneDeparture, FaPlaneArrival, FaRegCalendarAlt, FaUser, FaBell, FaS
 import { MdOutlineDone } from "react-icons/md";
 import { CiCreditCard1 } from "react-icons/ci";
 
+const PROVIDER_LOGOS = {
+  "Vietnam Airlines": {
+    logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Vietnam_Airlines_logo.svg/320px-Vietnam_Airlines_logo.svg.png",
+    code: "VN",
+    color: "#005baa",
+    bg: "#e6f0fa",
+  },
+  "Vietjet Air": {
+    logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/VietJet_Air_logo.svg/320px-VietJet_Air_logo.svg.png",
+    code: "VJ",
+    color: "#e3001b",
+    bg: "#fde8eb",
+  },
+  "Bamboo Airways": {
+    logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Bamboo_Airways_logo.svg/320px-Bamboo_Airways_logo.svg.png",
+    code: "QH",
+    color: "#00843d",
+    bg: "#e6f3ec",
+  },
+};
+
 const AirlineTickets = () => {
   const { t } = useLanguage();
   const { token, isAuthenticated, user } = useAuth();
@@ -45,7 +66,6 @@ const AirlineTickets = () => {
 
   const [from, setFrom] = useState("HAN");
   const [to, setTo] = useState("SGN");
-  const [date, setDate] = useState("");
   const [passengerCounts, setPassengerCounts] = useState({ adult: 1, child: 0, infant: 0 });
   const [showPassengersDropdown, setShowPassengersDropdown] = useState(false);
   const passengers = passengerCounts.adult + passengerCounts.child;
@@ -61,6 +81,60 @@ const AirlineTickets = () => {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarData, setCalendarData] = useState([]);
+
+  // Sort & Filter States
+  const [sortBy, setSortBy] = useState("price_asc");
+  const [filterAvailableOnly, setFilterAvailableOnly] = useState(false);
+  const [filterProviders, setFilterProviders] = useState([]);
+  const [timeRange, setTimeRange] = useState([0, 24]);
+
+  const allProviders = useMemo(() => {
+    return Array.from(new Set(trips.map(t => t.providerName).filter(Boolean)));
+  }, [trips]);
+
+  const filteredTrips = useMemo(() => {
+    if (!trips) return [];
+    return trips.filter(trip => {
+      if (filterAvailableOnly && (trip.availableSeats || 0) <= 0) return false;
+      if (filterProviders.length > 0 && !filterProviders.includes(trip.providerName)) return false;
+
+      let depHour = 0;
+      if (trip.departureTime) {
+        const timeStr = trip.departureTime.includes("T") ? trip.departureTime.split("T")[1] : trip.departureTime;
+        depHour = parseInt(timeStr.split(":")[0], 10);
+      }
+      if (isNaN(depHour)) depHour = 0;
+      if (depHour < timeRange[0] || depHour > timeRange[1]) return false;
+
+      return true;
+    }).sort((a, b) => {
+      if (sortBy === "price_asc") return (a.price || 0) - (b.price || 0);
+      if (sortBy === "price_desc") return (b.price || 0) - (a.price || 0);
+
+      const getMins = (str) => {
+        if (!str) return 0;
+        const s = str.includes("T") ? str.split("T")[1] : str;
+        const [h, m] = s.split(":").map(Number);
+        return (h || 0) * 60 + (m || 0);
+      };
+
+      if (sortBy === "time_asc") return getMins(a.departureTime) - getMins(b.departureTime);
+      if (sortBy === "time_desc") return getMins(b.departureTime) - getMins(a.departureTime);
+
+      const getDuration = (t) => {
+        const parseT = (s) => !s ? null : s.includes("T") ? new Date(s) : new Date(`2000-01-01T${s}`);
+        const dep = parseT(t.departureTime);
+        const arr = parseT(t.arrivalTime);
+        if (!dep || !arr) return 0;
+        let diff = (arr - dep) / 60000;
+        if (diff < 0) diff += 1440;
+        return diff;
+      };
+      if (sortBy === "duration_asc") return getDuration(a) - getDuration(b);
+
+      return 0;
+    });
+  }, [trips, sortBy, filterAvailableOnly, filterProviders, timeRange]);
 
   const [servicesLoading, setServicesLoading] = useState(false);
   const [services, setServices] = useState([]);
@@ -166,7 +240,12 @@ const AirlineTickets = () => {
   }, [user, seats, selectedSeatIds, selectedTrip, services, selectedServiceIds]);
 
   const API_BASE = "/api";
-  const todayISO = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const todayISO = useMemo(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split("T")[0];
+  }, []);
+  const [date, setDate] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -185,23 +264,19 @@ const AirlineTickets = () => {
     }
 
     if (qFrom && qTo && qPassengers && mode === "calendar") {
-
       setTimeout(() => {
         loadCalendar();
       }, 0);
     }
-
   }, []);
 
-  const handleSearch = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-
+  const performSearch = async (searchFrom, searchTo, searchDate, searchPassengers) => {
     setCalendarOpen(false);
 
     const errs = {};
-    if (!from || !from.trim()) errs.from = "Vui lòng nhập điểm đi";
-    if (!to || !to.trim()) errs.to = "Vui lòng nhập điểm đến";
-    if (!date) errs.date = "Vui lòng chọn ngày đi";
+    if (!searchFrom || !searchFrom.trim()) errs.from = "Vui lòng nhập điểm đi";
+    if (!searchTo || !searchTo.trim()) errs.to = "Vui lòng nhập điểm đến";
+    if (!searchDate) errs.date = "Vui lòng chọn ngày đi";
     if (Object.keys(errs).length > 0) {
       setFormErrors(errs);
       setError("");
@@ -217,12 +292,16 @@ const AirlineTickets = () => {
     setBookingResult(null);
 
     try {
+      const passengersCount = searchPassengers 
+        ? String(searchPassengers) 
+        : String((passengerCounts.adult + passengerCounts.child + passengerCounts.infant) || 1);
+
       const params = new URLSearchParams({
-        from,
-        to,
-        date,
+        from: searchFrom,
+        to: searchTo,
+        date: searchDate,
         type: "PLANE",
-        passengers: String((passengerCounts.adult + passengerCounts.child + passengerCounts.infant) || 1),
+        passengers: passengersCount,
       });
 
       const res = await fetch(`${API_BASE}/trips/search?${params.toString()}`);
@@ -241,41 +320,14 @@ const AirlineTickets = () => {
     }
   };
 
+  const handleSearch = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    await performSearch(from, to, date, null);
+  };
+
   const handleSearchWithDate = async (selectedDate) => {
     setDate(selectedDate);
-    setCalendarOpen(false);
-    setFormErrors({});
-    setError("");
-    setLoading(true);
-    setSelectedTrip(null);
-    setSeats([]);
-    setSelectedSeatIds([]);
-    setSelectedServiceIds([]);
-    setBookingResult(null);
-
-    try {
-      const params = new URLSearchParams({
-        from,
-        to,
-        date: selectedDate,
-        type: "PLANE",
-        passengers: String((passengerCounts.adult + passengerCounts.child + passengerCounts.infant) || 1),
-      });
-
-      const res = await fetch(`${API_BASE}/trips/search?${params.toString()}`);
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Lỗi HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      setTrips(data);
-      setStep("chooseTrip");
-    } catch (err) {
-      console.error(err);
-      setError("Không tìm được chuyến bay. Vui lòng thử lại.");
-    } finally {
-      setLoading(false);
-    }
+    await performSearch(from, to, selectedDate, null);
   };
 
   const loadCalendar = async () => {
@@ -870,11 +922,11 @@ const AirlineTickets = () => {
                   {/* Header */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                     <div>
-                      <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
-                        ✈️ Danh sách chuyến bay
+                      <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                        <FaPlaneDeparture style={{ color: "#4f7cff" }} /> Danh sách chuyến bay
                       </h2>
                       <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "4px 0 0" }}>
-                        {trips.length} chuyến phù hợp · Sắp xếp theo: Giá thấp nhất
+                        Hiển thị {filteredTrips.length}/{trips.length} chuyến phù hợp
                       </p>
                     </div>
                     <div style={{
@@ -885,21 +937,220 @@ const AirlineTickets = () => {
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                    {trips.map((trip) => {
+                  {/* ──── Filter & Sort Bar ──── */}
+                  <div style={{
+                    background: "var(--bg-card)",
+                    borderRadius: 16,
+                    padding: "16px 20px",
+                    marginBottom: 20,
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+                    border: "1px solid var(--border-light)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 14,
+                  }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                      {/* Sort selection */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Sắp xếp theo:</span>
+                        <select
+                          value={sortBy}
+                          onChange={(e) => setSortBy(e.target.value)}
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: 8,
+                            border: "1px solid var(--border-light)",
+                            background: "var(--bg-input)",
+                            color: "var(--text-primary)",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            outline: "none",
+                          }}
+                        >
+                          <option value="price_asc">Giá vé: Thấp đến Cao</option>
+                          <option value="price_desc">Giá vé: Cao đến Thấp</option>
+                          <option value="time_asc">Giờ đi: Sớm nhất đến Muộn nhất</option>
+                          <option value="time_desc">Giờ đi: Muộn nhất đến Sớm nhất</option>
+                          <option value="duration_asc">Thời gian bay: Ngắn nhất</option>
+                        </select>
+                      </div>
+
+                      {/* Seat Availability Filter */}
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none", fontSize: 13, fontWeight: 600 }}>
+                        <input
+                          type="checkbox"
+                          checked={filterAvailableOnly}
+                          onChange={(e) => setFilterAvailableOnly(e.target.checked)}
+                          style={{ accentColor: "#4f7cff", width: 16, height: 16, cursor: "pointer" }}
+                        />
+                        Chỉ chuyến còn ghế trống
+                      </label>
+                    </div>
+
+                    {/* Time Range Filter (Slider + Presets) */}
+                    <div style={{ paddingTop: 10, borderTop: "1px solid var(--border-light)" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+                          🕒 Khung giờ khởi hành: <span style={{ color: "#4f7cff" }}>{timeRange[0]}:00 - {timeRange[1]}:00</span>
+                        </span>
+                        {/* Presets */}
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {[
+                            { label: "Tất cả", range: [0, 24] },
+                            { label: "Sáng sớm (0-6h)", range: [0, 6] },
+                            { label: "Sáng (6-12h)", range: [6, 12] },
+                            { label: "Chiều (12-18h)", range: [12, 18] },
+                            { label: "Tối (18-24h)", range: [18, 24] },
+                          ].map(preset => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => setTimeRange(preset.range)}
+                              style={{
+                                padding: "4px 10px",
+                                borderRadius: 14,
+                                border: timeRange[0] === preset.range[0] && timeRange[1] === preset.range[1]
+                                  ? "1px solid #4f7cff"
+                                  : "1px solid var(--border-light)",
+                                background: timeRange[0] === preset.range[0] && timeRange[1] === preset.range[1]
+                                  ? "#e8f0ff"
+                                  : "transparent",
+                                color: timeRange[0] === preset.range[0] && timeRange[1] === preset.range[1]
+                                  ? "#4f7cff"
+                                  : "var(--text-secondary)",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Dual Range Sliders */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span style={{ fontSize: 11, color: "var(--text-secondary)", minWidth: 24 }}>0h</span>
+                        <div style={{ position: "relative", flex: 1, height: 32, display: "flex", alignItems: "center", "--slider-color": "#4f7cff" }}>
+                          {/* Background track */}
+                          <div style={{ position: "absolute", width: "100%", height: 6, borderRadius: 3, background: "#e5e7eb" }} />
+                          {/* Active highlight bar */}
+                          <div style={{
+                            position: "absolute",
+                            left: `calc(10px + ${timeRange[0] / 24} * (100% - 20px))`,
+                            right: `calc(10px + ${(24 - timeRange[1]) / 24} * (100% - 20px))`,
+                            height: 6, borderRadius: 3, background: "#4f7cff"
+                          }} />
+                          {/* Min slider handle */}
+                          <input
+                            type="range"
+                            min={0}
+                            max={24}
+                            value={timeRange[0]}
+                            onChange={(e) => setTimeRange([Math.min(Number(e.target.value), timeRange[1] - 1), timeRange[1]])}
+                            className="dual-range-input"
+                            style={{ zIndex: timeRange[0] > 20 ? 5 : 3 }}
+                          />
+                          {/* Max slider handle */}
+                          <input
+                            type="range"
+                            min={0}
+                            max={24}
+                            value={timeRange[1]}
+                            onChange={(e) => setTimeRange([timeRange[0], Math.max(Number(e.target.value), timeRange[0] + 1)])}
+                            className="dual-range-input"
+                            style={{ zIndex: 4 }}
+                          />
+                        </div>
+                        <span style={{ fontSize: 11, color: "var(--text-secondary)", minWidth: 24, textAlign: "right" }}>24h</span>
+                      </div>
+                    </div>
+
+                    {/* Provider Filter Pills */}
+                    {allProviders.length > 0 && (
+                      <div style={{ paddingTop: 10, borderTop: "1px solid var(--border-light)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Hãng bay:</span>
+                        {allProviders.map(pName => {
+                          const isChecked = filterProviders.includes(pName);
+                          return (
+                            <button
+                              key={pName}
+                              type="button"
+                              onClick={() => {
+                                setFilterProviders(prev =>
+                                  isChecked ? prev.filter(x => x !== pName) : [...prev, pName]
+                                );
+                              }}
+                              style={{
+                                padding: "5px 12px",
+                                borderRadius: 20,
+                                border: isChecked ? "1.5px solid #4f7cff" : "1px solid var(--border-light)",
+                                background: isChecked ? "#eff6ff" : "var(--bg-input)",
+                                color: isChecked ? "#4f7cff" : "var(--text-primary)",
+                                fontSize: 12,
+                                fontWeight: isChecked ? 700 : 500,
+                                cursor: "pointer",
+                                transition: "all 0.2s",
+                              }}
+                            >
+                              {isChecked ? "✓ " : ""}{pName}
+                            </button>
+                          );
+                        })}
+                        {filterProviders.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setFilterProviders([])}
+                            style={{ border: "none", background: "none", color: "#ef4444", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            Xóa lọc hãng
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {filteredTrips.length === 0 ? (
+                    <div style={{
+                      textAlign: "center", padding: "36px 20px", background: "var(--bg-card)",
+                      borderRadius: 16, border: "1px dashed var(--border-light)", color: "var(--text-secondary)"
+                    }}>
+                      🔍 Không có chuyến bay nào phù hợp với bộ lọc hiện tại. Hãy thử mở rộng khung giờ hoặc bỏ lọc hãng.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      {filteredTrips.map((trip) => {
                       const isSelected = selectedTrip?.id === trip.id;
                       const isCheapest = trip.price === minPrice;
                       const seatPct = trip.availableSeats / (trip.totalSeats || 1);
                       const seatWarning = trip.availableSeats <= 5;
 
-                      // Calculate flight duration
-                      const dep = trip.departureTime ? new Date(`2000-01-01T${trip.departureTime}`) : null;
-                      const arr = trip.arrivalTime ? new Date(`2000-01-01T${trip.arrivalTime}`) : null;
+                      // Calculate flight duration & time parsing
+                      const parseTripTime = (timeStr) => {
+                        if (!timeStr) return null;
+                        if (timeStr.includes("T")) return new Date(timeStr);
+                        return new Date(`2000-01-01T${timeStr}`);
+                      };
+                      const formatTimeDisplay = (timeStr) => {
+                        if (!timeStr) return "--:--";
+                        if (timeStr.includes("T")) {
+                          const timePart = timeStr.split("T")[1];
+                          return timePart ? timePart.slice(0, 5) : "--:--";
+                        }
+                        return timeStr.slice(0, 5);
+                      };
+
+                      const dep = parseTripTime(trip.departureTime);
+                      const arr = parseTripTime(trip.arrivalTime);
                       let duration = "";
                       if (dep && arr) {
                         let diff = (arr - dep) / 60000;
                         if (diff < 0) diff += 1440;
-                        duration = `${Math.floor(diff / 60)}g${diff % 60 > 0 ? ` ${diff % 60}ph` : ""}`;
+                        const hours = Math.floor(diff / 60);
+                        const mins = Math.round(diff % 60);
+                        duration = `${hours}g${mins > 0 ? ` ${mins}ph` : ""}`;
                       }
 
                       const airlineInitials = (trip.providerName || "VN")
@@ -949,21 +1200,37 @@ const AirlineTickets = () => {
 
                           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                             {/* Airline logo circle */}
-                            <div style={{
-                              width: 52, height: 52, borderRadius: 14,
-                              background: `linear-gradient(135deg,${logoColor}22,${logoColor}44)`,
-                              border: `2px solid ${logoColor}55`,
-                              display: "flex", flexDirection: "column",
-                              alignItems: "center", justifyContent: "center",
-                              flexShrink: 0,
-                            }}>
-                              <span style={{ fontSize: 15, fontWeight: 800, color: logoColor, lineHeight: 1 }}>
-                                {airlineInitials}
-                              </span>
-                              <span style={{ fontSize: 8, color: logoColor + "bb", fontWeight: 600, marginTop: 2 }}>
-                                AIRLINE
-                              </span>
-                            </div>
+                            {(() => {
+                              const pInfo = PROVIDER_LOGOS[trip.providerName];
+                              const pColor = pInfo?.color || logoColor;
+                              return (
+                                <div style={{
+                                  width: 52, height: 52, borderRadius: 14,
+                                  background: pInfo?.bg || `linear-gradient(135deg,${pColor}22,${pColor}44)`,
+                                  border: `1.5px solid ${pColor}44`,
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  flexShrink: 0, padding: 4, overflow: "hidden", position: "relative",
+                                }}>
+                                  {pInfo?.logo ? (
+                                    <img
+                                      src={pInfo.logo}
+                                      alt={trip.providerName}
+                                      style={{ width: "90%", height: "90%", objectFit: "contain" }}
+                                      onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                    />
+                                  ) : (
+                                    <div style={{ textAlign: "center" }}>
+                                      <span style={{ fontSize: 15, fontWeight: 800, color: pColor, lineHeight: 1, display: "block" }}>
+                                        {pInfo?.code || airlineInitials}
+                                      </span>
+                                      <span style={{ fontSize: 8, color: pColor + "bb", fontWeight: 600, marginTop: 2, display: "block" }}>
+                                        AIRLINE
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
 
                             {/* Provider name */}
                             <div style={{ minWidth: 100, flexShrink: 0 }}>
@@ -983,7 +1250,7 @@ const AirlineTickets = () => {
                               {/* Departure */}
                               <div style={{ textAlign: "center", minWidth: 70 }}>
                                 <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>
-                                  {trip.departureTime?.slice(0, 5) || "--:--"}
+                                  {formatTimeDisplay(trip.departureTime)}
                                 </div>
                                 <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginTop: 3 }}>
                                   {trip.origin}
@@ -1011,7 +1278,7 @@ const AirlineTickets = () => {
                               {/* Arrival */}
                               <div style={{ textAlign: "center", minWidth: 70 }}>
                                 <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>
-                                  {trip.arrivalTime?.slice(0, 5) || "--:--"}
+                                  {formatTimeDisplay(trip.arrivalTime)}
                                 </div>
                                 <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginTop: 3 }}>
                                   {trip.destination}
@@ -1056,15 +1323,14 @@ const AirlineTickets = () => {
                             <div style={{ textAlign: "center", minWidth: 130, flexShrink: 0 }}>
                               <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>Giá/người</div>
                               <div style={{
-                                fontSize: 22, fontWeight: 900,
-                                background: "linear-gradient(135deg,#f97316,#ef4444)",
-                                WebkitBackgroundClip: "text",
-                                WebkitTextFillColor: "transparent",
-                                lineHeight: 1,
+                                fontSize: 20, fontWeight: 900,
+                                color: "#f97316",
+                                lineHeight: 1.2,
+                                whiteSpace: "nowrap",
+                                marginBottom: 8,
                               }}>
-                                {trip.price?.toLocaleString("vi-VN")}
+                                {trip.price?.toLocaleString("vi-VN")}đ
                               </div>
-                              <div style={{ fontSize: 12, color: "#f97316", fontWeight: 600, marginBottom: 8 }}>đ</div>
                               <button
                                 onClick={e => { e.stopPropagation(); handleSelectTrip(trip); }}
                                 style={{
@@ -1089,9 +1355,10 @@ const AirlineTickets = () => {
                       );
                     })}
                   </div>
-                </div>
-              );
-            })()}
+                )}
+              </div>
+            );
+          })()}
 
 
             {["seatClass", "passenger", "extras", "review"].includes(step) && (

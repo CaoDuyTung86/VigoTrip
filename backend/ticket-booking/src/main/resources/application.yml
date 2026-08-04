@@ -3,9 +3,9 @@ spring:
     name: booking-service
   datasource:
     # Cấu hình MS SQL Server 
-    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://host.docker.internal:1433;databaseName=ticket_booking_db;encrypt=true;trustServerCertificate=true;}
+    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=ticket_booking_db;encrypt=true;trustServerCertificate=true;}
     username: ${SPRING_DATASOURCE_USERNAME:sa}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    password: ${SPRING_DATASOURCE_PASSWORD:Toibingu1234}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
     hikari:
       connection-timeout: 60000
@@ -24,7 +24,7 @@ spring:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
     username: ${SPRING_MAIL_USERNAME:tunggaming9874123@gmail.com}
-    password: ${SPRING_MAIL_PASSWORD}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -36,7 +36,7 @@ server:
   port: ${PORT:8080}
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
   expiration: 86400000
 
 # VNPay Sandbox Configuration (Demo credentials từ sandbox.vnpayment.vn)
@@ -81,7 +81,7 @@ management:
 
 # Gemini AI Configuration
 gemini:
-  api-key: ${GEMINI_API_KEY}
+  api-key: ${GEMINI_API_KEY:}
 
 # Google OAuth2 — dùng để verify Google ID Token phía server
 # Lấy Client ID từ: https://console.cloud.google.com → Credentials → OAuth 2.0 Client IDs

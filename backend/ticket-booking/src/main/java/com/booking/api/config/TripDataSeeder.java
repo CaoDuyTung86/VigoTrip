@@ -12,6 +12,7 @@ import org.springframework.core.annotation.Order;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Configuration
@@ -30,38 +31,50 @@ public class TripDataSeeder {
         return args -> {
             LocalDateTime now = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
 
-            // Kiểm tra: nếu đã có đủ chuyến đi xa trong tương lai (sau 45 ngày) thì bỏ qua
-            LocalDateTime checkPoint = now.plusDays(45);
-            long farFutureTrips = tripRepository.findAll().stream()
-                    .filter(t -> t.getDepartureTime() != null && t.getDepartureTime().isAfter(checkPoint))
-                    .count();
+            // Kiểm tra: nếu đã có chuyến đi tương lai với mã SAP (Sapa) và CXR (Cam Ranh) thì bỏ qua
+            List<Route> targetRoutes = routeRepository.findAll().stream()
+                    .filter(r -> "SAP".equals(r.getDestination()) && "HAN".equals(r.getOrigin()))
+                    .toList();
 
-            if (farFutureTrips > 200) {
-                log.info("[TripDataSeeder] Đã có {} chuyến đi trong 45-60 ngày tới, bỏ qua.", farFutureTrips);
+            boolean hasModernAirportTrips = false;
+            if (!targetRoutes.isEmpty()) {
+                Set<Long> targetRouteIds = targetRoutes.stream().map(Route::getId).collect(Collectors.toSet());
+                hasModernAirportTrips = tripRepository.findAll().stream()
+                        .anyMatch(t -> t.getDepartureTime() != null
+                                && t.getDepartureTime().isAfter(now)
+                                && t.getRoute() != null
+                                && targetRouteIds.contains(t.getRoute().getId()));
+            }
+
+            if (hasModernAirportTrips) {
+                log.info("[TripDataSeeder] Đã có đầy đủ dữ liệu chuyến đi với các mã điểm đến chuẩn (CXR, DLI...), bỏ qua.");
                 return;
             }
 
-            log.info(
-                    "[TripDataSeeder] Phát hiện thiếu dữ liệu tương lai (chỉ có {} chuyến sau 45 ngày). Bắt đầu sinh dữ liệu mới cho 60 ngày tới...",
-                    farFutureTrips);
+            log.info("[TripDataSeeder] Bắt đầu sinh mới dữ liệu chuyến đi đầy đủ cho tất cả điểm đến trong 30 ngày tới...");
 
             // ── 1. Routes ──
             String[][] routePairs = {
                     { "HAN", "SGN" }, { "SGN", "HAN" },
                     { "HAN", "DAD" }, { "DAD", "HAN" },
                     { "HAN", "HPH" }, { "HPH", "HAN" },
-                    { "HAN", "HUE" }, { "HUE", "HAN" },
-                    { "HAN", "VIN" }, { "VIN", "HAN" },
+                    { "HAN", "HUI" }, { "HUI", "HAN" }, { "HAN", "HUE" }, { "HUE", "HAN" },
+                    { "HAN", "VII" }, { "VII", "HAN" }, { "HAN", "VIN" }, { "VIN", "HAN" },
                     { "HAN", "SAP" }, { "SAP", "HAN" },
                     { "HAN", "QNH" }, { "QNH", "HAN" },
+                    { "HAN", "CXR" }, { "CXR", "HAN" }, { "HAN", "NTR" }, { "NTR", "HAN" },
+                    { "HAN", "DLI" }, { "DLI", "HAN" }, { "HAN", "DLT" }, { "DLT", "HAN" },
+                    { "HAN", "PQC" }, { "PQC", "HAN" },
+                    { "HAN", "VCL" }, { "VCL", "HAN" },
                     { "SGN", "DAD" }, { "DAD", "SGN" },
-                    { "SGN", "NTR" }, { "NTR", "SGN" },
-                    { "SGN", "DLT" }, { "DLT", "SGN" },
-                    { "SGN", "HUE" }, { "HUE", "SGN" },
-                    { "DAD", "NTR" }, { "NTR", "DAD" },
-                    { "DAD", "HUE" }, { "HUE", "DAD" },
-                    { "HAN", "NTR" }, { "NTR", "HAN" },
-                    { "HAN", "DLT" }, { "DLT", "HAN" },
+                    { "SGN", "CXR" }, { "CXR", "SGN" }, { "SGN", "NTR" }, { "NTR", "SGN" },
+                    { "SGN", "DLI" }, { "DLI", "SGN" }, { "SGN", "DLT" }, { "DLT", "SGN" },
+                    { "SGN", "HUI" }, { "HUI", "SGN" }, { "SGN", "HUE" }, { "HUE", "SGN" },
+                    { "SGN", "PQC" }, { "PQC", "SGN" },
+                    { "SGN", "VCL" }, { "VCL", "SGN" },
+                    { "SGN", "HPH" }, { "HPH", "SGN" },
+                    { "DAD", "CXR" }, { "CXR", "DAD" }, { "DAD", "NTR" }, { "NTR", "DAD" },
+                    { "DAD", "HUI" }, { "HUI", "DAD" }, { "DAD", "HUE" }, { "HUE", "DAD" },
             };
 
             Map<String, Route> routeMap = new HashMap<>();
@@ -124,7 +137,6 @@ public class TripDataSeeder {
                     { "Violette Express", "TRAIN", 50, "VIO-50" },
             };
 
-            // Nếu đã có đủ 12 vehicle thì chỉ lấy lại, KHÔNG tạo mới
             List<Vehicle> existingVehicles = vehicleRepository.findAll();
             boolean skipVehicleCreation = existingVehicles.size() >= 12;
 
@@ -135,9 +147,8 @@ public class TripDataSeeder {
                 String key = (String) v[3];
 
                 Provider provider = provMap.get(provName);
-                final Long providerId = provider.getId();
 
-                // Tìm vehicle đã tồn tại (dùng ID trực tiếp để tránh lỗi lazy proxy)
+                // Tìm vehicle đã tồn tại
                 Vehicle existingVeh = existingVehicles.stream()
                         .filter(ev -> ev.getVehicleType().equals(type)
                                 && ev.getTotalSeats().equals(totalSeats))
@@ -153,7 +164,6 @@ public class TripDataSeeder {
                     veh = vehicleRepository.save(veh);
                     vehMap.put(key, veh);
 
-                    // Tạo ghế cho vehicle mới
                     List<Seat> seats = new ArrayList<>();
                     if ("PLANE".equals(type)) {
                         String[] cols = { "A", "B", "C", "D", "E", "F" };
@@ -197,49 +207,57 @@ public class TripDataSeeder {
                 }
             }
 
-            // ── 4. Trips (60 ngày kể từ HÔM NAY) ──
+            // ── 4. Trips (30 ngày kể từ HÔM NAY) ──
             java.security.SecureRandom rng = new java.security.SecureRandom();
 
-            // Plane routes + config
+            // Plane routes (dùng mã IATA khớp chuẩn Frontend dropdown: CXR, DLI, HUI, VII, PQC, VCL, HPH)
             String[][] planeRoutes = {
                     { "HAN", "SGN" }, { "SGN", "HAN" }, { "HAN", "DAD" }, { "DAD", "HAN" },
-                    { "SGN", "DAD" }, { "DAD", "SGN" }, { "SGN", "NTR" }, { "NTR", "SGN" },
-                    { "HAN", "HUE" }, { "HUE", "HAN" }, { "SGN", "HUE" }, { "HUE", "SGN" },
-                    { "HAN", "NTR" }, { "NTR", "HAN" }, { "HAN", "DLT" }, { "DLT", "HAN" },
-                    { "SGN", "DLT" }, { "DLT", "SGN" },
+                    { "SGN", "DAD" }, { "DAD", "SGN" }, { "SGN", "CXR" }, { "CXR", "SGN" },
+                    { "HAN", "HUI" }, { "HUI", "HAN" }, { "SGN", "HUI" }, { "HUI", "SGN" },
+                    { "HAN", "CXR" }, { "CXR", "HAN" }, { "HAN", "DLI" }, { "DLI", "HAN" },
+                    { "SGN", "DLI" }, { "DLI", "SGN" }, { "HAN", "PQC" }, { "PQC", "HAN" },
+                    { "SGN", "PQC" }, { "PQC", "SGN" }, { "HAN", "VCL" }, { "VCL", "HAN" },
+                    { "HAN", "HPH" }, { "HPH", "HAN" }, { "HAN", "VII" }, { "VII", "HAN" },
             };
             String[] planeVehicles = { "VNA-180", "VNA-220", "VJ-180", "VJ-150", "BB-160" };
-            int[][] planeHours = { { 6, 0 }, { 8, 30 }, { 11, 0 }, { 14, 0 }, { 17, 30 }, { 20, 0 } };
-            double[] planePrices = { 1200000, 1400000, 1600000, 1800000, 2100000, 2500000, 2800000 };
+            int[][] planeHours = { { 6, 0 }, { 9, 30 }, { 13, 0 }, { 17, 30 }, { 20, 30 } };
+            double[] planePrices = { 1200000, 1400000, 1600000, 1800000, 2100000, 2500000 };
 
-            // Bus routes
+            // Bus routes (dùng cả mã điểm xe khách: NTR, DLT, HUE, VIN, SAP, QNH, HPH và mã IATA tương đương: CXR, DLI, HUI, VII)
             String[][] busRoutes = {
                     { "HAN", "SGN" }, { "SGN", "HAN" }, { "HAN", "HPH" }, { "HPH", "HAN" },
                     { "HAN", "SAP" }, { "SAP", "HAN" }, { "HAN", "QNH" }, { "QNH", "HAN" },
-                    { "SGN", "NTR" }, { "NTR", "SGN" }, { "SGN", "DLT" }, { "DLT", "SGN" },
-                    { "SGN", "DAD" }, { "DAD", "SGN" }, { "HAN", "VIN" }, { "VIN", "HAN" },
-                    { "DAD", "HUE" }, { "HUE", "DAD" }, { "HAN", "HUE" }, { "HUE", "HAN" },
+                    { "SGN", "NTR" }, { "NTR", "SGN" }, { "SGN", "CXR" }, { "CXR", "SGN" },
+                    { "SGN", "DLT" }, { "DLT", "SGN" }, { "SGN", "DLI" }, { "DLI", "SGN" },
+                    { "SGN", "DAD" }, { "DAD", "SGN" }, { "HAN", "VIN" }, { "VIN", "HAN" }, { "HAN", "VII" }, { "VII", "HAN" },
+                    { "DAD", "HUE" }, { "HUE", "DAD" }, { "DAD", "HUI" }, { "HUI", "DAD" },
+                    { "HAN", "HUE" }, { "HUE", "HAN" }, { "HAN", "HUI" }, { "HUI", "HAN" },
             };
             String[] busVehicles = { "FUTA-40", "FUTA-34", "TB-34", "HL-45" };
-            int[][] busHours = { { 5, 0 }, { 7, 30 }, { 10, 0 }, { 13, 30 }, { 18, 0 }, { 21, 0 } };
+            int[][] busHours = { { 6, 0 }, { 10, 0 }, { 14, 0 }, { 19, 0 } };
             double[] busPrices = { 180000, 220000, 280000, 350000, 420000, 500000 };
 
-            // Train routes
+            // Train routes (dùng cả mã ga tàu: NTR, DLT, HUE, VIN, HPH, QNH, SAP và mã tương đương: CXR, DLI, HUI, VII)
             String[][] trainRoutes = {
                     { "HAN", "SGN" }, { "SGN", "HAN" }, { "HAN", "DAD" }, { "DAD", "HAN" },
-                    { "HAN", "HUE" }, { "HUE", "HAN" }, { "HAN", "VIN" }, { "VIN", "HAN" },
-                    { "SGN", "NTR" }, { "NTR", "SGN" }, { "DAD", "NTR" }, { "NTR", "DAD" },
+                    { "HAN", "HUE" }, { "HUE", "HAN" }, { "HAN", "HUI" }, { "HUI", "HAN" },
+                    { "HAN", "VIN" }, { "VIN", "HAN" }, { "HAN", "VII" }, { "VII", "HAN" },
+                    { "SGN", "NTR" }, { "NTR", "SGN" }, { "SGN", "CXR" }, { "CXR", "SGN" },
+                    { "DAD", "NTR" }, { "NTR", "DAD" }, { "DAD", "CXR" }, { "CXR", "DAD" },
                     { "HAN", "HPH" }, { "HPH", "HAN" }, { "HAN", "QNH" }, { "QNH", "HAN" },
-                    { "DAD", "HUE" }, { "HUE", "DAD" },
+                    { "DAD", "HUE" }, { "HUE", "DAD" }, { "DAD", "HUI" }, { "HUI", "DAD" },
+                    { "SGN", "DLT" }, { "DLT", "SGN" }, { "SGN", "DLI" }, { "DLI", "SGN" },
+                    { "HAN", "SAP" }, { "SAP", "HAN" },
             };
             String[] trainVehicles = { "VNR-60", "VNR-40", "VIO-50" };
-            int[][] trainHours = { { 6, 0 }, { 9, 0 }, { 14, 0 }, { 19, 0 }, { 22, 0 } };
+            int[][] trainHours = { { 7, 0 }, { 13, 0 }, { 19, 0 } };
             double[] trainPrices = { 300000, 400000, 550000, 700000, 900000 };
 
             List<Trip> allTrips = new ArrayList<>();
 
-            // Sinh dữ liệu cho 60 ngày tới (tính từ hôm nay)
-            for (int day = 0; day < 60; day++) {
+            // Sinh dữ liệu gọn nhẹ cho 30 ngày tới
+            for (int day = 0; day < 30; day++) {
                 LocalDateTime base = now.plusDays(day);
 
                 // Plane trips

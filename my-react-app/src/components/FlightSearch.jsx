@@ -38,6 +38,12 @@ const FlightSearch = () => {
   const [currentFlightId, setCurrentFlightId] = useState(null);
   const [searchError, setSearchError] = useState("");
 
+  const todayISO = useMemo(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split("T")[0];
+  }, []);
+
   const totalPassengers = useMemo(
     () => passengers.adult + passengers.child + passengers.infant,
     [passengers],
@@ -319,6 +325,7 @@ const FlightSearch = () => {
                 <input
                   type="date"
                   value={flight.departDate}
+                  min={todayISO}
                   onChange={(e) => {
                     setMultiCityFlights(prev => prev.map(f =>
                       f.id === flight.id ? { ...f, departDate: e.target.value } : f
@@ -511,6 +518,7 @@ const FlightSearch = () => {
                 <input
                   type="date"
                   value={departDate}
+                  min={todayISO}
                   onChange={(e) => setDepartDate(e.target.value)}
                   style={{
                     border: "none",
@@ -539,6 +547,7 @@ const FlightSearch = () => {
                   <input
                     type="date"
                     value={returnDate}
+                    min={departDate || todayISO}
                     onChange={(e) => setReturnDate(e.target.value)}
                     style={{
                       border: "none",

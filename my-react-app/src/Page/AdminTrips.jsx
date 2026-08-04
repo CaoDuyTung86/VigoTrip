@@ -30,7 +30,7 @@ const AdminTrips = () => {
 
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize] = useState(20);
   const [searchInput, setSearchInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -85,7 +85,7 @@ const AdminTrips = () => {
       if (contentType.includes("application/json")) {
         try {
           parsed = await res.json();
-        } catch (e) {
+        } catch {
           // fallback: đọc text để hiển thị preview debug
           const text = await res.text();
           const preview = (text || "").replace(/^\uFEFF/, "").slice(0, 200);

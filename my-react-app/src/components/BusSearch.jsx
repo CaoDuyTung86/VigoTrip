@@ -55,6 +55,11 @@ const BusSearch = () => {
 
   const [fromCity, setFromCity] = useState(null);
   const [toCity, setToCity] = useState(null);
+  const todayISO = React.useMemo(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split("T")[0];
+  }, []);
   const [departDate, setDepartDate] = useState("");
   const [showFromDropdown, setShowFromDropdown] = useState(false);
   const [showToDropdown, setShowToDropdown] = useState(false);
@@ -120,7 +125,7 @@ const BusSearch = () => {
                 onChange={(e) => setFromFilter(e.target.value)}
                 style={{ width: "100%", border: "1px solid var(--border-input)", borderRadius: 8, padding: "6px 10px", fontSize: 13, marginBottom: 4, boxSizing: "border-box", outline: "none", background: "var(--bg-input)" }}
               />
-              <div style={{ maxHeight: "220px", overflowY: "auto" }}>
+              <div>
                 {fromOptions.length === 0
                   ? <div style={{ padding: "10px 12px", color: "var(--text-muted)", fontSize: 13 }}>Không tìm thấy</div>
                   : fromOptions.map((city) => (
@@ -163,7 +168,7 @@ const BusSearch = () => {
                 onChange={(e) => setToFilter(e.target.value)}
                 style={{ width: "100%", border: "1px solid var(--border-input)", borderRadius: 8, padding: "6px 10px", fontSize: 13, marginBottom: 4, boxSizing: "border-box", outline: "none", background: "var(--bg-input)" }}
               />
-              <div style={{ maxHeight: "220px", overflowY: "auto" }}>
+              <div>
                 {toOptions.length === 0
                   ? <div style={{ padding: "10px 12px", color: "var(--text-muted)", fontSize: 13 }}>Không tìm thấy</div>
                   : toOptions.map((city) => (
@@ -189,9 +194,9 @@ const BusSearch = () => {
           <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "14px" }} />
           <input
             type="date"
+            min={todayISO}
             value={departDate}
             onChange={(e) => setDepartDate(e.target.value)}
-            min={new Date().toISOString().split("T")[0]}
             style={{ border: "none", background: "transparent", outline: "none", fontSize: "15px", width: "100%", color: "var(--text-main)", fontFamily: "inherit" }}
           />
         </div>
