@@ -5,7 +5,7 @@ import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import { useLanguage } from "../context/LanguageContext";
 import { TbTrain, TbBus } from "react-icons/tb";
-import { FaRegStar, FaPlane, FaQrcode } from "react-icons/fa";
+import { FaPlane, FaQrcode } from "react-icons/fa";
 import { QRCodeCanvas } from "qrcode.react";
 
 const MyBookings = () => {
@@ -16,9 +16,16 @@ const MyBookings = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const [paymentMsg, setPaymentMsg] = useState(null);
+  const [toastMsg, setToastMsg] = useState(null); // { text, type, duration }
+  const [showFireworks, setShowFireworks] = useState(false);
+
+  const triggerFireworks = () => {
+    setShowFireworks(true);
+    setTimeout(() => setShowFireworks(false), 4500);
+  };
 
 
+  const [confirmModal, setConfirmModal] = useState({ show: false, title: "", message: "", onConfirm: null });
   const [cancelModal, setCancelModal] = useState({ show: false, booking: null, loading: false, error: null, reason: "", success: false });
   const [reviewModal, setReviewModal] = useState({ show: false, booking: null, rating: 0, hovered: 0, comment: "", loading: false, error: null, success: false });
   const [qrModal, setQrModal] = useState({ show: false, booking: null });
@@ -47,13 +54,11 @@ const MyBookings = () => {
     const params = new URLSearchParams(location.search);
     const payment = params.get("payment");
     if (payment === "success") {
-      setPaymentMsg("Thanh toán thành công! Vé của bạn đã được xác nhận.");
+      setToastMsg({ text: "Thanh toán thành công! Vé của bạn đã được xác nhận.", type: "success" });
       navigate("/my-bookings", { replace: true });
-      setTimeout(() => setPaymentMsg(null), 8000);
     } else if (payment === "failed") {
-      setPaymentMsg("Thanh toán thất bại hoặc đã bị hủy.");
+      setToastMsg({ text: "Thanh toán thất bại hoặc đã bị hủy.", type: "error" });
       navigate("/my-bookings", { replace: true });
-      setTimeout(() => setPaymentMsg(null), 8000);
     }
   }, [location, navigate]);
 
@@ -123,17 +128,29 @@ const MyBookings = () => {
       setReviewModal(prev => ({ ...prev, error: "Vui lòng chọn số sao đánh giá (1–5)." }));
       return;
     }
+    const currentRating = reviewModal.rating;
     try {
       setReviewModal(prev => ({ ...prev, loading: true, error: null }));
       const token = localStorage.getItem("authToken");
       await axios.post("/api/reviews", {
         bookingId: reviewModal.booking.id,
-        rating: reviewModal.rating,
+        rating: currentRating,
         comment: reviewModal.comment
       }, { headers: { Authorization: `Bearer ${token}` } });
-      setReviewModal(prev => ({ ...prev, loading: false, success: true }));
+      
+      // Mark booking as reviewed locally immediately
+      const reviewedBookingId = reviewModal.booking.id;
+      setBookings(prev => prev.map(b => b.id === reviewedBookingId ? { ...b, hasReviewed: true, reviewed: true } : b));
 
-      setTimeout(() => closeReviewModal(), 1500);
+      closeReviewModal();
+      
+      if (currentRating === 5) {
+        triggerFireworks();
+        setToastMsg({ text: "🌟 Cảm ơn bạn đã đánh giá 5 sao tuyệt vời! Phản hồi của bạn là động lực rất lớn cho chúng tôi.", type: "success" });
+      } else {
+        setToastMsg({ text: "Cảm ơn bạn đã gửi đánh giá! Phản hồi của bạn giúp chúng tôi nâng cao chất lượng dịch vụ.", type: "success" });
+      }
+      await fetchBookings();
     } catch (err) {
       setReviewModal(prev => ({ ...prev, loading: false, error: err.response?.data?.message || err.message }));
     }
@@ -150,10 +167,43 @@ const MyBookings = () => {
               {t.yourBookings}
             </h1>
 
-            {paymentMsg && (
-              <div style={{ padding: 16, background: paymentMsg.includes('thành công') ? "#dcfce7" : "#fee2e2", color: paymentMsg.includes('thành công') ? "#16a34a" : "#dc2626", borderRadius: 8, marginBottom: 20, fontWeight: 700, border: `1px solid ${paymentMsg.includes('thành công') ? "#bbf7d0" : "#fecaca"}`, display: "flex", alignItems: "center", gap: 8 }}>
-                {paymentMsg.includes('thành công') ? "🎉" : "⚠️"}
-                {paymentMsg}
+            {toastMsg && (
+              <div style={{
+                padding: "16px 20px",
+                background: toastMsg.type === "error" ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)",
+                color: toastMsg.type === "error" ? "#ef4444" : "#22c55e",
+                borderRadius: 12,
+                marginBottom: 24,
+                fontWeight: 700,
+                fontSize: 14,
+                border: `1px solid ${toastMsg.type === "error" ? "#ef4444" : "#22c55e"}`,
+                display: "flex",
+                alignItems: "center",
+                justify: "space-between",
+                gap: 12,
+                boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
+                animation: "fadeIn 0.3s ease"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+                  <span>{toastMsg.type === "error" ? "⚠️" : "🎉"}</span>
+                  <span>{toastMsg.text}</span>
+                </div>
+                <button
+                  onClick={() => setToastMsg(null)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: toastMsg.type === "error" ? "#ef4444" : "#22c55e",
+                    fontSize: 20,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    padding: "0 4px",
+                    lineHeight: 1
+                  }}
+                  title="Đóng thông báo"
+                >
+                  ✕
+                </button>
               </div>
             )}
 
@@ -168,169 +218,193 @@ const MyBookings = () => {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {bookings.map(bk => {
-                  const statusBg = bk.status === "PAID" || bk.status === "CONFIRMED" ? "#dcfce7" : bk.status === "COMPLETED" ? "#e0e7ff" : bk.status === "CANCELLED" ? "#f3f4f6" : "#fef9c3";
-                  const statusColor = bk.status === "PAID" || bk.status === "CONFIRMED" ? "#16a34a" : bk.status === "COMPLETED" ? "#4f46e5" : bk.status === "CANCELLED" ? "#6b7280" : "#ca8a04";
+                  const isPaidOrConfirmed = bk.status === "PAID" || bk.status === "CONFIRMED";
+                  const statusBg = isPaidOrConfirmed ? "rgba(34, 197, 94, 0.15)" : bk.status === "COMPLETED" ? "rgba(16, 185, 129, 0.2)" : bk.status === "CANCELLED" ? "rgba(156, 163, 175, 0.15)" : "rgba(234, 179, 8, 0.15)";
+                  const statusColor = isPaidOrConfirmed ? "#22c55e" : bk.status === "COMPLETED" ? "#10b981" : bk.status === "CANCELLED" ? "#9ca3af" : "#eab308";
                   const statusText = bk.status === "PAID" ? "Đã thanh toán" : bk.status === "CONFIRMED" ? "Đã xác nhận" : bk.status === "COMPLETED" ? "Đã hoàn thành" : bk.status === "CANCELLED" ? "Đã hủy/Hoàn" : "Chờ thanh toán";
                   const hasPendingRefund = bk.refundStatus === "PENDING";
                   const hasRejectedRefund = bk.refundStatus === "REJECTED";
 
-                  return (
-                    <div key={bk.id} style={{ background: "var(--bg-card)", border: "1px solid var(--border-light)", borderRadius: 12, padding: 20, boxShadow: "0 2px 10px rgba(0,0,0,0.02)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  // Calculate arrival time (arrivalTime or departureTime + 2h fallback)
+                  const depTime = bk.departureTime ? new Date(bk.departureTime).getTime() : 0;
+                  const arrTime = bk.arrivalTime ? new Date(bk.arrivalTime).getTime() : (depTime > 0 ? depTime + 2 * 60 * 60 * 1000 : 0);
+                  const isExpiredAfterArrival = arrTime > 0 && (Date.now() - arrTime > 60 * 60 * 1000);
+                  const isTripFinished = arrTime > 0 && (Date.now() >= arrTime);
 
-                      {/* Left side info */}
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-                          <span style={{ background: statusBg, color: statusColor, padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
+                  return (
+                    <div key={bk.id} style={{ background: "var(--bg-card)", border: "1px solid var(--border-main)", borderRadius: 14, padding: 22, boxShadow: "var(--shadow-card)", display: "flex", flexDirection: "column", gap: 16 }}>
+                      {/* Top Header Row */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-main)", paddingBottom: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          <span style={{ background: statusBg, color: statusColor, border: `1px solid ${statusColor}`, padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
                             {statusText}
                           </span>
-                          <span style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>{t.ticketCode}: #{bk.id}</span>
-                          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>• {t.bookedAt}: {new Date(bk.bookingDate).toLocaleString("vi-VN")}</span>
+                          <span style={{ fontSize: 13, color: "var(--text-main)", fontWeight: 700 }}>Mã vé: #{bk.id}</span>
+                          <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>• Đặt lúc: {new Date(bk.bookingDate).toLocaleString("vi-VN")}</span>
                         </div>
-
-                        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>
-                          {bk.origin} <span style={{ color: "var(--text-muted)", margin: "0 6px" }}>→</span> {bk.destination}
+                        {/* Vehicle Badge */}
+                        <div style={{ fontSize: 13, color: "var(--text-main)", fontWeight: 700, display: "flex", alignItems: "center", gap: 6, background: "var(--bg-input)", padding: "4px 12px", borderRadius: 8, border: "1px solid var(--border-main)" }}>
+                          {bk.vehicleType === "PLANE" ? <FaPlane style={{ color: "var(--primary)" }} /> : bk.vehicleType === "BUS" ? <TbBus style={{ color: "var(--primary)" }} /> : <TbTrain style={{ color: "var(--primary)" }} />}
+                          <span>{bk.vehicleType === "PLANE" ? "Vé máy bay" : bk.vehicleType === "BUS" ? "Vé xe khách" : "Vé tàu hỏa"}</span>
+                          <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>({bk.providerName})</span>
                         </div>
-
-                        <div style={{ fontSize: 14, color: "#444", marginBottom: 8 }}>
-                          {bk.vehicleType === "PLANE" ? <> <FaPlane /> ${t.flight}</> : bk.vehicleType === "BUS" ? <><TbBus /> ${t.bus}</> : <><TbTrain /> {t.train}</>}
-                          <span style={{ marginLeft: 6, color: "var(--text-muted)", fontWeight: 600 }}>({bk.providerName})</span>
-                        </div>
-
-                        <div style={{ display: "flex", gap: 24, fontSize: 13, color: "var(--text-secondary)" }}>
-                          <div><b>Khởi hành:</b> {new Date(bk.departureTime).toLocaleString("vi-VN")}</div>
-                          <div><b>Ghế:</b> {bk.seatNumbers ? bk.seatNumbers.join(", ") : "N/A"}</div>
-                        </div>
-
-                        {/* Hiển thị tên hành khách */}
-                        {bk.ticketDetails && bk.ticketDetails.length > 0 && (
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 6 }}>
-                            <b>👤 Hành khách:</b>{" "}
-                            {bk.ticketDetails.map((td, idx) => (
-                              <span key={idx}>
-                                {td.passengerName || "N/A"}
-                                <span style={{ color: "var(--text-muted)", fontSize: 11 }}> ({td.seatNumber})</span>
-                                {idx < bk.ticketDetails.length - 1 ? ", " : ""}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {bk.additionalServices && bk.additionalServices.length > 0 && (
-                          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 8 }}>
-                            <b>Dịch vụ:</b> {bk.additionalServices.join(", ")}
-                          </div>
-                        )}
-
-                        {bk.status === "CANCELLED" && bk.refundAmount > 0 && (
-                          <div style={{ fontSize: 13, color: "#16a34a", fontWeight: 700, marginTop: 8 }}>
-                            {t.refundedAmount}: {bk.refundAmount.toLocaleString("vi-VN")} đ
-                          </div>
-                        )}
-
-                        {/* Badge trạng thái yêu cầu hoàn tiền */}
-                        {hasPendingRefund && (
-                          <div style={{ marginTop: 8, padding: "6px 12px", background: "#fef3c7", color: "#92400e", borderRadius: 6, fontSize: 13, fontWeight: 700, display: "inline-block", border: "1px solid #fde68a" }}>
-                            ⏳ Đang chờ admin duyệt yêu cầu hoàn vé
-                          </div>
-                        )}
-                        {hasRejectedRefund && bk.status !== "CANCELLED" && (
-                          <div style={{ marginTop: 8, padding: "6px 12px", background: "#fee2e2", color: "#991b1b", borderRadius: 6, fontSize: 13, fontWeight: 700, display: "inline-block", border: "1px solid #fecaca" }}>
-                            ❌ Yêu cầu hoàn tiền bị từ chối
-                          </div>
-                        )}
                       </div>
 
-                      {/* Right side Price & Actions */}
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: "#ff6b00", marginBottom: 4 }}>
-                          {(bk.totalPrice || 0).toLocaleString("vi-VN")} đ
-                        </div>
-                        <div style={{ fontSize: 13, color: "#16a34a", fontWeight: "bold", marginBottom: 12 }}>
-                          (Đã áp dụng ưu đãi thành viên)
-                        </div>
+                      {/* Middle Body Row */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "start" }}>
+                        {/* Left Column Info */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 10 }}>
+                            <span>{bk.origin}</span>
+                            <span style={{ color: "#f97316", fontSize: 16 }}>➔</span>
+                            <span>{bk.destination}</span>
+                          </div>
 
-                        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                          {(bk.status === "PAID" || bk.status === "CONFIRMED") && (
-                            <button
-                              onClick={() => setQrModal({ show: true, booking: bk })}
-                              style={{ padding: "8px 16px", borderRadius: 6, border: "1px solid var(--primary)", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, transition: "0.2s", display: "flex", alignItems: "center", gap: 6 }}
-                            >
-                              <FaQrcode /> Mã vé QR
-                            </button>
+                          <div style={{ display: "flex", gap: 24, fontSize: 14, color: "var(--text-main)", flexWrap: "wrap", marginTop: 4 }}>
+                            <div>Khởi hành: <b style={{ color: "var(--text-main)", fontWeight: 700 }}>{new Date(bk.departureTime).toLocaleString("vi-VN")}</b></div>
+                            <div>Ghế: <b style={{ color: "#f97316", fontWeight: 700 }}>{bk.seatNumbers ? bk.seatNumbers.join(", ") : "N/A"}</b></div>
+                          </div>
+
+                          {/* Passengers */}
+                          {bk.ticketDetails && bk.ticketDetails.length > 0 && (
+                            <div style={{ fontSize: 14, color: "var(--text-main)", marginTop: 4 }}>
+                              <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>Hành khách: </span>
+                              {bk.ticketDetails.map((td, idx) => (
+                                <span key={idx} style={{ fontWeight: 700 }}>
+                                  {td.passengerName || "N/A"}
+                                  <span style={{ color: "var(--text-secondary)", fontSize: 13, fontWeight: 500 }}> ({td.seatNumber})</span>
+                                  {idx < bk.ticketDetails.length - 1 ? ", " : ""}
+                                </span>
+                              ))}
+                            </div>
                           )}
 
-                          {bk.status === "CONFIRMED" && (
-                            <button
-                              onClick={async () => {
-                                if (window.confirm("Bạn xác nhận chuyến đi này đã hoàn thành? Hệ thống sẽ gửi thư khảo sát qua Email.")) {
+                          {/* Services */}
+                          {bk.additionalServices && bk.additionalServices.length > 0 && (
+                            <div style={{ fontSize: 13.5, color: "var(--text-main)", marginTop: 4, lineHeight: 1.5 }}>
+                              <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>Dịch vụ: </span>
+                              <span style={{ fontWeight: 600 }}>{bk.additionalServices.join(", ")}</span>
+                            </div>
+                          )}
+
+                          {/* Refund Badges */}
+                          {bk.status === "CANCELLED" && bk.refundAmount > 0 && (
+                            <div style={{ fontSize: 13, color: "#22c55e", fontWeight: 700, marginTop: 4 }}>
+                              Đã hoàn tiền: {bk.refundAmount.toLocaleString("vi-VN")} đ
+                            </div>
+                          )}
+                          {hasPendingRefund && (
+                            <div style={{ marginTop: 6, padding: "6px 12px", background: "rgba(234, 179, 8, 0.15)", color: "#eab308", borderRadius: 6, fontSize: 12, fontWeight: 700, display: "inline-block", border: "1px solid #eab308" }}>
+                              ⏳ Đang chờ admin duyệt yêu cầu hoàn vé
+                            </div>
+                          )}
+                          {hasRejectedRefund && bk.status !== "CANCELLED" && (
+                            <div style={{ marginTop: 6, padding: "6px 12px", background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", borderRadius: 6, fontSize: 12, fontWeight: 700, display: "inline-block", border: "1px solid #ef4444" }}>
+                              ❌ Yêu cầu hoàn tiền bị từ chối
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Right Column Price */}
+                        <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: "#f97316", whiteSpace: "nowrap" }}>
+                            {(bk.totalPrice || 0).toLocaleString("vi-VN")} đ
+                          </div>
+                          <div style={{ fontSize: 12, color: "#22c55e", fontWeight: 600, marginTop: 2 }}>
+                            (Đã áp dụng ưu đãi)
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bottom Action Buttons Row */}
+                      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", borderTop: "1px dashed var(--border-main)", paddingTop: 12, flexWrap: "wrap" }}>
+                        {isPaidOrConfirmed && !isExpiredAfterArrival && (
+                          <button
+                            onClick={() => setQrModal({ show: true, booking: bk })}
+                            style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6, boxShadow: "0 2px 6px rgba(79, 124, 255, 0.3)" }}
+                          >
+                            <FaQrcode /> Mã vé QR
+                          </button>
+                        )}
+
+                        {bk.status === "CONFIRMED" && !isExpiredAfterArrival && (
+                          <button
+                            onClick={() => {
+                              setConfirmModal({
+                                show: true,
+                                title: "Xác nhận hoàn thành chuyến đi",
+                                message: "Bạn có chắc chắn chuyến đi này đã hoàn thành? Hệ thống sẽ gửi khảo sát dịch vụ qua Email của bạn.",
+                                onConfirm: async () => {
                                   try {
                                     setLoading(true);
                                     const token = localStorage.getItem("authToken");
                                     await axios.put(`/api/bookings/${bk.id}/complete`, {}, { headers: { Authorization: `Bearer ${token}` } });
-                                    alert("Chuyến đi đã hoàn thành. Cảm ơn bạn!");
+                                    setToastMsg({ text: "Chuyến đi đã hoàn thành. Cảm ơn bạn!", type: "success" });
                                     await fetchBookings();
                                   } catch (e) {
-                                    alert("Có lỗi xảy ra: " + (e.response?.data?.message || e.message));
+                                    setError("Có lỗi xảy ra: " + (e.response?.data?.message || e.message));
                                   } finally {
                                     setLoading(false);
                                   }
                                 }
-                              }}
-                              style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: "#4f46e5", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, transition: "0.2s" }}
-                            >
-                              Hoàn thành & Điểm Đánh Giá
-                            </button>
-                          )}
+                              });
+                            }}
+                            style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: "#6366f1", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13 }}
+                          >
+                            Hoàn thành chuyến đi
+                          </button>
+                        )}
 
-                          {bk.status === "PENDING" && (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  setLoading(true);
-                                  const token = localStorage.getItem("authToken");
-                                  const res = await axios.post(`/api/payment/resume`,
-                                    { bookingId: bk.id, language: "vn" },
-                                    { headers: { Authorization: `Bearer ${token}` } }
-                                  );
-                                  if (res.data && res.data.paymentUrl) {
-                                    window.location.href = res.data.paymentUrl;
-                                  } else {
-                                    alert("Lỗi tạo link thanh toán, vui lòng thử lại.");
-                                  }
-                                } catch (e) {
-                                  alert("Lỗi tiếp tục thanh toán: " + (e.response?.data?.message || e.message));
-                                } finally {
-                                  setLoading(false);
+                        {bk.status === "PENDING" && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                setLoading(true);
+                                const token = localStorage.getItem("authToken");
+                                const res = await axios.post(`/api/payment/resume`,
+                                  { bookingId: bk.id, language: "vn" },
+                                  { headers: { Authorization: `Bearer ${token}` } }
+                                );
+                                if (res.data && res.data.paymentUrl) {
+                                  window.location.href = res.data.paymentUrl;
+                                } else {
+                                  alert("Lỗi tạo link thanh toán, vui lòng thử lại.");
                                 }
-                              }}
-                              style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: "#ff6b00", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, transition: "0.2s" }}
-                            >
-                              Thanh toán ngay
-                            </button>
-                          )}
+                              } catch (e) {
+                                alert("Lỗi tiếp tục thanh toán: " + (e.response?.data?.message || e.message));
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                            style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: "#f97316", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13 }}
+                          >
+                            Thanh toán ngay →
+                          </button>
+                        )}
 
-                          {bk.status !== "CANCELLED" && bk.status !== "COMPLETED" && !hasPendingRefund && (
-                            <button
-                              onClick={() => openCancelModal(bk)}
-                              style={{ padding: "8px 16px", borderRadius: 6, border: "1px solid #ef4444", background: "var(--bg-card)", color: "#ef4444", fontWeight: 700, cursor: "pointer", fontSize: 13, transition: "0.2s" }}
-                              onMouseOver={e => { e.target.style.background = "#fee2e2" }}
-                              onMouseOut={e => { e.target.style.background = "var(--bg-card)" }}
-                            >
-                              Hủy / Hoàn vé
-                            </button>
-                          )}
+                        {bk.status !== "CANCELLED" && bk.status !== "COMPLETED" && !hasPendingRefund && (
+                          <button
+                            onClick={() => openCancelModal(bk)}
+                            style={{ padding: "8px 18px", borderRadius: 8, border: "1px solid #ef4444", background: "rgba(239, 68, 68, 0.1)", color: "#ef4444", fontWeight: 700, cursor: "pointer", fontSize: 13 }}
+                          >
+                            Hủy / Hoàn vé
+                          </button>
+                        )}
 
-                          {bk.status === "COMPLETED" && (
+                        {(bk.status === "COMPLETED" || isTripFinished) && (
+                          bk.hasReviewed || bk.reviewed ? (
+                            <span style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(34, 197, 94, 0.15)", color: "#22c55e", border: "1px solid #22c55e", fontWeight: 700, fontSize: 13, display: "inline-block" }}>
+                              ✓ Đã đánh giá
+                            </span>
+                          ) : (
                             <button
                               onClick={() => openReviewModal(bk)}
-                              style={{ padding: "8px 16px", borderRadius: 6, border: "1px solid #4f46e5", background: "var(--bg-accent)", color: "#4f46e5", fontWeight: 700, cursor: "pointer", fontSize: 13, transition: "0.2s" }}
-                              onMouseOver={e => { e.target.style.background = "#e0e7ff" }}
-                              onMouseOut={e => { e.target.style.background = "#eff6ff" }}
+                              style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: "#6366f1", color: "#ffffff", fontWeight: 700, cursor: "pointer", fontSize: 13, boxShadow: "0 2px 8px rgba(99, 102, 241, 0.35)" }}
                             >
-                              Gửi Đánh Giá <FaRegStar />
+                              Gửi Đánh Giá
                             </button>
-                          )}
-                        </div>
+                          )
+                        )}
                       </div>
                     </div>
                   );
@@ -449,16 +523,16 @@ const MyBookings = () => {
               </div>
             ) : (
               <>
-                <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4, color: "var(--text-heading)" }}>Đánh giá chuyến đi</h3>
-                <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>
+                <h3 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4, color: "var(--text-main)" }}>Đánh giá chuyến đi</h3>
+                <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 20 }}>
                   {reviewModal.booking.origin} → {reviewModal.booking.destination} &nbsp;•&nbsp;
                   {reviewModal.booking.vehicleType === "PLANE" ? "✈️" : reviewModal.booking.vehicleType === "BUS" ? "🚌" : "🚂"} {reviewModal.booking.providerName}
                 </p>
 
                 {/* Star Rating */}
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: "#374151" }}>Chọn số sao <span style={{ color: "#ef4444" }}>*</span></div>
-                  <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ marginBottom: 20, background: "var(--bg-input)", padding: 16, borderRadius: 12, border: "1px solid var(--border-main)" }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: "var(--text-main)" }}>Chọn số sao <span style={{ color: "#ef4444" }}>*</span></div>
+                  <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
                     {[1, 2, 3, 4, 5].map(star => (
                       <span
                         key={star}
@@ -466,11 +540,11 @@ const MyBookings = () => {
                         onMouseEnter={() => setReviewModal(prev => ({ ...prev, hovered: star }))}
                         onMouseLeave={() => setReviewModal(prev => ({ ...prev, hovered: 0 }))}
                         style={{
-                          fontSize: 38,
+                          fontSize: 40,
                           cursor: "pointer",
-                          color: star <= (reviewModal.hovered || reviewModal.rating) ? "#f59e0b" : "#d1d5db",
-                          transition: "color 0.15s, transform 0.1s",
-                          transform: star <= (reviewModal.hovered || reviewModal.rating) ? "scale(1.15)" : "scale(1)",
+                          color: star <= (reviewModal.hovered || reviewModal.rating) ? "#f59e0b" : "var(--border-main)",
+                          transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+                          transform: star <= (reviewModal.hovered || reviewModal.rating) ? "scale(1.2)" : "scale(1)",
                           display: "inline-block",
                           userSelect: "none"
                         }}
@@ -480,29 +554,29 @@ const MyBookings = () => {
                     ))}
                   </div>
                   {reviewModal.rating > 0 && (
-                    <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-                      {["", "Tệ 😞", "Không hài lòng 😐", "Ổn 🙂", "Tốt 😊", "Tuyệt vời! 🤩"][reviewModal.rating]}
+                    <div style={{ marginTop: 10, fontSize: 14, fontWeight: 700, color: "#f59e0b", textAlign: "center" }}>
+                      {["", "Tệ", "Không hài lòng", "Bình thường", "Tốt", "Tuyệt vời"][reviewModal.rating]}
                     </div>
                   )}
                 </div>
 
                 {/* Comment */}
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: "#374151" }}>Nhận xét (tùy chọn)</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: "var(--text-main)" }}>Nhận xét (tùy chọn)</div>
                   <textarea
                     value={reviewModal.comment}
                     onChange={e => setReviewModal(prev => ({ ...prev, comment: e.target.value }))}
-                    placeholder="Chia sẻ trải nghiệm của bạn về chuyến đi này..."
+                    placeholder="Chia sẻ trải nghiệm của bạn về dịch vụ, ghế ngồi, đúng giờ..."
                     rows={4}
                     maxLength={500}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: 1.5 }}
+                    style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border-main)", background: "var(--bg-input)", color: "var(--text-main)", fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: 1.6 }}
                   />
-                  <div style={{ textAlign: "right", fontSize: 11, color: "#9ca3af", marginTop: 4 }}>{reviewModal.comment.length}/500</div>
+                  <div style={{ textAlign: "right", fontSize: 12, color: "var(--text-secondary)", marginTop: 6 }}>{reviewModal.comment.length}/500</div>
                 </div>
 
                 {/* Error */}
                 {reviewModal.error && (
-                  <div style={{ padding: "10px 14px", background: "#fee2e2", color: "#dc2626", borderRadius: 8, fontSize: 13, marginBottom: 16, fontWeight: 600 }}>
+                  <div style={{ padding: "10px 14px", background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", borderRadius: 8, fontSize: 13, marginBottom: 16, fontWeight: 600 }}>
                     ⚠️ {reviewModal.error}
                   </div>
                 )}
@@ -512,16 +586,16 @@ const MyBookings = () => {
                   <button
                     onClick={closeReviewModal}
                     disabled={reviewModal.loading}
-                    style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-card)", fontWeight: 700, cursor: "pointer", color: "var(--text-secondary)", fontSize: 14 }}
+                    style={{ padding: "11px 22px", borderRadius: 10, border: "1px solid var(--border-main)", background: "var(--bg-input)", fontWeight: 700, cursor: "pointer", color: "var(--text-main)", fontSize: 14 }}
                   >
                     Hủy
                   </button>
                   <button
                     onClick={handleSubmitReview}
                     disabled={reviewModal.loading}
-                    style={{ padding: "10px 24px", borderRadius: 8, border: "none", background: reviewModal.loading ? "#a5b4fc" : "#4f46e5", color: "#fff", fontWeight: 700, cursor: reviewModal.loading ? "not-allowed" : "pointer", fontSize: 14, transition: "0.2s" }}
+                    style={{ padding: "11px 26px", borderRadius: 10, border: "none", background: reviewModal.loading ? "#a5b4fc" : "#6366f1", color: "#fff", fontWeight: 700, cursor: reviewModal.loading ? "not-allowed" : "pointer", fontSize: 14, boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)" }}
                   >
-                    {reviewModal.loading ? "Đang gửi..." : "Gửi Đánh Giá ⭐️"}
+                    {reviewModal.loading ? "Đang gửi..." : "Gửi Đánh Giá"}
                   </button>
                 </div>
               </>
@@ -576,7 +650,133 @@ const MyBookings = () => {
           </div>
         </div>
       )}
+
+      {/* Custom Confirmation Modal */}
+      {confirmModal.show && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1200, padding: 20 }}>
+          <div style={{ background: "var(--bg-card)", borderRadius: 16, padding: 24, maxWidth: 420, width: "100%", border: "1px solid var(--border-main)", boxShadow: "0 20px 40px rgba(0,0,0,0.4)", textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>✈️</div>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-main)", marginBottom: 8 }}>{confirmModal.title}</h3>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 24 }}>{confirmModal.message}</p>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button
+                onClick={() => setConfirmModal({ show: false, title: "", message: "", onConfirm: null })}
+                style={{ flex: 1, padding: "11px 16px", borderRadius: 10, border: "1px solid var(--border-main)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer", fontSize: 14 }}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={async () => {
+                  const action = confirmModal.onConfirm;
+                  setConfirmModal({ show: false, title: "", message: "", onConfirm: null });
+                  if (action) await action();
+                }}
+                style={{ flex: 1, padding: "11px 16px", borderRadius: 10, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14, boxShadow: "0 4px 12px rgba(79, 124, 255, 0.3)" }}
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Canvas Fireworks overlay */}
+      {showFireworks && (
+        <FireworksCanvas />
+      )}
     </div>
+  );
+};
+
+// Canvas Fireworks Component
+const FireworksCanvas = () => {
+  useEffect(() => {
+    const canvas = document.getElementById("fireworks-canvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+
+    const particles = [];
+    const colors = ["#ff0055", "#4f7cff", "#00ffcc", "#ffcc00", "#ff6600", "#cc00ff", "#ffffff"];
+
+    const createFirework = (x, y) => {
+      const count = 80;
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count;
+        const speed = Math.random() * 6 + 2;
+        particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 1,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          size: Math.random() * 3 + 2,
+          decay: Math.random() * 0.015 + 0.01
+        });
+      }
+    };
+
+    // Burst initial fireworks at random spots
+    createFirework(width * 0.3, height * 0.4);
+    createFirework(width * 0.7, height * 0.35);
+    createFirework(width * 0.5, height * 0.5);
+
+    let timer = setInterval(() => {
+      createFirework(Math.random() * width, Math.random() * (height * 0.6));
+    }, 400);
+
+    let animId;
+    const render = () => {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+      ctx.fillRect(0, 0, width, height);
+      ctx.globalCompositeOperation = "lighter";
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.05; // gravity
+        p.alpha -= p.decay;
+
+        if (p.alpha <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.alpha;
+        ctx.fill();
+      }
+
+      animId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      clearInterval(timer);
+      cancelAnimationFrame(animId);
+    };
+  }, []);
+
+  return (
+    <canvas
+      id="fireworks-canvas"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        pointerEvents: "none",
+        zIndex: 9999
+      }}
+    />
   );
 };
 

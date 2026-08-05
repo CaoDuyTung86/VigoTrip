@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
 import { useTheme } from "../context/ThemeContext";
+import { User, Lock, Award, Settings } from "lucide-react";
 
 const API = "";
 
@@ -94,15 +95,19 @@ const AccountPage = () => {
   };
 
   const tabStyle = (tab) => ({
-    padding: "10px 20px",
+    padding: "12px 22px",
     border: "none",
-    borderBottom: activeTab === tab ? "3px solid var(--primary)" : "3px solid transparent",
-    background: "none",
+    borderBottom: activeTab === tab ? "3px solid #60a5fa" : "3px solid transparent",
+    background: activeTab === tab ? "rgba(96, 165, 250, 0.1)" : "none",
     fontWeight: activeTab === tab ? 700 : 500,
-    color: activeTab === tab ? "var(--primary)" : "var(--text-muted)",
+    color: activeTab === tab ? "#60a5fa" : "var(--text-secondary)",
+    textShadow: activeTab === tab ? "0 0 10px rgba(96, 165, 250, 0.5)" : "none",
     cursor: "pointer",
     fontSize: 15,
-    transition: "0.2s",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    transition: "all 0.2s",
   });
 
   const inputStyle = {
@@ -195,10 +200,18 @@ const AccountPage = () => {
 
           {/* Tabs */}
           <div style={{ display: "flex", borderBottom: "1px solid var(--border-light)", marginBottom: 24, background: "var(--bg-card)", borderRadius: "12px 12px 0 0", overflow: "hidden", flexWrap: "wrap" }}>
-            <button style={tabStyle("profile")} onClick={() => setActiveTab("profile")}>👤 Thông tin</button>
-            <button style={tabStyle("password")} onClick={() => setActiveTab("password")}>🔒 Mật khẩu</button>
-            <button style={tabStyle("membership")} onClick={() => setActiveTab("membership")}>⭐ Hạng</button>
-            <button style={tabStyle("settings")} onClick={() => setActiveTab("settings")}>⚙️ Cài đặt</button>
+            <button style={tabStyle("profile")} onClick={() => setActiveTab("profile")}>
+              <User size={16} /> Thông tin
+            </button>
+            <button style={tabStyle("password")} onClick={() => setActiveTab("password")}>
+              <Lock size={16} /> Mật khẩu
+            </button>
+            <button style={tabStyle("membership")} onClick={() => setActiveTab("membership")}>
+              <Award size={16} /> Hạng
+            </button>
+            <button style={tabStyle("settings")} onClick={() => setActiveTab("settings")}>
+              <Settings size={16} /> Cài đặt
+            </button>
           </div>
 
           {loading ? (

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { FaUser, FaChild, FaBaby } from 'react-icons/fa';
 
 const PassengerInfoForm = ({
   type,
@@ -14,9 +15,9 @@ const PassengerInfoForm = ({
 
   // Type details
   const typeConfig = {
-    ADULT: { icon: "👤", label: t.adult || "Người lớn", desc: "> 12 tuổi", canSelectSaved: true },
-    CHILD: { icon: "🧒", label: t.child || "Trẻ em", desc: "2 - 11 tuổi", canSelectSaved: true },
-    INFANT: { icon: "👶", label: t.infant || "Em bé", desc: "< 2 tuổi", canSelectSaved: true }
+    ADULT: { icon: <FaUser style={{ color: "var(--primary)", fontSize: 16 }} />, label: t.adult || "Người lớn", desc: "> 12 tuổi", canSelectSaved: true },
+    CHILD: { icon: <FaChild style={{ color: "var(--primary)", fontSize: 16 }} />, label: t.child || "Trẻ em", desc: "2 - 11 tuổi", canSelectSaved: true },
+    INFANT: { icon: <FaBaby style={{ color: "var(--primary)", fontSize: 16 }} />, label: t.infant || "Em bé", desc: "< 2 tuổi", canSelectSaved: true }
   };
 
   const currentType = typeConfig[type] || typeConfig.ADULT;
@@ -74,7 +75,7 @@ const PassengerInfoForm = ({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "20px" }}>{currentType.icon}</span>
+          {currentType.icon}
           <span style={{ fontWeight: "700", fontSize: "16px", color: "var(--text-heading)" }}>
             {currentType.label} {index + 1}
           </span>
@@ -139,8 +140,9 @@ const PassengerInfoForm = ({
               <input
                 type="text"
                 name="fullName"
+                maxLength={50}
                 value={data.fullName || ''}
-                onChange={handleChange}
+                onChange={e => onChange(index, type, { ...data, fullName: e.target.value.replace(/[^a-zA-ZàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ\s]/g, '') })}
                 placeholder="NHẬP HỌ VÀ TÊN"
                 style={{ ...inputStyle, textTransform: "uppercase" }}
               />
@@ -185,8 +187,9 @@ const PassengerInfoForm = ({
                     <input
                       type="text"
                       name="phone"
+                      maxLength={10}
                       value={data.phone || data.phoneDigits || ''}
-                      onChange={e => onChange(index, type, { ...data, phone: e.target.value.replace(/\D/g, '') })}
+                      onChange={e => onChange(index, type, { ...data, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                       placeholder="0901234567"
                       style={{ ...inputStyle, flex: 1 }}
                     />
@@ -199,6 +202,7 @@ const PassengerInfoForm = ({
                   <input
                     type="email"
                     name="email"
+                    maxLength={60}
                     value={data.email || ''}
                     onChange={handleChange}
                     placeholder="email@example.com"
@@ -212,9 +216,10 @@ const PassengerInfoForm = ({
                   <input
                     type="text"
                     name="idNumber"
+                    maxLength={12}
                     value={data.idNumber || ''}
-                    onChange={handleChange}
-                    placeholder="Nhập số CCCD hoặc Mã Hộ chiếu"
+                    onChange={e => onChange(index, type, { ...data, idNumber: e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12) })}
+                    placeholder="Nhập số CCCD hoặc Mã Hộ chiếu (Tối đa 12 ký tự)"
                     style={inputStyle}
                   />
                 </div>

@@ -34,19 +34,19 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setTo(toEmail);
-            helper.setSubject("Yêu cầu khôi phục mật khẩu - Datxe.com");
+            helper.setSubject("Yêu cầu khôi phục mật khẩu - VigoTrip");
 
             String htmlContent = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
                     + "<h2 style='color: #4f7cff;'>Khôi phục mật khẩu</h2>"
                     + "<p>Xin chào,</p>"
-                    + "<p>Bạn đã yêu cầu khôi phục mật khẩu tại hệ thống Datxe.com. Vui lòng sử dụng mã OTP gồm 6 chữ số dưới đây để tiếp tục:</p>"
+                    + "<p>Bạn đã yêu cầu khôi phục mật khẩu tại hệ thống VigoTrip. Vui lòng sử dụng mã OTP gồm 6 chữ số dưới đây để tiếp tục:</p>"
                     + "<div style='background-color: #f4f7f6; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0;'>"
                     + "<h1 style='letter-spacing: 5px; color: #333; margin: 0; font-size: 32px;'>" + otpCode + "</h1>"
                     + "</div>"
                     + "<p style='color: #d9534f; font-weight: bold;'>Lưu ý: Mã OTP này sẽ hết hạn sau 15 phút.</p>"
                     + "<p>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này hoặc liên hệ bộ phận hỗ trợ.</p>"
                     + "<hr style='border: 1px solid #eee; margin-top: 30px;'/>"
-                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br/>Đội ngũ Datxe.com</p>"
+                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br/>Đội ngũ VigoTrip</p>"
                     + "</div>";
 
             helper.setText(htmlContent, true);
@@ -65,10 +65,10 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setTo(toEmail);
-            helper.setSubject("Xác thực tài khoản của bạn - Datxe.com");
+            helper.setSubject("Xác thực tài khoản của bạn - VigoTrip");
 
             String htmlContent = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
-                    + "<h2 style='color: #20c997;'>Chào mừng bạn đến với Datxe.com!</h2>"
+                    + "<h2 style='color: #20c997;'>Chào mừng bạn đến với VigoTrip!</h2>"
                     + "<p>Xin chào,</p>"
                     + "<p>Cảm ơn bạn đã đăng ký tài khoản tại hệ thống của chúng tôi. Vui lòng sử dụng mã xác nhận dưới đây để hoàn tất việc đăng ký:</p>"
                     + "<div style='background-color: #f0fff4; border: 1px solid #c6f6d5; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0;'>"
@@ -77,7 +77,7 @@ public class EmailService {
                     + "<p>Mã này có hiệu lực trong vòng 24 giờ.</p>"
                     + "<p>Nếu bạn không thực hiện đăng ký này, vui lòng bỏ qua email này.</p>"
                     + "<hr style='border: 1px solid #eee; margin-top: 30px;'/>"
-                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br/>Đội ngũ Datxe.com</p>"
+                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br/>Đội ngũ VigoTrip</p>"
                     + "</div>";
 
             helper.setText(htmlContent, true);
@@ -116,13 +116,13 @@ public class EmailService {
             }
 
             helper.setTo(toEmail);
-            helper.setSubject("Xác nhận đặt vé thành công #" + bookingId + " - Datxe.com");
+            helper.setSubject("Xác nhận đặt vé thành công #" + bookingId + " - VigoTrip");
 
             byte[] qrCodeImage = generateQRCodeImage("BOOKING_" + bookingId, 250, 250);
 
             String htmlContent = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 16px;'>"
                     + "<div style='text-align: center; margin-bottom: 20px;'>"
-                    + "<h1 style='color: #4f7cff; margin: 0;'>Datxe.com</h1>"
+                    + "<h1 style='color: #4f7cff; margin: 0;'>VigoTrip</h1>"
                     + "<p style='color: #6b7280; margin: 5px 0;'>Hành trình vạn dặm, bắt đầu từ một lần chạm</p>"
                     + "</div>"
                     + "<div style='background-color: #f0fdf4; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 25px;'>"
@@ -153,7 +153,7 @@ public class EmailService {
                     + "</p>"
                     + "</div>"
                     + "<div style='text-align: center; color: #9ca3af; font-size: 12px;'>"
-                    + "<p>© 2026 Datxe.com - Hệ thống đặt vé đa phương tiện hàng đầu Việt Nam</p>"
+                    + "<p>© 2026 VigoTrip - Hệ thống đặt vé đa phương tiện hàng đầu Việt Nam</p>"
                     + "</div>"
                     + "</div>";
 
@@ -182,19 +182,19 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setTo(toEmail);
-            helper.setSubject("Đánh giá chuyến đi #" + bookingId + " - Datxe.com");
+            helper.setSubject("Đánh giá chuyến đi #" + bookingId + " - VigoTrip");
 
             String htmlContent = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
                     + "<h2 style='color: #f59e0b;'>Bạn có hài lòng với chuyến đi?</h2>"
                     + "<p>Xin chào,</p>"
-                    + "<p>Hy vọng bạn đã có một trải nghiệm tuyệt vời cùng Datxe.com cho chuyến đi vừa qua (Mã Booking: #" + bookingId + ").</p>"
+                    + "<p>Hy vọng bạn đã có một trải nghiệm tuyệt vời cùng VigoTrip cho chuyến đi vừa qua (Mã Booking: #" + bookingId + ").</p>"
                     + "<p>Chúng tôi luôn nỗ lực cải thiện dịch vụ mỗi ngày và rất mong nhận được những góp ý, đánh giá chân thành từ bạn.</p>"
                     + "<div style='text-align: center; margin: 30px 0;'>"
                     + "<a href='http://localhost:5174/quan-ly-ve' style='background-color: #ff6b00; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold;'>Đánh giá ngay</a>"
                     + "</div>"
                     + "<p>Xin chân thành cảm ơn thời gian của quý khách.</p>"
                     + "<hr style='border: 1px solid #eee; margin-top: 30px;'/>"
-                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br/>Đội ngũ Datxe.com</p>"
+                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br/>Đội ngũ VigoTrip</p>"
                     + "</div>";
 
             helper.setText(htmlContent, true);
@@ -211,7 +211,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("⚠️ Thông báo: Chuyến đi của bạn bị hoãn giờ - Datxe.com");
+            helper.setSubject("⚠️ Thông báo: Chuyến đi của bạn bị hoãn giờ - VigoTrip");
 
             String html = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
                     + "<h2 style='color: #f59e0b;'>⚠️ Chuyến đi của bạn bị điều chỉnh giờ</h2>"
@@ -224,7 +224,7 @@ public class EmailService {
                     + "</div>"
                     + "<p>Chúng tôi xin lỗi vì sự bất tiện này. Vé của bạn vẫn có hiệu lực với giờ khởi hành mới.</p>"
                     + "<p>Nếu bạn không thể tham gia, vui lòng vào <a href='http://localhost:5174/quan-ly-ve'>trang quản lý vé</a> để hủy và nhận hoàn tiền 100%.</p>"
-                    + "<hr/><p style='font-size:12px;color:#888;'>Trân trọng,<br>Đội ngũ Datxe.com</p></div>";
+                    + "<hr/><p style='font-size:12px;color:#888;'>Trân trọng,<br>Đội ngũ VigoTrip</p></div>";
 
             helper.setText(html, true);
             mailSender.send(message);
@@ -239,7 +239,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("❌ Thông báo: Chuyến đi của bạn bị hủy - Datxe.com");
+            helper.setSubject("❌ Thông báo: Chuyến đi của bạn bị hủy - VigoTrip");
 
             String html = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
                     + "<h2 style='color: #ef4444;'>❌ Chuyến đi bị hủy</h2>"
@@ -251,8 +251,8 @@ public class EmailService {
                     + "<p>Hoàn tiền 100% do chuyến đi bị hủy từ phía nhà vận hành.</p>"
                     + "</div>"
                     + "<p>Chúng tôi thành thật xin lỗi vì sự cố này và sẽ xử lý hoàn tiền trong vòng 3-5 ngày làm việc.</p>"
-                    + "<p>Để đặt lại chuyến đi khác: <a href='http://localhost:5174'>Datxe.com</a></p>"
-                    + "<hr/><p style='font-size:12px;color:#888;'>Trân trọng,<br>Đội ngũ Datxe.com</p></div>";
+                    + "<p>Để đặt lại chuyến đi khác: <a href='http://localhost:5174'>VigoTrip</a></p>"
+                    + "<hr/><p style='font-size:12px;color:#888;'>Trân trọng,<br>Đội ngũ VigoTrip</p></div>";
 
             helper.setText(html, true);
             mailSender.send(message);
@@ -267,7 +267,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("🔔 Nhắc lịch: Chuyến đi của bạn sắp khởi hành! - Datxe.com");
+            helper.setSubject("🔔 Nhắc lịch: Chuyến đi của bạn sắp khởi hành! - VigoTrip");
 
             String html = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
                     + "<h2 style='color: #4f7cff;'>🔔 Chuyến đi sắp khởi hành!</h2>"
@@ -283,7 +283,7 @@ public class EmailService {
                     + "</div>"
                     + "<p>Chúc bạn có một chuyến đi an toàn và vui vẻ! 🎉</p>"
                     + "<hr style='border: 1px solid #eee; margin-top: 30px;'/>"
-                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br>Đội ngũ Datxe.com</p>"
+                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br>Đội ngũ VigoTrip</p>"
                     + "</div>";
 
             helper.setText(html, true);
@@ -299,7 +299,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("✅ Yêu cầu hoàn vé đã được chấp nhận - Datxe.com");
+            helper.setSubject("✅ Yêu cầu hoàn vé đã được chấp nhận - VigoTrip");
 
             String html = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
                     + "<h2 style='color: #16a34a;'>✅ Yêu cầu hoàn vé thành công</h2>"
@@ -310,9 +310,9 @@ public class EmailService {
                     + "<p style='margin:0; font-size:24px; font-weight:bold; color:#16a34a;'>" + String.format("%,.0f đ", amount) + "</p>"
                     + "</div>"
                     + "<p>Số tiền này sẽ được chuyển về tài khoản thanh toán ban đầu của bạn trong vòng 3-5 ngày làm việc tùy thuộc vào ngân hàng.</p>"
-                    + "<p>Cảm ơn bạn đã sử dụng dịch vụ của Datxe.com. Hy vọng sẽ được phục vụ bạn trong những chuyến đi tiếp theo.</p>"
+                    + "<p>Cảm ơn bạn đã sử dụng dịch vụ của VigoTrip. Hy vọng sẽ được phục vụ bạn trong những chuyến đi tiếp theo.</p>"
                     + "<hr style='border: 1px solid #eee; margin-top: 30px;'/>"
-                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br>Đội ngũ Datxe.com</p>"
+                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br>Đội ngũ VigoTrip</p>"
                     + "</div>";
 
             helper.setText(html, true);
@@ -328,7 +328,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("❌ Yêu cầu hoàn vé không được chấp nhận - Datxe.com");
+            helper.setSubject("❌ Yêu cầu hoàn vé không được chấp nhận - VigoTrip");
 
             String html = "<div style='font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto;'>"
                     + "<h2 style='color: #dc2626;'>❌ Yêu cầu hoàn vé bị từ chối</h2>"
@@ -340,7 +340,7 @@ public class EmailService {
                     + "</div>"
                     + "<p>Vé của bạn vẫn có giá trị sử dụng bình thường. Xin vui lòng kiểm tra lại chính sách hoàn hủy hoặc liên hệ bộ phận hỗ trợ khách hàng để được giải đáp chi tiết.</p>"
                     + "<hr style='border: 1px solid #eee; margin-top: 30px;'/>"
-                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br>Đội ngũ Datxe.com</p>"
+                    + "<p style='font-size: 12px; color: #888;'>Trân trọng,<br>Đội ngũ VigoTrip</p>"
                     + "</div>";
 
             helper.setText(html, true);

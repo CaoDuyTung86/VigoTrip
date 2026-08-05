@@ -106,9 +106,26 @@ const TrainTickets = () => {
 
   const filteredTrips = useMemo(() => {
     if (!trips) return [];
+    const now = new Date();
+
     return trips.filter(trip => {
       if (filterAvailableOnly && (trip.availableSeats || 0) <= 0) return false;
       if (filterProviders.length > 0 && !filterProviders.includes(trip.providerName)) return false;
+
+      // Filter trips starting within 30 minutes or already departed
+      if (trip.departureTime) {
+        let depDate = null;
+        if (trip.departureTime.includes("T")) {
+          depDate = new Date(trip.departureTime);
+        } else if (date) {
+          depDate = new Date(`${date}T${trip.departureTime}`);
+        }
+
+        if (depDate && !isNaN(depDate.getTime())) {
+          const diffMs = depDate.getTime() - now.getTime();
+          if (diffMs < 30 * 60 * 1000) return false;
+        }
+      }
 
       let depHour = 0;
       if (trip.departureTime) {
@@ -238,6 +255,7 @@ const TrainTickets = () => {
   const [voucherDiscount, setVoucherDiscount] = useState(0);
   const [selectedSeatClass, setSelectedSeatClass] = useState("");
   const [showInsuranceInfo, setShowInsuranceInfo] = useState(false);
+  const [showAllMeals, setShowAllMeals] = useState(false);
 
   // Tính giảm giá hạng thành viên từ promotion của user
   const membershipDiscount = useMemo(() => {
@@ -391,7 +409,24 @@ const TrainTickets = () => {
         throw new Error(text || `Lỗi HTTP ${res.status}`);
       }
       const data = await res.json();
-      setServices(Array.isArray(data) ? data : []);
+      const loadedServices = Array.isArray(data) ? data : [];
+
+      const defaultMeals = [
+        { id: 901, serviceName: "Suất ăn - Combo Bánh chưng chà bông, hạt điều & nước suối", price: 99000, img: "/suat an/Combo Banh chung cha bong, hat dieu va nuoc suoi.jpg" },
+        { id: 902, serviceName: "Suất ăn - Combo Bún xào Singapore, nước suối & hạt điều", price: 99000, img: "/suat an/Combo Bun xao Singapore va Nuoc suoi va Hat dieu.jpg" },
+        { id: 903, serviceName: "Suất ăn - Combo Cơm chiên Thái, nước suối & hạt điều", price: 99000, img: "/suat an/Combo Com chien Thai va Nuoc suoi va Hat dieu.jpg" },
+        { id: 904, serviceName: "Suất ăn - Combo Cơm chiên Dương Châu chay, nước suối & hạt điều", price: 99000, img: "/suat an/Combo Com chien duong chau chay va Nuoc suoi va Hat dieu.jpg" },
+        { id: 905, serviceName: "Suất ăn - Combo Cơm thịt bò, hạt điều & nước suối", price: 99000, img: "/suat an/Combo Com thit bo, hat dieu va nuoc suoi.jpg" },
+        { id: 906, serviceName: "Suất ăn - Combo Hattrick Bia, khô gà & chả giò", price: 110000, img: "/suat an/Combo Hattrick Bia, Kho ga va Cha gio.jpg" },
+        { id: 907, serviceName: "Suất ăn - Combo Miến xào tôm cua, nước suối & hạt điều", price: 99000, img: "/suat an/Combo Mien xao Tom cua va Nuoc suoi va Hat dieu.jpg" },
+        { id: 908, serviceName: "Suất ăn - Combo Mỳ Ý, nước suối & hạt điều", price: 99000, img: "/suat an/Combo My Y va Nuoc suoi va Hat dieu.jpg" },
+        { id: 909, serviceName: "Suất ăn - Combo Penalty Soda dâu & hạt Macca", price: 100000, img: "/suat an/Combo Penalty Soda Dau va Hat Macca.jpg" },
+        { id: 910, serviceName: "Suất ăn - Combo Xôi khúc giò, hạt điều & nước suối", price: 99000, img: "/suat an/Combo Xoi khuc gio, hat dieu va nuoc suoi.jpg" },
+        { id: 911, serviceName: "Suất ăn - Combo Xôi mặn, hạt điều & nước suối", price: 99000, img: "/suat an/Combo Xoi man, hat dieu va nuoc suoi.jpg" },
+      ];
+
+      const hasMeal = loadedServices.some(s => (s.serviceName || "").startsWith("Suất ăn"));
+      setServices(hasMeal ? loadedServices : [...loadedServices, ...defaultMeals]);
     } catch (err) {
       console.error(err);
       setError("Không tải được danh sách dịch vụ bổ sung.");
@@ -959,86 +994,48 @@ const TrainTickets = () => {
                       </label>
                     </div>
 
-                    {/* Time Range Filter (Slider + Presets) */}
-                    <div style={{ paddingTop: 10, borderTop: "1px solid var(--border-light)" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
-                          🕒 Khung giờ khởi hành: <span style={{ color: "#1d4ed8" }}>{timeRange[0]}:00 - {timeRange[1]}:00</span>
-                        </span>
-                        {/* Presets */}
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {[
-                            { label: "Tất cả", range: [0, 24] },
-                            { label: "Sáng sớm (0-6h)", range: [0, 6] },
-                            { label: "Sáng (6-12h)", range: [6, 12] },
-                            { label: "Chiều (12-18h)", range: [12, 18] },
-                            { label: "Tối (18-24h)", range: [18, 24] },
-                          ].map(preset => (
+                    {/* Time Range Filter (Presets Only) */}
+                    <div style={{ paddingTop: 10, borderTop: "1px solid var(--border-light)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", whiteSpace: "nowrap" }}>
+                        🕒 Khung giờ khởi hành:
+                      </span>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        {[
+                          { label: "Tất cả", range: [0, 24] },
+                          { label: "Sáng sớm (0 - 6h)", range: [0, 6] },
+                          { label: "Sáng (6 - 12h)", range: [6, 12] },
+                          { label: "Chiều (12 - 18h)", range: [12, 18] },
+                          { label: "Tối (18 - 24h)", range: [18, 24] },
+                        ].map(preset => {
+                          const isSelected = timeRange[0] === preset.range[0] && timeRange[1] === preset.range[1];
+                          return (
                             <button
                               key={preset.label}
                               type="button"
                               onClick={() => setTimeRange(preset.range)}
                               style={{
-                                padding: "4px 10px",
-                                borderRadius: 14,
-                                border: timeRange[0] === preset.range[0] && timeRange[1] === preset.range[1]
-                                  ? "1px solid #1d4ed8"
-                                  : "1px solid var(--border-light)",
-                                background: timeRange[0] === preset.range[0] && timeRange[1] === preset.range[1]
-                                  ? "#dbeafe"
-                                  : "transparent",
-                                color: timeRange[0] === preset.range[0] && timeRange[1] === preset.range[1]
-                                  ? "#1d4ed8"
-                                  : "var(--text-secondary)",
-                                fontSize: 11,
-                                fontWeight: 600,
+                                padding: "8px 16px",
+                                borderRadius: 20,
+                                border: isSelected
+                                  ? "1.5px solid var(--primary)"
+                                  : "1px solid var(--border-main)",
+                                background: isSelected
+                                  ? "var(--primary)"
+                                  : "var(--bg-card)",
+                                color: isSelected
+                                  ? "#ffffff"
+                                  : "var(--text-main)",
+                                fontSize: 13,
+                                fontWeight: 700,
                                 cursor: "pointer",
+                                transition: "all 0.2s ease",
+                                boxShadow: isSelected ? "0 2px 8px rgba(79, 124, 255, 0.3)" : "none",
                               }}
                             >
                               {preset.label}
                             </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Dual Range Sliders */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <span style={{ fontSize: 11, color: "var(--text-secondary)", minWidth: 24 }}>0h</span>
-                        <div style={{ position: "relative", flex: 1, height: 32, display: "flex", alignItems: "center", "--slider-color": "#1d4ed8" }}>
-                          {/* Background track with 10px inset for thumb alignment */}
-                          <div style={{ position: "absolute", left: 10, right: 10, height: 6, borderRadius: 3, background: "#e5e7eb", pointerEvents: "none" }}>
-                            {/* Active highlight bar inside track */}
-                            <div style={{
-                              position: "absolute",
-                              left: `${(timeRange[0] / 24) * 100}%`,
-                              width: `${((timeRange[1] - timeRange[0]) / 24) * 100}%`,
-                              height: "100%",
-                              borderRadius: 3,
-                              background: "#1d4ed8",
-                            }} />
-                          </div>
-                          {/* Min slider handle */}
-                          <input
-                            type="range"
-                            min={0}
-                            max={24}
-                            value={timeRange[0]}
-                            onChange={(e) => setTimeRange([Math.min(Number(e.target.value), timeRange[1] - 1), timeRange[1]])}
-                            className="dual-range-input"
-                            style={{ zIndex: timeRange[0] > 20 ? 5 : 3 }}
-                          />
-                          {/* Max slider handle */}
-                          <input
-                            type="range"
-                            min={0}
-                            max={24}
-                            value={timeRange[1]}
-                            onChange={(e) => setTimeRange([timeRange[0], Math.max(Number(e.target.value), timeRange[0] + 1)])}
-                            className="dual-range-input"
-                            style={{ zIndex: 4 }}
-                          />
-                        </div>
-                        <span style={{ fontSize: 11, color: "var(--text-secondary)", minWidth: 24, textAlign: "right" }}>24h</span>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -1586,24 +1583,32 @@ const TrainTickets = () => {
                   </div>
                 </div>
 
-
-                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-md)", height: "fit-content" }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid #eee", paddingBottom: 10 }}>Thông tin đặt chỗ</div>
-                  <div style={{ fontSize: 13, color: "#444", lineHeight: 1.9 }}>
-                    <div>&nbsp;&nbsp;&nbsp; <b>{selectedTrip.origin}</b> → <b>{selectedTrip.destination}</b></div>
-                    <div style={{ color: "var(--text-muted)" }}>{selectedTrip.departureTime}</div>
+                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)", height: "fit-content", position: "sticky", top: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>Thông tin đặt chỗ</div>
+                  <div style={{ fontSize: 13, color: "var(--text-main)", lineHeight: 1.9 }}>
+                    <div><b>{selectedTrip.origin}</b> → <b>{selectedTrip.destination}</b></div>
+                    <div style={{ color: "var(--text-secondary)", fontSize: 12 }}>{selectedTrip.departureTime} · {selectedTrip.providerName}</div>
                     <div style={{ marginTop: 6 }}>Ghế: <b>{selectedSeatIds.length === 0 ? "Chưa chọn" : seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ")}</b></div>
-                    <div style={{ marginTop: 8, fontWeight: 700, color: "#ff6b00", fontSize: 15 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ / ghế</div>
+                    <div style={{ marginTop: 10, padding: "10px 12px", background: "var(--bg-input)", borderRadius: 8, border: "1px solid var(--border-main)" }}>
+                      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>TỔNG TIỀN VÉ</div>
+                      <div style={{ fontWeight: 800, color: "#f97316", fontSize: 17, whiteSpace: "nowrap" }}>
+                        {(() => {
+                          const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
+                          const basePrice = Number(selectedTrip.price || 0);
+                          const total = selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s.seatType), 0);
+                          return total > 0 ? `${total.toLocaleString("vi-VN")} đ` : `${basePrice.toLocaleString("vi-VN")} đ / ghế`;
+                        })()}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
 
-
             {selectedTrip && step === "extras" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
-                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-md)" }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{t.step3}</h2>
+                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)" }}>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>{t.step3}</h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{t.extrasInstruction}</p>
 
                   {servicesLoading && <p style={{ color: "var(--text-muted)" }}>Đang tải dịch vụ...</p>}
@@ -1611,176 +1616,204 @@ const TrainTickets = () => {
                   {!servicesLoading && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
+                      {/* Hành lý */}
                       <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, background: "var(--bg-input)" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                          <span style={{ fontSize: 24 }}>🧳</span>
-                          <div><div style={{ fontWeight: 700, fontSize: 15 }}>{t.baggage}</div><div style={{ fontSize: 12, color: "var(--text-muted)" }}>Chọn gói hành lý phù hợp</div></div>
+                          <FaTicketAlt style={{ color: "var(--primary)", fontSize: 22 }} />
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: 15, color: "var(--text-main)" }}>{t.baggage}</div>
+                            <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Chọn gói hành lý phù hợp</div>
+                          </div>
                         </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                           <label style={{
-                            display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderRadius: 8,
-                            border: `2px solid ${!selectedServiceIds.some(id => categories.baggage.map(s => s.id).includes(id)) ? "#4f7cff" : "#ddd"}`,
-                            background: !selectedServiceIds.some(id => categories.baggage.map(s => s.id).includes(id)) ? "#eff6ff" : "#fff",
-                            cursor: "pointer"
+                            display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 18px", borderRadius: 10,
+                            border: `2px solid ${!selectedServiceIds.some(id => categories.baggage.map(s => s.id).includes(id)) ? "var(--primary)" : "var(--border-main)"}`,
+                            background: "var(--bg-card)", cursor: "pointer", minWidth: 80, textAlign: "center"
                           }}>
                             <input type="radio" name="baggage" style={{ display: "none" }}
                               checked={!selectedServiceIds.some(id => categories.baggage.map(s => s.id).includes(id))}
                               onChange={() => setSingleServiceInCategory(null, categories.baggage)} />
-                            Không mua thêm
+                            <span style={{ fontSize: 16, color: "var(--text-muted)" }}>✕</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginTop: 2 }}>Không mua thêm</span>
                           </label>
-                          {categories.baggage.map(s => (
-                            <label key={s.id} style={{
-                              display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderRadius: 8,
-                              border: `2px solid ${selectedServiceIds.includes(s.id) ? "#4f7cff" : "#ddd"}`,
-                              background: selectedServiceIds.includes(s.id) ? "#eff6ff" : "#fff", cursor: "pointer"
-                            }}>
-                              <input type="radio" name="baggage" style={{ display: "none" }} checked={selectedServiceIds.includes(s.id)} onChange={() => setSingleServiceInCategory(s.id, categories.baggage)} />
-                              <span style={{ fontWeight: 600 }}>{s.serviceName}</span>
-                              <span style={{ marginLeft: 6, color: "var(--primary)", fontWeight: 700 }}>{Number(s.price || 0).toLocaleString("vi-VN")} đ</span>
-                            </label>
-                          ))}
+                          {categories.baggage.map(s => {
+                            const isSel = selectedServiceIds.includes(s.id);
+                            return (
+                              <label key={s.id} style={{
+                                display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 18px", borderRadius: 10,
+                                border: `2px solid ${isSel ? "var(--primary)" : "var(--border-main)"}`,
+                                background: "var(--bg-card)", cursor: "pointer", minWidth: 80, textAlign: "center"
+                              }}>
+                                <input type="radio" name="baggage" style={{ display: "none" }} checked={isSel} onChange={() => setSingleServiceInCategory(s.id, categories.baggage)} />
+                                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{s.serviceName}</span>
+                                <span style={{ fontSize: 12, color: "#f97316", fontWeight: 700 }}>{Number(s.price || 0).toLocaleString("vi-VN")} đ</span>
+                              </label>
+                            );
+                          })}
                         </div>
                       </div>
 
-
-                      <div style={{ border: "1px solid #fef3c7", borderRadius: 12, padding: "20px", background: "var(--bg-input)" }}>
+                      {/* Suất ăn */}
+                      <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: "20px", background: "var(--bg-input)" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ fontSize: 28 }}>🍱</span>
+                            <span style={{ fontSize: 22, color: "#f59e0b" }}>🍱</span>
                             <div>
-                              <div style={{ fontWeight: 800, fontSize: 16, color: "#b45309" }}>{t.meal}</div>
-                              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Suất ăn nóng hổi, chuẩn vị nhà hàng</div>
+                              <div style={{ fontWeight: 800, fontSize: 16, color: "var(--text-main)" }}>{t.meal}</div>
+                              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Suất ăn nóng hổi, chuẩn vị nhà hàng</div>
                             </div>
                           </div>
                         </div>
 
                         <div style={{ marginBottom: 16 }}>
                           <label style={{
-                            display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 30,
-                            border: `2px solid ${!selectedServiceIds.some(id => categories.meal.map(s => s.id).includes(id)) ? "#f59e0b" : "#ddd"}`,
-                            background: !selectedServiceIds.some(id => categories.meal.map(s => s.id).includes(id)) ? "#fffbeb" : "#fff",
-                            cursor: "pointer", fontWeight: 700, color: !selectedServiceIds.some(id => categories.meal.map(s => s.id).includes(id)) ? "#d97706" : "#555"
+                            display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 18px", borderRadius: 30,
+                            border: `2px solid ${!selectedServiceIds.some(id => categories.meal.map(s => s.id).includes(id)) ? "var(--primary)" : "var(--border-main)"}`,
+                            background: "var(--bg-card)", cursor: "pointer", fontWeight: 700, fontSize: 13,
+                            color: !selectedServiceIds.some(id => categories.meal.map(s => s.id).includes(id)) ? "var(--primary)" : "var(--text-secondary)"
                           }}>
                             <input type="radio" name="meal" style={{ display: "none" }}
                               checked={!selectedServiceIds.some(id => categories.meal.map(s => s.id).includes(id))}
                               onChange={() => setSingleServiceInCategory(null, categories.meal)} />
-                            ✖ Không chọn suất ăn
+                            ✕ Không chọn suất ăn
                           </label>
                         </div>
 
                         {categories.meal.length === 0 ? (
-                          <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-muted)", fontSize: 13 }}>
-                            🍽 Hãng tàu này hiện chưa cung cấp suất ăn trực tuyến.<br />
-                            <span style={{ fontSize: 11 }}>Bạn có thể mua trực tiếp trên tàu.</span>
+                          <div style={{ textAlign: "center", padding: "16px 0", color: "var(--text-secondary)", fontSize: 13 }}>
+                            Hãng tàu này hiện chưa cung cấp suất ăn trực tuyến.<br />
+                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Bạn có thể mua trực tiếp trên tàu.</span>
                           </div>
                         ) : (
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                            {categories.meal.map((s, index) => {
-                              const images = [
-                                "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?q=80&w=400&auto=format&fit=crop",
-                                "https://images.unsplash.com/photo-1603133872878-684f208fb84b?q=80&w=400&auto=format&fit=crop",
-                                "https://images.unsplash.com/photo-1585032226651-759b368d7246?q=80&w=400&auto=format&fit=crop",
-                                "https://images.unsplash.com/photo-1555126634-323283e090fa?q=80&w=400&auto=format&fit=crop"
-                              ];
-                              const img = images[index % images.length];
-                              const isSelected = selectedServiceIds.includes(s.id);
-                              return (
-                                <div key={s.id} onClick={() => setSingleServiceInCategory(s.id, categories.meal)}
-                                  style={{
-                                    borderRadius: 12, overflow: "hidden", border: `2px solid ${isSelected ? "#f59e0b" : "#eee"}`,
-                                    background: isSelected ? "#fffbeb" : "#fff", cursor: "pointer", position: "relative", transition: "all 0.2s",
-                                    boxShadow: isSelected ? "0 4px 12px rgba(245, 158, 11, 0.2)" : "0 2px 8px rgba(0,0,0,0.05)"
-                                  }}>
-                                  <div style={{ height: 120, backgroundImage: `url(${img})`, backgroundSize: "cover", backgroundPosition: "center" }} />
-                                  <div style={{ padding: 12 }}>
-                                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-main)", lineHeight: 1.4, minHeight: 40 }}>{s.serviceName}</div>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-                                      <span style={{ color: "#d97706", fontWeight: 800, fontSize: 14 }}>{Number(s.price || 0).toLocaleString("vi-VN")} đ</span>
+                          <>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                              {(showAllMeals ? categories.meal : categories.meal.slice(0, 4)).map((s, index) => {
+                                const fallbackImages = [
+                                  "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?q=80&w=400&auto=format&fit=crop",
+                                  "https://images.unsplash.com/photo-1603133872878-684f208fb84b?q=80&w=400&auto=format&fit=crop",
+                                  "https://images.unsplash.com/photo-1585032226651-759b368d7246?q=80&w=400&auto=format&fit=crop",
+                                  "https://images.unsplash.com/photo-1555126634-323283e090fa?q=80&w=400&auto=format&fit=crop"
+                                ];
+                                const img = s.img || fallbackImages[index % fallbackImages.length];
+                                const isSelected = selectedServiceIds.includes(s.id);
+                                const cleanName = s.serviceName.replace(/^Suất ăn\s*-\s*/i, '');
+                                return (
+                                  <div key={s.id} onClick={() => setSingleServiceInCategory(s.id, categories.meal)}
+                                    style={{
+                                      borderRadius: 12, overflow: "hidden", border: `2px solid ${isSelected ? "var(--primary)" : "var(--border-main)"}`,
+                                      background: "var(--bg-card)", cursor: "pointer", position: "relative", transition: "all 0.2s",
+                                      boxShadow: isSelected ? "0 4px 12px rgba(56, 139, 253, 0.2)" : "none"
+                                    }}>
+                                    <div style={{ height: 160, backgroundImage: `url("${encodeURI(img)}")`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                                    <div style={{ padding: "10px 12px", background: "var(--bg-card)" }}>
                                       <div style={{
-                                        width: 24, height: 24, borderRadius: "50%", background: isSelected ? "#f59e0b" : "#f3f4f6",
-                                        display: "flex", alignItems: "center", justifyContent: "center", color: isSelected ? "#fff" : "#9ca3af", fontWeight: "bold"
+                                        fontWeight: 700, fontSize: 13, color: "var(--text-main)", lineHeight: 1.3,
+                                        display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textOverflow: "ellipsis", height: 34
                                       }}>
-                                        {isSelected ? "✓" : "+"}
+                                        {cleanName}
+                                      </div>
+                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                                        <span style={{ color: "#f97316", fontWeight: 800, fontSize: 14 }}>{Number(s.price || 0).toLocaleString("vi-VN")} đ</span>
+                                        <div style={{
+                                          width: 22, height: 22, borderRadius: "50%", background: isSelected ? "var(--primary)" : "var(--bg-input)",
+                                          display: "flex", alignItems: "center", justifyContent: "center", color: isSelected ? "#fff" : "var(--text-muted)", fontWeight: "bold", fontSize: 12
+                                        }}>
+                                          {isSelected ? "✓" : "+"}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                                );
+                              })}
+                            </div>
+
+                            {categories.meal.length > 4 && (
+                              <div style={{ textAlign: "center", marginTop: 14 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowAllMeals(v => !v)}
+                                  style={{
+                                    padding: "8px 20px", borderRadius: 20, border: "1px solid var(--border-main)",
+                                    background: "var(--bg-card)", color: "var(--primary)", fontWeight: 700, fontSize: 13,
+                                    cursor: "pointer", transition: "all 0.2s"
+                                  }}
+                                >
+                                  {showAllMeals ? "▲ Thu gọn bớt" : `▼ Xem thêm ${categories.meal.length - 4} món ăn khác`}
+                                </button>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
 
-                      {[{ cat: categories.insurance, icon: <FaShieldAlt />, title: "Bảo hiểm du lịch", sub: "Bảo vệ chuyến đi của bạn", color: "#f0fdf4", border: "#86efac", accent: "#16a34a" },
-                      { cat: categories.taxi, icon: <FaTaxi />, title: "Xe đưa đón sân ga", sub: "Tiện lợi với dịch vụ xe riêng", color: "#fef9c3", border: "#fde68a", accent: "#b45309" }]
-                        .map(({ cat, icon, title, sub, color, border, accent }) => (
+                      {/* Bảo hiểm & Xe đưa đón */}
+                      {[{ cat: categories.insurance, icon: <FaShieldAlt style={{ color: "#22c55e", fontSize: 22 }} />, title: "Bảo hiểm du lịch", sub: "Bảo vệ chuyến đi của bạn" },
+                      { cat: categories.taxi, icon: <FaTaxi style={{ color: "#f59e0b", fontSize: 22 }} />, title: "Xe đưa đón sân ga", sub: "Tiện lợi với dịch vụ xe riêng" }]
+                        .map(({ cat, icon, title, sub }) => (
                           cat.length > 0 && (
-                            <div key={title} style={{ border: `1px solid ${border}`, borderRadius: 12, padding: 16, background: "var(--bg-input)" }}>
+                            <div key={title} style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, background: "var(--bg-input)" }}>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                  <span style={{ fontSize: 26 }}>{icon}</span>
+                                  {icon}
                                   <div>
-                                    <div style={{ fontWeight: 800, fontSize: 15, fontFamily: "'Segoe UI', sans-serif" }}>{title}</div>
-                                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{sub}</div>
+                                    <div style={{ fontWeight: 800, fontSize: 15, color: "var(--text-main)" }}>{title}</div>
+                                    <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{sub}</div>
                                   </div>
                                 </div>
                                 {title === "Bảo hiểm du lịch" && (
                                   <button
                                     type="button"
                                     onClick={() => setShowInsuranceInfo(v => !v)}
-                                    style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, border: "1px solid #86efac", background: "#f0fdf4", color: "#16a34a", cursor: "pointer", fontWeight: 600 }}
+                                    style={{ fontSize: 12, padding: "4px 12px", borderRadius: 20, border: "1px solid var(--border-main)", background: "var(--bg-card)", color: "var(--primary)", cursor: "pointer", fontWeight: 600 }}
                                   >
-                                    {showInsuranceInfo ? "Ẩn" : "❓ So sánh gói"}
+                                    {showInsuranceInfo ? "Ẩn" : "So sánh gói"}
                                   </button>
                                 )}
                               </div>
 
                               {title === "Bảo hiểm du lịch" && showInsuranceInfo && (
-                                <div style={{ marginBottom: 14, padding: 14, background: "#fff", borderRadius: 10, border: "1px solid #bbf7d0", fontSize: 13 }}>
-                                  <div style={{ fontWeight: 700, marginBottom: 8, color: "#166534" }}>📋 So sánh gói bảo hiểm</div>
+                                <div style={{ marginBottom: 14, padding: 14, background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-main)", fontSize: 13 }}>
+                                  <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--text-main)" }}>📋 So sánh gói bảo hiểm</div>
                                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                                     <thead>
-                                      <tr style={{ background: "#f0fdf4" }}>
-                                        <th style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid #d1fae5" }}>Quyền lợi</th>
-                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid #d1fae5", color: "#16a34a" }}>Cơ bản</th>
-                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid #d1fae5", color: "#1d4ed8" }}>Cao cấp</th>
+                                      <tr style={{ background: "var(--bg-input)" }}>
+                                        <th style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid var(--border-main)", color: "var(--text-main)" }}>Quyền lợi</th>
+                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--border-main)", color: "#22c55e" }}>Cơ bản</th>
+                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--border-main)", color: "#60a5fa" }}>Cao cấp</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {[
                                         ["Tai nạn trên tàu", "150 triệu đ", "300 triệu đ"],
-                                        ["Hủy chuyến đột xuất", "✗", "Hoàn 100%"],
+                                        ["Hủy chuyến đột xuất", "✕", "Hoàn 100%"],
                                         ["Hành lý thất lạc", "2 triệu đ", "5 triệu đ"],
                                         ["Chi phí y tế", "5 triệu đ", "20 triệu đ"],
-                                        ["Trễ chuyến > 3 tiếng", "✗", "150.000đ"],
+                                        ["Trễ chuyến > 3 tiếng", "✕", "150.000đ"],
                                       ].map(([benefit, basic, premium]) => (
-                                        <tr key={benefit} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                                          <td style={{ padding: "6px 8px" }}>{benefit}</td>
-                                          <td style={{ padding: "6px 8px", textAlign: "center", color: basic === "✗" ? "#9ca3af" : "#166534" }}>{basic}</td>
-                                          <td style={{ padding: "6px 8px", textAlign: "center", color: premium === "✗" ? "#9ca3af" : "#1d4ed8", fontWeight: 600 }}>{premium}</td>
+                                        <tr key={benefit} style={{ borderBottom: "1px solid var(--border-main)" }}>
+                                          <td style={{ padding: "6px 8px", color: "var(--text-secondary)" }}>{benefit}</td>
+                                          <td style={{ padding: "6px 8px", textAlign: "center", color: basic === "✕" ? "var(--text-muted)" : "#22c55e" }}>{basic}</td>
+                                          <td style={{ padding: "6px 8px", textAlign: "center", color: premium === "✕" ? "var(--text-muted)" : "#60a5fa", fontWeight: 600 }}>{premium}</td>
                                         </tr>
                                       ))}
                                     </tbody>
                                   </table>
-                                  <div style={{ marginTop: 10, padding: "8px 10px", background: "#eff6ff", borderRadius: 8, color: "#1e40af", fontSize: 11 }}>
-                                    💡 <b>Gợi ý:</b> Gói <b>Cơ bản</b> phù hợp cho hành trình ngắn. Chọn <b>Cao cấp</b> nếu bạn đi xa, mang nhiều hành lý có giá trị hoặc lo lắng rủi ro.
+                                  <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--bg-input)", borderRadius: 8, color: "var(--text-secondary)", fontSize: 11 }}>
+                                    💡 <b>Gợi ý:</b> Gói <b>Cơ bản</b> phù hợp cho hành trình ngắn. Chọn <b>Cao cấp</b> nếu bạn đi xa, mang nhiều hành lý có giá trị.
                                   </div>
                                 </div>
                               )}
 
                               <label style={{
                                 display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10,
-                                border: `1.5px solid ${!selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? (title === "Bảo hiểm du lịch" ? "#86efac" : "#fde68a") : "#e5e7eb"}`,
-                                background: !selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? (title === "Bảo hiểm du lịch" ? "#f0fdf4" : "#fef9c3") : "#fff",
-                                cursor: "pointer", marginBottom: 8, fontWeight: 600, fontSize: 14,
-                                color: !selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? accent : "#555"
+                                border: `1.5px solid ${!selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? "var(--primary)" : "var(--border-main)"}`,
+                                background: "var(--bg-card)", cursor: "pointer", marginBottom: 8, fontWeight: 600, fontSize: 13,
+                                color: !selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? "var(--primary)" : "var(--text-secondary)"
                               }}>
                                 <input type="radio" name={`cat_${title}`} style={{ display: "none" }}
                                   checked={!selectedServiceIds.some(id => cat.map(s => s.id).includes(id))}
                                   onChange={() => setSingleServiceInCategory(null, cat)} />
-                                <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${!selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? accent : "#ddd"}`, background: !selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? accent : "#fff", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                  {!selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
-                                </div>
                                 Không chọn
                               </label>
 
@@ -1792,23 +1825,17 @@ const TrainTickets = () => {
                                     onClick={() => setSingleServiceInCategory(s.id, cat)}
                                     style={{
                                       display: "flex", alignItems: "center", justifyContent: "space-between",
-                                      padding: "12px 14px", borderRadius: 10, background: sel ? color : "#fff",
-                                      border: `1.5px solid ${sel ? border : "#e5e7eb"}`,
+                                      padding: "12px 14px", borderRadius: 10, background: "var(--bg-card)",
+                                      border: `1.5px solid ${sel ? "var(--primary)" : "var(--border-main)"}`,
                                       cursor: "pointer", marginBottom: 8
                                     }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                      <div style={{
-                                        width: 18, height: 18, borderRadius: "50%", border: `2px solid ${sel ? accent : "#ddd"}`,
-                                        background: sel ? accent : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
-                                      }}>
-                                        {sel && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
-                                      </div>
                                       <div>
-                                        <div style={{ fontWeight: 700, fontSize: 14 }}>{shortName || s.serviceName}</div>
-                                        {sel && <div style={{ fontSize: 11, color: accent }}>✓ Đã chọn</div>}
+                                        <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{shortName || s.serviceName}</div>
+                                        {sel && <div style={{ fontSize: 11, color: "var(--primary)" }}>✓ Đã chọn</div>}
                                       </div>
                                     </div>
-                                    <span style={{ fontWeight: 800, fontSize: 14, color: sel ? accent : "#555", flexShrink: 0 }}>
+                                    <span style={{ fontWeight: 800, fontSize: 14, color: "#f97316", flexShrink: 0 }}>
                                       {Number(s.price || 0) === 0 ? "Miễn phí" : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}
                                     </span>
                                   </label>
@@ -1820,31 +1847,48 @@ const TrainTickets = () => {
                     </div>
                   )}
 
-                  {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
+                  {error && <p style={{ color: "#ef4444", marginTop: 12 }}>{error}</p>}
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
-                    <button type="button" onClick={() => setStep("passenger")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-card)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
+                    <button type="button" onClick={() => setStep("passenger")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
                     <button type="button" onClick={goToReview} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.reviewAndPay} →</button>
                   </div>
                 </div>
 
 
-                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-md)", height: "fit-content" }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid #eee", paddingBottom: 10 }}>{t.totalCost}</div>
-                  <div style={{ fontSize: 13, lineHeight: 2 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Giá vé ({selectedSeatIds.length} ghế)</span><b>{seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s.seatType), 0).toLocaleString("vi-VN")} đ</b></div>
-                    {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
-                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-muted)" }}>+ {s.serviceName}</span><span>{Number(s.price || 0).toLocaleString("vi-VN")} đ</span></div>
-                    ))}
-                    {membershipDiscount > 0 && (
-                      <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", marginTop: 4, fontWeight: 600 }}>
-                        <span>🏅 Ưu đãi hạng thành viên ({user.promotion.discountRate}%)</span>
-                        <span>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
-                      </div>
-                    )}
-                    <div style={{ borderTop: "1px solid var(--border-light)", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 15, color: "#ff6b00" }}>
-                      <span>Tổng cộng</span>
-                      <span>{Math.max(0, seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s.seatType), 0) + services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum, s) => sum + (s.price || 0), 0) - membershipDiscount).toLocaleString("vi-VN")} đ</span>
-                    </div>
+                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)", height: "fit-content", position: "sticky", top: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>{t.totalCost}</div>
+                  <div style={{ fontSize: 13, lineHeight: 1.9, color: "var(--text-secondary)" }}>
+                    {(() => {
+                      const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
+                      const basePrice = Number(selectedTrip.price || 0);
+                      const seatsTotal = selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s.seatType), 0);
+                      const extraTotal = services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum, s) => sum + (s.price || 0), 0);
+
+                      return (
+                        <>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "var(--text-main)", gap: 8 }}>
+                            <span>Giá vé ({selectedSeatIds.length} ghế)</span>
+                            <b style={{ whiteSpace: "nowrap", flexShrink: 0 }}>{seatsTotal.toLocaleString("vi-VN")} đ</b>
+                          </div>
+                          {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
+                            <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", color: "var(--text-secondary)", gap: 10, marginTop: 4 }}>
+                              <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>+ {s.serviceName}</span>
+                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? "Miễn phí" : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
+                            </div>
+                          ))}
+                          {membershipDiscount > 0 && (
+                            <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 6, fontWeight: 600, gap: 8 }}>
+                              <span>🏅 Ưu đãi thành viên ({user.promotion.discountRate}%)</span>
+                              <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
+                            </div>
+                          )}
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-main)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>Tổng cộng</span>
+                            <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{Math.max(0, seatsTotal + extraTotal - membershipDiscount).toLocaleString("vi-VN")} đ</span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -1853,74 +1897,73 @@ const TrainTickets = () => {
 
             {selectedTrip && step === "review" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
-                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-md)" }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{t.step4}</h2>
+                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)" }}>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>{t.step4}</h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{t.reviewInstruction}</p>
 
 
                   <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
-                    <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--primary)" }}>&nbsp;&nbsp;&nbsp; Chuyến bay</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}>🚆 Chuyến tàu</div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: 16 }}>{selectedTrip.origin} → {selectedTrip.destination}</div>
-                        <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 4 }}>{selectedTrip.departureTime} · {selectedTrip.providerName}</div>
+                        <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-main)" }}>{selectedTrip.origin} → {selectedTrip.destination}</div>
+                        <div style={{ color: "var(--text-main)", fontSize: 14, marginTop: 4, fontWeight: 500 }}>{selectedTrip.departureTime} · {selectedTrip.providerName}</div>
                       </div>
-                      <div style={{ fontWeight: 800, color: "#ff6b00", fontSize: 16 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
+                      <div style={{ fontWeight: 800, color: "#f97316", fontSize: 17, whiteSpace: "nowrap" }}>
+                        {(() => {
+                          const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
+                          const basePrice = Number(selectedTrip.price || 0);
+                          return selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s.seatType), 0).toLocaleString("vi-VN");
+                        })()} đ
+                      </div>
                     </div>
                   </div>
 
 
                   <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
-                    <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--primary)" }}>👤 Hành khách</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}><FaUser /> Hành khách</div>
                     {passengerInfoList.map((pi, idx) => (
-                      <div key={idx} style={{ fontSize: 13, marginBottom: 8, paddingBottom: 8, borderBottom: idx < passengerInfoList.length - 1 ? "1px dashed #ccc" : "none" }}>
-                        <b>{pi.data.fullName || `Hành khách ${idx + 1}`}</b> ({pi.type === 'ADULT' ? 'Người lớn' : pi.type === 'CHILD' ? 'Trẻ em' : 'Em bé'})
-                        {pi.type === 'ADULT' && <div style={{ color: "var(--text-muted)", marginTop: 2 }}>{pi.data.email} · {pi.data.phone ? `+84 ${pi.data.phone}` : ''}</div>}
-                        <div style={{ marginTop: 2 }}>Ngày sinh: {pi.data.dateOfBirth} | Giới tính: {pi.data.gender === 'Male' ? 'Nam' : pi.data.gender === 'Female' ? 'Nữ' : 'Khác'}</div>
+                      <div key={idx} style={{ fontSize: 14, marginBottom: 8, paddingBottom: 8, borderBottom: idx < passengerInfoList.length - 1 ? "1px dashed var(--border-main)" : "none", color: "var(--text-main)", lineHeight: 1.6 }}>
+                        <b style={{ fontSize: 15 }}>{pi.data.fullName || `Hành khách ${idx + 1}`}</b> <span style={{ color: "var(--text-secondary)" }}>({pi.type === 'ADULT' ? 'Người lớn' : pi.type === 'CHILD' ? 'Trẻ em' : 'Em bé'})</span>
+                        {pi.type === 'ADULT' && <div style={{ color: "var(--text-main)", marginTop: 2 }}>{pi.data.email} · {pi.data.phone ? `${pi.data.phone}` : ''}</div>}
+                        <div style={{ marginTop: 2, color: "var(--text-main)" }}>Ngày sinh: <b>{pi.data.dateOfBirth}</b> | Giới tính: <b>{pi.data.gender === 'Male' ? 'Nam' : pi.data.gender === 'Female' ? 'Nữ' : 'Khác'}</b></div>
                       </div>
                     ))}
-                    <div style={{ marginTop: 4 }}>Ghế: <b>{seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ") || "Chưa chọn"}</b></div>
+                    <div style={{ marginTop: 6, color: "var(--text-main)", fontSize: 14 }}>Ghế: <b style={{ fontSize: 15, color: "#f97316" }}>{seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ") || "Chưa chọn"}</b></div>
                   </div>
 
 
                   {selectedServiceIds.length > 0 && (
                     <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
-                      <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--primary)" }}>🛎 Dịch vụ bổ sung</div>
+                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)" }}>🛎 Dịch vụ bổ sung</div>
                       {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
-                        <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 4 }}>
-                          <span>{s.serviceName}</span><b>{Number(s.price || 0).toLocaleString("vi-VN")} đ</b>
+                        <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 6, color: "var(--text-main)", gap: 10 }}>
+                          <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>{s.serviceName}</span>
+                          <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0).toLocaleString("vi-VN")} đ</b>
                         </div>
                       ))}
                     </div>
                   )}
 
 
-                  <div style={{ position: "relative", border: "2px dashed #ff4500", borderRadius: 12, padding: "20px", marginBottom: 14, background: "linear-gradient(to right, #fff5f0, #fff)" }}>
-                    <div style={{ position: "absolute", left: -8, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, borderRadius: "50%", background: "var(--bg-card)", borderRight: "2px dashed #ff4500" }}></div>
-                    <div style={{ position: "absolute", right: -8, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, borderRadius: "50%", background: "var(--bg-card)", borderLeft: "2px dashed #ff4500" }}></div>
-                    <div style={{ fontWeight: 800, color: "#ff4500", fontSize: 16, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 22 }}>🎟️</span> {t.promoCodeLabel}
-                    </div>
-                    <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ border: "1px dashed var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
+                    <div style={{ fontWeight: 700, marginBottom: 10, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6 }}><FaTicketAlt style={{ color: "var(--primary)" }} /> {t.promoCodeLabel}</div>
+                    <div style={{ display: "flex", gap: 8 }}>
                       <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="Nhập mã ưu đãi..."
-                        style={{ flex: 1, padding: "12px 16px", borderRadius: 8, border: "1px solid #fca5a5", fontSize: 15, fontWeight: "bold", color: "#b91c1c", textTransform: "uppercase" }} />
-                      <button type="button" onClick={handleApplyVoucher} disabled={!promoCode} style={{ padding: "12px 24px", borderRadius: 8, border: "none", background: promoCode ? "#ff4500" : "#fca5a5", color: "#fff", fontWeight: 800, cursor: promoCode ? "pointer" : "not-allowed", transition: "all 0.2s" }}>
-                        {t.applyPromo}
-                      </button>
+                        style={{ flex: 1, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-main)", background: "var(--bg-card)", color: "var(--text-main)", fontSize: 14 }} />
+                      <button type="button" onClick={handleApplyVoucher} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.applyPromo}</button>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#991b1b", marginTop: 10 }}>
-                      <span style={{ fontStyle: "italic" }}>💡 Mẹo: Nhận mã tại trang Ưu Đãi để được giảm tới 50%</span>
-                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 6 }}>{t.promoInstruction}</div>
                   </div>
 
-                  {error && <p style={{ color: "red", marginTop: 4 }}>{error}</p>}
+                  {error && <p style={{ color: "#ef4444", marginTop: 4 }}>{error}</p>}
 
                   {bookingResult ? (
-                    <div style={{ padding: 20, borderRadius: 12, background: "#f0fdf4", border: "1px solid #bbf7d0", marginTop: 8 }}>
-                      <div style={{ fontWeight: 800, color: "#16a34a", fontSize: 16, marginBottom: 8 }}><MdOutlineDone /> {t.successBooking}</div>
-                      <div style={{ fontSize: 14, color: "#166534", lineHeight: 1.9 }}>
-                        <div>Mã booking: <b>#{bookingResult.id}</b></div>
-                        <div>{t.totalCost}: <b>{Number(bookingResult.totalPrice || 0).toLocaleString("vi-VN")} đ</b></div>
+                    <div style={{ padding: 20, borderRadius: 12, background: "rgba(34, 197, 94, 0.1)", border: "1px solid #22c55e", marginTop: 8 }}>
+                      <div style={{ fontWeight: 800, color: "#22c55e", fontSize: 16, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><MdOutlineDone /> {t.successBooking}</div>
+                      <div style={{ fontSize: 14, color: "var(--text-main)", lineHeight: 1.9 }}>
+                        <div>Mã booking: <b style={{ color: "var(--primary)" }}>#{bookingResult.id}</b></div>
+                        <div>{t.totalCost}: <b style={{ color: "#f97316" }}>{Number(bookingResult.totalPrice || 0).toLocaleString("vi-VN")} đ</b></div>
                         <div>Ghế: {Array.isArray(bookingResult.seatNumbers) ? bookingResult.seatNumbers.join(", ") : ""}</div>
                       </div>
                       <button type="button"
@@ -1931,39 +1974,61 @@ const TrainTickets = () => {
                           } catch { alert("Lỗi tạo link VNPay, vui lòng thử lại."); }
                         }}
                         style={{ marginTop: 14, width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#005baa", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                        <MdOutlineCreditCard /> {t.paymentVNPAY}
+                        <MdOutlineCreditCard fontSize={20} /> {t.paymentVNPAY}
                       </button>
                     </div>
                   ) : (
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-                      <button type="button" onClick={() => setStep("extras")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-card)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
+                      <button type="button" onClick={() => setStep("extras")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
                       <button type="button" onClick={submitBooking} disabled={submitLoading}
-                        style={{ padding: "12px 32px", borderRadius: 8, border: "none", background: "#ff6b00", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer" }}>
-                        {submitLoading ? "Đang xử lý..." : <><FaTicketAlt /> Đặt vé ngay</>}
+                        style={{ padding: "12px 32px", borderRadius: 8, border: "none", background: "#f97316", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                        {submitLoading ? "Đang xử lý..." : "Đặt vé ngay →"}
                       </button>
                     </div>
                   )}
                 </div>
 
 
-                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-md)", height: "fit-content" }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid #eee", paddingBottom: 10 }}>{t.paymentDetails}</div>
-                  <div style={{ fontSize: 13, lineHeight: 2 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Giá vé ({selectedSeatIds.length} ghế)</span><b>{seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s.seatType), 0).toLocaleString("vi-VN")} đ</b></div>
-                    {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
-                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-muted)" }}>+ {s.serviceName}</span><span>{Number(s.price || 0).toLocaleString("vi-VN")} đ</span></div>
-                    ))}
-                    {membershipDiscount > 0 && (
-                      <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", marginTop: 4, fontWeight: 600 }}>
-                        <span>🏅 Ưu đãi hạng thành viên ({user.promotion.discountRate}%)</span>
-                        <span>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
-                      </div>
-                    )}
-                    {appliedVoucher && <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", marginTop: 4 }}><span>🎟 Mã: {appliedVoucher}</span><span>-{voucherDiscount.toLocaleString("vi-VN")} đ</span></div>}
-                    <div style={{ borderTop: "1px solid var(--border-light)", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 16, color: "#ff6b00" }}>
-                      <span>Tổng cộng</span>
-                      <span>{Math.max(0, seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s.seatType), 0) + services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum, s) => sum + (s.price || 0), 0) - membershipDiscount - voucherDiscount).toLocaleString("vi-VN")} đ</span>
-                    </div>
+                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)", height: "fit-content", position: "sticky", top: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>{t.paymentDetails}</div>
+                  <div style={{ fontSize: 13, lineHeight: 1.9, color: "var(--text-secondary)" }}>
+                    {(() => {
+                      const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
+                      const basePrice = Number(selectedTrip.price || 0);
+                      const seatsTotal = selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s.seatType), 0);
+                      const extraTotal = services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum, s) => sum + (s.price || 0), 0);
+
+                      return (
+                        <>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "var(--text-main)", gap: 8 }}>
+                            <span>Giá vé ({selectedSeatIds.length} ghế)</span>
+                            <b style={{ whiteSpace: "nowrap", flexShrink: 0 }}>{seatsTotal.toLocaleString("vi-VN")} đ</b>
+                          </div>
+                          {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
+                            <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", color: "var(--text-main)", gap: 10, marginTop: 4 }}>
+                              <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>+ {s.serviceName}</span>
+                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? "Miễn phí" : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
+                            </div>
+                          ))}
+                          {membershipDiscount > 0 && (
+                            <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 6, fontWeight: 600, gap: 8 }}>
+                              <span>🏅 Ưu đãi thành viên ({user.promotion.discountRate}%)</span>
+                              <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
+                            </div>
+                          )}
+                          {appliedVoucher && (
+                            <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 4, gap: 8 }}>
+                              <span>🎟 Mã: {appliedVoucher}</span>
+                              <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{voucherDiscount.toLocaleString("vi-VN")} đ</span>
+                            </div>
+                          )}
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-main)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>Tổng cộng</span>
+                            <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{Math.max(0, seatsTotal + extraTotal - membershipDiscount - voucherDiscount).toLocaleString("vi-VN")} đ</span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

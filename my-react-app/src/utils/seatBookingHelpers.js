@@ -1,13 +1,18 @@
+/* eslint-disable no-unused-vars */
 export const canSelectSeats = (isAuthenticated, user) => true;
 
 export const getSeatUserId = (user) => {
-  if (user?.email) return user.email;
-  let anonId = sessionStorage.getItem("anonymous_seat_user_id");
-  if (!anonId) {
-    anonId = "anonymous_" + Math.random().toString(36).substring(2, 11);
-    sessionStorage.setItem("anonymous_seat_user_id", anonId);
+  if (user && user.email) {
+    return user.email;
   }
-  return anonId;
+  let sessionKey = localStorage.getItem("vigo_device_session_key");
+  if (!sessionKey) {
+    const array = new Uint32Array(2);
+    crypto.getRandomValues(array);
+    sessionKey = "sess_" + Date.now() + "_" + array[0].toString(36) + array[1].toString(36);
+    localStorage.setItem("vigo_device_session_key", sessionKey);
+  }
+  return sessionKey;
 };
 
 export const isSeatLockedByOthers = (seat, user) => {

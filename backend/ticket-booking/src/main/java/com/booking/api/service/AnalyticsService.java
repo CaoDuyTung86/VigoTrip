@@ -59,11 +59,11 @@ public class AnalyticsService {
             reportBuilder.append(String.format("- %s -> %s: %s VND\n", row[0], row[1], df.format(routeRev)));
         }
 
-        String systemInstruction = "Bạn là chuyên gia phân tích dữ liệu kinh doanh (Chief BI Analyst) vận tải hành khách của Datxe.com. " +
-                "Dữ liệu SQL Aggregation đã được tổng hợp từ cơ sở dữ liệu (Bảng dat_ve, ve, chuyen_di, tuyen_duong, nha_cung_cap). " +
-                "Hãy phân tích gồm: (1) Nhận định tổng quan tình hình doanh thu, (2) Điểm sáng từ các tuyến đường hot, " +
-                "(3) 3 đề xuất hành động cụ thể để tối ưu doanh thu trong kỳ tiếp theo. " +
-                "Ngôn ngữ: Tiếng Việt. Phong cách: Chuyên nghiệp, súc tích, dùng định dạng Markdown.";
+        String systemInstruction = "Bạn là chuyên gia phân tích dữ liệu kinh doanh của VigoTrip. " +
+                "Dữ liệu được tổng hợp từ SQL. Hãy phân tích: " +
+                "(1) Nhận định tổng quan doanh thu, (2) Điểm sáng tuyến đường hot, " +
+                "(3) 3 đề xuất cụ thể để tối ưu doanh thu. " +
+                "Ngôn ngữ: Tiếng Việt. Ngắn gọn, dùng Markdown (##, -, **bold**).";
 
         return aiService.getAIAnalysis(systemInstruction, reportBuilder.toString());
     }
@@ -90,7 +90,7 @@ public class AnalyticsService {
 
         String filterPeriod = month != null ? String.format("Tháng %d/%d", month, targetYear) : String.format("Năm %d", targetYear);
 
-        reportBuilder.append(String.format("BÁO CÁO TỔNG QUAN HE THONG DATXE.COM (%s):\n\n", filterPeriod));
+        reportBuilder.append(String.format("BÁO CÁO TỔNG QUAN HỆ THỐNG VIGOTRIP (%s):\n\n", filterPeriod));
         reportBuilder.append(String.format("TỔNG SỐ BOOKING TOÀN HỆ THỐNG: %d đặt chỗ\n\n", totalBookings));
 
         double totalSystem = 0;
@@ -136,14 +136,13 @@ public class AnalyticsService {
             }
         }
 
-        String systemInstruction = "Bạn là Giám đốc phân tích kinh doanh (Chief BI Officer) của nền tảng đặt vé Datxe.com. " +
-                "Dữ liệu được trích xuất từ câu lệnh SQL Aggregation chuyên sâu trên hệ thống SQL Server. " +
-                "Hãy viết báo cáo điều hành (Executive Summary) gồm:\n" +
-                "## 1. Tổng quan tình hình doanh thu & tăng trưởng\n" +
-                "## 2. Phân tích hiệu suất từng loại phương tiện & Nhà cung cấp\n" +
+        String systemInstruction = "Bạn là chuyên gia phân tích kinh doanh của VigoTrip. " +
+                "Dựa trên dữ liệu thực tế cung cấp, hãy viết báo cáo tóm tắt gồm 4 phần:\n" +
+                "## 1. Tổng quan doanh thu & tăng trưởng\n" +
+                "## 2. Hiệu suất theo loại phương tiện & Nhà cung cấp\n" +
                 "## 3. Điểm sáng & Cơ hội mở rộng\n" +
-                "## 4. 3 Chiến lược đề xuất để tăng trưởng trong kỳ tới\n" +
-                "Ngôn ngữ: Tiếng Việt. Dùng Markdown formatting (##, -, **bold**). Chuyên nghiệp và súc tích.";
+                "## 4. 3 Chiến lược tăng trưởng kỳ tới\n" +
+                "Ngôn ngữ: Tiếng Việt. Ngắn gọn, dùng Markdown (##, -, **bold**). Không dùng từ hoa mỹ.";
 
         return aiService.getAIAnalysis(systemInstruction, reportBuilder.toString());
     }

@@ -3,11 +3,9 @@ import { Html5Qrcode } from "html5-qrcode";
 import axios from "axios";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
-import { useLanguage } from "../context/LanguageContext";
 import { FaSearch, FaHistory, FaCheckCircle, FaImage, FaCamera, FaSync } from "react-icons/fa";
 
 const ProviderCheckIn = () => {
-  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
   const [isScanning, setIsScanning] = useState(false);
@@ -158,7 +156,7 @@ const ProviderCheckIn = () => {
 
       const result = await scannerRef.current.scanFile(file, true);
       handleCheckIn(result);
-    } catch (err) {
+    } catch {
       setMessage({ text: "Không tìm thấy mã QR. Hãy thử chụp rõ hơn.", type: "error" });
     } finally {
       setLoading(false);
@@ -170,36 +168,37 @@ const ProviderCheckIn = () => {
     if (!qrData) return;
     console.log("Bắt đầu check-in cho dữ liệu:", qrData);
 
+    let targetBookingId = "";
+
     try {
       setLoading(true);
       setMessage({ text: "Đang xác thực...", type: "" });
 
-      let bookingId;
       try {
         const data = JSON.parse(qrData);
-        bookingId = typeof data === 'object' && data !== null ? data.bookingId : data;
-      } catch (e) {
-        bookingId = qrData;
+        targetBookingId = typeof data === 'object' && data !== null ? data.bookingId : data;
+      } catch {
+        targetBookingId = qrData;
       }
 
-      if (typeof bookingId === 'string') {
-        bookingId = bookingId.replace(/[#\s]/g, '').trim();
+      if (typeof targetBookingId === 'string') {
+        targetBookingId = targetBookingId.replace(/[#\s]/g, '').trim();
       }
 
-      if (!bookingId) {
+      if (!targetBookingId) {
         throw new Error("Mã vé không hợp lệ.");
       }
 
-      console.log("Đang gửi request check-in cho ID:", bookingId);
+      console.log("Đang gửi request check-in cho ID:", targetBookingId);
       const token = localStorage.getItem("authToken");
 
-      const response = await axios.post(`/api/bookings/${bookingId}/check-in`, {}, {
+      const response = await axios.post(`/api/bookings/${targetBookingId}/check-in`, {}, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 6000 // Giảm xuống 6s để người dùng đỡ chờ lâu
       });
 
       console.log("Check-in thành công:", response.data);
-      setMessage({ text: `Xong! Vé #${bookingId} đã check-in thành công.`, type: "success" });
+      setMessage({ text: `Xong! Vé #${targetBookingId} đã check-in thành công.`, type: "success" });
       setManualId("");
       fetchRecentCheckIns();
     } catch (err) {
@@ -215,14 +214,14 @@ const ProviderCheckIn = () => {
             const formattedTime = dateObj.toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' });
             const formattedDate = dateObj.toLocaleDateString("vi-VN");
             displayMsg = `đã được check-in lúc ${formattedTime} ngày ${formattedDate}`;
-          } catch (e) {
+          } catch {
             displayMsg = errorMsg.replace("Vé này ", "");
           }
         } else {
           displayMsg = errorMsg.replace("Vé này ", "");
         }
 
-        setMessage({ text: `Thông tin: Vé #${bookingId} ${displayMsg}`, type: "success" });
+        setMessage({ text: `Thông tin: Vé #${targetBookingId} ${displayMsg}`, type: "success" });
         setTimeout(() => fetchRecentCheckIns(), 100); 
       } else {
         setMessage({ text: `Lỗi: ${errorMsg}`, type: "error" });

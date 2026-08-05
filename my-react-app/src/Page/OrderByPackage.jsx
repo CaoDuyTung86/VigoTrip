@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import axios from "axios";
 import { useLanguage } from "../context/LanguageContext";
 import Header from "../LayOut/Header";
@@ -6,8 +6,6 @@ import Sidebar from "../components/Sidebar";
 import { useAuth } from "../context/AuthContext";
 import {
   MdFlight,
-  MdTrain,
-  MdDirectionsBus,
   MdHotel,
   MdRestaurant,
   MdAttractions,
@@ -28,7 +26,7 @@ import { GiCommercialAirplane } from "react-icons/gi";
 
 const OrderByPackage = () => {
   const { t } = useLanguage();
-  const { token, isAuthenticated } = useAuth();
+  const { token } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedPackage, setSelectedPackage] = useState(null);
@@ -38,7 +36,6 @@ const OrderByPackage = () => {
   const [returnDate, setReturnDate] = useState("");
   const [selectedExtras, setSelectedExtras] = useState([]);
   const [promoCode, setPromoCode] = useState("");
-  const [bookingComplete, setBookingComplete] = useState(false);
   const [favoriteTours, setFavoriteTours] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("favoriteTours")) || [];
@@ -350,25 +347,18 @@ const OrderByPackage = () => {
 
   const handleVNPayPayment = async () => {
     try {
-      const totalAmount = calculateTotal();
       const bookingId = Date.now();
       const res = await axios.post(
         "/api/payment/create",
         { bookingId, language: "vn" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      if (res.data && res.data.paymentUrl) {
+      if (res.data?.paymentUrl) {
         window.location.href = res.data.paymentUrl;
       }
     } catch {
       alert("Lỗi tạo link VNPay, vui lòng thử lại.");
     }
-  };
-
-  const handlePaymentComplete = () => {
-    setBookingComplete(true);
-    setBookingStep("browse");
-    setTimeout(() => setBookingComplete(false), 5000);
   };
 
   const toggleFavorite = (pkgId) => {
@@ -423,31 +413,6 @@ const OrderByPackage = () => {
         <Sidebar isOpen={isSidebarOpen} />
         <div className={`page-main ${isSidebarOpen ? "with-sidebar" : ""}`}>
           <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "30px 20px" }}>
-
-
-            {bookingComplete && (
-              <div style={{
-                position: "fixed",
-                top: "20px",
-                right: "20px",
-                background: "#10b981",
-                color: "white",
-                padding: "16px 24px",
-                borderRadius: "12px",
-                boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
-                zIndex: 1000,
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                animation: "slideIn 0.3s ease"
-              }}>
-                <MdCheckCircle size={24} />
-                <div>
-                  <div style={{ fontWeight: "bold", marginBottom: "4px" }}>Đặt gói thành công!</div>
-                  <div style={{ fontSize: "14px", opacity: 0.9 }}>Mã giao dịch: #PKG{Math.floor(Math.random() * 10000)}</div>
-                </div>
-              </div>
-            )}
 
 
             <div style={{ marginBottom: "30px" }}>

@@ -280,21 +280,21 @@ const Header = () => {
 
           {/* Admin/Provider buttons */}
           {isAuthenticated && (user?.role === "ROLE_ADMIN" || user?.role === "ROLE_PROVIDER") && (
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 8 }}>
               {user?.role === "ROLE_ADMIN" && (
                 <>
-                  <button onClick={() => navigate("/admin/trips")} style={adminBtnStyle("#0071EB", "#e8f0ff")}>{t.adminTrips}</button>
-                  <button onClick={() => navigate("/provider/refunds")} style={adminBtnStyle("#e53935", "#fff0f0")}>{t.refunds}</button>
+                  <button onClick={() => navigate("/admin/trips")} style={glowBtnStyle("#3b82f6", "rgba(59, 130, 246, 0.2)", "rgba(59, 130, 246, 0.35)")}>{t.adminTrips}</button>
+                  <button onClick={() => navigate("/provider/refunds")} style={glowBtnStyle("#ef4444", "rgba(239, 68, 68, 0.2)", "rgba(239, 68, 68, 0.35)")}>{t.refunds}</button>
                 </>
               )}
               {user?.role === "ROLE_PROVIDER" && (
                 <>
-                  <button onClick={() => navigate("/admin/reviews")} style={adminBtnStyle("#0071EB", "#e8f0ff")}>{t.providerReviews}</button>
-                  <button onClick={() => navigate("/admin/revenue")} style={adminBtnStyle("#d97706", "#fef3c7")}>{t.revenue}</button>
+                  <button onClick={() => navigate("/admin/reviews")} style={glowBtnStyle("#60a5fa", "rgba(96, 165, 250, 0.2)", "rgba(96, 165, 250, 0.35)")}>{t.providerReviews}</button>
+                  <button onClick={() => navigate("/admin/revenue")} style={glowBtnStyle("#fbbf24", "rgba(251, 191, 36, 0.2)", "rgba(251, 191, 36, 0.35)")}>{t.revenue}</button>
                 </>
               )}
-              <button onClick={() => navigate("/provider/check-in")} style={{ ...adminBtnStyle("#059669", "#d1fae5"), display: "flex", alignItems: "center", gap: 5 }}>
-                <FaQrcode /> {t.checkInQR}
+              <button onClick={() => navigate("/provider/check-in")} style={{ ...glowBtnStyle("#34d399", "rgba(52, 211, 153, 0.2)", "rgba(52, 211, 153, 0.35)"), display: "flex", alignItems: "center", gap: 6 }}>
+                <FaQrcode style={{ fontSize: 13, color: "#34d399" }} /> {t.checkInQR}
               </button>
             </div>
           )}
@@ -407,17 +407,19 @@ const Header = () => {
   );
 };
 
-const adminBtnStyle = (color, bg) => ({
-  padding: "5px 11px",
-  borderRadius: 7,
-  border: `1px solid ${color}`,
+const glowBtnStyle = (color, bg, border) => ({
+  padding: "6px 13px",
+  borderRadius: 8,
+  border: `1px solid ${border}`,
   background: bg,
   color: color,
   cursor: "pointer",
-  fontSize: 12.5,
-  fontWeight: 600,
+  fontSize: 13,
+  fontWeight: 700,
   fontFamily: "inherit",
   whiteSpace: "nowrap",
+  boxShadow: `0 0 10px ${bg}`,
+  transition: "all 0.2s",
 });
 
 const dropdownItemStyle = {

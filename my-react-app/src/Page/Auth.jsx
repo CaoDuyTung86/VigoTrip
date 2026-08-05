@@ -280,9 +280,12 @@ const Auth = ({ isOpen, onClose }) => {
           backgroundColor: "var(--bg-card)",
           borderRadius: "24px",
           overflow: "hidden",
-          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
           transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-          padding: "0"
+          padding: "0",
+          width: isModal ? "520px" : "480px",
+          maxWidth: "92vw",
+          border: "1px solid var(--border-main)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -306,21 +309,25 @@ const Auth = ({ isOpen, onClose }) => {
               position: "absolute",
               top: "15px",
               right: "15px",
-              background: "var(--bg-card)",
-              border: "1px solid var(--border-input)",
+              background: "var(--bg-input)",
+              border: "1px solid var(--border-main)",
+              color: "var(--text-main)",
               borderRadius: "50%",
               width: "35px",
               height: "35px",
               cursor: "pointer",
               fontWeight: "bold",
-              fontSize: "20px",
+              fontSize: "18px",
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
               zIndex: 10,
+              transition: "all 0.2s",
             }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = "var(--bg-hover)"}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = "var(--bg-input)"}
           >
-            ×
+            ✕
           </button>
         )}
 
@@ -369,16 +376,16 @@ const Auth = ({ isOpen, onClose }) => {
                   style={{
                     padding: "16px",
                     marginBottom: "8px",
-                    border: emailError ? "1px solid #ef4444" : "1.5px solid var(--border-light)",
+                    border: emailError ? "1px solid #ef4444" : "1.5px solid var(--border-main)",
                     borderRadius: "12px",
-                    backgroundColor: "var(--bg-main)",
+                    backgroundColor: "var(--bg-input)",
                     color: "var(--text-main)",
                     fontSize: "15px",
                     outline: "none",
                     transition: "0.2s",
                   }}
                   onFocus={e => e.target.style.borderColor = "var(--primary)"}
-                  onBlur={e => e.target.style.borderColor = emailError ? "#ef4444" : "var(--border-light)"}
+                  onBlur={e => e.target.style.borderColor = emailError ? "#ef4444" : "var(--border-main)"}
                 />
 
               {emailError && (
@@ -406,7 +413,7 @@ const Auth = ({ isOpen, onClose }) => {
                   cursor: "pointer",
                   marginBottom: "30px",
                   color: "#fff",
-                  boxShadow: "0 10px 15px -3px rgba(79, 70, 229, 0.3)",
+                  boxShadow: "0 10px 15px -3px rgba(56, 139, 253, 0.3)",
                   transition: "0.2s"
                 }}
                 onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
@@ -419,12 +426,12 @@ const Auth = ({ isOpen, onClose }) => {
                 style={{
                   position: "relative",
                   textAlign: "center",
-                  borderBottom: "1px solid #eee",
+                  borderBottom: "1px solid var(--border-main)",
                   lineHeight: "0.1em",
                   margin: "10px 0 30px",
                 }}
               >
-                <span style={{ background: "var(--bg-card)", padding: "0 15px", color: "var(--text-muted)", fontSize: "14px" }}>hoặc</span>
+                <span style={{ background: "var(--bg-card)", padding: "0 15px", color: "var(--text-secondary)", fontSize: "14px" }}>hoặc</span>
               </div>
 
               <div style={{ marginBottom: "12px", width: "100%", display: "flex", justifyContent: "center" }}>
@@ -507,37 +514,36 @@ const Auth = ({ isOpen, onClose }) => {
             </p>
 
             <div style={{
-              padding: "16px 20px",
-              background: "#f0f7ff",
+              padding: "12px 18px",
+              background: "var(--bg-input)",
               borderRadius: "12px",
-              marginBottom: "28px",
+              marginBottom: "24px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              border: "1px solid #d4e4ff",
+              border: "1px solid var(--border-main)",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{
                   fontWeight: "600",
-                  fontSize: "16px",
-                  color: "#1a1a1a",
+                  fontSize: "15px",
+                  color: "var(--text-main)",
                   wordBreak: "break-all"
                 }}>
                   {email}
                 </span>
               </div>
               <button
+                type="button"
                 onClick={handleBack}
                 style={{
                   background: "none",
                   border: "none",
                   color: "var(--primary)",
                   cursor: "pointer",
-                  fontWeight: "500",
-                  fontSize: "14px",
-                  textDecoration: "underline",
+                  fontWeight: "600",
+                  fontSize: "13px",
                   padding: "4px 8px",
-                  borderRadius: "4px",
                 }}
               >
                 {t.notYou}
@@ -579,18 +585,18 @@ const Auth = ({ isOpen, onClose }) => {
                         style={{
                           width: "100%",
                           padding: "16px",
-                          border: "1.5px solid var(--border-light)",
+                          border: "1.5px solid var(--border-main)",
                           borderRadius: "12px",
                           fontSize: "15px",
                           boxSizing: "border-box",
                           outline: "none",
                           marginBottom: "4px",
-                          backgroundColor: "var(--bg-main)",
+                          backgroundColor: "var(--bg-input)",
                           color: "var(--text-main)",
                           transition: "0.2s"
                         }}
                         onFocus={e => e.target.style.borderColor = "var(--primary)"}
-                        onBlur={e => e.target.style.borderColor = "var(--border-light)"}
+                        onBlur={e => e.target.style.borderColor = "var(--border-main)"}
                         required
                       />
                   </div>
@@ -619,18 +625,18 @@ const Auth = ({ isOpen, onClose }) => {
                         style={{
                           width: "100%",
                           padding: "16px",
-                          border: "1.5px solid var(--border-light)",
+                          border: "1.5px solid var(--border-main)",
                           borderRadius: "12px",
                           fontSize: "15px",
                           boxSizing: "border-box",
                           outline: "none",
                           marginBottom: "4px",
-                          backgroundColor: "var(--bg-main)",
+                          backgroundColor: "var(--bg-input)",
                           color: "var(--text-main)",
                           transition: "0.2s"
                         }}
                         onFocus={e => e.target.style.borderColor = "var(--primary)"}
-                        onBlur={e => e.target.style.borderColor = "var(--border-light)"}
+                        onBlur={e => e.target.style.borderColor = "var(--border-main)"}
                         required
                       />
                   </div>
@@ -654,24 +660,24 @@ const Auth = ({ isOpen, onClose }) => {
                   style={{
                     width: "100%",
                     padding: "16px",
-                    border: passwordError ? "2px solid #ef4444" : "1.5px solid var(--border-light)",
+                    border: passwordError ? "2px solid #ef4444" : "1.5px solid var(--border-main)",
                     borderRadius: "12px",
                     fontSize: "15px",
                     boxSizing: "border-box",
                     transition: "all 0.2s",
                     outline: "none",
-                    backgroundColor: "var(--bg-main)",
+                    backgroundColor: "var(--bg-input)",
                     color: "var(--text-main)",
                   }}
                   onFocus={(e) => {
                     if (!passwordError) {
                       e.target.style.borderColor = "var(--primary)";
-                      e.target.style.boxShadow = "0 0 0 4px rgba(79, 70, 229, 0.1)";
+                      e.target.style.boxShadow = "0 0 0 4px rgba(56, 139, 253, 0.15)";
                     }
                   }}
                   onBlur={(e) => {
                     if (!passwordError) {
-                      e.target.style.borderColor = "var(--border-light)";
+                      e.target.style.borderColor = "var(--border-main)";
                       e.target.style.boxShadow = "none";
                     }
                   }}
@@ -714,16 +720,15 @@ const Auth = ({ isOpen, onClose }) => {
 
               {mode === "register" && (
                 <p style={{
-                  fontSize: "13px",
+                  fontSize: "12px",
                   color: "var(--text-secondary)",
-                  marginBottom: "28px",
-                  fontStyle: "italic",
-                  background: "#f9f9f9",
-                  padding: "12px",
+                  marginBottom: "24px",
+                  background: "var(--bg-input)",
+                  padding: "10px 14px",
                   borderRadius: "8px",
-                  borderLeft: "3px solid #4f7cff",
+                  borderLeft: "3px solid var(--primary)",
                 }}>
-                  <span style={{ fontWeight: "600" }}>{t.passwordRequirement}</span>
+                  <span>{t.passwordRequirement}</span>
                 </p>
               )}
 
@@ -772,10 +777,10 @@ const Auth = ({ isOpen, onClose }) => {
 
             <p style={{
               fontSize: "12px",
-              color: "var(--text-muted)",
+              color: "var(--text-secondary)",
               textAlign: "center",
               lineHeight: "1.6",
-              borderTop: "1px solid var(--border-light)",
+              borderTop: "1px solid var(--border-main)",
               paddingTop: "20px",
               marginTop: "10px",
             }}>

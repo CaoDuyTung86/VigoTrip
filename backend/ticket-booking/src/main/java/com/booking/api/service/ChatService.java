@@ -272,7 +272,7 @@ public class ChatService implements AIService.ToolHandler {
             cacheContext.append(". ");
         }
 
-        return "Bạn là Son — trợ lý đặt vé siêu thân thiện và nhiệt tình của Datxe.com. Thời gian hiện tại: "
+        return "Bạn là Son — trợ lý đặt vé siêu thân thiện và nhiệt tình của VigoTrip. Thời gian hiện tại: "
                 + currentTime + ".\n" +
                 userContextStr + ".\n" +
                 (cacheContext.length() > 0 ? cacheContext.toString() + "\n" : "") +

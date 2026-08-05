@@ -40,7 +40,7 @@ public class AIService {
     private static final int MAX_HISTORY_PAIRS = 3;     // Chỉ lấy 3 lượt chat gần nhất
     private static final int MAX_CONTENT_LENGTH = 200;  // Tối đa 200 ký tự/tin nhắn trong history
     private static final int CHAT_MAX_TOKENS = 800;     // Đủ để AI trả lời đầy đủ sau khi dùng tools
-    private static final int ANALYSIS_MAX_TOKENS = 1200;
+    private static final int ANALYSIS_MAX_TOKENS = 4000;  // Đủ cho báo cáo BI tiếng Việt đầy đủ
 
     public interface ToolHandler {
         String executeTool(String functionName, Map<String, Object> arguments);
