@@ -50,16 +50,8 @@ const FlightSearch = () => {
   );
 
   const tripTypes = [
-    { id: "roundtrip", label: t.roundTrip },
     { id: "oneway", label: t.oneWay },
-    { id: "multi", label: t.multiCity },
-  ];
-
-  const flightClasses = [
-    { id: "economy", label: t.economy },
-    { id: "premium", label: t.premium },
-    { id: "business", label: t.business },
-    { id: "first", label: t.first },
+    { id: "roundtrip", label: t.roundTrip },
   ];
 
   const handleSearch = () => {
@@ -163,8 +155,7 @@ const FlightSearch = () => {
 
   const getPassengerText = () => {
     const total = passengers.adult + passengers.child + passengers.infant;
-    const classText = flightClasses.find(c => c.id === passengers.class)?.label || "";
-    return `${total} ${t.passengers} · ${classText}`;
+    return `${total} ${t.passengers}`;
   };
 
   // Render cho multi-city
@@ -388,14 +379,14 @@ const FlightSearch = () => {
             key={type.id}
             onClick={() => setTripType(type.id)}
             style={{
-              padding: "8px 16px",
+              padding: "8px 18px",
               border: "none",
-              background: tripType === type.id ? "#4f7cff" : "transparent",
-              color: tripType === type.id ? "#fff" : "#666",
+              background: tripType === type.id ? "var(--primary)" : "transparent",
+              color: tripType === type.id ? "#fff" : "var(--text-secondary)",
               borderRadius: "20px",
               cursor: "pointer",
               fontSize: "14px",
-              fontWeight: tripType === type.id ? "600" : "400",
+              fontWeight: tripType === type.id ? "600" : "500",
               transition: "all 0.2s",
             }}
           >
@@ -421,10 +412,10 @@ const FlightSearch = () => {
             {/* From */}
             <div
               style={{
-                border: "1px solid #e0e0e0",
+                border: "1px solid var(--border-input)",
                 borderRadius: "12px",
                 padding: "12px",
-                background: "var(--bg-main)",
+                background: "var(--bg-input)",
                 cursor: "pointer",
               }}
               onClick={() => {
@@ -432,14 +423,15 @@ const FlightSearch = () => {
                 setShowCitySelector(true);
               }}
             >
-              <label style={{ fontSize: "12px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+              <label style={{ fontSize: "12px", color: "var(--text-secondary)", display: "block", marginBottom: "4px", fontWeight: "500" }}>
                 {t.from}
               </label>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <MdFlightTakeoff style={{ color: "var(--primary)", fontSize: "18px" }} />
                 <span style={{
                   fontSize: "15px",
-                  color: from ? "#333" : "#999",
+                  fontWeight: "600",
+                  color: from ? "var(--text-main)" : "var(--text-muted)",
                   flex: 1,
                 }}>
                   {from || t.selectDeparture}
@@ -454,7 +446,7 @@ const FlightSearch = () => {
                 width: "40px",
                 height: "40px",
                 borderRadius: "50%",
-                border: "1px solid #e0e0e0",
+                border: "1px solid var(--border-input)",
                 background: "var(--bg-card)",
                 cursor: "pointer",
                 display: "flex",
@@ -469,10 +461,10 @@ const FlightSearch = () => {
             {/* To */}
             <div
               style={{
-                border: "1px solid #e0e0e0",
+                border: "1px solid var(--border-input)",
                 borderRadius: "12px",
                 padding: "12px",
-                background: "var(--bg-main)",
+                background: "var(--bg-input)",
                 cursor: "pointer",
               }}
               onClick={() => {
@@ -480,14 +472,15 @@ const FlightSearch = () => {
                 setShowCitySelector(true);
               }}
             >
-              <label style={{ fontSize: "12px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+              <label style={{ fontSize: "12px", color: "var(--text-secondary)", display: "block", marginBottom: "4px", fontWeight: "500" }}>
                 {t.to}
               </label>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <MdFlightLand style={{ color: "var(--primary)", fontSize: "18px" }} />
                 <span style={{
                   fontSize: "15px",
-                  color: to ? "#333" : "#999",
+                  fontWeight: "600",
+                  color: to ? "var(--text-main)" : "var(--text-muted)",
                   flex: 1,
                 }}>
                   {to || t.selectDestination}
@@ -505,16 +498,16 @@ const FlightSearch = () => {
           }}>
             {/* Depart date */}
             <div style={{
-              border: "1px solid #e0e0e0",
+              border: "1px solid var(--border-input)",
               borderRadius: "12px",
               padding: "12px",
-              background: "var(--bg-main)",
+              background: "var(--bg-input)",
             }}>
-              <label style={{ fontSize: "12px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+              <label style={{ fontSize: "12px", color: "var(--text-secondary)", display: "block", marginBottom: "4px", fontWeight: "500" }}>
                 {t.departureDate}
               </label>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "14px" }} />
+                <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "15px" }} />
                 <input
                   type="date"
                   value={departDate}
@@ -526,6 +519,8 @@ const FlightSearch = () => {
                     outline: "none",
                     fontSize: "15px",
                     width: "100%",
+                    color: "var(--text-main)",
+                    fontFamily: "inherit",
                   }}
                 />
               </div>
@@ -534,16 +529,16 @@ const FlightSearch = () => {
             {/* Return date - only for roundtrip */}
             {tripType === "roundtrip" && (
               <div style={{
-                border: "1px solid #e0e0e0",
+                border: "1px solid var(--border-input)",
                 borderRadius: "12px",
                 padding: "12px",
-                background: "var(--bg-main)",
+                background: "var(--bg-input)",
               }}>
-                <label style={{ fontSize: "12px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>
+                <label style={{ fontSize: "12px", color: "var(--text-secondary)", display: "block", marginBottom: "4px", fontWeight: "500" }}>
                   {t.returnDate}
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "14px" }} />
+                  <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "15px" }} />
                   <input
                     type="date"
                     value={returnDate}
@@ -555,6 +550,8 @@ const FlightSearch = () => {
                       outline: "none",
                       fontSize: "15px",
                       width: "100%",
+                      color: "var(--text-main)",
+                      fontFamily: "inherit",
                     }}
                   />
                 </div>
@@ -566,10 +563,10 @@ const FlightSearch = () => {
 
       {/* Passengers - Chung cho tất cả loại chuyến đi */}
       <div style={{
-        border: "1px solid #e0e0e0",
+        border: "1px solid var(--border-input)",
         borderRadius: "12px",
         padding: "12px",
-        background: "var(--bg-main)",
+        background: "var(--bg-input)",
         marginBottom: "20px",
         position: "relative",
         cursor: "pointer",
@@ -748,36 +745,6 @@ const FlightSearch = () => {
                   }}
                 >+</button>
               </div>
-            </div>
-
-            {/* Class */}
-            <div>
-              <label style={{
-                fontSize: "14px",
-                fontWeight: "500",
-                display: "block",
-                marginBottom: "8px"
-              }}>
-                {t.class}
-              </label>
-              <select
-                value={passengers.class}
-                onChange={(e) => setPassengers({ ...passengers, class: e.target.value })}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: "8px",
-                  outline: "none",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                }}
-              >
-                {flightClasses.map(cls => (
-                  <option key={cls.id} value={cls.id}>{cls.label}</option>
-                ))}
-              </select>
             </div>
 
             {/* Apply button */}

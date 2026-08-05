@@ -172,14 +172,14 @@ const PackageSearch = () => {
             key={type.id}
             onClick={() => setTripType(type.id)}
             style={{
-              padding: "8px 20px",
+              padding: "8px 18px",
               border: "none",
-              background: tripType === type.id ? "#4f7cff" : "#f0f0f0",
-              color: tripType === type.id ? "#fff" : "#666",
-              borderRadius: "30px",
+              background: tripType === type.id ? "var(--primary)" : "transparent",
+              color: tripType === type.id ? "#fff" : "var(--text-secondary)",
+              borderRadius: "20px",
               cursor: "pointer",
               fontSize: "14px",
-              fontWeight: tripType === type.id ? "600" : "400",
+              fontWeight: tripType === type.id ? "600" : "500",
               transition: "all 0.2s",
             }}
           >
@@ -195,10 +195,10 @@ const PackageSearch = () => {
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: "20px",
-          padding: "12px",
-          background: "#f0f7ff",
+          padding: "12px 16px",
+          background: "var(--bg-input)",
           borderRadius: "12px",
-          border: "1px solid #d4e4ff",
+          border: "1px solid var(--border-input)",
           cursor: "pointer",
           position: "relative",
         }}
@@ -206,7 +206,7 @@ const PackageSearch = () => {
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <FaUser style={{ color: "var(--primary)" }} />
-          <span style={{ fontWeight: "500", color: "var(--text-main)" }}>{getRoomText()}</span>
+          <span style={{ fontWeight: "600", color: "var(--text-main)" }}>{getRoomText()}</span>
         </div>
         <span style={{ color: "var(--primary)", fontSize: "13px" }}>▼</span>
 

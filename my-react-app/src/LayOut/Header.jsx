@@ -18,7 +18,7 @@ import JPFlag from "../Picture/flags/jp.png";
 import TWFlag from "../Picture/flags/tw.png";
 import { User, Ticket, LogOut } from "lucide-react";
 
-const Header = ({ setIsSidebarOpen }) => {
+const Header = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isLanguageOpen, setIsLanguageOpen] = useState(false);
   const [showPhone, setShowPhone] = useState(false);
@@ -52,13 +52,6 @@ const Header = ({ setIsSidebarOpen }) => {
   ];
 
   const handleLogoClick = () => navigate("/");
-
-  React.useEffect(() => {
-    const langWithFlag = languages.find((l) => l.code === currentLanguage.code);
-    if (langWithFlag && currentLanguage.flag !== langWithFlag.flag) {
-      currentLanguage.flag = langWithFlag.flag;
-    }
-  }, [currentLanguage.code]);
 
   const handleLanguageSelect = (language) => {
     changeLanguage(language);
@@ -123,7 +116,7 @@ const Header = ({ setIsSidebarOpen }) => {
               WebkitTextFillColor: "transparent",
               letterSpacing: "-0.3px",
             }}>
-              Datxe.com
+              VigoTrip
             </span>
           </div>
         </div>

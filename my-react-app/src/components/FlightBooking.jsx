@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useLanguage } from "../context/LanguageContext";
 import { FiInfo, FiChevronDown, FiChevronUp, FiClock, FiCalendar, FiGift } from "react-icons/fi";
 import { FaSuitcase, FaUtensils, FaWifi, FaUserFriends, FaChair, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 import { MdFlightTakeoff, MdFlightLand } from "react-icons/md";
@@ -7,9 +6,7 @@ import { GiCommercialAirplane } from "react-icons/gi";
 import { IoIosArrowForward } from "react-icons/io";
 
 const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
-  const { t } = useLanguage();
   const [selectedClass, setSelectedClass] = useState("economy");
-  const [showBenefits, setShowBenefits] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState("momo");
 
   // Dữ liệu mẫu - có thể nhận từ props

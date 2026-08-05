@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import G from "../Picture/G.png";
 import { IoIosWarning } from "react-icons/io";
 import { TiTick } from "react-icons/ti";
 import { GoogleLogin } from "@react-oauth/google";
-import { jwtDecode } from "jwt-decode";
 
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
@@ -21,7 +19,7 @@ const Auth = ({ isOpen, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const { t, currentLanguage } = useLanguage();
+  const { t } = useLanguage();
   const { loginSuccess } = useAuth();
   const navigate = useNavigate();
 
@@ -225,11 +223,7 @@ const Auth = ({ isOpen, onClose }) => {
     }
   };
 
-  const iconStyle = {
-    width: "20px",
-    height: "20px",
-    objectFit: "contain",
-  };
+
 
   return (
     <div
@@ -302,7 +296,7 @@ const Auth = ({ isOpen, onClose }) => {
           padding: "40px",
           color: "white"
         }}>
-          <h2 style={{ fontSize: "24px", fontWeight: "800", marginBottom: "16px" }}>Datxe.com</h2>
+          <h2 style={{ fontSize: "24px", fontWeight: "800", marginBottom: "16px" }}>VigoTrip</h2>
           <p style={{ fontSize: "14px", opacity: 0.8, lineHeight: "1.6" }}>Khám phá những hành trình tuyệt vời cùng chúng tôi.</p>
         </div>
         {isModal && (
@@ -444,7 +438,6 @@ const Auth = ({ isOpen, onClose }) => {
                     // alert("DEBUG - Credential nhận được: " + credentialResponse.credential.substring(0, 20) + "...");
                     
                     try {
-                      const decoded = jwtDecode(credentialResponse.credential);
                       const response = await fetch("/api/auth/google-login", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -786,7 +779,7 @@ const Auth = ({ isOpen, onClose }) => {
               paddingTop: "20px",
               marginTop: "10px",
             }}>
-              {t.termsPrefix} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.termsAndConditions}</a> {t.termsPrefix === "Bằng việc đăng nhập hoặc đăng ký, bạn được xem như đã đồng ý với" ? "và" : "and"} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.privacyPolicy}</a> {t.of} Datxe.com.
+              {t.termsPrefix} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.termsAndConditions}</a> {t.termsPrefix === "Bằng việc đăng nhập hoặc đăng ký, bạn được xem như đã đồng ý với" ? "và" : "and"} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.privacyPolicy}</a> {t.of} VigoTrip.
             </p>
           </div>
         )}

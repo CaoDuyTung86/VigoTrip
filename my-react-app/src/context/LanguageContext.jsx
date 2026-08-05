@@ -1,10 +1,11 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
 const translations = {
   vi: {
     // Header
     app: "Ứng dụng",
-    heroTitle: "Khám phá thế giới cùng Datxe.com",
+    heroTitle: "Khám phá thế giới cùng VigoTrip",
     heroTagline: "Đặt vé máy bay, tàu hỏa, xe khách & tour du lịch với giá tốt nhất",
     search: "Tìm kiếm",
     support: "CSKH",
@@ -125,20 +126,20 @@ const translations = {
     customerCare: "Chăm Sóc Khách Hàng",
     serviceGuarantee: "Bảo Đảm Dịch Vụ",
     moreServiceInfo: "Xem thêm thông tin dịch vụ",
-    aboutTrip: "Về Datxe.com",
+    aboutTrip: "Về VigoTrip",
     news: "Tin Tức",
     careers: "Tuyển dụng",
     termsConditions: "Điều Khoản & Điều Kiện",
-    aboutGroup: "Giới Thiệu Về Tập Đoàn Datxe.com",
+    aboutGroup: "Giới Thiệu Về Tập Đoàn VigoTrip",
     otherServices: "Các Dịch Vụ Khác",
     investorRelations: "Quan Hệ Đầu Tư",
-    tripRewards: "Phần Thưởng Datxe.com",
+    tripRewards: "Phần Thưởng VigoTrip",
     affiliateProgram: "Chương trình đối tác liên kết",
     listProperty: "Đăng Cơ Sở Lưu Trú",
     security: "Bảo Mật",
     paymentMethods: "Phương thức thanh toán",
     ourPartners: "Đối Tác Của Chúng Tôi",
-    copyright: "Bản quyền © 2025 Datxe.com Travel VietNam Pte. Ltd. Bảo lưu mọi quyền. Nhà điều hành trang: Datxe.com Travel VietNam Pte. Ltd.",
+    copyright: "Bản quyền © 2025 VigoTrip Travel VietNam Pte. Ltd. Bảo lưu mọi quyền. Nhà điều hành trang: VigoTrip Travel VietNam Pte. Ltd.",
 
 
     // PACKAGE SEARCH (Uses shared keys: roundTrip, oneWay, from, to, search, apply, departureDate, returnDate)
@@ -302,7 +303,7 @@ const translations = {
   en: {
     // Header
     app: "App",
-    heroTitle: "Explore the world with Datxe.com",
+    heroTitle: "Explore the world with VigoTrip",
     heroTagline: "Book flights, trains, buses & tours at the best prices",
     search: "Search",
     support: "Support",
@@ -424,20 +425,20 @@ const translations = {
     customerCare: "Customer Care",
     serviceGuarantee: "Service Guarantee",
     moreServiceInfo: "More service information",
-    aboutUs: "About Datxe.com",
+    aboutUs: "About VigoTrip",
     news: "News",
     careers: "Careers",
     termsConditions: "Terms & Conditions",
-    aboutGroup: "About Datxe.com Group",
+    aboutGroup: "About VigoTrip Group",
     otherServices: "Other Services",
     investorRelations: "Investor Relations",
-    rewards: "Datxe.com Rewards",
+    rewards: "VigoTrip Rewards",
     affiliateProgram: "Affiliate Program",
     listProperty: "List Your Property",
     security: "Security",
     paymentMethods: "Payment Methods",
     ourPartners: "Our Partners",
-    copyright: "Copyright © 2025 Datxe.com Travel VietNam Pte. Ltd. All rights reserved. Operator: Datxe.com Travel VietNam Pte. Ltd.",
+    copyright: "Copyright © 2025 VigoTrip Travel VietNam Pte. Ltd. All rights reserved. Operator: VigoTrip Travel VietNam Pte. Ltd.",
 
     // Package Search (Uses shared keys: search, apply, package, roundTrip, oneWay, from, to, departureDate, returnDate)
     hotel: "Hotel",
@@ -1187,33 +1188,40 @@ const translations = {
 const LanguageContext = createContext();
 
 export const LanguageProvider = ({ children }) => {
-  const [currentLanguage, setCurrentLanguage] = useState({
-    code: 'vi',
-    name: 'Tiếng Việt',
-    flag: null
+  const [currentLanguage, setCurrentLanguage] = useState(() => {
+    try {
+      const savedLanguage = localStorage.getItem("language");
+      if (savedLanguage) {
+        return JSON.parse(savedLanguage);
+      }
+    } catch {
+      // Ignore parse error
+    }
+    return { code: 'vi', name: 'Tiếng Việt', flag: null };
   });
-  const [t, setT] = useState(translations.vi);
+
+  const t = React.useMemo(() => {
+    return translations[currentLanguage.code] || translations.vi;
+  }, [currentLanguage.code]);
 
   useEffect(() => {
-    const savedLanguage = localStorage.getItem("language");
-    if (savedLanguage) {
-      const lang = JSON.parse(savedLanguage);
-      setCurrentLanguage(lang);
-      setT(translations[lang.code] || translations.vi);
-      document.documentElement.lang = lang.code;
-    }
-  }, []);
+    document.documentElement.lang = currentLanguage.code;
+  }, [currentLanguage.code]);
 
-  const changeLanguage = (language) => {
+  const changeLanguage = React.useCallback((language) => {
     setCurrentLanguage(language);
-    setT(translations[language.code]);
     localStorage.setItem("language", JSON.stringify(language));
     document.documentElement.lang = language.code;
-    window.dispatchEvent(new CustomEvent('languageChange', { detail: { language: language.code } }));
-  };
+    globalThis.dispatchEvent(new CustomEvent('languageChange', { detail: { language: language.code } }));
+  }, []);
+
+  const value = React.useMemo(
+    () => ({ currentLanguage, t, changeLanguage, translations }),
+    [currentLanguage, t, changeLanguage]
+  );
 
   return (
-    <LanguageContext.Provider value={{ currentLanguage, t, changeLanguage, translations }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );

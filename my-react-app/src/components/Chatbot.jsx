@@ -10,7 +10,7 @@ const Chatbot = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { sender: 'bot', text: 'Xin chào! Tôi là trợ lý của **Datxe.com**. Tôi có thể giúp bạn tìm kiếm chuyến đi hoặc giải đáp thắc mắc dịch vụ. Bạn cần hỗ trợ gì hôm nay?' }
+    { sender: 'bot', text: 'Xin chào! Tôi là trợ lý của **VigoTrip**. Tôi có thể giúp bạn tìm kiếm chuyến đi hoặc giải đáp thắc mắc dịch vụ. Bạn cần hỗ trợ gì hôm nay?' }
   ]);
   const [chatHistory, setChatHistory] = useState([]); // Lịch sử gửi lên AI
   const [input, setInput] = useState('');
@@ -134,7 +134,9 @@ const Chatbot = () => {
                 });
               }
             }
-          } catch (e) { }
+          } catch {
+            // Ignore parse error for partial chunks
+          }
         }
       }
     } catch (streamError) {
@@ -249,7 +251,6 @@ const Chatbot = () => {
     // 2. Xử lý Chữ đậm, Danh sách, Xuống dòng (nếu không phải bảng)
     if (!parsedContent) {
       parsedContent = contentWithoutButtons.split('\n').map((line, i) => {
-        let content = line;
         // Bold **text**
         const boldRegex = /\*\*(.*?)\*\*/g;
         const parts = [];
@@ -484,7 +485,7 @@ const Chatbot = () => {
               <Bot size={24} />
             </div>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 16 }}>Trợ lý Datxe.com</div>
+              <div style={{ fontWeight: 600, fontSize: 16 }}>Trợ lý VigoTrip</div>
               <div style={{ fontSize: 12, opacity: 0.8, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ width: 8, height: 8, backgroundColor: '#2ecc71', borderRadius: '50%' }}></span>
                 Đang trực tuyến

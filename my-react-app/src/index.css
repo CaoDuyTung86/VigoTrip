@@ -54,24 +54,24 @@ html {
 body.dark {
   --bg-main: #0d1117;
   --bg-card: #161b22;
-  --bg-input: #1c2128;
-  --bg-hover: #21262d;
+  --bg-input: #21262d;
+  --bg-hover: #30363d;
   --bg-accent: #1c2236;
   --bg-header: #0d1117;
   --bg-sidebar: #161b22;
   --bg-modal: #161b22;
-  --bg-dropdown: #1c2128;
-  --bg-tag: #21262d;
+  --bg-dropdown: #21262d;
+  --bg-tag: #30363d;
 
-  --text-main: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-muted: #6e7681;
-  --text-heading: #f0f6fc;
+  --text-main: #f0f6fc;
+  --text-secondary: #c9d1d9;
+  --text-muted: #8b949e;
+  --text-heading: #ffffff;
   --text-on-primary: #ffffff;
 
-  --border-main: #30363d;
+  --border-main: #363b42;
   --border-light: #21262d;
-  --border-input: #30363d;
+  --border-input: #444c56;
 
   --shadow-sm: 0 1px 4px rgba(0,0,0,0.4);
   --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
@@ -126,6 +126,16 @@ body.dark {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
   cursor: pointer;
   pointer-events: auto;
+}
+
+body.dark input[type="date"] {
+  color-scheme: dark;
+  color: var(--text-main);
+}
+
+body.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) sepia(1) saturate(5) hue-rotate(190deg);
+  cursor: pointer;
 }
 
 body {

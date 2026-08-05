@@ -9,39 +9,32 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
 
   const cities = {
     all: [
-      { code: "HAN", name: "Hà Nội", airport: "Sân bay Nội Bài / Ga Hà Nội / Bến xe Mỹ Đình" },
-      { code: "SGN", name: "TP. Hồ Chí Minh", airport: "Sân bay Tân Sơn Nhất / Ga Sài Gòn / Bến xe Miền Đông" },
-      { code: "DAD", name: "Đà Nẵng", airport: "Sân bay Đà Nẵng / Ga Đà Nẵng" },
-      { code: "CXR", name: "Nha Trang (Cam Ranh)", airport: "Sân bay Cam Ranh / Ga Nha Trang" },
-      { code: "PQC", name: "Phú Quốc", airport: "Sân bay Phú Quốc" },
-      { code: "HUI", name: "Huế", airport: "Sân bay Phú Bài / Ga Huế" },
-      { code: "DLI", name: "Đà Lạt", airport: "Sân bay Liên Khương / Bến xe Đà Lạt" },
-      { code: "VCA", name: "Cần Thơ", airport: "Sân bay Cần Thơ / Bến xe Cần Thơ" },
-      { code: "HPH", name: "Hải Phòng", airport: "Sân bay Cát Bi / Ga Hải Phòng" },
-      { code: "VII", name: "Vinh", airport: "Sân bay Vinh / Ga Vinh" },
-      { code: "SAP", name: "Sa Pa", airport: "Bến xe Sa Pa / Ga Lào Cai" },
-      { code: "QNH", name: "Quy Nhơn", airport: "Sân bay Phù Cát / Bến xe Quy Nhơn" },
+      { code: "HAN", name: "Hà Nội", airport: "Hà Nội (HAN) - Sân bay Nội Bài / Ga Hà Nội" },
+      { code: "SGN", name: "TP. Hồ Chí Minh", airport: "TP. HCM (SGN) - Tân Sơn Nhất / Ga Sài Gòn" },
+      { code: "DAD", name: "Đà Nẵng", airport: "Đà Nẵng (DAD) - Sân bay Đà Nẵng / Ga Đà Nẵng" },
+      { code: "CXR", name: "Nha Trang", airport: "Nha Trang (CXR) - Cam Ranh / Ga Nha Trang" },
+      { code: "DLI", name: "Đà Lạt", airport: "Đà Lạt (DLI) - Liên Khương / Ga Đà Lạt" },
+      { code: "PQC", name: "Phú Quốc", airport: "Phú Quốc (PQC) - Sân bay Phú Quốc" },
+      { code: "HUI", name: "Huế", airport: "Huế (HUI) - Sân bay Phú Bài / Ga Huế" },
+      { code: "HPH", name: "Hải Phòng", airport: "Hải Phòng (HPH) - Cát Bi / Ga Hải Phòng" },
+      { code: "VII", name: "Vinh", airport: "Vinh (VII) - Sân bay Vinh / Ga Vinh" },
+      { code: "VCL", name: "Chu Lai", airport: "Chu Lai (VCL) - Quảng Nam" },
     ],
     north: [
-      { code: "HAN", name: "Hà Nội", airport: "Sân bay Nội Bài / Ga Hà Nội / Bến xe Mỹ Đình" },
-      { code: "HPH", name: "Hải Phòng", airport: "Sân bay Cát Bi / Ga Hải Phòng" },
-      { code: "SAP", name: "Sa Pa (Lào Cai)", airport: "Bến xe Sa Pa / Ga Lào Cai" },
-      { code: "VII", name: "Vinh (Nghệ An)", airport: "Sân bay Vinh / Ga Vinh" },
-      { code: "VDO", name: "Vân Đồn (Quảng Ninh)", airport: "Sân bay Vân Đồn" },
+      { code: "HAN", name: "Hà Nội", airport: "Hà Nội (HAN) - Sân bay Nội Bài" },
+      { code: "HPH", name: "Hải Phòng", airport: "Hải Phòng (HPH) - Cát Bi" },
+      { code: "VII", name: "Vinh", airport: "Vinh (VII) - Sân bay Vinh" },
     ],
     central: [
-      { code: "DAD", name: "Đà Nẵng", airport: "Sân bay Đà Nẵng / Ga Đà Nẵng" },
-      { code: "HUI", name: "Thừa Thiên Huế", airport: "Sân bay Phú Bài / Ga Huế" },
-      { code: "CXR", name: "Nha Trang (Khánh Hòa)", airport: "Sân bay Cam Ranh / Ga Nha Trang" },
-      { code: "QNH", name: "Quy Nhơn (Bình Định)", airport: "Sân bay Phù Cát" },
-      { code: "DLI", name: "Đà Lạt (Lâm Đồng)", airport: "Sân bay Liên Khương / Bến xe Đà Lạt" },
+      { code: "DAD", name: "Đà Nẵng", airport: "Đà Nẵng (DAD) - Sân bay Đà Nẵng" },
+      { code: "HUI", name: "Huế", airport: "Huế (HUI) - Sân bay Phú Bài" },
+      { code: "CXR", name: "Nha Trang", airport: "Nha Trang (CXR) - Sân bay Cam Ranh" },
+      { code: "DLI", name: "Đà Lạt", airport: "Đà Lạt (DLI) - Sân bay Liên Khương" },
+      { code: "VCL", name: "Chu Lai", airport: "Chu Lai (VCL) - Quảng Nam" },
     ],
     south: [
-      { code: "SGN", name: "TP. Hồ Chí Minh", airport: "Sân bay Tân Sơn Nhất / Ga Sài Gòn" },
-      { code: "PQC", name: "Phú Quốc (Kiên Giang)", airport: "Sân bay Phú Quốc" },
-      { code: "VCA", name: "Cần Thơ", airport: "Sân bay Cần Thơ" },
-      { code: "VKG", name: "Rạch Giá (Kiên Giang)", airport: "Sân bay Rạch Giá" },
-      { code: "VCS", name: "Côn Đảo (Bà Rịa - Vũng Tàu)", airport: "Sân bay Côn Đảo" },
+      { code: "SGN", name: "TP. Hồ Chí Minh", airport: "TP. HCM (SGN) - Tân Sơn Nhất" },
+      { code: "PQC", name: "Phú Quốc", airport: "Phú Quốc (PQC) - Sân bay Phú Quốc" },
     ],
   };
 
@@ -140,10 +133,12 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
             style={{
               width: "100%",
               padding: "12px 12px 12px 40px",
-              border: "1px solid #e0e0e0",
+              border: "1px solid var(--border-main)",
               borderRadius: "8px",
               fontSize: "15px",
               outline: "none",
+              background: "var(--bg-input)",
+              color: "var(--text-main)",
             }}
           />
         </div>
@@ -153,7 +148,7 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
           display: "flex",
           gap: "8px",
           marginBottom: "20px",
-          borderBottom: "1px solid #e0e0e0",
+          borderBottom: "1px solid var(--border-light)",
           paddingBottom: "12px",
           flexWrap: "wrap",
         }}>
@@ -164,8 +159,8 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
               style={{
                 padding: "8px 16px",
                 border: "none",
-                background: selectedTab === tab.id ? "#4f7cff" : "transparent",
-                color: selectedTab === tab.id ? "#fff" : "#666",
+                background: selectedTab === tab.id ? "var(--primary)" : "transparent",
+                color: selectedTab === tab.id ? "#fff" : "var(--text-secondary)",
                 borderRadius: "20px",
                 cursor: "pointer",
                 fontSize: "14px",
@@ -212,23 +207,24 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
                     }}
                     style={{
                       padding: "12px",
-                      border: "1px solid #e0e0e0",
+                      border: "1px solid var(--border-main)",
                       borderRadius: "8px",
-                      background: "var(--bg-card)",
+                      background: "var(--bg-input)",
+                      color: "var(--text-main)",
                       cursor: "pointer",
                       textAlign: "left",
                       transition: "all 0.2s",
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.borderColor = "#4f7cff";
-                      e.target.style.boxShadow = "0 2px 8px rgba(79,124,255,0.1)";
+                      e.currentTarget.style.borderColor = "var(--primary)";
+                      e.currentTarget.style.background = "var(--bg-hover)";
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.borderColor = "#e0e0e0";
-                      e.target.style.boxShadow = "none";
+                      e.currentTarget.style.borderColor = "var(--border-main)";
+                      e.currentTarget.style.background = "var(--bg-input)";
                     }}
                   >
-                    <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                    <div style={{ fontWeight: "600", marginBottom: "4px", color: "var(--text-main)" }}>
                       {getCityName(city)}
                     </div>
                     <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>

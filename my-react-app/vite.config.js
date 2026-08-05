@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['vite.svg'],
       manifest: {
-        name: 'Datxe.com - Hệ Thống Đặt Vé Đa Phương Tiện',
-        short_name: 'Datxe.com',
+        name: 'VigoTrip - Hệ Thống Đặt Vé Đa Phương Tiện',
+        short_name: 'VigoTrip',
         description: 'Ứng dụng đặt vé máy bay, tàu hỏa và xe khách chuyên nghiệp',
         theme_color: '#ffffff',
         icons: [

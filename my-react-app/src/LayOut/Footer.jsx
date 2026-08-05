@@ -1,6 +1,5 @@
 import React from "react";
 import { useLanguage } from "../context/LanguageContext";
-import { useLocation } from "react-router-dom";
 import Visa from "../Picture/Visa.png";
 import GPay from "../Picture/GPay.png";
 import JCB from "../Picture/JCB.png";
@@ -8,10 +7,8 @@ import Plus from "../Picture/Plus.png";
 import ApplePay from "../Picture/ApplePay.png";
 import Google from "../Picture/Google.png";
 
-const Footer = ({ sidebarCollapsed }) => {
+const Footer = () => {
   const { t } = useLanguage();
-  const location = useLocation();
-  const isAuthPage = location.pathname === "/auth";
 
   return (
     <footer style={{
@@ -177,7 +174,7 @@ const Footer = ({ sidebarCollapsed }) => {
                 onMouseEnter={(e) => e.target.style.color = "#4f7cff"}
                 onMouseLeave={(e) => e.target.style.color = "#666"}
                 >
-                  {t.aboutGroup || "Giới Thiệu Về Tập Đoàn Datxe.com"}
+                  {t.aboutGroup || "Giới Thiệu Về Tập Đoàn VigoTrip"}
                 </a>
               </li>
             </ul>
@@ -278,7 +275,7 @@ const Footer = ({ sidebarCollapsed }) => {
           lineHeight: "1.6",
         }}>
           <p style={{ margin: 0 }}>
-            {t.copyright || "Bản quyền © 2025 Datxe.com Travel VietNam Pte. Ltd. Bảo lưu mọi quyền. Nhà điều hành trang: Datxe.com Travel VietNam Pte. Ltd."}
+            {t.copyright || "Bản quyền © 2025 VigoTrip Travel VietNam Pte. Ltd. Bảo lưu mọi quyền. Nhà điều hành trang: VigoTrip Travel VietNam Pte. Ltd."}
           </p>
         </div>
       </div>

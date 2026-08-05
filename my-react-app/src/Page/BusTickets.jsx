@@ -997,15 +997,18 @@ const BusTickets = () => {
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <span style={{ fontSize: 11, color: "var(--text-secondary)", minWidth: 24 }}>0h</span>
                         <div style={{ position: "relative", flex: 1, height: 32, display: "flex", alignItems: "center", "--slider-color": "#ef4444" }}>
-                          {/* Background track */}
-                          <div style={{ position: "absolute", width: "100%", height: 6, borderRadius: 3, background: "#e5e7eb" }} />
-                          {/* Active highlight bar */}
-                          <div style={{
-                            position: "absolute",
-                            left: `calc(10px + ${timeRange[0] / 24} * (100% - 20px))`,
-                            right: `calc(10px + ${(24 - timeRange[1]) / 24} * (100% - 20px))`,
-                            height: 6, borderRadius: 3, background: "#ef4444"
-                          }} />
+                          {/* Background track with 10px inset for thumb alignment */}
+                          <div style={{ position: "absolute", left: 10, right: 10, height: 6, borderRadius: 3, background: "#e5e7eb", pointerEvents: "none" }}>
+                            {/* Active highlight bar inside track */}
+                            <div style={{
+                              position: "absolute",
+                              left: `${(timeRange[0] / 24) * 100}%`,
+                              width: `${((timeRange[1] - timeRange[0]) / 24) * 100}%`,
+                              height: "100%",
+                              borderRadius: 3,
+                              background: "#ef4444",
+                            }} />
+                          </div>
                           {/* Min slider handle */}
                           <input
                             type="range"

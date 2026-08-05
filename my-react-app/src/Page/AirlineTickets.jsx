@@ -25,19 +25,19 @@ import { CiCreditCard1 } from "react-icons/ci";
 
 const PROVIDER_LOGOS = {
   "Vietnam Airlines": {
-    logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Vietnam_Airlines_logo.svg/320px-Vietnam_Airlines_logo.svg.png",
+    logo: "/logos/vietnamairlines.jpg",
     code: "VN",
     color: "#005baa",
     bg: "#e6f0fa",
   },
   "Vietjet Air": {
-    logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/VietJet_Air_logo.svg/320px-VietJet_Air_logo.svg.png",
+    logo: "/logos/VietjetAir.jpg",
     code: "VJ",
     color: "#e3001b",
     bg: "#fde8eb",
   },
   "Bamboo Airways": {
-    logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Bamboo_Airways_logo.svg/320px-Bamboo_Airways_logo.svg.png",
+    logo: "/logos/bambooairways.jpg",
     code: "QH",
     color: "#00843d",
     bg: "#e6f3ec",
@@ -677,16 +677,17 @@ const AirlineTickets = () => {
                   {showFromDropdown && (
                     <div style={{
                       position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: 12,
-                      boxShadow: "var(--shadow-lg)", zIndex: 100, marginTop: 4, overflow: "hidden"
+                      boxShadow: "var(--shadow-lg)", zIndex: 100, marginTop: 4, overflow: "hidden", border: "1px solid var(--border-main)"
                     }}>
                       {airports.filter(a => a.code !== to).map(a => (
                         <div key={a.code} onClick={() => { setFrom(a.code); setShowFromDropdown(false); setFormErrors(p => ({ ...p, from: undefined })); }}
                           style={{
                             padding: "12px 16px", cursor: "pointer", borderBottom: "1px solid var(--border-light)",
-                            background: from === a.code ? "#eff6ff" : "#fff"
+                            background: from === a.code ? "var(--bg-hover)" : "transparent",
+                            color: "var(--text-main)"
                           }}
-                          onMouseEnter={e => e.currentTarget.style.background = "#f5f5ff"}
-                          onMouseLeave={e => e.currentTarget.style.background = from === a.code ? "#eff6ff" : "#fff"}
+                          onMouseEnter={e => e.currentTarget.style.background = "var(--bg-hover)"}
+                          onMouseLeave={e => e.currentTarget.style.background = from === a.code ? "var(--bg-hover)" : "transparent"}
                         >
                           <div style={{ fontWeight: 700, fontSize: 14 }}>{a.code} <span style={{ fontWeight: 400, color: "var(--text-muted)", fontSize: 13 }}>– {a.name}</span></div>
                           <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{a.fullName}</div>
@@ -704,8 +705,8 @@ const AirlineTickets = () => {
                     background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 18, color: "var(--primary)", flexShrink: 0, transition: "all 0.2s"
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "#eff6ff"; e.currentTarget.style.borderColor = "#4f7cff"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-card)"; e.currentTarget.style.borderColor = "#e0e7ff"; }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.borderColor = "var(--primary)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-card)"; e.currentTarget.style.borderColor = "var(--border-main)"; }}
                   title="Đổi điểm đi/đến"
                 >⇄</button>
 
@@ -715,7 +716,7 @@ const AirlineTickets = () => {
                   <div
                     onClick={() => { setShowToDropdown(!showToDropdown); setShowFromDropdown(false); }}
                     style={{
-                      padding: "10px 14px", borderRadius: 10, border: formErrors.to ? "2px solid #e53935" : "2px solid #e0e7ff",
+                      padding: "10px 14px", borderRadius: 10, border: formErrors.to ? "2px solid #e53935" : "2px solid var(--border-main)",
                       background: "var(--bg-input)", cursor: "pointer", userSelect: "none"
                     }}
                   >
@@ -728,16 +729,17 @@ const AirlineTickets = () => {
                   {showToDropdown && (
                     <div style={{
                       position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: 12,
-                      boxShadow: "var(--shadow-lg)", zIndex: 100, marginTop: 4, overflow: "hidden"
+                      boxShadow: "var(--shadow-lg)", zIndex: 100, marginTop: 4, overflow: "hidden", border: "1px solid var(--border-main)"
                     }}>
                       {airports.filter(a => a.code !== from).map(a => (
                         <div key={a.code} onClick={() => { setTo(a.code); setShowToDropdown(false); setFormErrors(p => ({ ...p, to: undefined })); }}
                           style={{
                             padding: "12px 16px", cursor: "pointer", borderBottom: "1px solid var(--border-light)",
-                            background: to === a.code ? "#eff6ff" : "#fff"
+                            background: to === a.code ? "var(--bg-hover)" : "transparent",
+                            color: "var(--text-main)"
                           }}
-                          onMouseEnter={e => e.currentTarget.style.background = "#f5f5ff"}
-                          onMouseLeave={e => e.currentTarget.style.background = to === a.code ? "#eff6ff" : "#fff"}
+                          onMouseEnter={e => e.currentTarget.style.background = "var(--bg-hover)"}
+                          onMouseLeave={e => e.currentTarget.style.background = to === a.code ? "var(--bg-hover)" : "transparent"}
                         >
                           <div style={{ fontWeight: 700, fontSize: 14 }}>{a.code} <span style={{ fontWeight: 400, color: "var(--text-muted)", fontSize: 13 }}>– {a.name}</span></div>
                           <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{a.fullName}</div>
@@ -747,7 +749,6 @@ const AirlineTickets = () => {
                   )}
                 </div>
 
-
                 <div>
                   <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaRegCalendarAlt /> Ngày đi</label>
                   <input type="date" value={date}
@@ -755,7 +756,7 @@ const AirlineTickets = () => {
                     min={todayISO}
                     style={{
                       width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 14, boxSizing: "border-box",
-                      border: formErrors.date ? "2px solid #e53935" : "2px solid #e0e7ff", background: "var(--bg-input)"
+                      border: formErrors.date ? "2px solid #e53935" : "2px solid var(--border-main)", background: "var(--bg-input)", color: "var(--text-main)"
                     }}
                   />
                   {formErrors.date && <div style={{ color: "#e53935", fontSize: 12, marginTop: 4 }}>{formErrors.date}</div>}
@@ -769,24 +770,24 @@ const AirlineTickets = () => {
                       onClick={() => setShowPassengersDropdown(!showPassengersDropdown)}
                       style={{
                         width: "100%", padding: "10px 14px", borderRadius: 10, border: "2px solid var(--border-main)",
-                        background: "var(--bg-card)", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", boxSizing: "border-box"
+                        background: "var(--bg-input)", color: "var(--text-main)", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", boxSizing: "border-box"
                       }}
                     >
                       <span>{passengerCounts.adult} {t.adult || 'Người lớn'}, {passengerCounts.child} {t.child || 'Trẻ em'}, {passengerCounts.infant} {t.infant || 'Em bé'}</span>
                       <FiChevronDown />
                     </div>
                     {showPassengersDropdown && (
-                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: 12, boxShadow: "var(--shadow-lg)", zIndex: 100, padding: 16, marginTop: 4 }}>
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: 12, boxShadow: "var(--shadow-lg)", zIndex: 100, padding: 16, marginTop: 4, border: "1px solid var(--border-main)" }}>
                         {['adult', 'child', 'infant'].map(type => (
                           <div key={type} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                             <div>
-                              <div style={{ fontWeight: 600 }}>{type === 'adult' ? t.adult || 'Người lớn' : type === 'child' ? t.child || 'Trẻ em' : t.infant || 'Em bé'}</div>
+                              <div style={{ fontWeight: 600, color: "var(--text-main)" }}>{type === 'adult' ? t.adult || 'Người lớn' : type === 'child' ? t.child || 'Trẻ em' : t.infant || 'Em bé'}</div>
                               <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{type === 'adult' ? '>12 tuổi' : type === 'child' ? '2-11 tuổi' : '<2 tuổi'}</div>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                              <button type="button" disabled={passengerCounts[type] <= (type === 'adult' ? 1 : 0)} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] - 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
-                              <span style={{ fontWeight: 600, width: 16, textAlign: "center" }}>{passengerCounts[type]}</span>
-                              <button type="button" disabled={passengerCounts.adult + passengerCounts.child + passengerCounts.infant >= 5} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] + 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                              <button type="button" disabled={passengerCounts[type] <= (type === 'adult' ? 1 : 0)} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] - 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", color: "var(--text-main)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
+                              <span style={{ fontWeight: 600, width: 16, textAlign: "center", color: "var(--text-main)" }}>{passengerCounts[type]}</span>
+                              <button type="button" disabled={passengerCounts.adult + passengerCounts.child + passengerCounts.infant >= 5} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] + 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", color: "var(--text-main)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                             </div>
                           </div>
                         ))}
@@ -803,13 +804,18 @@ const AirlineTickets = () => {
                       borderRadius: 10,
                       border: "none",
                       background: loading
-                        ? "#aaa"
-                        : "linear-gradient(135deg, blue, blue)",
+                        ? "#555"
+                        : "linear-gradient(135deg, #2563eb, #1d4ed8)",
                       color: "#fff",
                       fontWeight: 700,
                       cursor: loading ? "not-allowed" : "pointer",
                       fontSize: 14,
                       marginBottom: 8,
+                      boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6
                     }}
                   >
                     {loading ? (
@@ -818,7 +824,7 @@ const AirlineTickets = () => {
                       </>
                     ) : (
                       <>
-                        <IoMdSearch /> Tìm chuyến bay
+                        <IoMdSearch style={{ fontSize: 17 }} /> Tìm chuyến bay
                       </>
                     )}
                   </button>
@@ -831,12 +837,16 @@ const AirlineTickets = () => {
                       width: "100%",
                       padding: "10px",
                       borderRadius: 10,
-                      border: "2px solid var(--border-main)",
-                      background: "var(--bg-card)",
-                      color: "black",
+                      border: "1px solid var(--border-main)",
+                      background: "var(--bg-input)",
+                      color: "var(--text-main)",
                       fontWeight: 600,
                       cursor: calendarLoading ? "not-allowed" : "pointer",
                       fontSize: 13,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6
                     }}
                   >
                     {calendarLoading ? (
@@ -855,7 +865,7 @@ const AirlineTickets = () => {
               {calendarOpen && (
                 <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border-light)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <div style={{ fontWeight: 700 }}>Lịch giá 30 ngày tới</div>
+                    <div style={{ fontWeight: 700, color: "var(--text-main)" }}>Lịch giá 30 ngày tới</div>
                     <button
                       type="button"
                       onClick={() => setCalendarOpen(false)}
@@ -885,14 +895,14 @@ const AirlineTickets = () => {
                           width: 150,
                           padding: "10px 12px",
                           borderRadius: 10,
-                          border: "1px solid var(--border-light)",
-                          background: d.available ? "#fff" : "#f5f5f5",
+                          border: "1px solid var(--border-main)",
+                          background: d.available ? "var(--bg-card)" : "var(--bg-hover)",
                           cursor: d.available ? "pointer" : "not-allowed",
                           textAlign: "left",
                         }}
                       >
                         <div style={{ fontWeight: 700, color: "var(--text-main)" }}>{d.date}</div>
-                        <div style={{ marginTop: 6, color: d.available ? "#ff6b00" : "#999", fontWeight: 700 }}>
+                        <div style={{ marginTop: 6, color: d.available ? "#f97316" : "var(--text-muted)", fontWeight: 700 }}>
                           {d.minPrice != null ? `${Number(d.minPrice).toLocaleString("vi-VN")} đ` : "—"}
                         </div>
                       </button>
@@ -1034,15 +1044,18 @@ const AirlineTickets = () => {
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <span style={{ fontSize: 11, color: "var(--text-secondary)", minWidth: 24 }}>0h</span>
                         <div style={{ position: "relative", flex: 1, height: 32, display: "flex", alignItems: "center", "--slider-color": "#4f7cff" }}>
-                          {/* Background track */}
-                          <div style={{ position: "absolute", width: "100%", height: 6, borderRadius: 3, background: "#e5e7eb" }} />
-                          {/* Active highlight bar */}
-                          <div style={{
-                            position: "absolute",
-                            left: `calc(10px + ${timeRange[0] / 24} * (100% - 20px))`,
-                            right: `calc(10px + ${(24 - timeRange[1]) / 24} * (100% - 20px))`,
-                            height: 6, borderRadius: 3, background: "#4f7cff"
-                          }} />
+                          {/* Background track with 10px inset for thumb alignment */}
+                          <div style={{ position: "absolute", left: 10, right: 10, height: 6, borderRadius: 3, background: "#e5e7eb", pointerEvents: "none" }}>
+                            {/* Active highlight bar inside track */}
+                            <div style={{
+                              position: "absolute",
+                              left: `${(timeRange[0] / 24) * 100}%`,
+                              width: `${((timeRange[1] - timeRange[0]) / 24) * 100}%`,
+                              height: "100%",
+                              borderRadius: 3,
+                              background: "#4f7cff",
+                            }} />
+                          </div>
                           {/* Min slider handle */}
                           <input
                             type="range"
