@@ -160,6 +160,22 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Đảo màu icon đồng hồ / lịch của input date, time trong Dark mode */
+[data-theme='dark'] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme='dark'] input[type="time"]::-webkit-calendar-picker-indicator,
+[data-theme='dark'] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) hue-rotate(180deg) brightness(1.8);
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+
 /* ===== HEADER ===== */
 .app-header {
   display: flex;

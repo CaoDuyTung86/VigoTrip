@@ -19,7 +19,7 @@ Dự án đồ án tốt nghiệp cung cấp giải pháp đặt vé toàn diệ
 Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây linh hoạt:
 
 1. **Môi trường Serverless Cloud (Khuyên dùng - 0$ Cost & Auto Scaling):**
-   - **Frontend:** [https://datxe-booking.vercel.app](https://datxe-booking.vercel.app) *(Vercel Global Edge Network)*
+   - **Frontend:** [https://vigotrip.vercel.app](https://vigotrip.vercel.app) *(Vercel Global Edge Network)*
    - **Backend API:** `https://datxe-com.onrender.com` *(Render Container Service)*
    - **Database:** Neon Cloud PostgreSQL *(Serverless Database)*
    - **Ưu điểm:** Tự động mở rộng, tự cấp SSL, không tốn phí duy trì hạ tầng, không lo sập server.
@@ -59,6 +59,8 @@ Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây lin
 - [x] **Database Cloud:** Cấu hình cơ sở dữ liệu tách biệt kết nối đến AWS RDS SQL Server.
 - [x] **Web Server & SSL:** Thiết lập Nginx Reverse Proxy điều hướng luồng mạng và cài đặt chứng chỉ SSL bảo mật (Let's Encrypt).
 - [x] **Domain Name:** Đăng ký và cấu hình tên miền `datxe.duckdns.org` trỏ về AWS.
+- [x] **Serverless Cloud Deployment:** Triển khai hạ tầng Serverless hoàn chỉnh: Frontend (Vercel Edge Network), Backend (Render Java Container với tối ưu hóa RAM `-Xmx256m`), Database (Neon Cloud Serverless PostgreSQL).
+- [x] **Proxy & API Routing:** Cấu hình `vercel.json` rewrites điều hướng trong suốt toàn bộ request `/api` và `/ws` (WebSocket) từ Vercel sang Render.
 
 ### Hướng phát triển tiếp theo:
 - [ ] **Map Integration:** Tích hợp bản đồ Leaflet / OpenStreetMap để theo dõi lộ trình và định vị bến xe/nhà ga.

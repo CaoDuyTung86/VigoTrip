@@ -392,8 +392,8 @@ const Chatbot = () => {
                   padding: '6px 12px',
                   borderRadius: '16px',
                   border: '1px solid var(--primary)',
-                  backgroundColor: 'white',
-                  color: 'var(--primary)',
+                  backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                  color: '#818cf8',
                   fontSize: '12px',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
@@ -403,8 +403,8 @@ const Chatbot = () => {
                   e.currentTarget.style.color = 'white';
                 }}
                 onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = 'white';
-                  e.currentTarget.style.color = 'var(--primary)';
+                  e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.1)';
+                  e.currentTarget.style.color = '#818cf8';
                 }}
               >
                 {btn}
@@ -431,7 +431,7 @@ const Chatbot = () => {
           backgroundColor: 'var(--primary)',
           color: 'white',
           border: 'none',
-          boxShadow: '0 6px 20px rgba(79, 124, 255, 0.4)',
+          boxShadow: '0 6px 20px rgba(99, 102, 241, 0.4)',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
@@ -454,17 +454,20 @@ const Chatbot = () => {
           bottom: '30px',
           right: '30px',
           width: '450px',
-          height: '700px',
-          maxWidth: 'calc(100vw - 40px)',
-          maxHeight: 'calc(100vh - 80px)',
+          height: '680px',
+          minWidth: '340px',
+          maxWidth: '85vw',
+          minHeight: '450px',
+          maxHeight: '85vh',
+          resize: 'both',
+          overflow: 'hidden',
           backgroundColor: 'var(--bg-card)',
           borderRadius: '24px',
-          boxShadow: '0 12px 40px rgba(0,0,0,0.2)',
+          boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
           display: 'flex',
           flexDirection: 'column',
           zIndex: 1000,
-          overflow: 'hidden',
-          transition: 'all 0.3s ease',
+          transition: 'opacity 0.3s ease, transform 0.3s ease',
           opacity: isOpen ? 1 : 0,
           transform: isOpen ? 'translateY(0)' : 'translateY(20px)',
           pointerEvents: isOpen ? 'all' : 'none',
@@ -473,12 +476,13 @@ const Chatbot = () => {
       >
         {/* Header */}
         <div style={{
-          padding: '20px',
+          padding: '16px 20px',
           background: 'linear-gradient(135deg, var(--primary) 0%, #3a5fd0 100%)',
           color: 'white',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          flexShrink: 0
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: 8, borderRadius: 12 }}>
@@ -486,8 +490,8 @@ const Chatbot = () => {
             </div>
             <div>
               <div style={{ fontWeight: 600, fontSize: 16 }}>Trợ lý VigoTrip</div>
-              <div style={{ fontSize: 12, opacity: 0.8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 8, height: 8, backgroundColor: '#2ecc71', borderRadius: '50%' }}></span>
+              <div style={{ fontSize: 12, opacity: 0.9, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, backgroundColor: '#34d399', borderRadius: '50%', boxShadow: '0 0 8px #34d399' }}></span>
                 Đang trực tuyến
               </div>
             </div>
@@ -501,11 +505,11 @@ const Chatbot = () => {
                 setShowFaq(true);
               }}
               title="Xóa lịch sử chat"
-              style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.7, borderRadius: 8, padding: '4px 8px', fontSize: 12 }}
+              style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.85, borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 500 }}
             >
               Xóa
             </button>
-            <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.7 }}>
+            <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.85 }}>
               <X size={20} />
             </button>
           </div>
@@ -526,9 +530,9 @@ const Chatbot = () => {
               key={index}
               style={{
                 alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '85%',
+                maxWidth: '88%',
                 display: 'flex',
-                gap: 8,
+                gap: 10,
                 flexDirection: msg.sender === 'user' ? 'row-reverse' : 'row'
               }}
             >
@@ -536,25 +540,27 @@ const Chatbot = () => {
                 width: 32,
                 height: 32,
                 borderRadius: '50%',
-                backgroundColor: msg.sender === 'user' ? 'var(--primary)' : '#e0e7ff',
+                backgroundColor: msg.sender === 'user' ? 'var(--primary)' : 'rgba(99, 102, 241, 0.15)',
+                border: msg.sender === 'bot' ? '1px solid rgba(99, 102, 241, 0.3)' : 'none',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                color: msg.sender === 'user' ? 'white' : 'var(--primary)'
+                color: msg.sender === 'user' ? 'white' : '#818cf8'
               }}>
                 {msg.sender === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
               <div
                 style={{
-                  backgroundColor: msg.sender === 'user' ? 'var(--primary)' : '#f1f5f9',
-                  color: msg.sender === 'user' ? 'white' : '#1e293b',
+                  backgroundColor: msg.sender === 'user' ? 'var(--primary)' : 'var(--bg-card)',
+                  color: msg.sender === 'user' ? 'white' : 'var(--text-main)',
                   padding: '12px 16px',
                   borderRadius: msg.sender === 'user' ? '18px 18px 2px 18px' : '18px 18px 18px 2px',
                   fontSize: 14.5,
-                  lineHeight: 1.5,
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                  border: msg.sender === 'bot' ? '1px solid #e2e8f0' : 'none',
+                  lineHeight: 1.55,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  border: msg.sender === 'bot' ? '1px solid var(--border-light)' : 'none',
+                  wordBreak: 'break-word'
                 }}
               >
                 {renderMessageContent(msg.text)}
@@ -562,9 +568,9 @@ const Chatbot = () => {
             </div>
           ))}
           {loading && (
-            <div style={{ alignSelf: 'flex-start', display: 'flex', gap: 8 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#e0e7ff', display: 'flex', alignItems: 'center', justifyCenter: 'center', color: 'var(--primary)' }}>
-                <Bot size={16} style={{ margin: 'auto' }} />
+            <div style={{ alignSelf: 'flex-start', display: 'flex', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8' }}>
+                <Bot size={16} />
               </div>
               <div style={{ backgroundColor: 'var(--bg-card)', padding: '12px 16px', borderRadius: '18px 18px 18px 2px', border: '1px solid var(--border-light)' }}>
                 <div className="typing-loader">
@@ -582,14 +588,15 @@ const Chatbot = () => {
             padding: '0 16px 12px',
             backgroundColor: 'var(--bg-card)',
             borderTop: '1px solid var(--border-light)',
+            flexShrink: 0
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px' }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <HelpCircle size={14} style={{ color: 'var(--primary)' }} /> Câu hỏi phổ biến
               </span>
               <button
                 onClick={() => setShowFaq(false)}
-                style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}
               >Ẩn</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -605,21 +612,21 @@ const Chatbot = () => {
                     borderRadius: 10,
                     border: '1px solid var(--border-light)',
                     backgroundColor: 'var(--bg-main)',
-                    color: 'var(--text-primary)',
+                    color: 'var(--text-main)',
                     fontSize: 13,
                     cursor: 'pointer',
                     textAlign: 'left',
                     transition: 'all 0.15s',
                     gap: 10,
                   }}
-                  onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
-                  onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                  onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = '#818cf8'; }}
+                  onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.color = 'var(--text-main)'; }}
                 >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <span>{item.icon}</span>
-                    <span>{item.text}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.text}</span>
                   </span>
-                  <span style={{ fontSize: 16, opacity: 0.4 }}>›</span>
+                  <span style={{ fontSize: 16, opacity: 0.4, flexShrink: 0 }}>›</span>
                 </button>
               ))}
             </div>
@@ -644,7 +651,8 @@ const Chatbot = () => {
               scrollbarWidth: 'none',
               cursor: isMouseDown ? 'grabbing' : 'grab',
               userSelect: 'none',
-              msOverflowStyle: 'none'
+              msOverflowStyle: 'none',
+              flexShrink: 0
             }}
           >
             {faqItems.map((item, idx) => (
@@ -657,11 +665,11 @@ const Chatbot = () => {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
-                  padding: '6px 12px',
+                  gap: 6,
+                  padding: '6px 14px',
                   borderRadius: 20,
-                  border: '1px solid #e0e7ff',
-                  backgroundColor: 'white',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-main)',
                   color: 'var(--text-secondary)',
                   fontSize: 12,
                   whiteSpace: 'nowrap',
@@ -669,8 +677,8 @@ const Chatbot = () => {
                   transition: 'all 0.2s',
                   userSelect: 'none'
                 }}
-                onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
-                onMouseOut={e => { e.currentTarget.style.borderColor = '#e0e7ff'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = '#818cf8'; }}
+                onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
               >
                 {item.icon} {item.text}
               </button>
@@ -680,28 +688,30 @@ const Chatbot = () => {
 
         {/* Khung nhập */}
         <div style={{
-          padding: '16px 20px',
+          padding: '14px 18px',
           borderTop: '1px solid var(--border-light)',
           backgroundColor: 'var(--bg-card)',
           display: 'flex',
-          gap: 12,
-          alignItems: 'center'
+          gap: 10,
+          alignItems: 'center',
+          flexShrink: 0
         }}>
           {/* Nút toggle bật/tắt FAQ Panel */}
           <button
             onClick={() => setShowFaq(!showFaq)}
             title="Hiện gợi ý câu hỏi"
             style={{
-              width: 44,
-              height: 44,
+              width: 42,
+              height: 42,
               borderRadius: 12,
-              backgroundColor: showFaq ? 'rgba(99, 102, 241, 0.15)' : '#f1f5f9',
-              color: showFaq ? 'var(--primary)' : 'var(--text-secondary)',
+              backgroundColor: showFaq ? 'rgba(99, 102, 241, 0.2)' : 'var(--bg-main)',
+              color: showFaq ? '#818cf8' : 'var(--text-muted)',
               border: '1px solid var(--border-light)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              flexShrink: 0,
               transition: 'all 0.2s'
             }}
           >
@@ -715,11 +725,12 @@ const Chatbot = () => {
             placeholder="Nhập câu hỏi..."
             style={{
               flex: 1,
-              padding: '12px 16px',
+              minWidth: 0,
+              padding: '11px 16px',
               borderRadius: 12,
               border: '1px solid var(--border-light)',
               backgroundColor: 'var(--bg-main)',
-              color: 'var(--text-primary)',
+              color: 'var(--text-main)',
               fontSize: 14,
               outline: 'none'
             }}
@@ -728,20 +739,21 @@ const Chatbot = () => {
             onClick={() => handleSend()}
             disabled={!input.trim() || loading}
             style={{
-              width: 44,
-              height: 44,
+              width: 42,
+              height: 42,
               borderRadius: 12,
-              backgroundColor: input.trim() ? 'var(--primary)' : '#e0e7ff',
-              color: 'white',
-              border: 'none',
+              backgroundColor: input.trim() ? 'var(--primary)' : 'var(--bg-main)',
+              color: input.trim() ? 'white' : 'var(--text-muted)',
+              border: input.trim() ? 'none' : '1px solid var(--border-light)',
               cursor: input.trim() ? 'pointer' : 'default',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              flexShrink: 0,
               transition: 'all 0.2s'
             }}
           >
-            <Send size={20} />
+            <Send size={18} />
           </button>
         </div>
       </div>

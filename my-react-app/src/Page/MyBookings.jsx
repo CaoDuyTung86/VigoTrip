@@ -53,14 +53,22 @@ const MyBookings = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const payment = params.get("payment");
+    const reviewBookingId = params.get("reviewBookingId");
+
     if (payment === "success") {
       setToastMsg({ text: "Thanh toán thành công! Vé của bạn đã được xác nhận.", type: "success" });
       navigate("/my-bookings", { replace: true });
     } else if (payment === "failed") {
       setToastMsg({ text: "Thanh toán thất bại hoặc đã bị hủy.", type: "error" });
       navigate("/my-bookings", { replace: true });
+    } else if (reviewBookingId && bookings.length > 0) {
+      const targetBooking = bookings.find(b => String(b.id) === String(reviewBookingId));
+      if (targetBooking) {
+        setReviewModal({ show: true, booking: targetBooking, rating: 5, hovered: 0, comment: "", loading: false, error: null, success: false });
+        navigate("/my-bookings", { replace: true });
+      }
     }
-  }, [location, navigate]);
+  }, [location.search, bookings]);
 
   const openCancelModal = (booking) => {
     setCancelModal({ show: true, booking, loading: false, error: null, reason: "", success: false });
@@ -392,8 +400,8 @@ const MyBookings = () => {
                         )}
 
                         {(bk.status === "COMPLETED" || isTripFinished) && (
-                          bk.hasReviewed || bk.reviewed ? (
-                            <span style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(34, 197, 94, 0.15)", color: "#22c55e", border: "1px solid #22c55e", fontWeight: 700, fontSize: 13, display: "inline-block" }}>
+                          (bk.hasReviewed || bk.reviewed) ? (
+                            <span style={{ padding: "8px 16px", borderRadius: 8, background: "rgba(34, 197, 94, 0.15)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.4)", fontWeight: 700, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 6 }}>
                               ✓ Đã đánh giá
                             </span>
                           ) : (
@@ -434,23 +442,29 @@ const MyBookings = () => {
                 <p style={{ margin: 0, fontSize: 14 }}><b>Tổng tiền đã đặt:</b> <span style={{ color: "#ff6b00", fontWeight: 700 }}>{(cancelModal.booking.totalPrice || 0).toLocaleString("vi-VN")} đ</span></p>
               </div>
 
-              <div style={{ padding: 16, borderRadius: 8, background: refundInfo.canRefund ? "#eff6ff" : "#fee2e2", border: `1px solid ${refundInfo.canRefund ? "#bfdbfe" : "#fca5a5"}`, marginBottom: 24 }}>
-                <div style={{ fontWeight: 700, color: refundInfo.canRefund ? "#1e40af" : "#991b1b", marginBottom: 8 }}>
+              <div style={{
+                padding: 16,
+                borderRadius: 12,
+                background: refundInfo.canRefund ? "rgba(30, 58, 138, 0.3)" : "rgba(153, 27, 27, 0.3)",
+                border: `1px solid ${refundInfo.canRefund ? "rgba(59, 130, 246, 0.4)" : "rgba(239, 68, 68, 0.4)"}`,
+                marginBottom: 24
+              }}>
+                <div style={{ fontWeight: 700, color: refundInfo.canRefund ? "#60a5fa" : "#fca5a5", marginBottom: 8, fontSize: 15 }}>
                   Chính sách áp dụng:
                 </div>
-                <div style={{ fontSize: 13, color: refundInfo.canRefund ? "#1e3a8a" : "#7f1d1d", lineHeight: 1.5 }}>
+                <div style={{ fontSize: 13.5, color: refundInfo.canRefund ? "#93c5fd" : "#fecaca", lineHeight: 1.5 }}>
                   {refundInfo.text}
                 </div>
 
                 {refundInfo.canRefund && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${refundInfo.canRefund ? "#bfdbfe" : "#fca5a5"}` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 4 }}>
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(59, 130, 246, 0.3)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 6, color: "var(--text-secondary)" }}>
                       <span>Phí phạt ({refundInfo.penaltyPercent}%):</span>
-                      <span>-{penaltyAmount.toLocaleString("vi-VN")} đ</span>
+                      <span style={{ color: "#ef4444" }}>-{penaltyAmount.toLocaleString("vi-VN")} đ</span>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, marginTop: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, marginTop: 8, color: "var(--text-main)" }}>
                       <span>Số tiền sẽ nhận lại:</span>
-                      <span style={{ color: "#16a34a" }}>{expectedRefund.toLocaleString("vi-VN")} đ</span>
+                      <span style={{ color: "#4ade80", fontSize: 18 }}>{expectedRefund.toLocaleString("vi-VN")} đ</span>
                     </div>
                   </div>
                 )}
@@ -655,7 +669,9 @@ const MyBookings = () => {
       {confirmModal.show && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1200, padding: 20 }}>
           <div style={{ background: "var(--bg-card)", borderRadius: 16, padding: 24, maxWidth: 420, width: "100%", border: "1px solid var(--border-main)", boxShadow: "0 20px 40px rgba(0,0,0,0.4)", textAlign: "center" }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>✈️</div>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(99, 102, 241, 0.15)", border: "1px solid rgba(99, 102, 241, 0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px auto", color: "#6366f1" }}>
+              <FaPlane fontSize={26} />
+            </div>
             <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-main)", marginBottom: 8 }}>{confirmModal.title}</h3>
             <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 24 }}>{confirmModal.message}</p>
             <div style={{ display: "flex", gap: 12 }}>

@@ -48,9 +48,12 @@ The project uses `docker-compose.yml` to orchestrate services.
 - **Stop:** `docker-compose down`
 - **Logs:** `docker-compose logs -f [service_name]`
 
-### Local Services:
-- **Frontend:** http://localhost:5173
-- **Backend API:** http://localhost:8081
+### Local & Staging Services:
+- **Frontend (Local):** http://localhost:5173
+- **Backend API (Local):** http://localhost:8081
+- **Frontend (Serverless Staging):** https://vigotrip.vercel.app (Vercel Edge Network)
+- **Backend API (Serverless Staging):** https://datxe-com.onrender.com (Render Container Service)
+- **Database (Serverless Staging):** Neon Cloud PostgreSQL
 - **SonarQube:** http://localhost:9000
 - **Grafana:** http://localhost:3000 (Monitoring)
 - **Prometheus:** http://localhost:9090
@@ -190,29 +193,26 @@ Nhánh `main` của dự án đã được bảo vệ (Branch Protection). Khôn
 
 ---
 
-## 10. Môi trường Production (AWS EC2)
-Dự án đã được triển khai chạy thử nghiệm (Staging/Production) tại đám mây AWS.
+---
 
-### Thông tin môi trường:
-* **Tên miền:** `https://datxe.duckdns.org` (Hỗ trợ đầy đủ HTTPS bảo mật bởi Let's Encrypt).
-* **Kiến trúc trên AWS:**
-  * Cổng `80/443 (HTTP/HTTPS)` được quản lý bởi **Nginx** cài trên máy chủ Ubuntu.
-  * Nginx đóng vai trò Reverse Proxy điều hướng:
-    * Mọi yêu cầu thông thường `/` ➔ React Frontend (đang chạy cổng docker `5173`).
-    * Mọi yêu cầu API `/api` ➔ Spring Boot Backend (đang chạy cổng docker `8081`).
-  * **Database:** Kết nối trực tiếp tới **AWS RDS SQL Server** (cấu hình bảo mật riêng biệt).
+## 10. Môi trường Production & Staging
+Dự án được hỗ trợ chạy thử nghiệm trên cả 2 môi trường Cloud:
+
+### 1. Môi trường Serverless (Khuyên dùng):
+* **Tên miền Frontend:** `https://vigotrip.vercel.app` (Bảo mật HTTPS qua Vercel Edge).
+* **Backend API:** `https://datxe-com.onrender.com` (Render Container Service).
+* **Database:** Neon Cloud Serverless PostgreSQL.
+
+### 2. Môi trường AWS EC2 (Truyền thống):
+* **Tên miền:** `https://datxe.duckdns.org` (HTTPS qua Let's Encrypt).
+* **Kiến trúc:** Nginx Reverse Proxy + Docker Compose (7 Container) + AWS RDS SQL Server.
 
 ### ⚠️ Lưu ý quan trọng cho các lập trình viên & AI Assistant:
-1. **Tuyệt đối KHÔNG sử dụng cấu hình AWS dưới Local:** 
+1. **Tuyệt đối KHÔNG sử dụng cấu hình AWS/Render dưới Local:** 
    * Khi code dưới máy cá nhân, hãy sử dụng cơ sở dữ liệu nội bộ (Localhost) và cấu hình trong file `.env` cá nhân.
-   * Không được đưa các thông tin nhạy cảm của AWS (Endpoint RDS, mật khẩu, JWT secret của AWS) vào mã nguồn hoặc file `.env.example`.
+   * Không được đưa các thông tin nhạy cảm (Endpoint RDS, mật khẩu, JWT secret) vào mã nguồn hoặc file `.env.example`.
 2. **Cập nhật tính năng:**
    * Luôn kiểm tra hoạt động ổn định ở Local trước khi Push lên Git.
-   * Khi code mới được merge vào nhánh `main`, Server AWS sẽ pull về và cập nhật thông qua lệnh:
-     ```bash
-     git pull
-     docker compose up --build -d
-     ```
 3. **Các API liên kết ngoài (VNPay, Google OAuth):**
-   * Các API này đã được đăng ký hoạt động song song cho cả hai môi trường: `http://localhost:5173` và `https://datxe.duckdns.org`.
+   * Các API này đã được đăng ký hoạt động song song cho các môi trường: `http://localhost:5173`, `https://vigotrip.vercel.app` và `https://datxe.duckdns.org`.
 

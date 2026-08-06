@@ -23,12 +23,29 @@ import { FiChevronDown } from "react-icons/fi";
 import { CgSandClock } from "react-icons/cg";
 import { IoMdSearch } from "react-icons/io";
 
-const getSeatPrice = (base, type) => {
-  let price = Number(base || 0);
-  if (type === "VIP") price *= 2;
-  else if (type === "BUSINESS") price += 100000;
-  else if (type === "SLEEPER") price += 50000;
-  return price;
+const formatFormattedDateTime = (isoString) => {
+  if (!isoString) return "--:--";
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString.replace("T", " ");
+    const timeStr = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    const dateStr = d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+    return `${timeStr} - ${dateStr}`;
+  } catch {
+    return isoString.replace("T", " ");
+  }
+};
+
+const getSeatPrice = (base, seat) => {
+  if (typeof seat === "object" && seat !== null && seat.price && Number(seat.price) > 0) {
+    return Number(seat.price);
+  }
+  const type = typeof seat === "string" ? seat : seat?.seatType;
+  const basePrice = Number(base || 0);
+  if (["SLEEPER", "BUSINESS", "VIP"].includes(type)) {
+    return basePrice + 50000;
+  }
+  return basePrice;
 };
 
 const PROVIDER_LOGOS = {
@@ -442,7 +459,18 @@ const BusTickets = () => {
         throw new Error(text || `Lỗi HTTP ${res.status}`);
       }
       const data = await res.json();
-      setSeats(data);
+      const enrichedData = (data || []).map((s) => {
+        const rowMatch = String(s.seatNumber || "").match(/^(\d+)/);
+        const rowNum = rowMatch ? parseInt(rowMatch[1], 10) : 0;
+        if (!s.seatType || s.seatType === "ECONOMY") {
+          return {
+            ...s,
+            seatType: rowNum <= 4 ? "SLEEPER" : "ECONOMY",
+          };
+        }
+        return s;
+      });
+      setSeats(enrichedData);
 
       setStep("seatClass");
     } catch (err) {
@@ -575,7 +603,7 @@ const BusTickets = () => {
 
   const calculateTotalBeforeDiscount = () => {
     if (!selectedTrip) return 0;
-    const seatsTotal = seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s.seatType), 0);
+    const seatsTotal = seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s), 0);
     const extraTotal = services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum, s) => sum + (s.price || 0), 0);
     return seatsTotal + extraTotal;
   };
@@ -884,13 +912,13 @@ const BusTickets = () => {
                           padding: "10px 12px",
                           borderRadius: 10,
                           border: "1px solid var(--border-light)",
-                          background: d.available ? "#fff" : "#f5f5f5",
+                          background: d.available ? "var(--bg-card)" : "var(--bg-hover)",
                           cursor: d.available ? "pointer" : "not-allowed",
                           textAlign: "left",
                         }}
                       >
                         <div style={{ fontWeight: 700, color: "var(--text-main)" }}>{d.date}</div>
-                        <div style={{ marginTop: 6, color: d.available ? "#ff6b00" : "#999", fontWeight: 700 }}>
+                        <div style={{ marginTop: 6, color: d.available ? "#ff6b00" : "var(--text-muted)", fontWeight: 700 }}>
                           {d.minPrice != null ? `${Number(d.minPrice).toLocaleString("vi-VN")} đ` : "—"}
                         </div>
                       </button>
@@ -1126,10 +1154,10 @@ const BusTickets = () => {
                             onClick={() => handleSelectTrip(trip)}
                             style={{
                               background: isSelected
-                                ? "linear-gradient(135deg,#fff7ed,#fef3ff)"
+                                ? "linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(249, 115, 22, 0.15))"
                                 : "var(--bg-card)",
                               border: isSelected
-                                ? "2px solid #ef4444"
+                                ? "2px solid #f87171"
                                 : "1.5px solid var(--border-light)",
                               borderRadius: 16,
                               padding: "18px 22px",
@@ -1338,8 +1366,7 @@ const BusTickets = () => {
                   </div>
                 )}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
-
-                  <div style={{ position: "absolute", top: 20, left: "10%", right: "10%", height: 3, background: "#e0e7ff", zIndex: 0 }} />
+                  <div style={{ position: "absolute", top: 21, left: "12%", right: "12%", height: 3, background: "var(--border-main)", zIndex: 0 }} />
                   {[
                     { key: "seatClass", icon: <FaChair />, label: t.step1Title },
                     { key: "passenger", icon: <FaUser />, label: t.step2Title },
@@ -1353,12 +1380,14 @@ const BusTickets = () => {
                     return (
                       <div key={s.key} style={{ display: "flex", flexDirection: "column", alignItems: "center", zIndex: 1, flex: 1 }}>
                         <div style={{
-                          width: 42, height: 42, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                          background: isDone ? "#22c55e" : isActive ? "#4f7cff" : "#e0e7ff",
-                          color: isDone || isActive ? "#fff" : "#888",
+                          width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                          background: isDone ? "linear-gradient(135deg,#22c55e,#16a34a)" : isActive ? "var(--primary)" : "var(--bg-input)",
+                          color: isDone || isActive ? "#fff" : "var(--text-muted)",
+                          border: isActive ? "none" : "1px solid var(--border-main)",
                           fontWeight: 700, fontSize: 18, transition: "all .3s",
+                          boxShadow: isActive ? "0 4px 12px rgba(239,68,68,0.35)" : "none"
                         }}>{isDone ? "✓" : s.icon}</div>
-                        <div style={{ marginTop: 6, fontSize: 12, fontWeight: isActive ? 700 : 400, color: isActive ? "#4f7cff" : "#888" }}>{s.label}</div>
+                        <div style={{ marginTop: 8, fontSize: 13, fontWeight: isActive ? 700 : 500, color: isActive ? "var(--primary)" : "var(--text-secondary)" }}>{s.label}</div>
                       </div>
                     );
                   })}
@@ -1367,35 +1396,35 @@ const BusTickets = () => {
             )}
 
             {selectedTrip && step === "seatClass" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
-                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-md)" }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Bước 1: Chọn hạng vé & ghế ngồi</h2>
-                  <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 16 }}>Chọn hạng sau đó bấm vào ghế muốn ngồi.</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}>
+                <div style={{ background: "var(--bg-card)", borderRadius: 16, padding: 24, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)" }}>
+                  <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 6, color: "var(--text-main)" }}>Bước 1: Chọn hạng vé & ghế ngồi</h2>
+                  <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 20 }}>Chọn hạng sau đó bấm vào ghế hoặc giường mong muốn.</p>
                   {!canSelectSeats(isAuthenticated, user) && (
-                    <p style={{ color: "#b45309", fontSize: 13, marginBottom: 12, padding: "10px 12px", background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a" }}>
+                    <p style={{ color: "#f59e0b", fontSize: 13, marginBottom: 16, padding: "12px 16px", background: "rgba(245,158,11,0.1)", borderRadius: 10, border: "1px solid rgba(245,158,11,0.3)" }}>
                       {LOGIN_REQUIRED_SEAT_MSG}
                     </p>
                   )}
 
-                  {loading && <p style={{ color: "var(--text-muted)" }}>{t.loadingSeatmap}</p>}
+                  {loading && <p style={{ color: "var(--text-muted)", fontSize: 14 }}>{t.loadingSeatmap}</p>}
 
                   {!loading && (() => {
                     const classTypes = [...new Set(seats.map(s => s.seatType || "ECONOMY"))];
                     return (
-                      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
                         <button type="button" onClick={() => setSelectedSeatClass("")} style={{
-                          padding: "8px 18px", borderRadius: 20, border: `2px solid ${!selectedSeatClass ? "#4f7cff" : "#ddd"}`,
-                          background: !selectedSeatClass ? "#4f7cff" : "#fff", color: !selectedSeatClass ? "#fff" : "#333",
-                          fontWeight: 600, cursor: "pointer",
+                          padding: "9px 20px", borderRadius: 24, border: `2px solid ${!selectedSeatClass ? "#ef4444" : "var(--border-input)"}`,
+                          background: !selectedSeatClass ? "#ef4444" : "var(--bg-input)", color: !selectedSeatClass ? "#fff" : "var(--text-secondary)",
+                          fontWeight: 700, cursor: "pointer", fontSize: 14, transition: "all 0.2s"
                         }}>Tất cả</button>
                         {classTypes.map(cls => (
                           <button key={cls} type="button" onClick={() => setSelectedSeatClass(cls)} style={{
-                            padding: "8px 18px", borderRadius: 20,
-                            border: `2px solid ${selectedSeatClass === cls ? "#4f7cff" : "#ddd"}`,
-                            background: selectedSeatClass === cls ? "#4f7cff" : "#fff",
-                            color: selectedSeatClass === cls ? "#fff" : "#333",
-                            fontWeight: 600, cursor: "pointer",
-                          }}>{cls === "SLEEPER" || cls === "BUSINESS" ? `🌟 Giường nằm` : `💺 Ghế thường`}</button>
+                            padding: "9px 20px", borderRadius: 24,
+                            border: `2px solid ${selectedSeatClass === cls ? "#ef4444" : "var(--border-input)"}`,
+                            background: selectedSeatClass === cls ? "#ef4444" : "var(--bg-input)",
+                            color: selectedSeatClass === cls ? "#fff" : "var(--text-secondary)",
+                            fontWeight: 700, cursor: "pointer", fontSize: 14, transition: "all 0.2s"
+                          }}>{cls === "SLEEPER" || cls === "BUSINESS" ? `🌟 Giường nằm VIP` : `💺 Ghế ngồi thường`}</button>
                         ))}
                       </div>
                     );
@@ -1419,26 +1448,31 @@ const BusTickets = () => {
                     return (
                       <div style={{
                         overflowX: "auto",
-                        background: "#fafafa",
-                        padding: "30px",
-                        borderRadius: "24px",
-                        border: "3px solid #ccc",
+                        background: "var(--bg-input)",
+                        padding: "24px 30px",
+                        borderRadius: "20px",
+                        border: "2px solid var(--border-main)",
+                        borderLeft: "8px solid #ef4444",
+                        boxShadow: "inset 0 4px 12px rgba(0,0,0,0.2)",
                         position: "relative",
                         minWidth: "fit-content",
                         margin: "0 auto"
                       }}>
-                        <div style={{ textAlign: "center", marginBottom: 20, color: "var(--text-muted)", fontSize: 24 }}>Đầu xe</div>
-                        <div style={{ display: "flex", gap: 16, marginBottom: 8, paddingLeft: 48, justifyContent: "center" }}>
-                          {leftCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-muted)", fontSize: 12 }}>{c}</div>)}
-                          <div style={{ width: 40 }} />
-                          {rightCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-muted)", fontSize: 12 }}>{c}</div>)}
+                        <div style={{ textAlign: "center", marginBottom: 20, color: "#ef4444", fontSize: 16, fontWeight: "800", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                          <span style={{ fontSize: 20 }}>🚌</span> Đầu Xe & Sơ Đồ Giường / Ghế
                         </div>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          <div style={{ display: "flex", gap: 10, marginBottom: 10, paddingLeft: 44, justifyContent: "center" }}>
+                            {leftCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 13 }}>{c}</div>)}
+                            <div style={{ width: 36 }} />
+                            {rightCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 13 }}>{c}</div>)}
+                          </div>
                         {rows.map(row => (
-                          <div key={row} style={{ display: "flex", gap: 16, marginBottom: 12, alignItems: "center", justifyContent: "center" }}>
-                            <div style={{ width: 32, textAlign: "center", fontWeight: 700, color: "var(--text-muted)", fontSize: 12 }}>{row}</div>
+                          <div key={row} style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "center", justifyContent: "center" }}>
+                            <div style={{ width: 34, textAlign: "center", fontWeight: 700, color: "var(--text-muted)", fontSize: 13 }}>{row}</div>
                             {leftCols.map(col => {
                               const s = smap.get(`${row}${col}`);
-                              if (!s) return <div key={col} style={{ width: 44, height: 60 }} />;
+                              if (!s) return <div key={col} style={{ width: 44, height: 50 }} />;
                               const sel = selectedSeatIds.includes(s.id);
                               const isLockedByOthers = isSeatLockedByOthers(s, user);
                               const isSleeper = s.seatType === "SLEEPER" || s.seatType === "BUSINESS";
@@ -1446,22 +1480,23 @@ const BusTickets = () => {
                                 <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={!canSelectSeats(isAuthenticated, user) || s.booked || isLockedByOthers || (!sel && isMaxReached)}
                                   title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
                                   style={{
-                                    width: 44, height: isSleeper ? 64 : 44, borderRadius: isSleeper ? "8px" : "12px", border: "none",
+                                    width: 44, height: isSleeper ? 56 : 42, borderRadius: isSleeper ? "10px" : "12px", border: "none",
                                     cursor: (s.booked || isLockedByOthers) ? "not-allowed" : "pointer",
-                                    background: s.booked ? "#e0e0e0" : isLockedByOthers ? "#fecaca" : sel ? "#f59e0b" : (s.seatType === "BUSINESS" || s.seatType === "VIP" || isSleeper ? "#bfdbfe" : "#bbf7d0"),
-                                    color: (s.booked || isLockedByOthers) ? "#aaa" : sel ? "#fff" : "#444", fontWeight: 700, fontSize: 12,
-                                    boxShadow: sel ? "0 4px 10px rgba(245, 158, 11, 0.4)" : "0 2px 4px rgba(0,0,0,0.1)",
+                                    background: s.booked ? "#334155" : isLockedByOthers ? "rgba(239,68,68,0.3)" : sel ? "linear-gradient(135deg,#f59e0b,#d97706)" : (isSleeper ? "linear-gradient(135deg,#3b82f6,#2563eb)" : "linear-gradient(135deg,#10b981,#059669)"),
+                                    color: s.booked ? "#64748b" : "#fff", fontWeight: 800, fontSize: 13,
+                                    boxShadow: sel ? "0 4px 12px rgba(245, 158, 11, 0.5)" : "0 2px 6px rgba(0,0,0,0.15)",
+                                    borderBottom: s.booked ? "4px solid #1e293b" : isLockedByOthers ? "4px solid #ef4444" : sel ? "4px solid #b45309" : (isSleeper ? "4px solid #1d4ed8" : "4px solid #047857"),
                                     transition: "all 0.2s"
                                   }}>
-                                  {isSleeper && !s.booked && !sel && !isLockedByOthers && <div style={{ fontSize: 10, marginBottom: 2 }}>🛏️</div>}
+                                  {isSleeper && !s.booked && !sel && !isLockedByOthers && <div style={{ fontSize: 9, lineHeight: 1 }}>🛏️</div>}
                                   <div>{s.booked ? "✗" : isLockedByOthers ? "🔒" : s.seatNumber}</div>
                                 </button>
                               );
                             })}
-                            <div style={{ width: 40, textAlign: "center", color: "#ddd", fontSize: 12 }}>||</div>
+                            <div style={{ width: 36, textAlign: "center", color: "var(--text-muted)", fontSize: 11 }}>||</div>
                             {rightCols.map(col => {
                               const s = smap.get(`${row}${col}`);
-                              if (!s) return <div key={col} style={{ width: 44, height: 60 }} />;
+                              if (!s) return <div key={col} style={{ width: 44, height: 50 }} />;
                               const sel = selectedSeatIds.includes(s.id);
                               const isLockedByOthers = isSeatLockedByOthers(s, user);
                               const isSleeper = s.seatType === "SLEEPER" || s.seatType === "BUSINESS";
@@ -1469,49 +1504,73 @@ const BusTickets = () => {
                                 <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={!canSelectSeats(isAuthenticated, user) || s.booked || isLockedByOthers || (!sel && isMaxReached)}
                                   title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
                                   style={{
-                                    width: 44, height: isSleeper ? 64 : 44, borderRadius: isSleeper ? "8px" : "12px", border: "none",
+                                    width: 44, height: isSleeper ? 56 : 42, borderRadius: isSleeper ? "10px" : "12px", border: "none",
                                     cursor: (s.booked || isLockedByOthers) ? "not-allowed" : "pointer",
-                                    background: s.booked ? "#e0e0e0" : isLockedByOthers ? "#fecaca" : sel ? "#f59e0b" : (s.seatType === "BUSINESS" || s.seatType === "VIP" || isSleeper ? "#bfdbfe" : "#bbf7d0"),
-                                    color: (s.booked || isLockedByOthers) ? "#aaa" : sel ? "#fff" : "#444", fontWeight: 700, fontSize: 12,
-                                    boxShadow: sel ? "0 4px 10px rgba(245, 158, 11, 0.4)" : "0 2px 4px rgba(0,0,0,0.1)",
+                                    background: s.booked ? "#334155" : isLockedByOthers ? "rgba(239,68,68,0.3)" : sel ? "linear-gradient(135deg,#f59e0b,#d97706)" : (isSleeper ? "linear-gradient(135deg,#3b82f6,#2563eb)" : "linear-gradient(135deg,#10b981,#059669)"),
+                                    color: s.booked ? "#64748b" : "#fff", fontWeight: 800, fontSize: 13,
+                                    boxShadow: sel ? "0 4px 12px rgba(245, 158, 11, 0.5)" : "0 2px 6px rgba(0,0,0,0.15)",
+                                    borderBottom: s.booked ? "4px solid #1e293b" : isLockedByOthers ? "4px solid #ef4444" : sel ? "4px solid #b45309" : (isSleeper ? "4px solid #1d4ed8" : "4px solid #047857"),
                                     transition: "all 0.2s"
                                   }}>
-                                  {isSleeper && !s.booked && !sel && !isLockedByOthers && <div style={{ fontSize: 10, marginBottom: 2 }}>🛏️</div>}
+                                  {isSleeper && !s.booked && !sel && !isLockedByOthers && <div style={{ fontSize: 9, lineHeight: 1 }}>🛏️</div>}
                                   <div>{s.booked ? "✗" : isLockedByOthers ? "🔒" : s.seatNumber}</div>
                                 </button>
                               );
                             })}
                           </div>
                         ))}
-                        <div style={{ display: "flex", gap: 16, marginTop: 24, fontSize: 12, color: "var(--text-secondary)", justifyContent: "center", flexWrap: "wrap" }}>
-                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ display: "inline-block", width: 14, height: 14, background: "#dcfce7", borderRadius: 3 }} />Ghế thường</span>
-                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ display: "inline-block", width: 14, height: 14, background: "#fef08a", borderRadius: 3 }} />Giường nằm</span>
-                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ display: "inline-block", width: 14, height: 14, background: "#f59e0b", borderRadius: 3 }} />Đang chọn</span>
-                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ display: "inline-block", width: 14, height: 14, background: "#fecaca", borderRadius: 3 }} />Người khác đang chọn</span>
-                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ display: "inline-block", width: 14, height: 14, background: "#e0e0e0", borderRadius: 3 }} />Bị đặt</span>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 16, marginTop: 20, fontSize: 13, color: "var(--text-secondary)", justifyContent: "center", flexWrap: "wrap" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 14, background: "#10b981", borderRadius: 4 }} />Ghế thường</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 14, background: "#3b82f6", borderRadius: 4 }} />Giường nằm</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 14, background: "#f59e0b", borderRadius: 4 }} />Đang chọn</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 14, background: "rgba(239,68,68,0.5)", borderRadius: 4 }} />Người khác đang chọn</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 14, background: "#334155", borderRadius: 4 }} />Đã đặt</span>
                         </div>
                       </div>
                     );
                   })()}
 
-                  {!loading && seats.length === 0 && <p style={{ color: "var(--text-muted)" }}>{t.noSeatData}</p>}
+                  {!loading && seats.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 14 }}>{t.noSeatData}</p>}
 
-                  {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
-                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
-                    <button type="button" onClick={() => setStep("chooseTrip")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-card)", fontWeight: 700, cursor: "pointer" }}>← Quay lại</button>
-                    <button type="button" onClick={goToExtras} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Tiếp theo →</button>
+                  {error && <p style={{ color: "#ef4444", marginTop: 12, fontSize: 14 }}>{error}</p>}
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
+                    <button type="button" onClick={() => setStep("chooseTrip")} style={{
+                      padding: "12px 26px", borderRadius: 10, border: "1px solid var(--border-main)",
+                      background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer", fontSize: 14
+                    }}>← Quay lại</button>
+                    <button type="button" onClick={goToExtras} style={{
+                      padding: "12px 32px", borderRadius: 10, border: "none",
+                      background: "linear-gradient(135deg, #ef4444, #f97316)", color: "#fff",
+                      fontWeight: 700, cursor: "pointer", fontSize: 14, boxShadow: "0 4px 14px rgba(239,68,68,0.4)"
+                    }}>Tiếp theo →</button>
                   </div>
                 </div>
 
-                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-md)", height: "fit-content" }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid #eee", paddingBottom: 10 }}>Thông tin đặt chỗ</div>
-                  <div style={{ fontSize: 13, color: "#444", lineHeight: 1.9 }}>
-                    <div><b>{selectedTrip.origin}</b> → <b>{selectedTrip.destination}</b></div>
-                    <div style={{ color: "var(--text-muted)", marginBottom: 6 }}>{selectedTrip.departureTime}</div>
-                    <div style={{ background: "var(--bg-main)", padding: 10, borderRadius: 8 }}>
-                      <div style={{ marginBottom: 4 }}>Ghế: <b style={{ color: "var(--primary)" }}>{selectedSeatIds.length === 0 ? "Chưa chọn" : seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ")}</b></div>
-                      <div style={{ fontWeight: 700, color: "#ff6b00", fontSize: 15 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ / ghế</div>
+                <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)", height: "fit-content", position: "sticky", top: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>Thông tin đặt chỗ</div>
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.8 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                      <span>🚌</span> <span>{selectedTrip.origin}</span> <span style={{ color: "#ef4444" }}>→</span> <span>{selectedTrip.destination}</span>
                     </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-secondary)", marginBottom: 6 }}>
+                      <FaRegCalendarAlt style={{ color: "#ef4444", fontSize: 14, flexShrink: 0 }} />
+                      <span>{formatFormattedDateTime(selectedTrip.departureTime)}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-secondary)", marginBottom: 12 }}>
+                      <TbBus style={{ color: "#ef4444", fontSize: 16, flexShrink: 0 }} />
+                      <span style={{ fontWeight: 500 }}>{selectedTrip.providerName}</span>
+                    </div>
+                    <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(20,83,45,0.3)", borderRadius: 10, border: "1px solid rgba(34,197,94,0.4)" }}>
+                      <div style={{ fontSize: 12, color: "#86efac", fontWeight: 700, marginBottom: 4 }}>🟢 Ghế ngồi thường (ECO)</div>
+                      <div style={{ fontWeight: 800, color: "#4ade80", fontSize: 16 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
+                    </div>
+                    <div style={{ marginTop: 8, padding: "10px 12px", background: "rgba(30,58,138,0.3)", borderRadius: 10, border: "1px solid rgba(59,130,246,0.4)" }}>
+                      <div style={{ fontSize: 12, color: "#93c5fd", fontWeight: 700, marginBottom: 4 }}>🔵 Giường nằm VIP (SLEEPER)</div>
+                      <div style={{ fontWeight: 800, color: "#60a5fa", fontSize: 16 }}>{Number(getSeatPrice(selectedTrip.price, "SLEEPER")).toLocaleString("vi-VN")} đ</div>
+                    </div>
+                    <div style={{ marginTop: 12, color: selectedSeatIds.length >= (passengers || 1) ? "#22c55e" : "var(--text-muted)", fontWeight: 600 }}>Ghế đã chọn: {selectedSeatIds.length}/{passengers || 1}</div>
                   </div>
                 </div>
               </div>
@@ -1547,18 +1606,14 @@ const BusTickets = () => {
                   </div>
 
                   <div style={{ display: "flex", gap: 16, marginTop: 14 }}>
-                    <label style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
-                      <input type="checkbox" checked={globalContact.promoOptIn} onChange={e => setGlobalContact(p => ({ ...p, promoOptIn: e.target.checked }))} />
-                      Nhận thông tin khuyến mãi
-                    </label>
-                    <label style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
-                      <input type="checkbox" checked={globalContact.remember} onChange={e => setGlobalContact(p => ({ ...p, remember: e.target.checked }))} />
+                    <label style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center", cursor: "pointer", color: "var(--text-main)", fontWeight: 500 }}>
+                      <input type="checkbox" checked={globalContact.remember} onChange={e => setGlobalContact(p => ({ ...p, remember: e.target.checked }))} style={{ accentColor: "#ef4444", width: 16, height: 16 }} />
                       Lưu thông tin cho lần sau
                     </label>
                   </div>
 
-                  {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
-                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
+                  {error && <p style={{ color: "#ef4444", marginTop: 12, fontSize: 14 }}>{error}</p>}
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
                     <button type="button" onClick={() => {
                       const seatsToUnlock = [...selectedSeatIds];
                       unlockSeats({
@@ -1569,25 +1624,44 @@ const BusTickets = () => {
                       setSelectedSeatIds([]);
                       setLockDeadline(null);
                       setStep("seatClass");
-                    }} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-card)", fontWeight: 700, cursor: "pointer" }}>← Quay lại</button>
-                    <button type="button" onClick={goToExtrasFromPassenger} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Tiếp theo →</button>
+                    }} style={{
+                      padding: "12px 26px", borderRadius: 10, border: "1px solid var(--border-main)",
+                      background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer", fontSize: 14
+                    }}>← Quay lại</button>
+                    <button type="button" onClick={goToExtrasFromPassenger} style={{
+                      padding: "12px 32px", borderRadius: 10, border: "none",
+                      background: "linear-gradient(135deg, #ef4444, #f97316)", color: "#fff",
+                      fontWeight: 700, cursor: "pointer", fontSize: 14, boxShadow: "0 4px 14px rgba(239,68,68,0.4)"
+                    }}>Tiếp theo →</button>
                   </div>
                 </div>
 
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)", height: "fit-content", position: "sticky", top: 16 }}>
                   <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>Thông tin đặt chỗ</div>
-                  <div style={{ fontSize: 13, color: "var(--text-main)", lineHeight: 1.9 }}>
-                    <div><b>{selectedTrip.origin}</b> → <b>{selectedTrip.destination}</b></div>
-                    <div style={{ color: "var(--text-secondary)", fontSize: 12 }}>{selectedTrip.departureTime} · {selectedTrip.providerName}</div>
-                    <div style={{ marginTop: 6 }}>Ghế: <b>{selectedSeatIds.length === 0 ? "Chưa chọn" : seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ")}</b></div>
-                    <div style={{ marginTop: 10, padding: "10px 12px", background: "var(--bg-input)", borderRadius: 8, border: "1px solid var(--border-main)" }}>
-                      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>TỔNG TIỀN VÉ</div>
-                      <div style={{ fontWeight: 800, color: "#f97316", fontSize: 17, whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.8 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                      <span>🚌</span> <span>{selectedTrip.origin}</span> <span style={{ color: "#ef4444" }}>→</span> <span>{selectedTrip.destination}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-secondary)", marginBottom: 6 }}>
+                      <FaRegCalendarAlt style={{ color: "#ef4444", fontSize: 14, flexShrink: 0 }} />
+                      <span>{formatFormattedDateTime(selectedTrip.departureTime)}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-secondary)", marginBottom: 12 }}>
+                      <TbBus style={{ color: "#ef4444", fontSize: 16, flexShrink: 0 }} />
+                      <span style={{ fontWeight: 500 }}>{selectedTrip.providerName}</span>
+                    </div>
+                    <div style={{ marginTop: 10, padding: "12px 14px", background: "var(--bg-input)", borderRadius: 10, border: "1px solid var(--border-main)" }}>
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Ghế đã chọn:</div>
+                      <div style={{ fontWeight: 800, color: "#ef4444", fontSize: 15, marginBottom: 8 }}>
+                        {seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ")}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 2 }}>TỔNG TIỀN VÉ</div>
+                      <div style={{ fontWeight: 900, color: "#f97316", fontSize: 18, whiteSpace: "nowrap" }}>
                         {(() => {
                           const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
                           const basePrice = Number(selectedTrip.price || 0);
-                          const total = selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s.seatType), 0);
-                          return total > 0 ? `${total.toLocaleString("vi-VN")} đ` : `${basePrice.toLocaleString("vi-VN")} đ / ghế`;
+                          const total = selSeats.reduce((sum, s) => sum + (s.seatType === "SLEEPER" || s.seatType === "BUSINESS" || s.seatType === "VIP" ? basePrice : basePrice), 0);
+                          return `${total.toLocaleString("vi-VN")} đ`;
                         })()}
                       </div>
                     </div>
@@ -1903,7 +1977,7 @@ const BusTickets = () => {
                         {(() => {
                           const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
                           const basePrice = Number(selectedTrip.price || 0);
-                          return selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s.seatType), 0).toLocaleString("vi-VN");
+                          return selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s), 0).toLocaleString("vi-VN");
                         })()} đ
                       </div>
                     </div>
@@ -1960,8 +2034,15 @@ const BusTickets = () => {
                         onClick={async () => {
                           try {
                             const res = await axios.post("/api/payment/create", { bookingId: bookingResult.id, language: "vn" }, { headers: { Authorization: `Bearer ${token}` } });
-                            if (res.data && res.data.paymentUrl) window.location.href = res.data.paymentUrl;
-                          } catch { alert("Lỗi tạo link VNPay, vui lòng thử lại."); }
+                            if (res.data && res.data.paymentUrl) {
+                              window.location.href = res.data.paymentUrl;
+                            } else {
+                              alert("Máy chủ VNPay Sandbox chưa phản hồi liên kết thanh toán.");
+                            }
+                          } catch (err) {
+                            console.error(err);
+                            alert("Lỗi kết nối VNPay Sandbox. Vui lòng kiểm tra lại cấu hình cổng thanh toán backend.");
+                          }
                         }}
                         style={{ marginTop: 14, width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#005baa", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                         <MdOutlineCreditCard fontSize={20} /> {t.paymentVNPAY}
@@ -1985,7 +2066,7 @@ const BusTickets = () => {
                     {(() => {
                       const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
                       const basePrice = Number(selectedTrip.price || 0);
-                      const seatsTotal = selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s.seatType), 0);
+                      const seatsTotal = selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s), 0);
                       const extraTotal = services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum, s) => sum + (s.price || 0), 0);
 
                       return (

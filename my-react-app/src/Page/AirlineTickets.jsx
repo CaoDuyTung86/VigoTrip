@@ -1483,11 +1483,12 @@ const AirlineTickets = () => {
                       }}>
                         <div style={{ textAlign: "center", marginBottom: 30, color: "var(--text-secondary)", fontSize: "20px", fontWeight: "bold" }}>✈ Mũi Máy Bay</div>
 
-                        <div style={{ display: "flex", gap: 6, marginBottom: 8, paddingLeft: 48 }}>
-                          {leftCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 12 }}>{c}</div>)}
-                          <div style={{ width: 32 }} />
-                          {rightCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 12 }}>{c}</div>)}
-                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          <div style={{ display: "flex", gap: 6, marginBottom: 8, paddingLeft: 44 }}>
+                            {leftCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 12 }}>{c}</div>)}
+                            <div style={{ width: 32 }} />
+                            {rightCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 12 }}>{c}</div>)}
+                          </div>
                         {rows.map(row => (
                           <div key={row} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
                             <div style={{ width: 36, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 12 }}>{row}</div>
@@ -1606,6 +1607,7 @@ const AirlineTickets = () => {
                             })}
                           </div>
                         ))}
+                        </div>
 
                         <div style={{ display: "flex", gap: 16, marginTop: 16, fontSize: 12, color: "var(--text-secondary)", flexWrap: "wrap", justifyContent: "center" }}>
                           <span><span style={{ display: "inline-block", width: 14, height: 14, background: "linear-gradient(180deg, #14532d, #052e16)", borderRadius: 3, marginRight: 6, border: "1px solid #16a34a", verticalAlign: "middle" }} />Phổ thông</span>

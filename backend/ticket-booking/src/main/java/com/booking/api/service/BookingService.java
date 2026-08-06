@@ -40,6 +40,7 @@ public class BookingService {
     private final VoucherService voucherService;
     private final SeatLockService seatLockService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ReviewRepository reviewRepository;
 
     @Transactional
     @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
@@ -201,7 +202,9 @@ public class BookingService {
         return bookings.stream()
                 .map(booking -> {
                     Trip trip = extractTripFromBooking(booking);
-                    return bookingMapper.toBookingResponse(booking, trip);
+                    BookingResponse res = bookingMapper.toBookingResponse(booking, trip);
+                    res.setHasReviewed(reviewRepository.existsByBookingId(booking.getId()));
+                    return res;
                 })
                 .collect(Collectors.toList());
     }

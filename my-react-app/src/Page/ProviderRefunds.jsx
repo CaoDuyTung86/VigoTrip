@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import { useLanguage } from "../context/LanguageContext";
+import { FaPlane, FaBus, FaTrain, FaUser, FaRegClock, FaCommentDots, FaCheck, FaTimes } from "react-icons/fa";
 
 const ProviderRefunds = () => {
   const { user, token, isAuthenticated } = useAuth();
@@ -16,8 +17,9 @@ const ProviderRefunds = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [filter, setFilter] = useState("ALL");
 
-  // Modal cho reject
+  // Modal cho approve & reject
   const [rejectModal, setRejectModal] = useState({ show: false, refundId: null, note: "", loading: false });
+  const [approveModal, setApproveModal] = useState({ show: false, refundId: null, loading: false });
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "ROLE_ADMIN") {
@@ -43,16 +45,21 @@ const ProviderRefunds = () => {
     }
   };
 
-  const handleApprove = async (refundId) => {
-    if (!window.confirm("Bạn xác nhận duyệt hoàn tiền cho yêu cầu này?")) return;
+  const openApproveModal = (refundId) => {
+    setApproveModal({ show: true, refundId, loading: false });
+  };
+
+  const handleApprove = async () => {
     try {
-      await axios.put(`/api/refunds/${refundId}/approve`, {}, {
+      setApproveModal(prev => ({ ...prev, loading: true }));
+      await axios.put(`/api/refunds/${approveModal.refundId}/approve`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      setApproveModal({ show: false, refundId: null, loading: false });
       await fetchRefunds();
-      alert("Đã duyệt hoàn tiền thành công!");
     } catch (err) {
       alert("Lỗi: " + (err.response?.data?.message || err.message));
+      setApproveModal(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -79,10 +86,10 @@ const ProviderRefunds = () => {
   const filteredRefunds = filter === "ALL" ? refunds : refunds.filter(r => r.status === filter);
 
   const statusMap = {
-    PENDING: { bg: "#fef3c7", color: "#ca8a04", text: t.pendingFilter },
-    APPROVED: { bg: "#dcfce7", color: "#16a34a", text: t.approvedFilter },
-    REJECTED: { bg: "#fee2e2", color: "#dc2626", text: t.rejectedFilter },
-    COMPLETED: { bg: "#dcfce7", color: "#16a34a", text: t.completed },
+    PENDING: { bg: "rgba(245, 158, 11, 0.2)", color: "#fbbf24", text: t.pendingFilter },
+    APPROVED: { bg: "rgba(34, 197, 94, 0.2)", color: "#4ade80", text: t.approvedFilter },
+    REJECTED: { bg: "rgba(239, 68, 68, 0.2)", color: "#fca5a5", text: t.rejectedFilter },
+    COMPLETED: { bg: "rgba(34, 197, 94, 0.2)", color: "#4ade80", text: t.completed },
   };
 
   return (
@@ -92,12 +99,12 @@ const ProviderRefunds = () => {
         <Sidebar isOpen={isSidebarOpen} />
         <div className={`page-main ${isSidebarOpen ? "with-sidebar" : ""}`} style={{ padding: "30px", flex: 1, overflowY: "auto" }}>
           <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24, color: "#1e293b" }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24, color: "var(--text-heading)" }}>
               Quản lý Yêu cầu Hoàn tiền
             </h1>
 
             {error && (
-              <div style={{ padding: "20px", background: "#fee2e2", color: "#dc2626", borderRadius: "12px", marginBottom: "20px", fontWeight: 600, textAlign: "center" }}>
+              <div style={{ padding: "20px", background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "12px", marginBottom: "20px", fontWeight: 600, textAlign: "center" }}>
                 ⚠️ {error}
               </div>
             )}
@@ -109,115 +116,141 @@ const ProviderRefunds = () => {
                 { key: "PENDING", label: t.pendingFilter, count: refunds.filter(r => r.status === "PENDING").length },
                 { key: "APPROVED", label: t.approvedFilter, count: refunds.filter(r => r.status === "APPROVED").length },
                 { key: "REJECTED", label: t.rejectedFilter, count: refunds.filter(r => r.status === "REJECTED").length }
-              ].map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setFilter(tab.key)}
-                  style={{
-                    padding: "8px 16px", borderRadius: 20,
-                    border: filter === tab.key ? "2px solid #2563eb" : "1px solid #e2e8f0",
-                    background: filter === tab.key ? "#eff6ff" : "white",
-                    color: filter === tab.key ? "#2563eb" : "#64748b",
-                    fontWeight: 600, fontSize: 13, cursor: "pointer",
-                    display: "flex", alignItems: "center", gap: 6
-                  }}
-                >
-                  {tab.label}
-                  <span style={{
-                    background: filter === tab.key ? "#2563eb" : "#e2e8f0",
-                    color: filter === tab.key ? "white" : "#64748b",
-                    borderRadius: "50%", width: 22, height: 22,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 11, fontWeight: 700
-                  }}>{tab.count}</span>
-                </button>
-              ))}
+              ].map(tab => {
+                const isActive = filter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setFilter(tab.key)}
+                    style={{
+                      padding: "8px 18px", borderRadius: 20,
+                      border: isActive ? "2px solid var(--primary)" : "1px solid var(--border-main)",
+                      background: isActive ? "var(--primary)" : "var(--bg-card)",
+                      color: isActive ? "#ffffff" : "var(--text-secondary)",
+                      fontWeight: 700, fontSize: 13, cursor: "pointer",
+                      display: "flex", alignItems: "center", gap: 8,
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    {tab.label}
+                    <span style={{
+                      background: isActive ? "rgba(255,255,255,0.25)" : "var(--bg-input)",
+                      color: isActive ? "#ffffff" : "var(--text-main)",
+                      borderRadius: "50%", width: 22, height: 22,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, fontWeight: 800
+                    }}>{tab.count}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {loading ? (
               <p style={{ color: "var(--text-secondary)" }}>Đang tải...</p>
             ) : filteredRefunds.length === 0 ? (
-              <div style={{ background: "var(--bg-card)", padding: 40, borderRadius: 12, textAlign: "center", color: "var(--text-secondary)", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
+              <div style={{ background: "var(--bg-card)", padding: 40, borderRadius: 12, textAlign: "center", color: "var(--text-secondary)", border: "1px solid var(--border-main)", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
                 Không có yêu cầu hoàn tiền nào.
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 {filteredRefunds.map(r => {
-                  const st = statusMap[r.status] || { bg: "#f3f4f6", color: "#6b7280", text: r.status };
+                  const st = statusMap[r.status] || { bg: "var(--bg-input)", color: "var(--text-muted)", text: r.status };
                   return (
                     <div key={r.id} style={{
-                      background: "var(--bg-card)", border: "1px solid var(--border-light)", borderRadius: 12,
-                      padding: 20, boxShadow: "0 2px 10px rgba(0,0,0,0.02)",
-                      borderLeft: r.status === "PENDING" ? "4px solid #f59e0b" : r.status === "APPROVED" ? "4px solid #10b981" : r.status === "REJECTED" ? "4px solid #ef4444" : "4px solid #e5e7eb"
+                      background: "var(--bg-card)", border: "1px solid var(--border-main)", borderRadius: 16,
+                      padding: 24, boxShadow: "0 4px 20px rgba(0,0,0,0.15)", position: "relative", overflow: "hidden",
+                      borderLeft: r.status === "PENDING" ? "6px solid #f59e0b" : r.status === "APPROVED" ? "6px solid #10b981" : r.status === "REJECTED" ? "6px solid #ef4444" : "6px solid var(--border-main)"
                     }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-                            <span style={{ background: st.bg, color: st.color, padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
-                              {st.text}
-                            </span>
-                            <span style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>#{r.id}</span>
-                            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>• Booking #{r.bookingId}</span>
-                          </div>
-
-                          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, color: "#1e293b" }}>
-                            {r.origin} → {r.destination}
-                          </div>
-                          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>
-                            {r.vehicleType === "PLANE" ? "✈️" : r.vehicleType === "BUS" ? "🚌" : "🚂"} {r.providerName}
-                            <span style={{ margin: "0 8px" }}>•</span>
-                            👤 {r.userName}
-                          </div>
-
-                          {r.reason && (
-                            <div style={{ background: "var(--bg-input)", border: "1px solid #e5e7eb", padding: 12, borderRadius: 8, marginBottom: 8, fontSize: 13, color: "#374151" }}>
-                              <b>{t.refundReason}:</b> {r.reason}
-                            </div>
-                          )}
-
-                          {r.providerNote && (
-                            <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", padding: 12, borderRadius: 8, marginBottom: 8, fontSize: 13, color: "#991b1b" }}>
-                              <b>{t.providerNoteText}:</b> {r.providerNote}
-                            </div>
-                          )}
-
-                          <div style={{ fontSize: 12, color: "#9ca3af" }}>
-                            {t.sentAt}: {r.requestedAt ? new Date(r.requestedAt).toLocaleString("vi-VN") : "N/A"}
-                            {r.refundDate && <span> • {t.processedAt}: {new Date(r.refundDate).toLocaleString("vi-VN")}</span>}
-                          </div>
+                      {/* Top bar: Badge status & Booking info + Price */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid var(--border-main)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                          <span style={{ background: st.bg, color: st.color, padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 800, border: `1px solid ${st.color}40` }}>
+                            {st.text}
+                          </span>
+                          <span style={{ fontSize: 14, color: "var(--text-main)", fontWeight: 700 }}>Yêu cầu #{r.id}</span>
+                          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>• Mã đơn vé: <b style={{ color: "var(--primary)" }}>#{r.bookingId}</b></span>
                         </div>
-
-                        <div style={{ textAlign: "right", minWidth: 150 }}>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: "#ff6b00", marginBottom: 12 }}>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Số tiền yêu cầu hoàn</div>
+                          <div style={{ fontSize: 22, fontWeight: 900, color: "#f97316", lineHeight: 1.2 }}>
                             {r.refundAmount?.toLocaleString("vi-VN")} đ
                           </div>
-                          
-                          {r.status === "PENDING" && (
-                            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                              <button
-                                onClick={() => handleApprove(r.id)}
-                                style={{
-                                  padding: "8px 16px", borderRadius: 8, border: "none",
-                                  background: "#10b981", color: "white", fontWeight: 700,
-                                  cursor: "pointer", fontSize: 13
-                                }}
-                              >
-                                ✓ Duyệt
-                              </button>
-                              <button
-                                onClick={() => openRejectModal(r.id)}
-                                style={{
-                                  padding: "8px 16px", borderRadius: 8,
-                                  border: "1px solid #ef4444", background: "white",
-                                  color: "#ef4444", fontWeight: 700,
-                                  cursor: "pointer", fontSize: 13
-                                }}
-                              >
-                                ✕ Từ chối
-                              </button>
-                            </div>
-                          )}
                         </div>
+                      </div>
+
+                      {/* Main details: Route, Provider, Passenger */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "center", marginBottom: 16 }}>
+                        <div>
+                          <div style={{ fontSize: 19, fontWeight: 800, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                            <span style={{ color: "var(--primary)", display: "flex", alignItems: "center" }}>
+                              {r.vehicleType === "PLANE" ? <FaPlane fontSize={20} /> : r.vehicleType === "BUS" ? <FaBus fontSize={20} /> : <FaTrain fontSize={20} />}
+                            </span>
+                            <span>{r.origin}</span>
+                            <span style={{ color: "var(--primary)", fontSize: 16 }}>→</span>
+                            <span>{r.destination}</span>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 16, fontSize: 14, color: "var(--text-secondary)", flexWrap: "wrap", alignItems: "center" }}>
+                            <span>Nhà xe/hãng: <b style={{ color: "var(--text-main)" }}>{r.providerName}</b></span>
+                            <span>•</span>
+                            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              Hành khách: <FaUser style={{ color: "var(--primary)", fontSize: 13 }} /> <b style={{ color: "var(--text-main)" }}>{r.userName}</b>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons for Pending */}
+                        {r.status === "PENDING" && (
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <button
+                              onClick={() => openApproveModal(r.id)}
+                              style={{
+                                width: 140, height: 42, borderRadius: 10, border: "none",
+                                background: "linear-gradient(135deg, #10b981, #059669)", color: "white",
+                                fontWeight: 700, fontSize: 13.5, cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                                boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)", transition: "all 0.2s"
+                              }}
+                            >
+                              <FaCheck fontSize={13} /> Duyệt hoàn tiền
+                            </button>
+                            <button
+                              onClick={() => openRejectModal(r.id)}
+                              style={{
+                                width: 140, height: 42, borderRadius: 10,
+                                border: "1px solid rgba(239, 68, 68, 0.4)", background: "rgba(239, 68, 68, 0.1)",
+                                color: "#fca5a5", fontWeight: 700, fontSize: 13.5,
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                                transition: "all 0.2s"
+                              }}
+                            >
+                              <FaTimes fontSize={13} /> Từ chối
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Reason box */}
+                      {r.reason && (
+                        <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-main)", padding: "14px 16px", borderRadius: 10, marginBottom: 14, fontSize: 14.5, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 8 }}>
+                          <FaCommentDots style={{ color: "var(--primary)", fontSize: 16, flexShrink: 0 }} />
+                          <div>
+                            <b style={{ color: "var(--primary)", marginRight: 6 }}>Lý do yêu cầu:</b> {r.reason}
+                          </div>
+                        </div>
+                      )}
+
+                      {r.providerNote && (
+                        <div style={{ background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.3)", padding: "14px 16px", borderRadius: 10, marginBottom: 14, fontSize: 14.5, color: "#fca5a5" }}>
+                          <b style={{ color: "#ef4444", marginRight: 6 }}>⚠️ Ghi chú nhà xe:</b> {r.providerNote}
+                        </div>
+                      )}
+
+                      {/* Footer time */}
+                      <div style={{ fontSize: 13.5, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 8, fontWeight: 500 }}>
+                        <FaRegClock style={{ fontSize: 14, color: "var(--text-secondary)" }} />
+                        <span>Gửi lúc: <b style={{ color: "var(--text-secondary)" }}>{r.requestedAt ? new Date(r.requestedAt).toLocaleString("vi-VN") : "N/A"}</b></span>
+                        {r.refundDate && <span>• Xử lý lúc: <b style={{ color: "var(--text-secondary)" }}>{new Date(r.refundDate).toLocaleString("vi-VN")}</b></span>}
                       </div>
                     </div>
                   );
@@ -228,27 +261,59 @@ const ProviderRefunds = () => {
         </div>
       </div>
 
+      {/* Modal Xác nhận Duyệt */}
+      {approveModal.show && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.65)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: 20 }}>
+          <div style={{ background: "var(--bg-card)", padding: 32, borderRadius: 16, width: "100%", maxWidth: 420, boxShadow: "0 10px 25px rgba(0,0,0,0.4)", border: "1px solid var(--border-main)", textAlign: "center" }}>
+            <div style={{ width: 60, height: 60, borderRadius: "50%", background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px auto", color: "#10b981" }}>
+              <FaCheck fontSize={28} />
+            </div>
+            <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8, color: "var(--text-heading)" }}>
+              Xác nhận Duyệt hoàn tiền
+            </h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
+              Bạn có chắc chắn muốn phê duyệt hoàn tiền cho yêu cầu <b style={{ color: "var(--primary)" }}>#{approveModal.refundId}</b> này không?
+            </p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+              <button
+                onClick={() => setApproveModal({ show: false, refundId: null, loading: false })}
+                style={{ flex: 1, padding: "12px 20px", borderRadius: 10, border: "1px solid var(--border-main)", background: "var(--bg-input)", fontWeight: 700, cursor: "pointer", color: "var(--text-main)", fontSize: 14 }}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={approveModal.loading}
+                style={{ flex: 1, padding: "12px 20px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #10b981, #059669)", color: "#fff", fontWeight: 700, cursor: approveModal.loading ? "not-allowed" : "pointer", fontSize: 14, boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)" }}
+              >
+                {approveModal.loading ? "Đang xử lý..." : "Xác nhận Duyệt"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Từ chối */}
       {rejectModal.show && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: 20 }}>
-          <div style={{ background: "var(--bg-card)", padding: 32, borderRadius: 16, width: "100%", maxWidth: 420, boxShadow: "0 10px 25px rgba(0,0,0,0.15)" }}>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.65)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, padding: 20 }}>
+          <div style={{ background: "var(--bg-card)", padding: 32, borderRadius: 16, width: "100%", maxWidth: 420, boxShadow: "0 10px 25px rgba(0,0,0,0.4)", border: "1px solid var(--border-main)" }}>
             <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, color: "var(--text-heading)" }}>
               Từ chối yêu cầu hoàn tiền
             </h3>
             <div style={{ marginBottom: 20 }}>
-              <label style={{ fontWeight: 700, fontSize: 14, display: "block", marginBottom: 8 }}>{t.rejectReasonLabel}</label>
+              <label style={{ fontWeight: 700, fontSize: 14, display: "block", marginBottom: 8, color: "var(--text-main)" }}>{t.rejectReasonLabel}</label>
               <textarea
                 value={rejectModal.note}
                 onChange={e => setRejectModal(prev => ({ ...prev, note: e.target.value }))}
                 placeholder="Nhập lý do từ chối..."
                 rows={3}
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-main)", background: "var(--bg-input)", color: "var(--text-main)", fontSize: 14, resize: "vertical", outline: "none", boxSizing: "border-box" }}
               />
             </div>
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
               <button
                 onClick={() => setRejectModal({ show: false, refundId: null, note: "", loading: false })}
-                style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-card)", fontWeight: 700, cursor: "pointer", color: "var(--text-secondary)" }}
+                style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid var(--border-main)", background: "var(--bg-input)", fontWeight: 700, cursor: "pointer", color: "var(--text-main)" }}
               >
                 Hủy
               </button>
