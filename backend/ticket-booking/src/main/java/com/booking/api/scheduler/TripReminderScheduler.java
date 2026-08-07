@@ -23,19 +23,17 @@ public class TripReminderScheduler {
     private final EmailService emailService;
 
     /**
-     * Chạy mỗi giờ — Quét tất cả booking CONFIRMED có chuyến khởi hành trong 24h tới
-     * và gửi email nhắc nhở cho khách hàng.
+     * Chạy mỗi giờ — Quét tất cả booking CONFIRMED chưa được gửi nhắc nhở và có giờ đi trong 12h tới.
      */
     @Scheduled(fixedRate = 3600000) // Mỗi 1 giờ
     public void sendTripReminders() {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
-        LocalDateTime startWindow = now.plusHours(23);
-        LocalDateTime endWindow = now.plusHours(25);
+        LocalDateTime cutoffTime = now.plusHours(12);
 
-        log.info("[Scheduler] Checking trip reminders for departures between: {} → {}", startWindow, endWindow);
+        log.info("[Scheduler] Checking unreminded trip bookings departing before: {}", cutoffTime);
 
-        // Chỉ lọc trực tiếp từ Database các booking CONFIRMED có giờ đi trong khoảng 23h-25h tới
-        List<Booking> upcomingBookings = bookingRepository.findConfirmedBookingsForReminder(startWindow, endWindow);
+        // Lọc trực tiếp các booking CONFIRMED chưa gửi nhắc nhở có giờ đi <= now + 12h
+        List<Booking> upcomingBookings = bookingRepository.findConfirmedBookingsForReminder(now, cutoffTime);
 
         int sent = 0;
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM/yyyy");
@@ -53,10 +51,16 @@ public class TripReminderScheduler {
             String departureStr = firstTicket.getTrip().getDepartureTime().format(fmt);
             String email = booking.getUser().getEmail();
 
-            emailService.sendTripReminderEmail(email, booking.getId(), route, departureStr);
-            sent++;
+            try {
+                emailService.sendTripReminderEmail(email, booking.getId(), route, departureStr);
+                booking.setReminderSent(true);
+                bookingRepository.save(booking);
+                sent++;
+            } catch (Exception e) {
+                log.error("[Scheduler] Error sending reminder email for booking ID: {}", booking.getId(), e);
+            }
         }
 
-        log.info("[Scheduler] Sent {} trip reminder emails.", sent);
+        log.info("[Scheduler] Successfully processed and sent {} trip reminder emails.", sent);
     }
 }

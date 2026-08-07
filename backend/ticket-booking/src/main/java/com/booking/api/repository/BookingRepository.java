@@ -33,9 +33,11 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            "JOIN FETCH t.trip tr " +
            "JOIN FETCH tr.route " +
            "WHERE b.status = 'CONFIRMED' " +
-           "AND tr.departureTime BETWEEN :startTime AND :endTime")
-    List<Booking> findConfirmedBookingsForReminder(@Param("startTime") java.time.LocalDateTime startTime,
-                                                   @Param("endTime") java.time.LocalDateTime endTime);
+           "AND (b.reminderSent IS NULL OR b.reminderSent = false) " +
+           "AND tr.departureTime > :now " +
+           "AND tr.departureTime <= :cutoffTime")
+    List<Booking> findConfirmedBookingsForReminder(@Param("now") java.time.LocalDateTime now,
+                                                   @Param("cutoffTime") java.time.LocalDateTime cutoffTime);
 
     List<Booking> findByUserIdOrderByBookingDateDesc(Long userId);
     List<Booking> findByUserEmailOrderByBookingDateDesc(String email);

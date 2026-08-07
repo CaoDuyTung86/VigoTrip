@@ -61,4 +61,7 @@ public class Booking {
 
     @Column(name = "check_in_date")
     private LocalDateTime checkInDate;
+
+    @Column(name = "reminder_sent")
+    private Boolean reminderSent = false;
 }

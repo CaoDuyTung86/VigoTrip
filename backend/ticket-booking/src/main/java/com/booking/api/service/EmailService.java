@@ -359,7 +359,7 @@ public class EmailService {
                     + "<div style='padding: 32px;'>"
                     + "<h2 style='color: #0f172a; font-size: 20px; font-weight: 700; margin-top: 0; margin-bottom: 16px;'>Chuyến đi của bạn sắp khởi hành</h2>"
                     + "<p style='font-size: 14.5px; line-height: 1.6; color: #475569; margin-bottom: 20px;'>Xin chào quý khách,</p>"
-                    + "<p style='font-size: 14.5px; line-height: 1.6; color: #475569; margin-bottom: 24px;'>VigoTrip xin thông báo chuyến đi của quý khách sẽ khởi hành trong vòng <strong>24 giờ tới</strong>. Chi tiết thông tin đơn vé:</p>"
+                    + "<p style='font-size: 14.5px; line-height: 1.6; color: #475569; margin-bottom: 24px;'>VigoTrip xin thông báo chuyến đi của quý khách sẽ khởi hành trong vòng <strong>12 giờ tới</strong>. Chi tiết thông tin đơn vé:</p>"
                     
                     // Schedule Box
                     + "<div style='background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; display: flex; flex-direction: column; gap: 8px;'>"
