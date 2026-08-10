@@ -1381,7 +1381,7 @@ const DateSelector = ({ onClose, onSelect, initialDates }) => {
 // Main Component
 const AirlineTicketsDetail = () => {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState("roundTrip");
+  const [activeTab, setActiveTab] = useState("oneWay");
   const [selectedDate, setSelectedDate] = useState(null);
   const [showCitySelector, setShowCitySelector] = useState(false);
   const [showDateSelector, setShowDateSelector] = useState(false);
@@ -1390,7 +1390,7 @@ const AirlineTicketsDetail = () => {
   const [selectedFlight, setSelectedFlight] = useState(null);
   const [selectorType, setSelectorType] = useState(null);
   const [priceWeekOffset, setPriceWeekOffset] = useState(0);
-  
+
   // State cho điểm đi và đến
   const [fromCity, setFromCity] = useState({
     name: "TP. Hồ Chí Minh",
@@ -1398,7 +1398,7 @@ const AirlineTicketsDetail = () => {
     airport: "Tân Sơn Nhất",
     district: "Mọi sân bay"
   });
-  
+
   const [toCity, setToCity] = useState({
     name: "Hà Nội",
     code: "HAN",
@@ -1482,8 +1482,8 @@ const AirlineTicketsDetail = () => {
   };
 
   const tabs = [
-    { id: "roundTrip", label: t.roundTrip || "Khứ hồi" },
     { id: "oneWay", label: t.oneWay || "Một chiều" },
+    { id: "roundTrip", label: `${t.roundTrip || "Khứ hồi"} (Đang bảo trì)`, isMaintenance: true },
     { id: "multiCity", label: t.multiCity || "Nhiều thành phố" },
   ];
 
@@ -1664,25 +1664,32 @@ const AirlineTicketsDetail = () => {
         {tabs.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              if (tab.isMaintenance) {
+                alert("⚠️ Tính năng vé Khứ hồi hiện đang bảo trì & nâng cấp hệ thống. Vui lòng sử dụng vé Một chiều quý khách nhé!");
+                return;
+              }
+              setActiveTab(tab.id);
+            }}
             style={{
               padding: "8px 16px",
               border: "none",
               background: "none",
               fontSize: "16px",
               fontWeight: activeTab === tab.id ? "600" : "400",
-              color: activeTab === tab.id ? "#4f7cff" : "#666",
+              color: activeTab === tab.id ? "#4f7cff" : tab.isMaintenance ? "#94a3b8" : "#666",
               borderBottom: activeTab === tab.id ? "3px solid #4f7cff" : "none",
               cursor: "pointer",
               transition: "all 0.2s",
+              opacity: tab.isMaintenance ? 0.75 : 1,
             }}
             onMouseEnter={(e) => {
-              if (activeTab !== tab.id) {
+              if (activeTab !== tab.id && !tab.isMaintenance) {
                 e.currentTarget.style.color = "#4f7cff";
               }
             }}
             onMouseLeave={(e) => {
-              if (activeTab !== tab.id) {
+              if (activeTab !== tab.id && !tab.isMaintenance) {
                 e.currentTarget.style.color = "#666";
               }
             }}

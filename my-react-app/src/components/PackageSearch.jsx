@@ -8,7 +8,7 @@ import { IoIosAirplane } from "react-icons/io";
 
 const PackageSearch = () => {
   const { t } = useLanguage();
-  const [tripType, setTripType] = useState("roundtrip");
+  const [tripType, setTripType] = useState("oneway");
 
   // State cho combo
   const [from, setFrom] = useState("TP. Hồ Chí Minh");
@@ -55,8 +55,8 @@ const PackageSearch = () => {
   ];
 
   const tripTypes = [
-    { id: "roundtrip", label: t.roundTrip || "Khứ hồi" },
     { id: "oneway", label: t.oneWay || "Một chiều" },
+    { id: "roundtrip", label: `${t.roundTrip || "Khứ hồi"} (Đang bảo trì)`, isMaintenance: true },
   ];
 
   const handleSearch = () => {
@@ -170,17 +170,24 @@ const PackageSearch = () => {
         {tripTypes.map(type => (
           <button
             key={type.id}
-            onClick={() => setTripType(type.id)}
+            onClick={() => {
+              if (type.isMaintenance) {
+                alert("⚠️ Tính năng vé Khứ hồi hiện đang bảo trì & nâng cấp hệ thống. Vui lòng sử dụng vé Một chiều quý khách nhé!");
+                return;
+              }
+              setTripType(type.id);
+            }}
             style={{
               padding: "8px 18px",
               border: "none",
               background: tripType === type.id ? "var(--primary)" : "transparent",
-              color: tripType === type.id ? "#fff" : "var(--text-secondary)",
+              color: tripType === type.id ? "#fff" : type.isMaintenance ? "#94a3b8" : "var(--text-secondary)",
               borderRadius: "20px",
               cursor: "pointer",
               fontSize: "14px",
               fontWeight: tripType === type.id ? "600" : "500",
               transition: "all 0.2s",
+              opacity: type.isMaintenance ? 0.75 : 1,
             }}
           >
             {type.label}

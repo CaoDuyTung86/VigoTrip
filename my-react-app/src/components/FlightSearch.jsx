@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 const FlightSearch = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const [tripType, setTripType] = useState("roundtrip");
+  const [tripType, setTripType] = useState("oneway");
 
   // State cho roundtrip và oneway
   const [from, setFrom] = useState("");
@@ -51,7 +51,7 @@ const FlightSearch = () => {
 
   const tripTypes = [
     { id: "oneway", label: t.oneWay },
-    { id: "roundtrip", label: t.roundTrip },
+    { id: "roundtrip", label: `${t.roundTrip} (Đang bảo trì)`, isMaintenance: true },
   ];
 
   const handleSearch = () => {
@@ -377,17 +377,24 @@ const FlightSearch = () => {
         {tripTypes.map(type => (
           <button
             key={type.id}
-            onClick={() => setTripType(type.id)}
+            onClick={() => {
+              if (type.isMaintenance) {
+                alert("⚠️ Tính năng vé Khứ hồi hiện đang bảo trì & nâng cấp hệ thống. Vui lòng sử dụng vé Một chiều quý khách nhé!");
+                return;
+              }
+              setTripType(type.id);
+            }}
             style={{
               padding: "8px 18px",
               border: "none",
               background: tripType === type.id ? "var(--primary)" : "transparent",
-              color: tripType === type.id ? "#fff" : "var(--text-secondary)",
+              color: tripType === type.id ? "#fff" : type.isMaintenance ? "#94a3b8" : "var(--text-secondary)",
               borderRadius: "20px",
               cursor: "pointer",
               fontSize: "14px",
               fontWeight: tripType === type.id ? "600" : "500",
               transition: "all 0.2s",
+              opacity: type.isMaintenance ? 0.75 : 1,
             }}
           >
             {type.label}
