@@ -62,6 +62,7 @@ public class ReviewService {
         Review review = new Review();
         review.setUser(user);
         review.setTrip(trip);
+        review.setBooking(booking);
         review.setRating(request.getRating());
         review.setComment(request.getComment());
 
