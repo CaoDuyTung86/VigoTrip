@@ -139,9 +139,9 @@ Hệ thống phân chia 3 nhóm người dùng chính:
 - **Mã chức năng**: `FSD-SEARCH-02`
 - **Quy tắc Thiết kế (Design Rule)**:
   - Bộ lọc khung giờ sử dụng **Dual-Slider (Thanh kéo kép 0h - 24h)**.
-  - Khung track màu xanh nối khít 100% từ đúng tâm nút kéo bên trái đến tâm nút kéo bên phải theo công thức bù lề $10\text{px}$:
-    $$\text{left} = \text{calc}\left(10\text{px} + \frac{\text{startHour}}{24} \times (100\% - 20\text{px})\right)$$
-    $$\text{right} = \text{calc}\left(10\text{px} + \frac{24 - \text{endHour}}{24} \times (100\% - 20\text{px})\right)$$
+  - Khung track màu xanh nối khít 100% từ đúng tâm nút kéo bên trái đến tâm nút kéo bên phải theo công thức bù lề 10px:
+    - **Vị trí cạnh trái (`left`)**: `calc(10px + (startHour / 24) * (100% - 20px))`
+    - **Vị trí cạnh phải (`right`)**: `calc(10px + ((24 - endHour) / 24) * (100% - 20px))`
 
 ---
 
