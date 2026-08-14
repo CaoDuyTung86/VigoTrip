@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, X, MessageCircle, Search, Bot, User, Link as LinkIcon, HelpCircle, Tag, Ticket, CreditCard, RotateCcw } from 'lucide-react';
+import { Send, X, MessageCircle, Search, Bot, User, Link as LinkIcon, HelpCircle, Tag, Ticket, CreditCard, RotateCcw, TrainTrack, Bus, Trash2 } from 'lucide-react';
 
 const API_BASE = '/api';
 
@@ -10,7 +10,7 @@ const Chatbot = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { sender: 'bot', text: 'Xin chào! Tôi là trợ lý của **VigoTrip**. Tôi có thể giúp bạn tìm kiếm chuyến đi hoặc giải đáp thắc mắc dịch vụ. Bạn cần hỗ trợ gì hôm nay?' }
+    { sender: 'bot', text: 'Xin chào. Tôi là trợ lý của **VigoTrip**. Tôi có thể hỗ trợ bạn tra cứu chuyến đi, tìm vé giá tốt hoặc giải đáp thắc mắc dịch vụ. Bạn cần hỗ trợ gì hôm nay?' }
   ]);
   const [chatHistory, setChatHistory] = useState([]); // Lịch sử gửi lên AI
   const [input, setInput] = useState('');
@@ -177,11 +177,12 @@ const Chatbot = () => {
 
   const faqItems = [
     { icon: <Search size={14} />, text: 'Tìm vé máy bay rẻ nhất' },
-    { icon: <Search size={14} />, text: 'Có chuyến bay đi Sài Gòn không?' },
-    { icon: <RotateCcw size={14} />, text: 'Hủy vé thì làm sao?' },
-    { icon: <Tag size={14} />, text: 'Có mã giảm giá không?' },
+    { icon: <TrainTrack size={14} />, text: 'Tìm vé tàu hỏa giá tốt' },
+    { icon: <Bus size={14} />, text: 'Tìm vé xe khách hôm nay' },
+    { icon: <RotateCcw size={14} />, text: 'Chính sách đổi trả và hủy vé' },
+    { icon: <Tag size={14} />, text: 'Mã giảm giá mới nhất' },
     { icon: <Ticket size={14} />, text: 'Xem vé đã đặt của tôi' },
-    { icon: <CreditCard size={14} />, text: 'Thanh toán bằng gì?' },
+    { icon: <CreditCard size={14} />, text: 'Phương thức thanh toán' },
   ];
 
 
@@ -383,28 +384,34 @@ const Chatbot = () => {
 
         {/* Render Buttons */}
         {dynamicButtons.length > 0 && (
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '12px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
             {dynamicButtons.map((btn, idx) => (
               <button
                 key={idx}
                 onClick={() => handleSend(btn)}
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: '16px',
-                  border: '1px solid var(--primary)',
-                  backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                  color: '#818cf8',
-                  fontSize: '12px',
+                  padding: '7px 16px',
+                  borderRadius: '20px',
+                  border: '1.5px solid rgba(0, 113, 235, 0.45)',
+                  backgroundColor: 'rgba(0, 113, 235, 0.08)',
+                  color: 'var(--primary)',
+                  fontSize: '13px',
+                  fontWeight: '500',
                   cursor: 'pointer',
-                  transition: 'all 0.2s',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 2px 6px rgba(0, 113, 235, 0.1)',
                 }}
                 onMouseOver={(e) => {
                   e.currentTarget.style.backgroundColor = 'var(--primary)';
-                  e.currentTarget.style.color = 'white';
+                  e.currentTarget.style.color = '#ffffff';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 113, 235, 0.35)';
                 }}
                 onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.1)';
-                  e.currentTarget.style.color = '#818cf8';
+                  e.currentTarget.style.backgroundColor = 'rgba(0, 113, 235, 0.08)';
+                  e.currentTarget.style.color = 'var(--primary)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 113, 235, 0.1)';
                 }}
               >
                 {btn}
@@ -477,19 +484,20 @@ const Chatbot = () => {
         {/* Header */}
         <div style={{
           padding: '16px 20px',
-          background: 'linear-gradient(135deg, var(--primary) 0%, #3a5fd0 100%)',
+          background: 'linear-gradient(135deg, #091b4f 0%, #0071EB 100%)',
           color: 'white',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          flexShrink: 0
+          flexShrink: 0,
+          borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: 8, borderRadius: 12 }}>
-              <Bot size={24} />
+            <div style={{ backgroundColor: 'rgba(255,255,255,0.18)', padding: 8, borderRadius: 12 }}>
+              <Bot size={22} />
             </div>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 16 }}>Trợ lý VigoTrip</div>
+              <div style={{ fontWeight: 700, fontSize: 15.5, letterSpacing: '-0.2px' }}>Trợ lý VigoTrip</div>
               <div style={{ fontSize: 12, opacity: 0.9, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 8, height: 8, backgroundColor: '#34d399', borderRadius: '50%', boxShadow: '0 0 8px #34d399' }}></span>
                 Đang trực tuyến
@@ -500,31 +508,54 @@ const Chatbot = () => {
             {/* Nút xóa lịch sử chat */}
             <button
               onClick={() => {
-                setMessages([{ sender: 'bot', text: 'Cuộc hội thoại mới. Tôi có thể giúp gì cho bạn?' }]);
+                setMessages([{ sender: 'bot', text: 'Cuộc hội thoại mới. Tôi có thể hỗ trợ gì cho bạn?' }]);
                 setChatHistory([]);
                 setShowFaq(true);
               }}
               title="Xóa lịch sử chat"
-              style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.85, borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 500 }}
+              style={{
+                background: 'rgba(255,255,255,0.16)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                color: 'white',
+                cursor: 'pointer',
+                borderRadius: 8,
+                padding: '5px 10px',
+                fontSize: 12,
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.28)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.16)')}
             >
-              Xóa
+              <Trash2 size={13} /> Xóa
             </button>
-            <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.85 }}>
+            <button
+              onClick={() => setIsOpen(false)}
+              style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.85, padding: 4 }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.85')}
+            >
               <X size={20} />
             </button>
           </div>
         </div>
 
         {/* Nội dung Chat */}
-        <div style={{
-          flex: 1,
-          padding: '20px',
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
-          backgroundColor: 'var(--bg-main)'
-        }}>
+        <div
+          className="chatbot-messages-container"
+          style={{
+            flex: 1,
+            padding: '20px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            backgroundColor: 'var(--bg-main)'
+          }}
+        >
           {messages.map((msg, index) => (
             <div
               key={index}

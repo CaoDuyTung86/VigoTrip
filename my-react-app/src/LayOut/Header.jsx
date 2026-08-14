@@ -258,20 +258,44 @@ const Header = () => {
                 position: "absolute",
                 top: 44,
                 right: 0,
-                width: 200,
+                minWidth: 220,
                 background: "var(--bg-dropdown)",
-                borderRadius: 12,
+                borderRadius: 14,
                 boxShadow: "var(--shadow-lg)",
                 border: "1px solid var(--border-light)",
                 zIndex: 1001,
-                padding: 16,
+                padding: "14px 16px",
                 textAlign: "center",
               }}>
-                <div style={{ fontSize: 17, fontWeight: 700, color: "var(--primary)", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                  <MdOutlinePhone />
-                  {phoneNumbers[currentLanguage.code]}
-                </div>
-                <div style={{ fontSize: 12, color: "var(--text-secondary)", borderTop: "1px solid var(--border-light)", paddingTop: 8 }}>
+                <a
+                  href={`tel:${phoneNumbers[currentLanguage.code].replace(/[^\d+]/g, '')}`}
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "var(--primary)",
+                    marginBottom: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    whiteSpace: "nowrap",
+                    textDecoration: "none",
+                    transition: "opacity 0.2s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                >
+                  <MdOutlinePhone style={{ fontSize: 18, flexShrink: 0 }} />
+                  <span>{phoneNumbers[currentLanguage.code]}</span>
+                </a>
+                <div style={{
+                  fontSize: 12,
+                  color: "var(--text-secondary)",
+                  borderTop: "1px solid var(--border-light)",
+                  paddingTop: 8,
+                  whiteSpace: "nowrap",
+                  fontWeight: 500,
+                }}>
                   {t.support === "CSKH" ? "Tư vấn 24/7" : t.support === "Support" ? "24/7 Support" : t.support === "サポート" ? "24時間サポート" : "24小時客服"}
                 </div>
               </div>

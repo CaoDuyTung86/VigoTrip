@@ -39,14 +39,20 @@ public class TripService {
                         LocalDate date,
                         String type,
                         Integer passengers) {
+                LocalDateTime now = LocalDateTime.now();
                 LocalDateTime startOfDay = date.atStartOfDay();
+                if (date.equals(now.toLocalDate()) && startOfDay.isBefore(now)) {
+                        startOfDay = now;
+                }
                 LocalDateTime endOfDay = date.plusDays(1).atStartOfDay().minusNanos(1);
 
                 String vehicleType = (type == null || type.isBlank()) ? null : type;
 
                 List<Trip> trips = tripRepository.searchTrips(from, to, startOfDay, endOfDay, vehicleType);
 
-                return trips.stream().map(trip -> {
+                return trips.stream()
+                                .filter(trip -> !trip.getDepartureTime().isBefore(now))
+                                .map(trip -> {
                         TripSearchResponse response = tripMapper.toTripSearchResponse(trip);
 
                         int totalSeats = trip.getVehicle().getTotalSeats() != null
@@ -79,11 +85,11 @@ public class TripService {
                                         boolean booked = ticketRepository.existsByTripIdAndSeatId(tripId, seat.getId());
                                         String tempLockedBy = seatLockService.getLockedBy(seat.getId());
                                         return new SeatResponse(
-                                                        seat.getId(),
-                                                        seat.getSeatNumber(),
-                                                        seat.getSeatType(),
-                                                        booked,
-                                                        tempLockedBy);
+                                                         seat.getId(),
+                                                         seat.getSeatNumber(),
+                                                         seat.getSeatType(),
+                                                         booked,
+                                                         tempLockedBy);
                                 })
                                 .collect(Collectors.toList());
         }
@@ -119,13 +125,18 @@ public class TripService {
                         throw new IllegalArgumentException("Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu");
                 }
 
+                LocalDateTime now = LocalDateTime.now();
                 LocalDateTime startTime = start.atStartOfDay();
+                if (start.equals(now.toLocalDate()) && startTime.isBefore(now)) {
+                        startTime = now;
+                }
                 LocalDateTime endTime = end.plusDays(1).atStartOfDay().minusNanos(1);
 
                 String vehicleType = (type == null || type.isBlank()) ? null : type;
                 List<Trip> trips = tripRepository.searchTrips(from, to, startTime, endTime, vehicleType);
 
                 Map<LocalDate, java.math.BigDecimal> minPriceByDate = trips.stream()
+                                .filter(trip -> !trip.getDepartureTime().isBefore(now))
                                 .filter(trip -> {
                                         if (passengers == null) {
                                                 return true;

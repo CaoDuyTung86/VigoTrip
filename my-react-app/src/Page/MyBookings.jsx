@@ -6,12 +6,16 @@ import Sidebar from "../components/Sidebar";
 import { useLanguage } from "../context/LanguageContext";
 import { TbTrain, TbBus } from "react-icons/tb";
 import { FaPlane, FaQrcode } from "react-icons/fa";
+import { FiLock, FiAlertCircle, FiRefreshCw } from "react-icons/fi";
 import { QRCodeCanvas } from "qrcode.react";
+import Auth from "./Auth";
 
 const MyBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const { t } = useLanguage();
 
   const location = useLocation();
@@ -32,15 +36,30 @@ const MyBookings = () => {
 
 
   const fetchBookings = async () => {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      setLoading(false);
+      setErrorStatus(401);
+      setError("Vui lòng đăng nhập để xem lịch sử đặt vé.");
+      return;
+    }
+
     try {
       setLoading(true);
-      const token = localStorage.getItem("authToken");
+      setError(null);
+      setErrorStatus(null);
       const res = await axios.get("/api/bookings", {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setBookings(res.data);
+      setBookings(res.data || []);
     } catch (err) {
-      setError(err.response?.data?.message || err.message);
+      const status = err.response?.status;
+      setErrorStatus(status || 500);
+      if (status === 401 || status === 403) {
+        setError("Phiên đăng nhập đã hết hạn hoặc không có quyền truy cập. Vui lòng đăng nhập lại.");
+      } else {
+        setError(err.response?.data?.message || "Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
+      }
     } finally {
       setLoading(false);
     }
@@ -215,13 +234,191 @@ const MyBookings = () => {
               </div>
             )}
 
-            {error && <div style={{ padding: 16, background: "#fee2e2", color: "#dc2626", borderRadius: 8, marginBottom: 20 }}>{error}</div>}
-
             {loading ? (
-              <p style={{ color: "var(--text-secondary)" }}>Đang tải danh sách vé...</p>
+              <div style={{
+                background: "var(--bg-card)",
+                borderRadius: 16,
+                padding: "60px 20px",
+                textAlign: "center",
+                border: "1px solid var(--border-main)",
+                boxShadow: "var(--shadow-card)"
+              }}>
+                <div style={{
+                  width: 44,
+                  height: 44,
+                  border: "3px solid rgba(79, 124, 255, 0.2)",
+                  borderTopColor: "var(--primary)",
+                  borderRadius: "50%",
+                  margin: "0 auto 16px",
+                  animation: "spin 0.8s linear infinite"
+                }} />
+                <p style={{ color: "var(--text-secondary)", fontSize: 15, fontWeight: 600 }}>
+                  Đang tải dữ liệu lịch sử đặt vé...
+                </p>
+              </div>
+            ) : (errorStatus === 401 || errorStatus === 403) ? (
+              <div style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-main)",
+                borderRadius: 20,
+                padding: "48px 24px",
+                textAlign: "center",
+                boxShadow: "var(--shadow-card)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 16,
+              }}>
+                <div style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(249, 115, 22, 0.15))",
+                  border: "1.5px solid rgba(239, 68, 68, 0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ef4444",
+                  fontSize: 28,
+                }}>
+                  <FiLock />
+                </div>
+                <div style={{ maxWidth: 460 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-heading)", marginBottom: 8 }}>
+                    Phiên đăng nhập đã hết hạn
+                  </h3>
+                  <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                    Vui lòng đăng nhập tài khoản của bạn để tra cứu và quản lý toàn bộ vé đã đặt.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  style={{
+                    marginTop: 8,
+                    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                    color: "#fff",
+                    border: "none",
+                    padding: "12px 28px",
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 14px rgba(37, 99, 235, 0.35)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <FiLock style={{ fontSize: 16 }} /> Đăng nhập / Đăng ký ngay
+                </button>
+              </div>
+            ) : error ? (
+              <div style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-main)",
+                borderRadius: 20,
+                padding: "48px 24px",
+                textAlign: "center",
+                boxShadow: "var(--shadow-card)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 16,
+              }}>
+                <div style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: "50%",
+                  background: "rgba(239, 68, 68, 0.12)",
+                  border: "1.5px solid rgba(239, 68, 68, 0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ef4444",
+                  fontSize: 28,
+                }}>
+                  <FiAlertCircle />
+                </div>
+                <div style={{ maxWidth: 480 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-heading)", marginBottom: 8 }}>
+                    Không thể tải lịch sử vé
+                  </h3>
+                  <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                    {error}
+                  </p>
+                </div>
+                <button
+                  onClick={fetchBookings}
+                  style={{
+                    marginTop: 8,
+                    background: "var(--bg-input)",
+                    color: "var(--text-main)",
+                    border: "1px solid var(--border-main)",
+                    padding: "10px 24px",
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <FiRefreshCw style={{ fontSize: 15 }} /> Thử lại
+                </button>
+              </div>
             ) : bookings.length === 0 ? (
-              <div style={{ background: "var(--bg-card)", padding: 40, borderRadius: 12, textAlign: "center", color: "var(--text-secondary)", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
-                {t.noBookings}
+              <div style={{
+                background: "var(--bg-card)",
+                padding: "50px 24px",
+                borderRadius: 20,
+                textAlign: "center",
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border-main)",
+                boxShadow: "var(--shadow-card)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 16,
+              }}>
+                <div style={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: "50%",
+                  background: "var(--bg-input)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 26,
+                }}>
+                  🎫
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: "var(--text-heading)", marginBottom: 6 }}>
+                    {t.noBookings || "Bạn chưa có chuyến đi nào"}
+                  </h3>
+                  <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 400 }}>
+                    Hãy khám phá các chuyến bay, tàu hỏa và xe khách giá tốt nhất ngay hôm nay!
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate("/")}
+                  style={{
+                    marginTop: 4,
+                    background: "linear-gradient(135deg, var(--primary), #2563eb)",
+                    color: "#fff",
+                    border: "none",
+                    padding: "10px 22px",
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: "pointer",
+                  }}
+                >
+                  🚀 Khám phá chuyến đi ngay
+                </button>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -699,6 +896,17 @@ const MyBookings = () => {
       {/* Canvas Fireworks overlay */}
       {showFireworks && (
         <FireworksCanvas />
+      )}
+
+      {/* Auth Modal */}
+      {isAuthOpen && (
+        <Auth
+          isOpen={isAuthOpen}
+          onClose={() => {
+            setIsAuthOpen(false);
+            fetchBookings();
+          }}
+        />
       )}
     </div>
   );

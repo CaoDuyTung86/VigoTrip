@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useLanguage } from "../context/LanguageContext";
+import { useToast } from "../context/ToastContext";
 import { useSavedPassengers } from "../context/SavedPassengersContext";
 import { FiSearch, FiClock, FiInfo, FiChevronDown, FiX, FiCalendar, FiGift } from "react-icons/fi";
 import { IoIosArrowForward, IoIosArrowBack } from "react-icons/io";
@@ -603,6 +604,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
 
 // City Selector Component
 const CitySelector = ({ type, onSelect, onClose }) => {
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("vietnam");
 
@@ -699,7 +701,7 @@ const CitySelector = ({ type, onSelect, onClose }) => {
           marginBottom: "20px",
         }}>
           <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>
-            {type === "from" ? "Chọn điểm đi" : "Chọn điểm đến"}
+            {type === "from" ? (t.selectDeparture || "Chọn điểm đi") : (t.selectDestination || "Chọn điểm đến")}
           </h3>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}>
             <FiX size={24} />
@@ -719,7 +721,7 @@ const CitySelector = ({ type, onSelect, onClose }) => {
           <FiSearch style={{ color: "var(--text-muted)" }} />
           <input
             type="text"
-            placeholder="Tìm thành phố hoặc sân bay..."
+            placeholder={t.searchCity || "Tìm thành phố hoặc sân bay..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
@@ -1381,6 +1383,7 @@ const DateSelector = ({ onClose, onSelect, initialDates }) => {
 // Main Component
 const AirlineTicketsDetail = () => {
   const { t } = useLanguage();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState("oneWay");
   const [selectedDate, setSelectedDate] = useState(null);
   const [showCitySelector, setShowCitySelector] = useState(false);
@@ -1483,7 +1486,7 @@ const AirlineTicketsDetail = () => {
 
   const tabs = [
     { id: "oneWay", label: t.oneWay || "Một chiều" },
-    { id: "roundTrip", label: `${t.roundTrip || "Khứ hồi"} (Đang bảo trì)`, isMaintenance: true },
+    { id: "roundTrip", label: `${t.roundTrip || "Khứ hồi"} (${t.underMaintenance || "Đang bảo trì"})`, isMaintenance: true },
     { id: "multiCity", label: t.multiCity || "Nhiều thành phố" },
   ];
 
@@ -1666,7 +1669,11 @@ const AirlineTicketsDetail = () => {
             key={tab.id}
             onClick={() => {
               if (tab.isMaintenance) {
-                alert("⚠️ Tính năng vé Khứ hồi hiện đang bảo trì & nâng cấp hệ thống. Vui lòng sử dụng vé Một chiều quý khách nhé!");
+                const now = Date.now();
+                if (!window._lastMaintenanceToast || now - window._lastMaintenanceToast > 3000) {
+                  window._lastMaintenanceToast = now;
+                  showToast(t.roundTripMaintenanceMsg || "⚠️ Tính năng vé Khứ hồi hiện đang bảo trì & nâng cấp hệ thống. Vui lòng sử dụng vé Một chiều quý khách nhé!", "warning");
+                }
                 return;
               }
               setActiveTab(tab.id);
@@ -1679,7 +1686,7 @@ const AirlineTicketsDetail = () => {
               fontWeight: activeTab === tab.id ? "600" : "400",
               color: activeTab === tab.id ? "#4f7cff" : tab.isMaintenance ? "#94a3b8" : "#666",
               borderBottom: activeTab === tab.id ? "3px solid #4f7cff" : "none",
-              cursor: "pointer",
+              cursor: tab.isMaintenance ? "not-allowed" : "pointer",
               transition: "all 0.2s",
               opacity: tab.isMaintenance ? 0.75 : 1,
             }}

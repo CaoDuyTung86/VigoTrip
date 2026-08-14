@@ -4,6 +4,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { FaCalendarAlt, FaSearch, FaTrain } from "react-icons/fa";
 import { IoIosSwap } from "react-icons/io";
 import CitySelector from "./CitySelector";
+import { useToast } from "../context/ToastContext";
 
 const TrainSearch = () => {
   const { t } = useLanguage();
@@ -36,10 +37,11 @@ const TrainSearch = () => {
   const [showCitySelector, setShowCitySelector] = useState(false);
   const [citySelectorType, setCitySelectorType] = useState(null);
   const [searchError, setSearchError] = useState("");
+  const { showToast } = useToast();
 
   const tripTypes = [
     { id: "oneway", label: t.oneWay },
-    { id: "roundtrip", label: `${t.roundTrip} (Đang bảo trì)`, isMaintenance: true },
+    { id: "roundtrip", label: `${t.roundTrip} (${t.underMaintenance || "Đang bảo trì"})`, isMaintenance: true },
   ];
 
   const trainClasses = [
@@ -94,33 +96,22 @@ const TrainSearch = () => {
 
   return (
     <div>
-      {/* Trip type tabs */}
-      <div style={{
-        display: "flex",
-        gap: "8px",
-        marginBottom: "20px",
-      }}>
+      {/* Trip type segmented pill */}
+      <div className="trip-type-segmented">
         {tripTypes.map(type => (
           <button
             key={type.id}
+            className={`trip-type-btn ${tripType === type.id ? "active" : ""} ${type.isMaintenance ? "maintenance" : ""}`}
             onClick={() => {
               if (type.isMaintenance) {
-                alert("⚠️ Tính năng vé Khứ hồi hiện đang bảo trì & nâng cấp hệ thống. Vui lòng sử dụng vé Một chiều quý khách nhé!");
+                const now = Date.now();
+                if (!window._lastMaintenanceToast || now - window._lastMaintenanceToast > 3000) {
+                  window._lastMaintenanceToast = now;
+                  showToast(t.roundTripMaintenanceMsg || "⚠️ Tính năng vé Khứ hồi hiện đang bảo trì & nâng cấp hệ thống. Vui lòng sử dụng vé Một chiều quý khách nhé!", "warning");
+                }
                 return;
               }
               setTripType(type.id);
-            }}
-            style={{
-              padding: "8px 18px",
-              border: "none",
-              background: tripType === type.id ? "var(--primary)" : "transparent",
-              color: tripType === type.id ? "#fff" : type.isMaintenance ? "#94a3b8" : "var(--text-secondary)",
-              borderRadius: "20px",
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: tripType === type.id ? "600" : "500",
-              transition: "all 0.2s",
-              opacity: type.isMaintenance ? 0.75 : 1,
             }}
           >
             {type.label}
@@ -516,12 +507,10 @@ const TrainSearch = () => {
       )}
 
       {/* Search button */}
-      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 16, borderTop: "1px solid var(--border-light)" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 14 }}>
         <button
           onClick={handleSearch}
-          style={{ padding: "12px 36px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "30px", fontSize: "15px", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", transition: "background 0.2s", fontFamily: "inherit" }}
-          onMouseEnter={(e) => e.currentTarget.style.background = "var(--primary-hover)"}
-          onMouseLeave={(e) => e.currentTarget.style.background = "var(--primary)"}
+          className="btn-search-glow"
         >
           <FaSearch />
           {t.search}

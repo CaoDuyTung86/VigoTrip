@@ -1,27 +1,34 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import React, { createContext, useContext, useState, useMemo, useCallback } from "react";
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-
-  useEffect(() => {
-    const storedToken = localStorage.getItem("authToken");
+  const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem("authUser");
-
-    if (storedToken && storedUser) {
+    if (storedUser) {
       try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        return JSON.parse(storedUser);
       } catch {
-        localStorage.removeItem("authToken");
         localStorage.removeItem("authUser");
       }
     }
-  }, []);
+    return null;
+  });
 
-  const loginSuccess = (authData) => {
+  const [token, setToken] = useState(() => {
+    const storedToken = localStorage.getItem("authToken");
+    const storedUser = localStorage.getItem("authUser");
+    if (storedToken && storedUser) {
+      return storedToken;
+    }
+    if (!storedUser) {
+      localStorage.removeItem("authToken");
+    }
+    return null;
+  });
+
+  const loginSuccess = useCallback((authData) => {
     if (!authData) return;
 
     const authUser = {
@@ -35,22 +42,22 @@ export const AuthProvider = ({ children }) => {
 
     localStorage.setItem("authToken", authData.token);
     localStorage.setItem("authUser", JSON.stringify(authUser));
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     localStorage.removeItem("authToken");
     localStorage.removeItem("authUser");
-  };
+  }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     user,
     token,
     isAuthenticated: !!token,
     loginSuccess,
     logout,
-  };
+  }), [user, token, loginSuccess, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

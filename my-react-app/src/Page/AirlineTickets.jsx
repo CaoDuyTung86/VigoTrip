@@ -18,7 +18,7 @@ import {
 import { useLocation } from "react-router-dom";
 import { CgSandClock } from "react-icons/cg";
 import { IoMdSearch } from "react-icons/io";
-import { FiChevronDown, FiClock } from "react-icons/fi";
+import { FiChevronDown, FiClock, FiSearch } from "react-icons/fi";
 import { FaPlaneDeparture, FaPlaneArrival, FaRegCalendarAlt, FaUser, FaBell, FaShieldAlt, FaTaxi, FaChair, FaTicketAlt } from "react-icons/fa";
 import { RiBuilding4Line } from "react-icons/ri";
 import { MdOutlineDone } from "react-icons/md";
@@ -46,24 +46,74 @@ const PROVIDER_LOGOS = {
 };
 
 const AirlineTickets = () => {
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const { token, isAuthenticated, user } = useAuth();
   const { isConnected, subscribe, lockSeats, unlockSeats } = useWebSocket();
   const location = useLocation();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const airports = [
-    { code: "HAN", name: "Hà Nội", fullName: "Hà Nội (HAN) - Nội Bài" },
-    { code: "SGN", name: "TP. HCM", fullName: "TP. Hồ Chí Minh (SGN) - Tân Sơn Nhất" },
-    { code: "DAD", name: "Đà Nẵng", fullName: "Đà Nẵng (DAD)" },
-    { code: "VCL", name: "Chu Lai", fullName: "Chu Lai (VCL) - Quảng Nam" },
-    { code: "PQC", name: "Phú Quốc", fullName: "Phú Quốc (PQC)" },
-    { code: "CXR", name: "Nha Trang", fullName: "Nha Trang (CXR) - Cam Ranh" },
-    { code: "DLI", name: "Đà Lạt", fullName: "Đà Lạt (DLI) - Liên Khương" },
-    { code: "HPH", name: "Hải Phòng", fullName: "Hải Phòng (HPH) - Cát Bi" },
-    { code: "HUI", name: "Huế", fullName: "Huế (HUI) - Phú Bài" },
-    { code: "VII", name: "Vinh", fullName: "Vinh (VII)" },
-  ];
+
+  const airportTranslations = {
+    vi: {
+      HAN: { name: "Hà Nội", fullName: "Hà Nội (HAN) - Nội Bài" },
+      SGN: { name: "TP. HCM", fullName: "TP. Hồ Chí Minh (SGN) - Tân Sơn Nhất" },
+      DAD: { name: "Đà Nẵng", fullName: "Đà Nẵng (DAD)" },
+      VCL: { name: "Chu Lai", fullName: "Chu Lai (VCL) - Quảng Nam" },
+      PQC: { name: "Phú Quốc", fullName: "Phú Quốc (PQC)" },
+      CXR: { name: "Nha Trang", fullName: "Nha Trang (CXR) - Cam Ranh" },
+      DLI: { name: "Đà Lạt", fullName: "Đà Lạt (DLI) - Liên Khương" },
+      HPH: { name: "Hải Phòng", fullName: "Hải Phòng (HPH) - Cát Bi" },
+      HUI: { name: "Huế", fullName: "Huế (HUI) - Phú Bài" },
+      VII: { name: "Vinh", fullName: "Vinh (VII)" },
+    },
+    en: {
+      HAN: { name: "Hanoi", fullName: "Hanoi (HAN) - Noi Bai Intl" },
+      SGN: { name: "Ho Chi Minh City", fullName: "Ho Chi Minh City (SGN) - Tan Son Nhat Intl" },
+      DAD: { name: "Da Nang", fullName: "Da Nang (DAD) - Da Nang Intl" },
+      VCL: { name: "Chu Lai", fullName: "Chu Lai (VCL) - Quang Nam" },
+      PQC: { name: "Phu Quoc", fullName: "Phu Quoc (PQC) - Phu Quoc Intl" },
+      CXR: { name: "Nha Trang", fullName: "Nha Trang (CXR) - Cam Ranh Intl" },
+      DLI: { name: "Da Lat", fullName: "Da Lat (DLI) - Lien Khuong Airport" },
+      HPH: { name: "Hai Phong", fullName: "Hai Phong (HPH) - Cat Bi Intl" },
+      HUI: { name: "Hue", fullName: "Hue (HUI) - Phu Bai Intl" },
+      VII: { name: "Vinh", fullName: "Vinh (VII) - Vinh Airport" },
+    },
+    ja: {
+      HAN: { name: "ハノイ", fullName: "ハノイ (HAN) - ノイバイ国際空港" },
+      SGN: { name: "ホーチミン", fullName: "ホーチミン (SGN) - タンソンニャット国際空港" },
+      DAD: { name: "ダナン", fullName: "ダナン (DAD) - ダナン国際空港" },
+      VCL: { name: "チュライ", fullName: "チュライ (VCL) - クアンナム" },
+      PQC: { name: "フーコック", fullName: "フーコック (PQC) - フーコック国際空港" },
+      CXR: { name: "ニャチャン", fullName: "ニャチャン (CXR) - カムラン国際空港" },
+      DLI: { name: "ダラット", fullName: "ダラット (DLI) - リエンクオン空港" },
+      HPH: { name: "ハイフォン", fullName: "ハイフォン (HPH) - カットビ国際空港" },
+      HUI: { name: "フエ", fullName: "フエ (HUI) - フーバイ国際空港" },
+      VII: { name: "ヴィン", fullName: "ヴィン (VII) - ヴィン空港" },
+    },
+    zh: {
+      HAN: { name: "河內", fullName: "河內 (HAN) - 內排國際機場" },
+      SGN: { name: "胡志明市", fullName: "胡志明市 (SGN) - 新山一國際機場" },
+      DAD: { name: "峴港", fullName: "峴港 (DAD) - 峴港國際機場" },
+      VCL: { name: "朱萊", fullName: "朱萊 (VCL) - 廣南" },
+      PQC: { name: "富國島", fullName: "富國島 (PQC) - 富國國際機場" },
+      CXR: { name: "芽莊", fullName: "芽莊 (CXR) - 金蘭國際機場" },
+      DLI: { name: "大叻", fullName: "大叻 (DLI) - 蓮姜機場" },
+      HPH: { name: "海防", fullName: "海防 (HPH) - 吉碑國際機場" },
+      HUI: { name: "順化", fullName: "順化 (HUI) - 符牌國際機場" },
+      VII: { name: "榮市", fullName: "榮市 (VII) - 榮市機場" },
+    }
+  };
+
+  const airports = useMemo(() => {
+    const lang = currentLanguage?.code || "vi";
+    const dict = airportTranslations[lang] || airportTranslations.vi;
+    const baseCodes = ["HAN", "SGN", "DAD", "VCL", "PQC", "CXR", "DLI", "HPH", "HUI", "VII"];
+    return baseCodes.map(code => ({
+      code,
+      name: dict[code]?.name || code,
+      fullName: dict[code]?.fullName || code
+    }));
+  }, [currentLanguage]);
 
   const [from, setFrom] = useState("HAN");
   const [to, setTo] = useState("SGN");
@@ -287,6 +337,10 @@ const AirlineTickets = () => {
       setTimeout(() => {
         loadCalendar();
       }, 0);
+    } else if (qFrom && qTo && qDate) {
+      setTimeout(() => {
+        performSearch(qFrom, qTo, qDate, qPassengers ? Number(qPassengers) : 1);
+      }, 50);
     }
   }, []);
 
@@ -699,7 +753,7 @@ const AirlineTickets = () => {
 
 
                 <div style={{ position: "relative" }}>
-                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaPlaneArrival />Điểm đi</label>
+                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaPlaneArrival /> {t.departurePoint || t.from || "Điểm đi"}</label>
                   <div
                     onClick={() => { setShowFromDropdown(!showFromDropdown); setShowToDropdown(false); }}
                     style={{
@@ -709,7 +763,7 @@ const AirlineTickets = () => {
                   >
                     <div style={{ fontWeight: 700, fontSize: 16, color: "var(--text-main)" }}>{from}</div>
                     <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                      {airports.find(a => a.code === from)?.name || "Chọn sân bay"}
+                      {airports.find(a => a.code === from)?.name || t.selectAirport || "Chọn sân bay"}
                     </div>
                   </div>
                   {formErrors.from && <div style={{ color: "#e53935", fontSize: 12, marginTop: 4 }}>{formErrors.from}</div>}
@@ -746,12 +800,12 @@ const AirlineTickets = () => {
                   }}
                   onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.borderColor = "var(--primary)"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-card)"; e.currentTarget.style.borderColor = "var(--border-main)"; }}
-                  title="Đổi điểm đi/đến"
+                  title={t.swapDestinations || "Đổi điểm đi/đến"}
                 >⇄</button>
 
 
                 <div style={{ position: "relative" }}>
-                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaPlaneDeparture />Điểm đến</label>
+                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaPlaneDeparture /> {t.destinationPoint || t.to || "Điểm đến"}</label>
                   <div
                     onClick={() => { setShowToDropdown(!showToDropdown); setShowFromDropdown(false); }}
                     style={{
@@ -761,7 +815,7 @@ const AirlineTickets = () => {
                   >
                     <div style={{ fontWeight: 700, fontSize: 16, color: "var(--text-main)" }}>{to}</div>
                     <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                      {airports.find(a => a.code === to)?.name || "Chọn sân bay"}
+                      {airports.find(a => a.code === to)?.name || t.selectAirport || "Chọn sân bay"}
                     </div>
                   </div>
                   {formErrors.to && <div style={{ color: "#e53935", fontSize: 12, marginTop: 4 }}>{formErrors.to}</div>}
@@ -789,7 +843,7 @@ const AirlineTickets = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaRegCalendarAlt /> Ngày đi</label>
+                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaRegCalendarAlt /> {t.departureDate || "Ngày đi"}</label>
                   <input type="date" value={date}
                     onChange={(e) => { setDate(e.target.value); setFormErrors(p => ({ ...p, date: undefined })); }}
                     min={todayISO}
@@ -803,7 +857,7 @@ const AirlineTickets = () => {
 
 
                 <div>
-                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaUser /> Hành khách</label>
+                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaUser /> {t.passengers || "Hành khách"}</label>
                   <div style={{ position: "relative", marginBottom: 10 }}>
                     <div
                       onClick={() => setShowPassengersDropdown(!showPassengersDropdown)}
@@ -821,7 +875,7 @@ const AirlineTickets = () => {
                           <div key={type} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                             <div>
                               <div style={{ fontWeight: 600, color: "var(--text-main)" }}>{type === 'adult' ? t.adult || 'Người lớn' : type === 'child' ? t.child || 'Trẻ em' : t.infant || 'Em bé'}</div>
-                              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{type === 'adult' ? '>12 tuổi' : type === 'child' ? '2-11 tuổi' : '<2 tuổi'}</div>
+                              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{type === 'adult' ? (t.ageAdultHint || '>12 tuổi') : type === 'child' ? (t.ageChildHint || '2-11 tuổi') : (t.ageInfantHint || '<2 tuổi')}</div>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                               <button type="button" disabled={passengerCounts[type] <= (type === 'adult' ? 1 : 0)} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] - 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", color: "var(--text-main)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
@@ -859,11 +913,11 @@ const AirlineTickets = () => {
                   >
                     {loading ? (
                       <>
-                        <CgSandClock /> Đang tìm...
+                        <CgSandClock /> {t.searching || "Đang tìm..."}
                       </>
                     ) : (
                       <>
-                        <IoMdSearch style={{ fontSize: 17 }} /> Tìm chuyến bay
+                        <IoMdSearch style={{ fontSize: 17 }} /> {t.searchFlight || "Tìm chuyến bay"}
                       </>
                     )}
                   </button>
@@ -890,11 +944,11 @@ const AirlineTickets = () => {
                   >
                     {calendarLoading ? (
                       <>
-                        <CgSandClock /> Đang tải...
+                        <CgSandClock /> {t.loadingCalendar || "Đang tải..."}
                       </>
                     ) : (
                       <>
-                        <FaRegCalendarAlt /> Xem lịch giá rẻ
+                        <FaRegCalendarAlt /> {t.viewCheapCalendar || "Xem lịch giá rẻ"}
                       </>
                     )}
                   </button>
@@ -904,7 +958,7 @@ const AirlineTickets = () => {
               {calendarOpen && (
                 <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border-light)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <div style={{ fontWeight: 700, color: "var(--text-main)" }}>Lịch giá 30 ngày tới</div>
+                    <div style={{ fontWeight: 700, color: "var(--text-main)" }}>{t.calendar30Days || "Lịch giá 30 ngày tới"}</div>
                     <button
                       type="button"
                       onClick={() => setCalendarOpen(false)}
@@ -921,37 +975,33 @@ const AirlineTickets = () => {
                   </div>
 
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                    {calendarData.map((d) => (
+                    {calendarData.filter(d => d.available).map((d) => (
                       <button
                         key={d.date}
                         type="button"
-                        disabled={!d.available}
-                        onClick={() => {
-                          if (!d.available) return;
-                          handleSearchWithDate(d.date);
-                        }}
+                        onClick={() => handleSearchWithDate(d.date)}
                         style={{
                           width: 150,
                           padding: "10px 12px",
                           borderRadius: 10,
                           border: "1px solid var(--border-main)",
-                          background: d.available ? "var(--bg-card)" : "var(--bg-hover)",
-                          cursor: d.available ? "pointer" : "not-allowed",
+                          background: "var(--bg-card)",
+                          cursor: "pointer",
                           textAlign: "left",
+                          transition: "all 0.2s",
                         }}
                       >
                         <div style={{ fontWeight: 700, color: "var(--text-main)" }}>{d.date}</div>
-                        <div style={{ marginTop: 6, color: d.available ? "#f97316" : "var(--text-muted)", fontWeight: 700 }}>
+                        <div style={{ marginTop: 6, color: "#f97316", fontWeight: 700 }}>
                           {d.minPrice != null ? `${Number(d.minPrice).toLocaleString("vi-VN")} đ` : "—"}
                         </div>
                       </button>
                     ))}
                   </div>
 
-                  {!calendarLoading && calendarData.every((d) => !d.available) && (
+                  {!calendarLoading && calendarData.filter(d => d.available).length === 0 && (
                     <p style={{ marginTop: 12, color: "var(--text-secondary)", fontSize: 13 }}>
-                      Hiện chưa có chuyến bay phù hợp trong khoảng ngày này. Bạn có thể bỏ chọn "tìm vé rẻ nhất"
-                      và dùng tìm kiếm thường, hoặc đổi điểm đi/điểm đến/ngày khác.
+                      {t.noCheapFlights || "Hiện chưa có chuyến bay phù hợp trong khoảng ngày này. Bạn có thể bỏ chọn \"tìm vé rẻ nhất\" và dùng tìm kiếm thường, hoặc đổi điểm đi/điểm đến/ngày khác."}
                     </p>
                   )}
                 </div>
@@ -972,10 +1022,12 @@ const AirlineTickets = () => {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                     <div>
                       <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                        <FaPlaneDeparture style={{ color: "#4f7cff" }} /> Danh sách chuyến bay
+                        <FaPlaneDeparture style={{ color: "#4f7cff" }} /> {t.listFlightTitle || "Danh sách chuyến bay"}
                       </h2>
                       <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "4px 0 0" }}>
-                        Hiển thị {filteredTrips.length}/{trips.length} chuyến phù hợp
+                        {(t.showingTrips || "Hiển thị {filtered}/{total} chuyến phù hợp")
+                          .replace("{filtered}", filteredTrips.length)
+                          .replace("{total}", trips.length)}
                       </p>
                     </div>
                     <div style={{
@@ -1001,7 +1053,7 @@ const AirlineTickets = () => {
                     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                       {/* Sort selection */}
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Sắp xếp theo:</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{t.sortByLabel || "Sắp xếp theo:"}</span>
                         <select
                           value={sortBy}
                           onChange={(e) => setSortBy(e.target.value)}
@@ -1017,11 +1069,11 @@ const AirlineTickets = () => {
                             outline: "none",
                           }}
                         >
-                          <option value="price_asc">Giá vé: Thấp đến Cao</option>
-                          <option value="price_desc">Giá vé: Cao đến Thấp</option>
-                          <option value="time_asc">Giờ đi: Sớm nhất đến Muộn nhất</option>
-                          <option value="time_desc">Giờ đi: Muộn nhất đến Sớm nhất</option>
-                          <option value="duration_asc">Thời gian bay: Ngắn nhất</option>
+                          <option value="price_asc">{t.sortPriceAsc || "Giá vé: Thấp đến Cao"}</option>
+                          <option value="price_desc">{t.sortPriceDesc || "Giá vé: Cao đến Thấp"}</option>
+                          <option value="time_asc">{t.sortTimeAsc || "Giờ đi: Sớm nhất đến Muộn nhất"}</option>
+                          <option value="time_desc">{t.sortTimeDesc || "Giờ đi: Muộn nhất đến Sớm nhất"}</option>
+                          <option value="duration_asc">{t.sortDurationAsc || "Thời gian chạy: Ngắn nhất"}</option>
                         </select>
                       </div>
 
@@ -1033,22 +1085,22 @@ const AirlineTickets = () => {
                           onChange={(e) => setFilterAvailableOnly(e.target.checked)}
                           style={{ accentColor: "#4f7cff", width: 16, height: 16, cursor: "pointer" }}
                         />
-                        Chỉ chuyến còn ghế trống
+                        {t.availableSeatsOnly || "Chỉ chuyến còn ghế trống"}
                       </label>
                     </div>
 
                     {/* Time Range Filter (Presets Only) */}
                     <div style={{ paddingTop: 10, borderTop: "1px solid var(--border-light)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", whiteSpace: "nowrap" }}>
-                        🕒 Khung giờ khởi hành:
+                        🕒 {t.departureTimeRange || "Khung giờ khởi hành:"}
                       </span>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                         {[
-                          { label: "Tất cả", range: [0, 24] },
-                          { label: "Sáng sớm (0 - 6h)", range: [0, 6] },
-                          { label: "Sáng (6 - 12h)", range: [6, 12] },
-                          { label: "Chiều (12 - 18h)", range: [12, 18] },
-                          { label: "Tối (18 - 24h)", range: [18, 24] },
+                          { label: t.timeRangeAll || "Tất cả", range: [0, 24] },
+                          { label: t.timeRangeEarlyMorning || "Sáng sớm (0 - 6h)", range: [0, 6] },
+                          { label: t.timeRangeMorning || "Sáng (6 - 12h)", range: [6, 12] },
+                          { label: t.timeRangeAfternoon || "Chiều (12 - 18h)", range: [12, 18] },
+                          { label: t.timeRangeEvening || "Tối (18 - 24h)", range: [18, 24] },
                         ].map(preset => {
                           const isSelected = timeRange[0] === preset.range[0] && timeRange[1] === preset.range[1];
                           return (
@@ -1085,7 +1137,7 @@ const AirlineTickets = () => {
                     {/* Provider Filter Pills */}
                     {allProviders.length > 0 && (
                       <div style={{ paddingTop: 10, borderTop: "1px solid var(--border-light)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Hãng bay:</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{t.airlineProvider || "Hãng bay:"}</span>
                         {allProviders.map(pName => {
                           const isChecked = filterProviders.includes(pName);
                           return (
@@ -1119,7 +1171,7 @@ const AirlineTickets = () => {
                             onClick={() => setFilterProviders([])}
                             style={{ border: "none", background: "none", color: "#ef4444", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                           >
-                            Xóa lọc hãng
+                            {t.clearAirlineFilter || "Xóa lọc hãng"}
                           </button>
                         )}
                       </div>
@@ -1128,10 +1180,19 @@ const AirlineTickets = () => {
 
                   {filteredTrips.length === 0 ? (
                     <div style={{
-                      textAlign: "center", padding: "36px 20px", background: "var(--bg-card)",
-                      borderRadius: 16, border: "1px dashed var(--border-light)", color: "var(--text-secondary)"
+                      textAlign: "center", padding: "40px 20px", background: "var(--bg-card)",
+                      borderRadius: 16, border: "1px dashed var(--border-light)", color: "var(--text-secondary)",
+                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12
                     }}>
-                      🔍 Không có chuyến bay nào phù hợp với bộ lọc hiện tại. Hãy thử mở rộng khung giờ hoặc bỏ lọc hãng.
+                      <div style={{
+                        width: 46, height: 46, borderRadius: "50%", background: "var(--bg-input)",
+                        display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary)", fontSize: 20
+                      }}>
+                        <FiSearch />
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 500, maxWidth: 480, lineHeight: 1.5 }}>
+                        {t.noMatchingFlightTrips || "Không có chuyến bay nào phù hợp với bộ lọc hiện tại. Hãy thử mở rộng khung giờ hoặc bỏ lọc hãng."}
+                      </span>
                     </div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1164,7 +1225,9 @@ const AirlineTickets = () => {
                         if (diff < 0) diff += 1440;
                         const hours = Math.floor(diff / 60);
                         const mins = Math.round(diff % 60);
-                        duration = `${hours}g${mins > 0 ? ` ${mins}ph` : ""}`;
+                        const hUnit = t.durationHours || "g";
+                        const mUnit = t.durationMins || "ph";
+                        duration = `${hours}${hUnit}${mins > 0 ? ` ${mins}${mUnit}` : ""}`;
                       }
 
                       return (
@@ -1199,7 +1262,7 @@ const AirlineTickets = () => {
                               borderBottomLeftRadius: 12,
                               letterSpacing: "0.5px",
                             }}>
-                              🏷️ RẺ NHẤT
+                              🏷️ {t.cheapest || "RẺ NHẤT"}
                             </div>
                           )}
 
@@ -1230,7 +1293,7 @@ const AirlineTickets = () => {
                                         {pInfo?.code || (trip.providerName || "VN").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
                                       </span>
                                       <span style={{ fontSize: 8, color: pColor + "bb", fontWeight: 600, marginTop: 2, display: "block" }}>
-                                        AIRLINE
+                                        {t.airlineBadge || "MÁY BAY"}
                                       </span>
                                     </div>
                                   )}
@@ -1244,7 +1307,7 @@ const AirlineTickets = () => {
                                 {trip.providerName}
                               </div>
                               <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                                Máy bay
+                                {trip.vehicleType || t.commercialFlight || "Máy bay"}
                               </div>
                             </div>
 
@@ -1278,7 +1341,7 @@ const AirlineTickets = () => {
                                   <span style={{ fontSize: 14, color: "var(--primary)" }}>✈</span>
                                   <div style={{ flex: 1, height: 2, background: "linear-gradient(90deg,var(--primary),var(--border-main))" }} />
                                 </div>
-                                <div style={{ fontSize: 10, color: "var(--text-secondary)" }}>Bay thẳng</div>
+                                <div style={{ fontSize: 10, color: "var(--text-secondary)" }}>{t.directFlightRoute || "Bay thẳng"}</div>
                               </div>
 
                               {/* Arrival */}
@@ -1297,7 +1360,7 @@ const AirlineTickets = () => {
 
                             {/* Seat availability */}
                             <div style={{ minWidth: 90, textAlign: "center", flexShrink: 0 }}>
-                              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>Chỗ trống</div>
+                              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>{t.availableSeats || "Chỗ trống"}</div>
                               <div style={{
                                 fontSize: 13, fontWeight: 700,
                                 color: seatWarning ? "#ef4444" : "#22c55e",
@@ -1317,7 +1380,7 @@ const AirlineTickets = () => {
                               </div>
                               {seatWarning && (
                                 <div style={{ fontSize: 10, color: "#ef4444", marginTop: 3, fontWeight: 600 }}>
-                                  Sắp hết chỗ!
+                                  {t.almostSoldOut || "Sắp hết vé!"}
                                 </div>
                               )}
                             </div>
@@ -1327,7 +1390,7 @@ const AirlineTickets = () => {
 
                             {/* Price + CTA */}
                             <div style={{ textAlign: "center", minWidth: 130, flexShrink: 0 }}>
-                              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>Giá/người</div>
+                              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>{t.pricePerPerson || "Giá/người"}</div>
                               <div style={{
                                 fontSize: 20, fontWeight: 900,
                                 color: "#f97316",
@@ -1353,7 +1416,7 @@ const AirlineTickets = () => {
                                   transition: "all 0.2s",
                                 }}
                               >
-                                {isSelected ? "✓ Đã chọn" : "Chọn"}
+                                {isSelected ? (t.selected || "✓ Đã chọn") : (t.selectTicket || "Chọn vé")}
                               </button>
                             </div>
                           </div>

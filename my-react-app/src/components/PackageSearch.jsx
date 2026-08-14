@@ -5,6 +5,7 @@ import { MdOutlineFlight } from "react-icons/md";
 import { IoLocationOutline } from "react-icons/io5";
 import { IoTicketSharp } from "react-icons/io5";
 import { IoIosAirplane } from "react-icons/io";
+import { useToast } from "../context/ToastContext";
 
 const PackageSearch = () => {
   const { t } = useLanguage();
@@ -54,9 +55,11 @@ const PackageSearch = () => {
     { id: "sapa", name: "Sa Pa" },
   ];
 
+  const { showToast } = useToast();
+
   const tripTypes = [
     { id: "oneway", label: t.oneWay || "Một chiều" },
-    { id: "roundtrip", label: `${t.roundTrip || "Khứ hồi"} (Đang bảo trì)`, isMaintenance: true },
+    { id: "roundtrip", label: `${t.roundTrip || "Khứ hồi"} (${t.underMaintenance || "Đang bảo trì"})`, isMaintenance: true },
   ];
 
   const handleSearch = () => {
@@ -161,33 +164,22 @@ const PackageSearch = () => {
         </h3>
       </div>
 
-      {/* Trip type tabs - Khứ hồi / Một chiều */}
-      <div style={{
-        display: "flex",
-        gap: "8px",
-        marginBottom: "20px",
-      }}>
+      {/* Trip type segmented pill */}
+      <div className="trip-type-segmented">
         {tripTypes.map(type => (
           <button
             key={type.id}
+            className={`trip-type-btn ${tripType === type.id ? "active" : ""} ${type.isMaintenance ? "maintenance" : ""}`}
             onClick={() => {
               if (type.isMaintenance) {
-                alert("⚠️ Tính năng vé Khứ hồi hiện đang bảo trì & nâng cấp hệ thống. Vui lòng sử dụng vé Một chiều quý khách nhé!");
+                const now = Date.now();
+                if (!window._lastMaintenanceToast || now - window._lastMaintenanceToast > 3000) {
+                  window._lastMaintenanceToast = now;
+                  showToast(t.roundTripMaintenanceMsg || "⚠️ Tính năng vé Khứ hồi hiện đang bảo trì & nâng cấp hệ thống. Vui lòng sử dụng vé Một chiều quý khách nhé!", "warning");
+                }
                 return;
               }
               setTripType(type.id);
-            }}
-            style={{
-              padding: "8px 18px",
-              border: "none",
-              background: tripType === type.id ? "var(--primary)" : "transparent",
-              color: tripType === type.id ? "#fff" : type.isMaintenance ? "#94a3b8" : "var(--text-secondary)",
-              borderRadius: "20px",
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: tripType === type.id ? "600" : "500",
-              transition: "all 0.2s",
-              opacity: type.isMaintenance ? 0.75 : 1,
             }}
           >
             {type.label}
@@ -787,24 +779,8 @@ const PackageSearch = () => {
       {/* Search button - Tìm kiếm */}
       <button
         onClick={handleSearch}
-        style={{
-          width: "100%",
-          padding: "14px",
-          background: "var(--primary)",
-          color: "#fff",
-          border: "none",
-          borderRadius: "12px",
-          fontSize: "16px",
-          fontWeight: "600",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "8px",
-          transition: "background 0.2s",
-        }}
-        onMouseEnter={(e) => e.target.style.background = "var(--primary-hover)"}
-        onMouseLeave={(e) => e.target.style.background = "var(--primary)"}
+        className="btn-search-glow"
+        style={{ width: "100%", borderRadius: "14px", padding: "14px" }}
       >
         <FaSearch />
         {t.search || "Tìm kiếm"}

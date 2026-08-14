@@ -3,46 +3,83 @@ import { useLanguage } from "../context/LanguageContext";
 import { IoClose, IoSearch } from "react-icons/io5";
 
 const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTab, setSelectedTab] = useState("all");
 
+  const cityTranslations = {
+    vi: {
+      HAN: { name: "Hà Nội", airport: "Hà Nội (HAN) - Sân bay Nội Bài / Ga Hà Nội" },
+      SGN: { name: "TP. Hồ Chí Minh", airport: "TP. HCM (SGN) - Tân Sơn Nhất / Ga Sài Gòn" },
+      DAD: { name: "Đà Nẵng", airport: "Đà Nẵng (DAD) - Sân bay Đà Nẵng / Ga Đà Nẵng" },
+      CXR: { name: "Nha Trang", airport: "Nha Trang (CXR) - Cam Ranh / Ga Nha Trang" },
+      DLI: { name: "Đà Lạt", airport: "Đà Lạt (DLI) - Liên Khương / Ga Đà Lạt" },
+      PQC: { name: "Phú Quốc", airport: "Phú Quốc (PQC) - Sân bay Phú Quốc" },
+      HUI: { name: "Huế", airport: "Huế (HUI) - Sân bay Phú Bài / Ga Huế" },
+      HPH: { name: "Hải Phòng", airport: "Hải Phòng (HPH) - Cát Bi / Ga Hải Phòng" },
+      VII: { name: "Vinh", airport: "Vinh (VII) - Sân bay Vinh / Ga Vinh" },
+      VCL: { name: "Chu Lai", airport: "Chu Lai (VCL) - Quảng Nam" },
+    },
+    en: {
+      HAN: { name: "Hanoi", airport: "Hanoi (HAN) - Noi Bai Intl / Hanoi Station" },
+      SGN: { name: "Ho Chi Minh City", airport: "HCMC (SGN) - Tan Son Nhat Intl / Saigon Station" },
+      DAD: { name: "Da Nang", airport: "Da Nang (DAD) - Da Nang Intl / Da Nang Station" },
+      CXR: { name: "Nha Trang", airport: "Nha Trang (CXR) - Cam Ranh Intl / Nha Trang Station" },
+      DLI: { name: "Da Lat", airport: "Da Lat (DLI) - Lien Khuong Airport / Da Lat Station" },
+      PQC: { name: "Phu Quoc", airport: "Phu Quoc (PQC) - Phu Quoc Intl" },
+      HUI: { name: "Hue", airport: "Hue (HUI) - Phu Bai Intl / Hue Station" },
+      HPH: { name: "Hai Phong", airport: "Hai Phong (HPH) - Cat Bi Intl / Hai Phong Station" },
+      VII: { name: "Vinh", airport: "Vinh (VII) - Vinh Airport / Vinh Station" },
+      VCL: { name: "Chu Lai", airport: "Chu Lai (VCL) - Quang Nam" },
+    },
+    ja: {
+      HAN: { name: "ハノイ", airport: "ハノイ (HAN) - ノイバイ国際空港 / ハノイ駅" },
+      SGN: { name: "ホーチミン", airport: "ホーチミン (SGN) - タンソンニャット国際空港 / サイゴン駅" },
+      DAD: { name: "ダナン", airport: "ダナン (DAD) - ダナン国際空港 / ダナン駅" },
+      CXR: { name: "ニャチャン", airport: "ニャチャン (CXR) - カムラン国際空港 / ニャチャン駅" },
+      DLI: { name: "ダラット", airport: "ダラット (DLI) - リエンクオン空港 / ダラット駅" },
+      PQC: { name: "フーコック", airport: "フーコック (PQC) - フーコック国際空港" },
+      HUI: { name: "フエ", airport: "フエ (HUI) - フーバイ国際空港 / フエ駅" },
+      HPH: { name: "ハイフォン", airport: "ハイフォン (HPH) - カットビ国際空港 / ハイフォン駅" },
+      VII: { name: "ヴィン", airport: "ヴィン (VII) - ヴィン空港 / ヴィン駅" },
+      VCL: { name: "チュライ", airport: "チュライ (VCL) - クアンナム" },
+    },
+    zh: {
+      HAN: { name: "河內", airport: "河內 (HAN) - 內排國際機場 / 河內火車站" },
+      SGN: { name: "胡志明市", airport: "胡志明市 (SGN) - 新山一國際機場 / 西貢火車站" },
+      DAD: { name: "峴港", airport: "峴港 (DAD) - 峴港國際機場 / 峴港火車站" },
+      CXR: { name: "芽莊", airport: "芽莊 (CXR) - 金蘭國際機場 / 芽莊火車站" },
+      DLI: { name: "大叻", airport: "大叻 (DLI) - 蓮姜機場 / 大叻火車站" },
+      PQC: { name: "富國島", airport: "富國島 (PQC) - 富國國際機場" },
+      HUI: { name: "順化", airport: "順化 (HUI) - 符牌國際機場 / 順化火車站" },
+      HPH: { name: "海防", airport: "海防 (HPH) - 吉碑國際機場 / 海防火車站" },
+      VII: { name: "榮市", airport: "榮市 (VII) - 榮市機場 / 榮市火車站" },
+      VCL: { name: "朱萊", airport: "朱萊 (VCL) - 廣南" },
+    }
+  };
+
+  const getLocalizedCity = (code) => {
+    const lang = currentLanguage?.code || "vi";
+    const dict = cityTranslations[lang] || cityTranslations.vi;
+    return {
+      code,
+      name: dict[code]?.name || code,
+      airport: dict[code]?.airport || code
+    };
+  };
+
   const cities = {
-    all: [
-      { code: "HAN", name: "Hà Nội", airport: "Hà Nội (HAN) - Sân bay Nội Bài / Ga Hà Nội" },
-      { code: "SGN", name: "TP. Hồ Chí Minh", airport: "TP. HCM (SGN) - Tân Sơn Nhất / Ga Sài Gòn" },
-      { code: "DAD", name: "Đà Nẵng", airport: "Đà Nẵng (DAD) - Sân bay Đà Nẵng / Ga Đà Nẵng" },
-      { code: "CXR", name: "Nha Trang", airport: "Nha Trang (CXR) - Cam Ranh / Ga Nha Trang" },
-      { code: "DLI", name: "Đà Lạt", airport: "Đà Lạt (DLI) - Liên Khương / Ga Đà Lạt" },
-      { code: "PQC", name: "Phú Quốc", airport: "Phú Quốc (PQC) - Sân bay Phú Quốc" },
-      { code: "HUI", name: "Huế", airport: "Huế (HUI) - Sân bay Phú Bài / Ga Huế" },
-      { code: "HPH", name: "Hải Phòng", airport: "Hải Phòng (HPH) - Cát Bi / Ga Hải Phòng" },
-      { code: "VII", name: "Vinh", airport: "Vinh (VII) - Sân bay Vinh / Ga Vinh" },
-      { code: "VCL", name: "Chu Lai", airport: "Chu Lai (VCL) - Quảng Nam" },
-    ],
-    north: [
-      { code: "HAN", name: "Hà Nội", airport: "Hà Nội (HAN) - Sân bay Nội Bài" },
-      { code: "HPH", name: "Hải Phòng", airport: "Hải Phòng (HPH) - Cát Bi" },
-      { code: "VII", name: "Vinh", airport: "Vinh (VII) - Sân bay Vinh" },
-    ],
-    central: [
-      { code: "DAD", name: "Đà Nẵng", airport: "Đà Nẵng (DAD) - Sân bay Đà Nẵng" },
-      { code: "HUI", name: "Huế", airport: "Huế (HUI) - Sân bay Phú Bài" },
-      { code: "CXR", name: "Nha Trang", airport: "Nha Trang (CXR) - Sân bay Cam Ranh" },
-      { code: "DLI", name: "Đà Lạt", airport: "Đà Lạt (DLI) - Sân bay Liên Khương" },
-      { code: "VCL", name: "Chu Lai", airport: "Chu Lai (VCL) - Quảng Nam" },
-    ],
-    south: [
-      { code: "SGN", name: "TP. Hồ Chí Minh", airport: "TP. HCM (SGN) - Tân Sơn Nhất" },
-      { code: "PQC", name: "Phú Quốc", airport: "Phú Quốc (PQC) - Sân bay Phú Quốc" },
-    ],
+    all: ["HAN", "SGN", "DAD", "CXR", "DLI", "PQC", "HUI", "HPH", "VII", "VCL"].map(getLocalizedCity),
+    north: ["HAN", "HPH", "VII"].map(getLocalizedCity),
+    central: ["DAD", "HUI", "CXR", "DLI", "VCL"].map(getLocalizedCity),
+    south: ["SGN", "PQC"].map(getLocalizedCity),
   };
 
   const tabs = [
-    { id: "all", label: "Tất cả Việt Nam" },
-    { id: "north", label: "Miền Bắc" },
-    { id: "central", label: "Miền Trung" },
-    { id: "south", label: "Miền Nam" },
+    { id: "all", label: t.allVietnam || "Tất cả Việt Nam" },
+    { id: "north", label: t.northVietnam || "Miền Bắc" },
+    { id: "central", label: t.centralVietnam || "Miền Trung" },
+    { id: "south", label: t.southVietnam || "Miền Nam" },
   ];
 
   const getCityName = (city) => {

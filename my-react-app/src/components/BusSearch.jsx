@@ -187,12 +187,10 @@ const BusSearch = () => {
       )}
 
       {/* Search button */}
-      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 16, borderTop: "1px solid var(--border-light)" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 14 }}>
         <button
           onClick={handleSearch}
-          style={{ padding: "12px 36px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "30px", fontSize: "15px", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", transition: "background 0.2s", fontFamily: "inherit" }}
-          onMouseEnter={(e) => e.currentTarget.style.background = "var(--primary-hover)"}
-          onMouseLeave={(e) => e.currentTarget.style.background = "var(--primary)"}
+          className="btn-search-glow"
         >
           <FaSearch />
           {t.search || "Tìm kiếm"}

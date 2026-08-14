@@ -3,30 +3,32 @@ import { useNavigate } from "react-router-dom";
 import BookingTabs from "../components/BookingTabs";
 import { ShieldCheck, Zap, Headphones, RefreshCw, Plane, TrainTrack, Bus, Package, Sparkles, MapPin } from "lucide-react";
 
-const PROMO_ITEMS = [
-  { icon: <Plane size={24} style={{ color: "var(--primary)" }} />, label: "Vé máy bay", desc: "Giá tốt nhất mọi hãng", path: "/ve-may-bay" },
-  { icon: <TrainTrack size={24} style={{ color: "var(--primary)" }} />, label: "Vé tàu hỏa", desc: "Đặt nhanh, chọn chỗ ngồi", path: "/ve-tau-hoa" },
-  { icon: <Bus size={24} style={{ color: "var(--primary)" }} />, label: "Xe khách", desc: "Hàng trăm nhà xe uy tín", path: "/xe-khach" },
-  { icon: <Package size={24} style={{ color: "var(--primary)" }} />, label: "Đặt theo gói", desc: "Combo tiết kiệm hơn", path: "/dat-theo-goi" },
-];
 
-const DESTINATIONS = [
-  { name: "Hà Nội", from: "Từ 299.000đ", image: "/destinations/hanoi.png" },
-  { name: "TP. Hồ Chí Minh", from: "Từ 350.000đ", image: "/destinations/tphcm.jpg" },
-  { name: "Đà Nẵng", from: "Từ 450.000đ", image: "/destinations/danang.jpg" },
-  { name: "Nha Trang", from: "Từ 520.000đ", image: "/destinations/nhatrang.jpg" },
-];
-
-const TRUST_ITEMS = [
-  { icon: <ShieldCheck size={16} />, text: "Thanh toán an toàn" },
-  { icon: <Zap size={16} />, text: "Xác nhận tức thì" },
-  { icon: <Headphones size={16} />, text: "Hỗ trợ 24/7" },
-  { icon: <RefreshCw size={16} />, text: "Hoàn tiền dễ dàng" },
-];
 
 const Home = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
+
+  const trustItems = [
+    { icon: <ShieldCheck size={16} />, text: t.safePayment },
+    { icon: <Zap size={16} />, text: t.instantConfirmation },
+    { icon: <Headphones size={16} />, text: t.support247 },
+    { icon: <RefreshCw size={16} />, text: t.easyRefund },
+  ];
+
+  const promoItems = [
+    { icon: <Plane size={24} style={{ color: "var(--primary)" }} />, label: t.flight, desc: t.bestPriceAllAirlines, path: "/ve-may-bay" },
+    { icon: <TrainTrack size={24} style={{ color: "var(--primary)" }} />, label: t.train, desc: t.easyBookingSeat, path: "/ve-tau-hoa" },
+    { icon: <Bus size={24} style={{ color: "var(--primary)" }} />, label: t.bus, desc: t.hundredsBusOperators, path: "/xe-khach" },
+    { icon: <Package size={24} style={{ color: "var(--primary)" }} />, label: t.package, desc: t.comboMoreSavings, path: "/dat-theo-goi" },
+  ];
+
+  const destinations = [
+    { name: t.hanoi, from: t.startingFrom?.replace("{price}", "299.000đ") || "Từ 299.000đ", image: "/destinations/hanoi.png" },
+    { name: t.hcmc, from: t.startingFrom?.replace("{price}", "350.000đ") || "Từ 350.000đ", image: "/destinations/tphcm.jpg" },
+    { name: t.danang, from: t.startingFrom?.replace("{price}", "450.000đ") || "Từ 450.000đ", image: "/destinations/danang.jpg" },
+    { name: t.nhaTrang || "Nha Trang", from: t.startingFrom?.replace("{price}", "520.000đ") || "Từ 520.000đ", image: "/destinations/nhatrang.jpg" },
+  ];
 
   return (
     <div className="home-wrap">
@@ -38,7 +40,7 @@ const Home = () => {
           <p className="hero-subtitle">{t.heroTagline}</p>
 
           <div className="hero-badges">
-            {TRUST_ITEMS.map((item) => (
+            {trustItems.map((item) => (
               <span key={item.text} className="hero-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                 {item.icon} {item.text}
               </span>
@@ -58,10 +60,10 @@ const Home = () => {
       <div style={{ height: 40 }} />
       <div className="home-section">
         <p className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Sparkles size={20} style={{ color: 'var(--primary)' }} /> Đặt vé nhanh
+          <Sparkles size={20} style={{ color: 'var(--primary)' }} /> {t.quickBooking}
         </p>
         <div className="promo-grid">
-          {PROMO_ITEMS.map((item) => (
+          {promoItems.map((item) => (
             <div
               key={item.path}
               className="promo-card"
@@ -81,10 +83,10 @@ const Home = () => {
       <div style={{ height: 40 }} />
       <div className="home-section">
         <p className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <MapPin size={20} style={{ color: 'var(--primary)' }} /> Điểm đến phổ biến
+          <MapPin size={20} style={{ color: 'var(--primary)' }} /> {t.popularDestinations}
         </p>
         <div className="dest-grid">
-          {DESTINATIONS.map((dest) => (
+          {destinations.map((dest) => (
             <div key={dest.name} className="dest-card">
               <img src={dest.image} alt={dest.name} />
               <div className="dest-card-overlay">
@@ -105,7 +107,7 @@ const Home = () => {
         padding: "28px 24px",
       }}>
         <div className="trust-row">
-          {TRUST_ITEMS.map((item) => (
+          {trustItems.map((item) => (
             <div key={item.text} className="trust-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="trust-icon" style={{ display: 'flex', alignItems: 'center', color: 'var(--primary)' }}>{item.icon}</span>
               <span>{item.text}</span>

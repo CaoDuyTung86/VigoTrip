@@ -20,7 +20,7 @@ import { MdOutlineCreditCard, MdOutlineDone } from "react-icons/md";
 import { TbTrain } from "react-icons/tb";
 import { FaRegCalendarAlt, FaChair, FaUser, FaBell, FaTicketAlt, FaShieldAlt, FaTaxi } from "react-icons/fa";
 import { IoMdSearch } from "react-icons/io";
-import { FiChevronDown } from "react-icons/fi";
+import { FiChevronDown, FiSearch } from "react-icons/fi";
 import { CgSandClock } from "react-icons/cg";
 import { CiCreditCard1 } from "react-icons/ci";
 
@@ -73,24 +73,74 @@ const PROVIDER_LOGOS = {
 };
 
 const TrainTickets = () => {
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const { token, isAuthenticated, user } = useAuth();
   const { isConnected, subscribe, lockSeats, unlockSeats } = useWebSocket();
   const location = useLocation();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const stations = [
-    { code: "HAN", name: "Hà Nội", fullName: "Ga Hà Nội" },
-    { code: "SGN", name: "TP. HCM", fullName: "Ga Sài Gòn" },
-    { code: "DAD", name: "Đà Nẵng", fullName: "Ga Đà Nẵng" },
-    { code: "HUE", name: "Huế", fullName: "Ga Huế (HUE)" },
-    { code: "HPH", name: "Hải Phòng", fullName: "Ga Hải Phòng" },
-    { code: "NTR", name: "Nha Trang", fullName: "Ga Nha Trang (NTR)" },
-    { code: "VIN", name: "Vinh", fullName: "Ga Vinh (VIN)" },
-    { code: "DLT", name: "Đà Lạt", fullName: "Ga Đà Lạt (DLT)" },
-    { code: "SAP", name: "Sapa", fullName: "Ga Lào Cai / Sapa" },
-    { code: "QNH", name: "Quảng Ninh", fullName: "Ga Hạ Long" },
-  ];
+
+  const trainStationTranslations = {
+    vi: {
+      HAN: { name: "Hà Nội", fullName: "Ga Hà Nội" },
+      SGN: { name: "TP. HCM", fullName: "Ga Sài Gòn" },
+      DAD: { name: "Đà Nẵng", fullName: "Ga Đà Nẵng" },
+      HUE: { name: "Huế", fullName: "Ga Huế (HUE)" },
+      HPH: { name: "Hải Phòng", fullName: "Ga Hải Phòng" },
+      NTR: { name: "Nha Trang", fullName: "Ga Nha Trang (NTR)" },
+      VIN: { name: "Vinh", fullName: "Ga Vinh (VIN)" },
+      DLT: { name: "Đà Lạt", fullName: "Ga Đà Lạt (DLT)" },
+      SAP: { name: "Sapa", fullName: "Ga Lào Cai / Sapa" },
+      QNH: { name: "Quảng Ninh", fullName: "Ga Hạ Long" },
+    },
+    en: {
+      HAN: { name: "Hanoi", fullName: "Hanoi Railway Station" },
+      SGN: { name: "Ho Chi Minh City", fullName: "Saigon Railway Station" },
+      DAD: { name: "Da Nang", fullName: "Da Nang Railway Station" },
+      HUE: { name: "Hue", fullName: "Hue Railway Station" },
+      HPH: { name: "Hai Phong", fullName: "Hai Phong Railway Station" },
+      NTR: { name: "Nha Trang", fullName: "Nha Trang Railway Station" },
+      VIN: { name: "Vinh", fullName: "Vinh Railway Station" },
+      DLT: { name: "Da Lat", fullName: "Da Lat Railway Station" },
+      SAP: { name: "Sapa", fullName: "Lao Cai / Sapa Station" },
+      QNH: { name: "Quang Ninh", fullName: "Ha Long Railway Station" },
+    },
+    ja: {
+      HAN: { name: "ハノイ", fullName: "ハノイ駅" },
+      SGN: { name: "ホーチミン", fullName: "サイゴン駅" },
+      DAD: { name: "ダナン", fullName: "ダナン駅" },
+      HUE: { name: "フエ", fullName: "フエ駅" },
+      HPH: { name: "ハイフォン", fullName: "ハイフォン駅" },
+      NTR: { name: "ニャチャン", fullName: "ニャチャン駅" },
+      VIN: { name: "ヴィン", fullName: "ヴィン駅" },
+      DLT: { name: "ダラット", fullName: "ダラット駅" },
+      SAP: { name: "サパ", fullName: "ラオカイ / サパ駅" },
+      QNH: { name: "クアンニン", fullName: "ハロン駅" },
+    },
+    zh: {
+      HAN: { name: "河內", fullName: "河內火車站" },
+      SGN: { name: "胡志明市", fullName: "西貢火車站" },
+      DAD: { name: "峴港", fullName: "峴港火車站" },
+      HUE: { name: "順化", fullName: "順化火車站" },
+      HPH: { name: "海防", fullName: "海防火車站" },
+      NTR: { name: "芽莊", fullName: "芽莊火車站" },
+      VIN: { name: "榮市", fullName: "榮市火車站" },
+      DLT: { name: "大叻", fullName: "大叻火車站" },
+      SAP: { name: "沙壩", fullName: "老街 / 沙壩火車站" },
+      QNH: { name: "廣寧", fullName: "下龍火車站" },
+    }
+  };
+
+  const stations = useMemo(() => {
+    const lang = currentLanguage?.code || "vi";
+    const dict = trainStationTranslations[lang] || trainStationTranslations.vi;
+    const baseCodes = ["HAN", "SGN", "DAD", "HUE", "HPH", "NTR", "VIN", "DLT", "SAP", "QNH"];
+    return baseCodes.map(code => ({
+      code,
+      name: dict[code]?.name || code,
+      fullName: dict[code]?.fullName || code
+    }));
+  }, [currentLanguage]);
   const [from, setFrom] = useState("HAN");
   const [to, setTo] = useState("SGN");
   const [showFromDropdown, setShowFromDropdown] = useState(false);
@@ -311,8 +361,11 @@ const TrainTickets = () => {
       setTimeout(() => {
         loadCalendar();
       }, 0);
+    } else if (qFrom && qTo && qDate) {
+      setTimeout(() => {
+        performSearch(qFrom, qTo, qDate, qPassengers ? Number(qPassengers) : 1);
+      }, 50);
     }
-
   }, []);
 
   const performSearch = async (searchFrom, searchTo, searchDate, searchPassengers) => {
@@ -706,7 +759,7 @@ const TrainTickets = () => {
                 marginBottom: "30px",
               }}
             >
-              Vé tàu hỏa
+              {t.train || "Vé tàu hỏa"}
             </h1>
 
             <div
@@ -722,7 +775,7 @@ const TrainTickets = () => {
 
 
                 <div style={{ position: "relative" }}>
-                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><TbTrain /> {t.departurePoint || "Điểm đi"}</label>
+                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><TbTrain /> {t.departurePoint || t.from || "Điểm đi"}</label>
                   <div
                     onClick={() => { setShowFromDropdown(!showFromDropdown); setShowToDropdown(false); }}
                     style={{
@@ -739,16 +792,17 @@ const TrainTickets = () => {
                   {showFromDropdown && (
                     <div style={{
                       position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: 12,
-                      boxShadow: "var(--shadow-lg)", zIndex: 100, marginTop: 4, overflow: "hidden"
+                      boxShadow: "var(--shadow-lg)", zIndex: 100, marginTop: 4, overflow: "hidden", border: "1px solid var(--border-main)"
                     }}>
                       {stations.filter(a => a.code !== to).map(a => (
                         <div key={a.code} onClick={() => { setFrom(a.code); setShowFromDropdown(false); setFormErrors(p => ({ ...p, from: undefined })); }}
                           style={{
                             padding: "12px 16px", cursor: "pointer", borderBottom: "1px solid var(--border-light)",
-                            background: from === a.code ? "#eff6ff" : "#fff"
+                            background: from === a.code ? "var(--bg-hover)" : "transparent",
+                            color: "var(--text-main)"
                           }}
-                          onMouseEnter={e => e.currentTarget.style.background = "#f5f5ff"}
-                          onMouseLeave={e => e.currentTarget.style.background = from === a.code ? "#eff6ff" : "#fff"}
+                          onMouseEnter={e => e.currentTarget.style.background = "var(--bg-hover)"}
+                          onMouseLeave={e => e.currentTarget.style.background = from === a.code ? "var(--bg-hover)" : "transparent"}
                         >
                           <div style={{ fontWeight: 700, fontSize: 14 }}>{a.code} <span style={{ fontWeight: 400, color: "var(--text-muted)", fontSize: 13 }}>– {a.name}</span></div>
                           <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{a.fullName}</div>
@@ -766,14 +820,14 @@ const TrainTickets = () => {
                     background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 18, color: "var(--primary)", flexShrink: 0, transition: "all 0.2s"
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "#eff6ff"; e.currentTarget.style.borderColor = "#4f7cff"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-card)"; e.currentTarget.style.borderColor = "#e0e7ff"; }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.borderColor = "var(--primary)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-card)"; e.currentTarget.style.borderColor = "var(--border-main)"; }}
                   title={t.swapDestinations}
                 >⇄</button>
 
 
                 <div style={{ position: "relative" }}>
-                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><TbTrain /> {t.destinationPoint || "Điểm đến"}</label>
+                  <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><TbTrain /> {t.destinationPoint || t.to || "Điểm đến"}</label>
                   <div
                     onClick={() => { setShowToDropdown(!showToDropdown); setShowFromDropdown(false); }}
                     style={{
@@ -790,16 +844,17 @@ const TrainTickets = () => {
                   {showToDropdown && (
                     <div style={{
                       position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: 12,
-                      boxShadow: "var(--shadow-lg)", zIndex: 100, marginTop: 4, overflow: "hidden"
+                      boxShadow: "var(--shadow-lg)", zIndex: 100, marginTop: 4, overflow: "hidden", border: "1px solid var(--border-main)"
                     }}>
                       {stations.filter(a => a.code !== from).map(a => (
                         <div key={a.code} onClick={() => { setTo(a.code); setShowToDropdown(false); setFormErrors(p => ({ ...p, to: undefined })); }}
                           style={{
                             padding: "12px 16px", cursor: "pointer", borderBottom: "1px solid var(--border-light)",
-                            background: to === a.code ? "#eff6ff" : "#fff"
+                            background: to === a.code ? "var(--bg-hover)" : "transparent",
+                            color: "var(--text-main)"
                           }}
-                          onMouseEnter={e => e.currentTarget.style.background = "#f5f5ff"}
-                          onMouseLeave={e => e.currentTarget.style.background = to === a.code ? "#eff6ff" : "#fff"}
+                          onMouseEnter={e => e.currentTarget.style.background = "var(--bg-hover)"}
+                          onMouseLeave={e => e.currentTarget.style.background = to === a.code ? "var(--bg-hover)" : "transparent"}
                         >
                           <div style={{ fontWeight: 700, fontSize: 14 }}>{a.code} <span style={{ fontWeight: 400, color: "var(--text-muted)", fontSize: 13 }}>– {a.name}</span></div>
                           <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{a.fullName}</div>
@@ -817,7 +872,7 @@ const TrainTickets = () => {
                     min={todayISO}
                     style={{
                       width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 14, boxSizing: "border-box",
-                      border: formErrors.date ? "2px solid #e53935" : "2px solid #e0e7ff", background: "var(--bg-input)"
+                      border: formErrors.date ? "2px solid #e53935" : "2px solid #e0e7ff", background: "var(--bg-input)", color: "var(--text-main)"
                     }}
                   />
                   {formErrors.date && <div style={{ color: "#e53935", fontSize: 12, marginTop: 4 }}>{formErrors.date}</div>}
@@ -831,24 +886,24 @@ const TrainTickets = () => {
                       onClick={() => setShowPassengersDropdown(!showPassengersDropdown)}
                       style={{
                         width: "100%", padding: "10px 14px", borderRadius: 10, border: "2px solid var(--border-main)",
-                        background: "var(--bg-card)", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", boxSizing: "border-box"
+                        background: "var(--bg-card)", color: "var(--text-main)", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", boxSizing: "border-box"
                       }}
                     >
                       <span>{passengerCounts.adult} {t.adult || 'Người lớn'}, {passengerCounts.child} {t.child || 'Trẻ em'}, {passengerCounts.infant} {t.infant || 'Em bé'}</span>
                       <FiChevronDown />
                     </div>
                     {showPassengersDropdown && (
-                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: 12, boxShadow: "var(--shadow-lg)", zIndex: 100, padding: 16, marginTop: 4 }}>
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: 12, boxShadow: "var(--shadow-lg)", zIndex: 100, padding: 16, marginTop: 4, border: "1px solid var(--border-main)" }}>
                         {['adult', 'child', 'infant'].map(type => (
                           <div key={type} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                             <div>
-                              <div style={{ fontWeight: 600 }}>{type === 'adult' ? t.adult || 'Người lớn' : type === 'child' ? t.child || 'Trẻ em' : t.infant || 'Em bé'}</div>
-                              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{type === 'adult' ? '>12 tuổi' : type === 'child' ? '2-11 tuổi' : '<2 tuổi'}</div>
+                              <div style={{ fontWeight: 600, color: "var(--text-main)" }}>{type === 'adult' ? t.adult || 'Người lớn' : type === 'child' ? t.child || 'Trẻ em' : t.infant || 'Em bé'}</div>
+                              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{type === 'adult' ? (t.ageAdultHint || '>12 tuổi') : type === 'child' ? (t.ageChildHint || '2-11 tuổi') : (t.ageInfantHint || '<2 tuổi')}</div>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                              <button type="button" disabled={passengerCounts[type] <= (type === 'adult' ? 1 : 0)} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] - 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
-                              <span style={{ fontWeight: 600, width: 16, textAlign: "center" }}>{passengerCounts[type]}</span>
-                              <button type="button" disabled={passengerCounts.adult + passengerCounts.child + passengerCounts.infant >= 5} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] + 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                              <button type="button" disabled={passengerCounts[type] <= (type === 'adult' ? 1 : 0)} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] - 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", color: "var(--text-main)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
+                              <span style={{ fontWeight: 600, width: 16, textAlign: "center", color: "var(--text-main)" }}>{passengerCounts[type]}</span>
+                              <button type="button" disabled={passengerCounts.adult + passengerCounts.child + passengerCounts.infant >= 5} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] + 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", color: "var(--text-main)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                             </div>
                           </div>
                         ))}
@@ -862,7 +917,7 @@ const TrainTickets = () => {
                       color: "#fff", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontSize: 14, marginBottom: 8
                     }}
                   >
-                    {loading ? <><CgSandClock /> ${t.searching}</> : <><IoMdSearch /> {t.searchTrain}</>}
+                    {loading ? <><CgSandClock /> {t.searching || "Đang tìm..."}</> : <><IoMdSearch /> {t.searchTrain || "Tìm chuyến tàu"}</>}
                   </button>
                   <button type="button" onClick={loadCalendar} disabled={calendarLoading}
                     style={{
@@ -870,7 +925,7 @@ const TrainTickets = () => {
                       background: "var(--bg-card)", color: "var(--text-main)", fontWeight: 600, cursor: calendarLoading ? "not-allowed" : "pointer", fontSize: 13
                     }}
                   >
-                    {calendarLoading ? <><CgSandClock /> {t.loadingCalendar}</> : <><FaRegCalendarAlt /> {t.viewCheapCalendar}</>}
+                    {calendarLoading ? <><CgSandClock /> {t.loadingCalendar || "Đang tải..."}</> : <><FaRegCalendarAlt /> {t.viewCheapCalendar || "Xem lịch giá rẻ"}</>}
                   </button>
                 </div>
               </div>
@@ -895,37 +950,33 @@ const TrainTickets = () => {
                   </div>
 
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                    {calendarData.map((d) => (
+                    {calendarData.filter(d => d.available).map((d) => (
                       <button
                         key={d.date}
                         type="button"
-                        disabled={!d.available}
-                        onClick={() => {
-                          if (!d.available) return;
-                          handleSearchWithDate(d.date);
-                        }}
+                        onClick={() => handleSearchWithDate(d.date)}
                         style={{
                           width: 150,
                           padding: "10px 12px",
                           borderRadius: 10,
                           border: "1px solid var(--border-light)",
-                          background: d.available ? "var(--bg-card)" : "var(--bg-hover)",
-                          cursor: d.available ? "pointer" : "not-allowed",
+                          background: "var(--bg-card)",
+                          cursor: "pointer",
                           textAlign: "left",
+                          transition: "all 0.2s",
                         }}
                       >
                         <div style={{ fontWeight: 700, color: "var(--text-main)" }}>{d.date}</div>
-                        <div style={{ marginTop: 6, color: d.available ? "#ff6b00" : "var(--text-muted)", fontWeight: 700 }}>
+                        <div style={{ marginTop: 6, color: "#ff6b00", fontWeight: 700 }}>
                           {d.minPrice != null ? `${Number(d.minPrice).toLocaleString("vi-VN")} đ` : "—"}
                         </div>
                       </button>
                     ))}
                   </div>
 
-                  {!calendarLoading && calendarData.every((d) => !d.available) && (
+                  {!calendarLoading && calendarData.filter(d => d.available).length === 0 && (
                     <p style={{ marginTop: 12, color: "var(--text-secondary)", fontSize: 13 }}>
-                      Hiện chưa có chuyến bay phù hợp trong khoảng ngày này. Bạn có thể bỏ chọn "tìm vé rẻ nhất"
-                      và dùng tìm kiếm thường, hoặc đổi điểm đi/điểm đến/ngày khác.
+                      {t.noCheapFlights || "Hiện chưa có chuyến đi phù hợp trong khoảng ngày này. Bạn có thể bỏ chọn \"tìm vé rẻ nhất\" và dùng tìm kiếm thường, hoặc đổi điểm đi/điểm đến/ngày khác."}
                     </p>
                   )}
                 </div>
@@ -946,10 +997,12 @@ const TrainTickets = () => {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                     <div>
                       <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                        <TbTrain style={{ color: "#1d4ed8" }} /> Danh sách chuyến tàu hỏa
+                        <TbTrain style={{ color: "#1d4ed8" }} /> {t.listTrainTitle || "Danh sách chuyến tàu hỏa"}
                       </h2>
                       <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "4px 0 0" }}>
-                        Hiển thị {filteredTrips.length}/{trips.length} chuyến phù hợp
+                        {(t.showingTrips || "Hiển thị {filtered}/{total} chuyến phù hợp")
+                          .replace("{filtered}", filteredTrips.length)
+                          .replace("{total}", trips.length)}
                       </p>
                     </div>
                     <div style={{
@@ -975,7 +1028,7 @@ const TrainTickets = () => {
                     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                       {/* Sort selection */}
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Sắp xếp theo:</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{t.sortByLabel || "Sắp xếp theo:"}</span>
                         <select
                           value={sortBy}
                           onChange={(e) => setSortBy(e.target.value)}
@@ -991,11 +1044,11 @@ const TrainTickets = () => {
                             outline: "none",
                           }}
                         >
-                          <option value="price_asc">Giá vé: Thấp đến Cao</option>
-                          <option value="price_desc">Giá vé: Cao đến Thấp</option>
-                          <option value="time_asc">Giờ đi: Sớm nhất đến Muộn nhất</option>
-                          <option value="time_desc">Giờ đi: Muộn nhất đến Sớm nhất</option>
-                          <option value="duration_asc">Thời gian di chuyển: Ngắn nhất</option>
+                          <option value="price_asc">{t.sortPriceAsc || "Giá vé: Thấp đến Cao"}</option>
+                          <option value="price_desc">{t.sortPriceDesc || "Giá vé: Cao đến Thấp"}</option>
+                          <option value="time_asc">{t.sortTimeAsc || "Giờ đi: Sớm nhất đến Muộn nhất"}</option>
+                          <option value="time_desc">{t.sortTimeDesc || "Giờ đi: Muộn nhất đến Sớm nhất"}</option>
+                          <option value="duration_asc">{t.sortDurationAsc || "Thời gian chạy: Ngắn nhất"}</option>
                         </select>
                       </div>
 
@@ -1007,22 +1060,22 @@ const TrainTickets = () => {
                           onChange={(e) => setFilterAvailableOnly(e.target.checked)}
                           style={{ accentColor: "#1d4ed8", width: 16, height: 16, cursor: "pointer" }}
                         />
-                        Chỉ chuyến còn ghế trống
+                        {t.availableSeatsOnly || "Chỉ chuyến còn ghế trống"}
                       </label>
                     </div>
 
                     {/* Time Range Filter (Presets Only) */}
                     <div style={{ paddingTop: 10, borderTop: "1px solid var(--border-light)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", whiteSpace: "nowrap" }}>
-                        🕒 Khung giờ khởi hành:
+                        🕒 {t.departureTimeRange || "Khung giờ khởi hành:"}
                       </span>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                         {[
-                          { label: "Tất cả", range: [0, 24] },
-                          { label: "Sáng sớm (0 - 6h)", range: [0, 6] },
-                          { label: "Sáng (6 - 12h)", range: [6, 12] },
-                          { label: "Chiều (12 - 18h)", range: [12, 18] },
-                          { label: "Tối (18 - 24h)", range: [18, 24] },
+                          { label: t.timeRangeAll || "Tất cả", range: [0, 24] },
+                          { label: t.timeRangeEarlyMorning || "Sáng sớm (0 - 6h)", range: [0, 6] },
+                          { label: t.timeRangeMorning || "Sáng (6 - 12h)", range: [6, 12] },
+                          { label: t.timeRangeAfternoon || "Chiều (12 - 18h)", range: [12, 18] },
+                          { label: t.timeRangeEvening || "Tối (18 - 24h)", range: [18, 24] },
                         ].map(preset => {
                           const isSelected = timeRange[0] === preset.range[0] && timeRange[1] === preset.range[1];
                           return (
@@ -1059,7 +1112,7 @@ const TrainTickets = () => {
                     {/* Provider Filter Pills */}
                     {allProviders.length > 0 && (
                       <div style={{ paddingTop: 10, borderTop: "1px solid var(--border-light)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Hãng tàu:</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{t.trainProvider || "Hãng tàu:"}</span>
                         {allProviders.map(pName => {
                           const isChecked = filterProviders.includes(pName);
                           return (
@@ -1093,7 +1146,7 @@ const TrainTickets = () => {
                             onClick={() => setFilterProviders([])}
                             style={{ border: "none", background: "none", color: "#ef4444", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                           >
-                            Xóa lọc hãng tàu
+                            {t.clearTrainFilter || "Xóa lọc hãng tàu"}
                           </button>
                         )}
                       </div>
@@ -1102,10 +1155,19 @@ const TrainTickets = () => {
 
                   {filteredTrips.length === 0 ? (
                     <div style={{
-                      textAlign: "center", padding: "36px 20px", background: "var(--bg-card)",
-                      borderRadius: 16, border: "1px dashed var(--border-light)", color: "var(--text-secondary)"
+                      textAlign: "center", padding: "40px 20px", background: "var(--bg-card)",
+                      borderRadius: 16, border: "1px dashed var(--border-light)", color: "var(--text-secondary)",
+                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12
                     }}>
-                      🔍 Không có chuyến tàu hỏa nào phù hợp với bộ lọc hiện tại. Hãy thử mở rộng khung giờ hoặc bỏ chọn lọc.
+                      <div style={{
+                        width: 46, height: 46, borderRadius: "50%", background: "var(--bg-input)",
+                        display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary)", fontSize: 20
+                      }}>
+                        <FiSearch />
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 500, maxWidth: 480, lineHeight: 1.5 }}>
+                        {t.noMatchingTrainTrips || "Không có chuyến tàu hỏa nào phù hợp với bộ lọc hiện tại. Hãy thử mở rộng khung giờ hoặc bỏ chọn lọc."}
+                      </span>
                     </div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1137,7 +1199,9 @@ const TrainTickets = () => {
                           if (diff < 0) diff += 1440;
                           const hours = Math.floor(diff / 60);
                           const mins = Math.round(diff % 60);
-                          duration = `${hours}g${mins > 0 ? ` ${mins}ph` : ""}`;
+                          const hUnit = t.durationHours || "g";
+                          const mUnit = t.durationMins || "ph";
+                          duration = `${hours}${hUnit}${mins > 0 ? ` ${mins}${mUnit}` : ""}`;
                         }
 
                         const pInfo = PROVIDER_LOGOS[trip.providerName];
@@ -1176,7 +1240,7 @@ const TrainTickets = () => {
                                 borderBottomLeftRadius: 12,
                                 letterSpacing: "0.5px",
                               }}>
-                                🏷️ RẺ NHẤT
+                                🏷️ {t.cheapest || "RẺ NHẤT"}
                               </div>
                             )}
 
@@ -1194,7 +1258,7 @@ const TrainTickets = () => {
                                     {pInfo?.code || initials}
                                   </span>
                                   <span style={{ fontSize: 8, color: pColor + "bb", fontWeight: 600, marginTop: 2, display: "block" }}>
-                                    TÀU HỎA
+                                    {t.trainBadge || "TÀU HỎA"}
                                   </span>
                                 </div>
                                 {pInfo?.logo && (
@@ -1216,7 +1280,7 @@ const TrainTickets = () => {
                                   {trip.providerName}
                                 </div>
                                 <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                                  {trip.vehicleType || "Tàu hỏa SE"}
+                                  {trip.vehicleType || t.expressTrain || "Tàu hỏa SE"}
                                 </div>
                               </div>
 
@@ -1250,7 +1314,7 @@ const TrainTickets = () => {
                                     <TbTrain style={{ fontSize: 16, color: "#1d4ed8" }} />
                                     <div style={{ flex: 1, height: 2, background: "linear-gradient(90deg,#1d4ed8,#1d4ed844)" }} />
                                   </div>
-                                  <div style={{ fontSize: 10, color: "var(--text-secondary)" }}>Chạy thẳng</div>
+                                  <div style={{ fontSize: 10, color: "var(--text-secondary)" }}>{t.directRoute || "Chạy thẳng"}</div>
                                 </div>
 
                                 {/* Arrival */}
@@ -1269,7 +1333,7 @@ const TrainTickets = () => {
 
                               {/* Seat availability */}
                               <div style={{ minWidth: 90, textAlign: "center", flexShrink: 0 }}>
-                                <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>Chỗ trống</div>
+                                <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>{t.availableSeats || "Chỗ trống"}</div>
                                 <div style={{
                                   fontSize: 13, fontWeight: 700,
                                   color: seatWarning ? "#ef4444" : "#22c55e",
@@ -1288,7 +1352,7 @@ const TrainTickets = () => {
                                 </div>
                                 {seatWarning && (
                                   <div style={{ fontSize: 10, color: "#ef4444", marginTop: 3, fontWeight: 600 }}>
-                                    Sắp hết vé!
+                                    {t.almostSoldOut || "Sắp hết vé!"}
                                   </div>
                                 )}
                               </div>
@@ -1298,7 +1362,7 @@ const TrainTickets = () => {
 
                               {/* Price + CTA */}
                               <div style={{ textAlign: "center", minWidth: 130, flexShrink: 0 }}>
-                                <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>Giá/người</div>
+                                <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>{t.pricePerPerson || "Giá/người"}</div>
                                 <div style={{
                                   fontSize: 20, fontWeight: 900,
                                   color: "#1d4ed8",
@@ -1324,7 +1388,7 @@ const TrainTickets = () => {
                                     transition: "all 0.2s",
                                   }}
                                 >
-                                  {isSelected ? "✓ Đã chọn" : "Chọn vé"}
+                                  {isSelected ? (t.selected || "✓ Đã chọn") : (t.selectTicket || "Chọn vé")}
                                 </button>
                               </div>
                             </div>

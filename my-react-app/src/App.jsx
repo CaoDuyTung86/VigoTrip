@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import Header from "./LayOut/Header";
@@ -24,8 +25,15 @@ import ProviderRefunds from "./Page/ProviderRefunds";
 import ProviderCheckIn from "./Page/ProviderCheckIn";
 import Chatbot from "./components/Chatbot";
 
+import { ToastProvider } from "./context/ToastContext";
+
 function AppWrapper() {
   const location = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [location.pathname]);
+
   const showHeader = location.pathname !== "/auth" && location.pathname !== "/my-bookings" && location.pathname !== "/forgot-password" && location.pathname !== "/verify-email";
   const showFooter = location.pathname !== "/auth" && location.pathname !== "/my-bookings" && location.pathname !== "/forgot-password" && location.pathname !== "/verify-email";
 
@@ -61,13 +69,15 @@ function App() {
       <BrowserRouter>
         <ThemeProvider>
           <LanguageProvider>
-            <AuthProvider>
-              <SavedPassengersProvider>
-                <WebSocketProvider>
-                  <AppWrapper />
-                </WebSocketProvider>
-              </SavedPassengersProvider>
-            </AuthProvider>
+            <ToastProvider>
+              <AuthProvider>
+                <SavedPassengersProvider>
+                  <WebSocketProvider>
+                    <AppWrapper />
+                  </WebSocketProvider>
+                </SavedPassengersProvider>
+              </AuthProvider>
+            </ToastProvider>
           </LanguageProvider>
         </ThemeProvider>
       </BrowserRouter>

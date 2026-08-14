@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 
 const SavedPassengersContext = createContext();
@@ -10,22 +11,7 @@ export const SavedPassengersProvider = ({ children }) => {
     const [savedPassengers, setSavedPassengers] = useState([]);
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        if (isAuthenticated && token) {
-            fetchSavedPassengers();
-        } else {
-            const local = localStorage.getItem('guestSavedPassengers');
-            if (local) {
-                try {
-                    setSavedPassengers(JSON.parse(local));
-                } catch (e) {}
-            } else {
-                setSavedPassengers([]);
-            }
-        }
-    }, [isAuthenticated, token]);
-
-    const fetchSavedPassengers = async () => {
+    const fetchSavedPassengers = useCallback(async () => {
         setLoading(true);
         try {
             const res = await fetch('/api/saved-passengers', {
@@ -42,9 +28,26 @@ export const SavedPassengersProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [token]);
 
-    const addPassenger = async (passengerData) => {
+    useEffect(() => {
+        if (isAuthenticated && token) {
+            fetchSavedPassengers();
+        } else {
+            const local = localStorage.getItem('guestSavedPassengers');
+            if (local) {
+                try {
+                    setSavedPassengers(JSON.parse(local));
+                } catch (error) {
+                    console.error("Error parsing guest passengers:", error);
+                }
+            } else {
+                setSavedPassengers([]);
+            }
+        }
+    }, [isAuthenticated, token, fetchSavedPassengers]);
+
+    const addPassenger = useCallback(async (passengerData) => {
         if (isAuthenticated && token) {
             try {
                 const res = await fetch('/api/saved-passengers', {
@@ -60,7 +63,9 @@ export const SavedPassengersProvider = ({ children }) => {
                     setSavedPassengers(prev => [...prev, newP]);
                     return newP;
                 }
-            } catch (e) { console.error(e); }
+            } catch (error) {
+                console.error(error);
+            }
         } else {
             // Guest -> local storage (only name, email, phone)
             const localP = {
@@ -71,21 +76,22 @@ export const SavedPassengersProvider = ({ children }) => {
                 passengerType: passengerData.passengerType || 'ADULT',
             };
             // Check if already exists in guest
-            let updated = [...savedPassengers];
-            let existingIdx = updated.findIndex(p => p.fullName === localP.fullName && p.phone === localP.phone);
-            if (existingIdx >= 0) {
-               updated[existingIdx] = {...updated[existingIdx], ...localP}; 
-            } else {
-               updated.push(localP);
-            }
-            
-            setSavedPassengers(updated);
-            localStorage.setItem('guestSavedPassengers', JSON.stringify(updated));
+            setSavedPassengers(prev => {
+                let updated = [...prev];
+                let existingIdx = updated.findIndex(p => p.fullName === localP.fullName && p.phone === localP.phone);
+                if (existingIdx >= 0) {
+                   updated[existingIdx] = {...updated[existingIdx], ...localP}; 
+                } else {
+                   updated.push(localP);
+                }
+                localStorage.setItem('guestSavedPassengers', JSON.stringify(updated));
+                return updated;
+            });
             return localP;
         }
-    };
+    }, [isAuthenticated, token]);
 
-    const removePassenger = async (id) => {
+    const removePassenger = useCallback(async (id) => {
         if (isAuthenticated && token) {
             try {
                 const res = await fetch(`/api/saved-passengers/${id}`, {
@@ -95,16 +101,27 @@ export const SavedPassengersProvider = ({ children }) => {
                 if (res.ok) {
                     setSavedPassengers(prev => prev.filter(p => p.id !== id));
                 }
-            } catch(e) {}
+            } catch(error) {
+                console.error("Failed to remove passenger:", error);
+            }
         } else {
-            const updated = savedPassengers.filter(p => p.id !== id);
-            setSavedPassengers(updated);
-            localStorage.setItem('guestSavedPassengers', JSON.stringify(updated));
+            setSavedPassengers(prev => {
+                const updated = prev.filter(p => p.id !== id);
+                localStorage.setItem('guestSavedPassengers', JSON.stringify(updated));
+                return updated;
+            });
         }
-    }
+    }, [isAuthenticated, token]);
+
+    const value = useMemo(() => ({
+        savedPassengers,
+        loading,
+        addPassenger,
+        removePassenger
+    }), [savedPassengers, loading, addPassenger, removePassenger]);
 
     return (
-        <SavedPassengersContext.Provider value={{ savedPassengers, loading, addPassenger, removePassenger }}>
+        <SavedPassengersContext.Provider value={value}>
             {children}
         </SavedPassengersContext.Provider>
     );

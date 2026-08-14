@@ -326,6 +326,7 @@ Các bảng chính trong Cơ sở dữ liệu SQL Server / PostgreSQL:
 1. **Xác thực & Phân quyền Stateless**:
    - Sử dụng JWT (JSON Web Token) HMAC-SHA256 mã hóa chữ ký.
    - Spring Security Filter Chain kiểm tra Token trong Header `Authorization: Bearer <TOKEN>` trước mỗi request.
+   - *(Lộ trình nâng cấp tiếp theo)*: Chuyển đổi sang cơ chế HttpOnly Cookie + Refresh Token (Token Rotation) để triệt tiêu hoàn toàn rủi ro XSS đánh cắp token.
 
 2. **Chống tấn công Brute-force & DDoS**:
    - Tích hợp `RateLimitingFilter` giới hạn tần suất request (10 requests/giây/IP đối với API Đặt vé và Auth).

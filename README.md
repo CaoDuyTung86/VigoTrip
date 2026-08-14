@@ -63,7 +63,11 @@ Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây lin
 - [x] **Proxy & API Routing:** Cấu hình `vercel.json` rewrites điều hướng trong suốt toàn bộ request `/api` và `/ws` (WebSocket) từ Vercel sang Render.
 
 ### Hướng phát triển tiếp theo:
-- [ ] **Map Integration:** Tích hợp bản đồ Leaflet / OpenStreetMap để theo dõi lộ trình và định vị bến xe/nhà ga.
+- [ ] **Zero-Trust Auth & Security Hardening (HttpOnly Cookie + Refresh Token):** Nâng cấp cơ chế xác thực sang HttpOnly Cookie kết hợp Refresh Token (Token Rotation), lưu Access Token ngắn hạn trong in-memory state (React Context), loại bỏ hoàn toàn việc lưu JWT tại localStorage nhằm triệt tiêu nguy cơ tấn công XSS đánh cắp phiên đăng nhập.
+- [ ] **Advanced RAG & Vector Database:** Nâng cấp hệ thống tri thức Chatbot lên Vector DB (ChromaDB / Qdrant) kết hợp Hybrid RAG và Semantic Search đa ngôn ngữ.
+- [ ] **Multi-model LLM Gateway:** Tích hợp bộ điều phối (Router & Fallback) tự động chuyển đổi giữa Gemini, GPT-4o, và LLaMA nhằm tối ưu chi phí và tính sẵn sàng (High Availability).
+- [ ] **AI BI 2.0 (Text-to-SQL & Predictive Analytics):** Hỗ trợ Admin truy vấn dữ liệu kinh doanh bằng ngôn ngữ tự nhiên (NL2SQL), dự báo nhu cầu đặt vé theo mùa vụ (Time-series Forecasting) và gợi ý định giá vé động (Dynamic Pricing).
+- [ ] **Map & Realtime Tracking:** Tích hợp bản đồ Leaflet / Mapbox theo dõi lộ trình di chuyển và định vị bến bãi, nhà ga thời gian thực.
 ---
 
 ## 📸 Hướng Dẫn Cài Đặt

@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import React, { createContext, useCallback, useContext, useEffect, useState, useMemo } from 'react';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 
@@ -9,7 +10,7 @@ export const useWebSocket = () => useContext(WebSocketContext);
 const LOCK_RESPONSE_TIMEOUT_MS = 5000;
 
 export const WebSocketProvider = ({ children }) => {
-    const [stompClient, setStompClient] = useState(null);
+    const stompClientRef = React.useRef(null);
     const [isConnected, setIsConnected] = useState(false);
 
     useEffect(() => {
@@ -37,17 +38,19 @@ export const WebSocketProvider = ({ children }) => {
             console.error('Additional details: ' + frame.body);
         };
 
+        stompClientRef.current = client;
         client.activate();
-        setStompClient(client);
 
         return () => {
-            if (client) client.deactivate();
+            client.deactivate();
+            stompClientRef.current = null;
         };
     }, []);
 
     const sendMessage = useCallback((destination, body) => {
-        if (stompClient && stompClient.connected) {
-            stompClient.publish({
+        const client = stompClientRef.current;
+        if (client?.connected) {
+            client.publish({
                 destination,
                 body: JSON.stringify(body),
             });
@@ -55,22 +58,24 @@ export const WebSocketProvider = ({ children }) => {
         }
         console.warn('WebSocket not connected, message not sent:', destination);
         return false;
-    }, [stompClient]);
+    }, []);
 
     const subscribe = useCallback((destination, callback) => {
-        if (stompClient && isConnected) {
-            return stompClient.subscribe(destination, (message) => {
+        const client = stompClientRef.current;
+        if (client && isConnected) {
+            return client.subscribe(destination, (message) => {
                 callback(JSON.parse(message.body));
             });
         }
         return null;
-    }, [stompClient, isConnected]);
+    }, [isConnected]);
 
     const lockSeats = useCallback(({ tripId, seatIds, userId }) => {
+        const client = stompClientRef.current;
         if (!userId) {
             return Promise.resolve({ success: false, failed: seatIds, error: 'NOT_AUTHENTICATED' });
         }
-        if (!stompClient?.connected) {
+        if (!client?.connected) {
             return Promise.resolve({ success: false, failed: seatIds, error: 'NOT_CONNECTED' });
         }
         if (!seatIds?.length) {
@@ -80,7 +85,7 @@ export const WebSocketProvider = ({ children }) => {
         return new Promise((resolve) => {
             const results = new Map(seatIds.map((id) => [id, null]));
 
-            const subscription = stompClient.subscribe('/topic/seat-status', (message) => {
+            const subscription = client.subscribe('/topic/seat-status', (message) => {
                 const update = JSON.parse(message.body);
                 if (update.tripId !== tripId) return;
                 if (!seatIds.includes(update.seatId)) return;
@@ -93,7 +98,7 @@ export const WebSocketProvider = ({ children }) => {
                     results.set(update.seatId, false);
                 }
 
-                const pending = [...results.values()].some((value) => value === null);
+                const pending = [...results.values()].includes(null);
                 if (!pending) {
                     clearTimeout(timer);
                     subscription.unsubscribe();
@@ -110,7 +115,7 @@ export const WebSocketProvider = ({ children }) => {
             }, LOCK_RESPONSE_TIMEOUT_MS);
 
             seatIds.forEach((seatId) => {
-                stompClient.publish({
+                client.publish({
                     destination: '/app/seat-selection',
                     body: JSON.stringify({
                         tripId,
@@ -121,15 +126,16 @@ export const WebSocketProvider = ({ children }) => {
                 });
             });
         });
-    }, [stompClient]);
+    }, []);
 
     const unlockSeats = useCallback(({ tripId, seatIds, userId }) => {
-        if (!userId || !stompClient?.connected || !seatIds?.length) {
+        const client = stompClientRef.current;
+        if (!userId || !client?.connected || !seatIds?.length) {
             return;
         }
 
         seatIds.forEach((seatId) => {
-            stompClient.publish({
+            client.publish({
                 destination: '/app/seat-selection',
                 body: JSON.stringify({
                     tripId,
@@ -139,17 +145,18 @@ export const WebSocketProvider = ({ children }) => {
                 }),
             });
         });
-    }, [stompClient]);
+    }, []);
+
+    const value = useMemo(() => ({
+        isConnected,
+        sendMessage,
+        subscribe,
+        lockSeats,
+        unlockSeats,
+    }), [isConnected, sendMessage, subscribe, lockSeats, unlockSeats]);
 
     return (
-        <WebSocketContext.Provider value={{
-            stompClient,
-            isConnected,
-            sendMessage,
-            subscribe,
-            lockSeats,
-            unlockSeats,
-        }}>
+        <WebSocketContext.Provider value={value}>
             {children}
         </WebSocketContext.Provider>
     );
