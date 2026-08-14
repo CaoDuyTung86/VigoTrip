@@ -95,7 +95,23 @@ Hệ thống phân chia 3 nhóm người dùng chính:
 - **NFR-02 (Security)**: Mật khẩu mã hóa BCrypt. Xác thực JWT Stateless. Zero-Trust Security ngăn chặn rò rỉ dữ liệu chéo giữa các người dùng.
 - **NFR-03 (Availability)**: Hệ thống hoạt động 24/7 trên môi trường Cloud (Vercel + Render + Neon DB).
 - **NFR-04 (Usability)**: Giao diện chuẩn Responsive, hỗ trợ Dark/Light Theme và Đa ngôn ngữ (Tiếng Việt / English).
+---
+### 2.3. Bảng Truy vết Yêu cầu (Traceability Matrix)
 
+| Mã FR | Mô tả ngắn | Mã FSD tương ứng |
+| :--- | :--- | :--- |
+| FR-01 | Đăng ký / Đăng nhập / OTP | FSD-AUTH-01, FSD-AUTH-02 |
+| FR-02 | Tra cứu chuyến đi | FSD-SEARCH-01 |
+| FR-03 | Bộ lọc nâng cao | FSD-SEARCH-02 |
+| FR-04 | Khóa ghế Real-time | FSD-BOOKING-01 |
+| FR-05 | Checkout & Voucher & VNPay | FSD-BOOKING-02, FSD-PAY-01 |
+| FR-06 | IPN & Email vé điện tử | FSD-PAY-01 |
+| FR-07 | Nhắc lịch tự động | FSD-SCHEDULER-01 |
+| FR-08 | QR Check-in | FSD-MGMT-02 |
+| FR-09 | AI Chatbot | FSD-AI-01 |
+| FR-10 | AI Revenue Analytics | FSD-AI-02 |
+| *(bổ sung)* | Duyệt hoàn tiền | FSD-MGMT-03 |
+| *(bổ sung)* | Đánh giá chuyến đi | FSD-MGMT-04 |
 ---
 
 <a name="3-đặc-tả-chức-năng-chi-tiết-fsd"></a>
@@ -229,7 +245,34 @@ Hệ thống phân chia 3 nhóm người dùng chính:
   2. Nhà xe mở tính năng Scan QR trên ứng dụng Web Provider -> Quét camera vào mã QR.
   3. Modal hiển thị chi tiết: Họ tên hành khách, Tuyến đường, Số ghế, Trạng thái thanh toán.
   4. Bấm "Xác nhận Lên xe" -> Cập nhật `is_checked_in = true` và `check_in_date = NOW()`.
-
+---
+#### 5.3. Chức năng: Duyệt Yêu cầu Hoàn tiền (Admin Refund Approval)
+- **Mã chức năng**: `FSD-MGMT-03`
+- **User Story**: Là Quản trị viên, tôi muốn xem và duyệt/từ chối các yêu cầu hoàn tiền để đảm bảo minh bạch tài chính và đúng chính sách hủy vé.
+- **Luồng xử lý (Flow)**:
+  1. Khi User hủy vé (`PUT /api/bookings/{id}/cancel`), hệ thống tự động tạo bản ghi `Refund` với trạng thái `PENDING` và số tiền hoàn được tính theo chính sách tại `FSD-MGMT-01` (100% / 50% / 0%).
+  2. Nếu tỷ lệ hoàn = 0% (hủy dưới 12h), hệ thống tự động đặt trạng thái `REJECTED` (lý do: "Hủy vé cận giờ khởi hành"), **không cần Admin duyệt**.
+  3. Với các yêu cầu có tỷ lệ hoàn > 0%, Admin truy cập trang `/admin/refunds`, xem danh sách `PENDING` gồm: thông tin khách hàng, mã vé, số tiền hoàn, thời điểm hủy.
+  4. Admin bấm **"Duyệt"** → cập nhật `status = APPROVED`, ghi nhận `processed_by` (admin_id) và `processed_at` → gửi Email thông báo đã hoàn tiền cho khách.
+  5. Admin bấm **"Từ chối"** kèm lý do → cập nhật `status = REJECTED`.
+- **Điều kiện Nghiệm thu (AC)**:
+  - `AC-01`: Chỉ tài khoản `ROLE_ADMIN` được truy cập các API `/api/admin/refunds/**`.
+  - `AC-02`: Yêu cầu hủy vé dưới 12h tự động chuyển `REJECTED`, không hiển thị trong danh sách chờ duyệt của Admin.
+  - `AC-03`: Trạng thái Refund gồm 4 giá trị: `PENDING`, `APPROVED`, `REJECTED`, `COMPLETED`.
+  - `AC-04`: Một `booking_id` chỉ được phép có duy nhất một bản ghi `Refund` (ràng buộc Unique).
+---
+#### 5.4. Chức năng: Đánh giá Chuyến đi (Trip Review)
+- **Mã chức năng**: `FSD-MGMT-04`
+- **User Story**: Là hành khách đã hoàn thành chuyến đi, tôi muốn đánh giá (số sao + bình luận) để chia sẻ trải nghiệm và giúp hành khách khác tham khảo.
+- **Luồng xử lý (Flow)**:
+  1. Hệ thống chỉ hiển thị nút "Đánh giá" trên các vé có `status = CONFIRMED` và `trip.departure_time < NOW()`.
+  2. Người dùng chọn số sao (1-5) và nhập bình luận (tùy chọn) → Submit.
+  3. Hệ thống lưu vào bảng `danh_gia`, liên kết `booking_id`, `trip_id`, `user_id`.
+  4. Đánh giá hiển thị công khai trên trang chi tiết tuyến đường / trang của Nhà xe (Provider).
+- **Điều kiện Nghiệm thu (AC)**:
+  - `AC-01`: Chỉ được đánh giá vé đã `CONFIRMED` và chuyến đi đã diễn ra (`departure_time` < thời điểm hiện tại).
+  - `AC-02`: Mỗi `booking_id` chỉ được đánh giá **duy nhất một lần** (ràng buộc Unique trên `booking_id` tại bảng `danh_gia`).
+  - `AC-03`: `rating` bắt buộc trong khoảng 1-5; `comment` không bắt buộc, tối đa 1000 ký tự.
 ---
 
 ### 📌 MÔ-ĐUN 6: TRỢ LÝ AI CHATBOT & PHÂN TÍCH DOANH THU (AI & ANALYTICS MODULE)
@@ -298,7 +341,39 @@ Các bảng chính trong Cơ sở dữ liệu SQL Server / PostgreSQL:
    - `booking_id` (FK -> `dat_ve`)
    - `rating` (Int)
    - `comment` (NVarChar(1000))
+   
+5. **`tuyen_duong` (Routes)**:
+   - `route_id` (PK, BigInt, Auto-Increment)
+   - `provider_id` (FK -> `users`, chỉ áp dụng cho `ROLE_PROVIDER`)
+   - `origin` (NVarChar(255)) — Điểm đi
+   - `destination` (NVarChar(255)) — Điểm đến
+   - `distance_km` (Decimal(10,2))
 
+6. **`phuong_tien` (Vehicles)**:
+   - `vehicle_id` (PK, BigInt, Auto-Increment)
+   - `provider_id` (FK -> `users`)
+   - `vehicle_type` (VarChar(20)) -- `BUS`, `TRAIN`, `PLANE`
+   - `vehicle_name` (NVarChar(255))
+   - `total_seats` (Int)
+   - `seat_map` (JSON/NVarChar(MAX)) — Sơ đồ ghế
+
+7. **`voucher` (Mã giảm giá)**:
+   - `voucher_id` (PK, BigInt, Auto-Increment)
+   - `code` (VarChar(50), Unique, Not Null)
+   - `discount_type` (VarChar(20)) -- `PERCENT`, `FIXED`
+   - `discount_value` (Decimal(15,2))
+   - `max_usage` (Int)
+   - `used_count` (Int, Default `0`)
+   - `expiry_date` (DateTime2)
+
+8. **`hoan_tien` (Refunds)**:
+   - `refund_id` (PK, BigInt, Auto-Increment)
+   - `booking_id` (FK -> `dat_ve`, Unique)
+   - `amount` (Decimal(15,2))
+   - `status` (VarChar(20)) -- `PENDING`, `APPROVED`, `REJECTED`, `COMPLETED`
+   - `reason` (NVarChar(500))
+   - `processed_by` (FK -> `users`, nullable — admin xử lý)
+   - `processed_at` (DateTime2, nullable)
 ---
 
 ### 4.2. Danh sách API Endpoints Chính
@@ -318,6 +393,12 @@ Các bảng chính trong Cơ sở dữ liệu SQL Server / PostgreSQL:
 | `GET` | `/api/admin/revenue` | Lấy thống kê doanh thu & AI Insights | Provider / Admin |
 | `PUT` | `/api/provider/check-in/{id}` | Quét mã QR xác nhận lên xe | Provider / Admin |
 
+---
+| `GET` | `/api/admin/refunds` | Danh sách yêu cầu hoàn tiền chờ duyệt | Admin |
+| `PUT` | `/api/admin/refunds/{id}/approve` | Duyệt yêu cầu hoàn tiền | Admin |
+| `PUT` | `/api/admin/refunds/{id}/reject` | Từ chối yêu cầu hoàn tiền | Admin |
+| `POST` | `/api/reviews` | Gửi đánh giá chuyến đi | Authenticated (`ROLE_USER`) |
+| `GET` | `/api/reviews/trip/{tripId}` | Lấy danh sách đánh giá theo chuyến đi | Public (`permitAll`) |
 ---
 
 <a name="5-cơ-chế-bảo-mật--an-toàn-dữ-liệu"></a>
