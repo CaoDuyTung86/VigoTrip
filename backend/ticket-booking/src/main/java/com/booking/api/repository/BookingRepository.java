@@ -9,6 +9,8 @@ import java.util.List;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
+    java.util.Optional<Booking> findByIdAndUserEmail(Long id, String email);
+
     @Query("SELECT DISTINCT b FROM Booking b " +
            "LEFT JOIN FETCH b.tickets t " +
            "LEFT JOIN FETCH t.trip tr " +

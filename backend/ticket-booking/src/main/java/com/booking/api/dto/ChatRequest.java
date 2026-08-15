@@ -8,4 +8,6 @@ public class ChatRequest {
     private String message;
     private String sessionId;
     private List<MessageDto> history;
+    private String language;
+    private String captchaToken;
 }

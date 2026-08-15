@@ -25,7 +25,11 @@ public class ChatController {
     @PostMapping("/chat")
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request, Principal principal) {
         String username = principal != null ? principal.getName() : null;
-        String reply = chatService.getChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory());
+        if (username == null && request.getCaptchaToken() != null) {
+            boolean isValid = chatService.verifyTurnstile(request.getCaptchaToken());
+            if (!isValid) return ResponseEntity.status(403).body(new ChatResponse("Captcha verification failed."));
+        }
+        String reply = chatService.getChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory(), request.getLanguage());
         return ResponseEntity.ok(new ChatResponse(reply));
     }
 
@@ -36,7 +40,15 @@ public class ChatController {
 
         CompletableFuture.runAsync(() -> {
             try {
-                chatService.streamChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory(), chunk -> {
+                if (username == null && request.getCaptchaToken() != null) {
+                    boolean isValid = chatService.verifyTurnstile(request.getCaptchaToken());
+                    if (!isValid) {
+                        emitter.send(SseEmitter.event().data(Map.of("content", "Captcha verification failed.")));
+                        emitter.complete();
+                        return;
+                    }
+                }
+                chatService.streamChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory(), request.getLanguage(), chunk -> {
                     try {
                         Map<String, String> data = Map.of("content", chunk);
                         emitter.send(SseEmitter.event().data(data));
@@ -53,6 +65,11 @@ public class ChatController {
         });
 
         return emitter;
+    }
+
+    @GetMapping("/chat/status")
+    public ResponseEntity<Map<String, Object>> getChatStatus() {
+        return ResponseEntity.ok(chatService.getAiHealthStatus());
     }
 }
 

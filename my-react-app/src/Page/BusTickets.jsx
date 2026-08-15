@@ -160,6 +160,7 @@ const BusTickets = () => {
   const [filterAvailableOnly, setFilterAvailableOnly] = useState(false);
   const [filterProviders, setFilterProviders] = useState([]);
   const [timeRange, setTimeRange] = useState([0, 24]);
+  const [maxPriceFilter, setMaxPriceFilter] = useState(null);
 
   const allProviders = useMemo(() => {
     return Array.from(new Set(trips.map(t => t.providerName).filter(Boolean)));
@@ -172,6 +173,7 @@ const BusTickets = () => {
     return trips.filter(trip => {
       if (filterAvailableOnly && (trip.availableSeats || 0) <= 0) return false;
       if (filterProviders.length > 0 && !filterProviders.includes(trip.providerName)) return false;
+      if (maxPriceFilter && trip.price > maxPriceFilter) return false;
 
       // Filter trips starting within 30 minutes or already departed
       if (trip.departureTime) {
@@ -224,7 +226,7 @@ const BusTickets = () => {
 
       return 0;
     });
-  }, [trips, sortBy, filterAvailableOnly, filterProviders, timeRange]);
+  }, [trips, sortBy, filterAvailableOnly, filterProviders, timeRange, maxPriceFilter]);
 
   const [servicesLoading, setServicesLoading] = useState(false);
   const [services, setServices] = useState([]);
@@ -349,6 +351,19 @@ const BusTickets = () => {
     if (qPassengers) {
       const n = Number(qPassengers);
       if (!Number.isNaN(n) && n > 0) setPassengerCounts({ adult: n, child: 0, infant: 0 });
+    }
+
+    const qMaxPrice = params.get("maxPrice");
+    const qProvider = params.get("providerName");
+    const qTimeSlot = params.get("timeSlot");
+
+    if (qMaxPrice && !isNaN(qMaxPrice)) setMaxPriceFilter(Number(qMaxPrice));
+    if (qProvider) setFilterProviders([qProvider]);
+    if (qTimeSlot) {
+      if (qTimeSlot === "MORNING") setTimeRange([5, 12]);
+      else if (qTimeSlot === "AFTERNOON") setTimeRange([12, 18]);
+      else if (qTimeSlot === "EVENING") setTimeRange([18, 24]);
+      else if (qTimeSlot === "EARLY_MORNING") setTimeRange([0, 5]);
     }
 
     if (qFrom && qTo && qPassengers && mode === "calendar") {

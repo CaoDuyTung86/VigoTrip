@@ -88,6 +88,22 @@ public class AIService {
         getBookingsFn.put("parameters", Map.of("type", "object", "properties", Map.of()));
         tools.add(Map.of("type", "function", "function", getBookingsFn));
 
+        // Tool 3: get_booking_by_id
+        Map<String, Object> getBookingByIdFn = new HashMap<>();
+        getBookingByIdFn.put("name", "get_booking_by_id");
+        getBookingByIdFn.put("description", "Tra cứu chi tiết một đơn đặt vé/đơn hàng khi biết mã đơn hàng (ID).");
+        getBookingByIdFn.put("parameters", Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "bookingId", Map.of(
+                    "type", "string",
+                    "description", "Mã đơn hàng (ID). Tuyệt đối KHÔNG kèm dấu #, chỉ truyền phần số nguyên. Ví dụ: Nếu khách hỏi '#2', chỉ truyền '2'."
+                )
+            ),
+            "required", List.of("bookingId")
+        ));
+        tools.add(Map.of("type", "function", "function", getBookingByIdFn));
+
         return tools;
     }
 
@@ -417,6 +433,13 @@ public class AIService {
     private String callGroqApi(String model, String systemInstruction, List<MessageDto> history,
                                 String userContent, double temperature, int maxTokens) {
         return callGroqApiWithTools(model, systemInstruction, history, userContent, temperature, maxTokens, null);
+    }
+
+    public Map<String, Object> checkHealth() {
+        if (groqApiKey == null || groqApiKey.trim().isEmpty() || "YOUR_API_KEY_HERE".equals(groqApiKey)) {
+            return Map.of("status", "OFFLINE", "ready", false, "message", "Missing API Key");
+        }
+        return Map.of("status", "ONLINE", "ready", true, "message", "AI Server is ready");
     }
 }
 

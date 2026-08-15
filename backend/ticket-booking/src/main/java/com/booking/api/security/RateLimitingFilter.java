@@ -40,6 +40,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final int REGISTER_LIMIT_PER_MIN = 5;
     private static final int FORGOT_PW_LIMIT_PER_15MIN = 3;
     private static final int CHAT_LIMIT_PER_MIN = 15;
+    private static final int GUEST_CHAT_LIMIT_PER_MIN = 5;
     private static final int BOOKING_LIMIT_PER_MIN = 10;
 
     @Override
@@ -72,8 +73,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                 sendRateLimitResponse(response, "Bạn đã yêu cầu gửi OTP quá 3 lần. Vui lòng đợi 15 phút.");
                 return;
             }
-        } else if (path.startsWith("/api/chat")) {
-            if (isRateLimited(clientIp + ":chat", requestCounts, CHAT_LIMIT_PER_MIN)) {
+        } else if (path.startsWith("/api/chat") && !path.equals("/api/chat/status")) {
+            boolean isGuest = request.getHeader("Authorization") == null;
+            int limit = isGuest ? GUEST_CHAT_LIMIT_PER_MIN : CHAT_LIMIT_PER_MIN;
+            if (isRateLimited(clientIp + ":chat", requestCounts, limit)) {
                 sendRateLimitResponse(response, "Bạn đang hỏi AI quá nhanh. Vui lòng đợi 1 phút để tiếp tục.");
                 return;
             }

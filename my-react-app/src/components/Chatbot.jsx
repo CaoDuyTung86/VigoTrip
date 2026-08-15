@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send, X, MessageCircle, Search, Bot, User, Link as LinkIcon, HelpCircle, Tag, Ticket, CreditCard, RotateCcw, TrainTrack, Bus, Trash2 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 const API_BASE = '/api';
 
@@ -8,19 +10,51 @@ const MAX_HISTORY_PAIRS_FRONTEND = 10; // Sliding window: chỉ giữ 10 cặp c
 
 const Chatbot = () => {
   const navigate = useNavigate();
+  const { t, currentLanguage } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { sender: 'bot', text: 'Xin chào. Tôi là trợ lý của **VigoTrip**. Tôi có thể hỗ trợ bạn tra cứu chuyến đi, tìm vé giá tốt hoặc giải đáp thắc mắc dịch vụ. Bạn cần hỗ trợ gì hôm nay?' }
+    { sender: 'bot', text: t.chatbotWelcomeMsg || 'Xin chào. Tôi là trợ lý của **VigoTrip**. Tôi có thể hỗ trợ bạn tra cứu chuyến đi, tìm vé giá tốt hoặc giải đáp thắc mắc dịch vụ. Bạn cần hỗ trợ gì hôm nay?' }
   ]);
   const [chatHistory, setChatHistory] = useState([]); // Lịch sử gửi lên AI
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [aiHealth, setAiHealth] = useState({ status: 'CHECKING', ready: true, message: '' });
   const messagesEndRef = useRef(null);
   const chipsRef = useRef(null);
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [startX, setStartX] = useState(0);
   const [scrollLeftState, setScrollLeftState] = useState(0);
   const dragDistance = useRef(0);
+  
+  const [guestCaptchaToken, setGuestCaptchaToken] = useState(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
+  const hasToken = !!localStorage.getItem('authToken');
+
+  const fetchAiStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/chat/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setAiHealth(data);
+      } else {
+        setAiHealth({ status: 'OFFLINE', ready: false, message: 'Không thể kết nối máy chủ AI' });
+      }
+    } catch {
+      setAiHealth({ status: 'OFFLINE', ready: false, message: 'Mất kết nối' });
+    }
+  };
+
+  useEffect(() => {
+    fetchAiStatus();
+    const interval = setInterval(fetchAiStatus, 45000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchAiStatus();
+    }
+  }, [isOpen]);
 
   const handleChipsMouseDown = (e) => {
     if (!chipsRef.current) return;
@@ -48,15 +82,38 @@ const Chatbot = () => {
   };
 
   useEffect(() => {
-    if (isOpen) scrollToBottom();
-  }, [messages, isOpen, loading]);
+    scrollToBottom();
+  }, [messages, loading]);
+
+  useEffect(() => {
+    // If user hasn't started conversing, sync initial welcome message to current language
+    if (messages.length === 1 && messages[0].sender === 'bot') {
+      setMessages([{ sender: 'bot', text: t.chatbotWelcomeMsg || 'Xin chào. Tôi là trợ lý của **VigoTrip**. Tôi có thể hỗ trợ bạn tra cứu chuyến đi, tìm vé giá tốt hoặc giải đáp thắc mắc dịch vụ. Bạn cần hỗ trợ gì hôm nay?' }]);
+    }
+  }, [currentLanguage?.code]);
 
   const handleSend = async (text = input) => {
     const messageToSend = typeof text === 'string' ? text.trim() : input.trim();
     if (!messageToSend) return;
+    if (loading) return; // chặn spam khi đang xử lý
+
+    if (!hasToken && !guestCaptchaToken && import.meta.env.VITE_TURNSTILE_SITE_KEY) {
+      setMessages(prev => [...prev, { sender: 'bot', text: 'Vui lòng xác thực CAPTCHA trước khi gửi tin nhắn.' }]);
+      return;
+    }
 
     if (messageToSend.length > 500) {
       setMessages(prev => [...prev, { sender: 'bot', text: 'Tin nhắn quá dài (tối đa 500 ký tự). Vui lòng rút gọn và thử lại.' }]);
+      return;
+    }
+
+    if (!aiHealth.ready && aiHealth.status !== 'CHECKING') {
+      setMessages(prev => [
+        ...prev,
+        { sender: 'user', text: messageToSend },
+        { sender: 'bot', text: '⚠️ ' + (t.chatbotMaintenanceNotice || 'Hệ thống AI hiện đang bảo trì hoặc quá tải. Vui lòng liên hệ tổng đài 1900 1234 để được hỗ trợ.') }
+      ]);
+      setInput('');
       return;
     }
 
@@ -87,10 +144,18 @@ const Chatbot = () => {
     let streamSuccess = false;
 
     try {
+      const payload = { 
+        message: messageToSend, 
+        sessionId, 
+        history: trimmedHistory, 
+        language: currentLanguage?.code || 'vi',
+        captchaToken: guestCaptchaToken 
+      };
+
       const response = await fetch(`${API_BASE}/chat/stream`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ message: messageToSend, sessionId, history: trimmedHistory })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -146,10 +211,17 @@ const Chatbot = () => {
     if (!streamSuccess) {
       // Fallback sang POST /api/chat chuẩn
       try {
+        const payload = { 
+          message: messageToSend, 
+          sessionId, 
+          history: trimmedHistory, 
+          language: currentLanguage?.code || 'vi',
+          captchaToken: guestCaptchaToken 
+        };
         const response = await fetch(`${API_BASE}/chat`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ message: messageToSend, sessionId, history: trimmedHistory })
+          body: JSON.stringify(payload)
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -171,18 +243,24 @@ const Chatbot = () => {
     }
 
     setLoading(false);
+    
+    // Đặt lại captcha token sau mỗi lần gửi cho guest (nếu có key)
+    if (!hasToken && import.meta.env.VITE_TURNSTILE_SITE_KEY) {
+       setGuestCaptchaToken(null);
+       setTurnstileKey(prev => prev + 1); // Render lại Turnstile widget
+    }
   };
 
   const [showFaq, setShowFaq] = useState(true);
 
   const faqItems = [
-    { icon: <Search size={14} />, text: 'Tìm vé máy bay rẻ nhất' },
-    { icon: <TrainTrack size={14} />, text: 'Tìm vé tàu hỏa giá tốt' },
-    { icon: <Bus size={14} />, text: 'Tìm vé xe khách hôm nay' },
-    { icon: <RotateCcw size={14} />, text: 'Chính sách đổi trả và hủy vé' },
-    { icon: <Tag size={14} />, text: 'Mã giảm giá mới nhất' },
-    { icon: <Ticket size={14} />, text: 'Xem vé đã đặt của tôi' },
-    { icon: <CreditCard size={14} />, text: 'Phương thức thanh toán' },
+    { icon: <Search size={14} />, text: t.chatbotFaqFlight || 'Tìm vé máy bay rẻ nhất' },
+    { icon: <TrainTrack size={14} />, text: t.chatbotFaqTrain || 'Tìm vé tàu hỏa giá tốt' },
+    { icon: <Bus size={14} />, text: t.chatbotFaqBus || 'Tìm vé xe khách hôm nay' },
+    { icon: <RotateCcw size={14} />, text: t.chatbotFaqRefund || 'Chính sách đổi trả và hủy vé' },
+    { icon: <Tag size={14} />, text: t.chatbotFaqPromo || 'Mã giảm giá mới nhất' },
+    { icon: <Ticket size={14} />, text: t.chatbotFaqBookings || 'Xem vé đã đặt của tôi' },
+    { icon: <CreditCard size={14} />, text: t.chatbotFaqPayment || 'Phương thức thanh toán' },
   ];
 
 
@@ -205,7 +283,14 @@ const Chatbot = () => {
     let matchLink;
 
     while ((matchLink = linkRegex.exec(contentWithoutButtons)) !== null) {
-      dynamicLinks.push({ text: matchLink[1].trim(), url: matchLink[2].trim() });
+      let rawUrl = matchLink[2].trim();
+      // Sanitize link: chỉ cho phép relative path nội bộ, chặn javascript scheme
+      let safeUrl = rawUrl;
+      if (!rawUrl.startsWith('/') || rawUrl.toLowerCase().includes('javascript:')) {
+        console.warn('Blocked unsafe URL from AI:', rawUrl);
+        safeUrl = '/'; // fallback an toàn
+      }
+      dynamicLinks.push({ text: matchLink[1].trim(), url: safeUrl });
       contentWithoutButtons = contentWithoutButtons.replace(matchLink[0], '');
     }
 
@@ -451,7 +536,7 @@ const Chatbot = () => {
         }}
       >
         <MessageCircle size={28} />
-        <span style={{ fontSize: '16px', fontWeight: 600 }}>Hỗ trợ đặt vé</span>
+        <span style={{ fontSize: '16px', fontWeight: 600 }}>{t.chatbotSupportBtn || 'Hỗ trợ đặt vé'}</span>
       </button>
 
       {/* Cửa sổ Chatbot */}
@@ -497,10 +582,29 @@ const Chatbot = () => {
               <Bot size={22} />
             </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 15.5, letterSpacing: '-0.2px' }}>Trợ lý VigoTrip</div>
-              <div style={{ fontSize: 12, opacity: 0.9, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, backgroundColor: '#34d399', borderRadius: '50%', boxShadow: '0 0 8px #34d399' }}></span>
-                Đang trực tuyến
+              <div style={{ fontWeight: 700, fontSize: 15.5, letterSpacing: '-0.2px' }}>
+                {t.chatbotAssistantName || 'Trợ lý VigoTrip'}
+              </div>
+              <div 
+                title={aiHealth.message || ''}
+                style={{ fontSize: 12, opacity: 0.95, display: 'flex', alignItems: 'center', gap: 6, cursor: 'help' }}
+              >
+                {aiHealth.status === 'ONLINE' ? (
+                  <>
+                    <span className="live-pulse-dot"></span>
+                    <span style={{ color: '#34d399', fontWeight: 600 }}>{t.chatbotOnlineStatus || 'Đang trực tuyến'}</span>
+                  </>
+                ) : aiHealth.status === 'CHECKING' ? (
+                  <>
+                    <span className="connecting-pulse-dot"></span>
+                    <span style={{ color: '#f59e0b', fontWeight: 600 }}>{t.chatbotConnectingStatus || 'Đang kết nối...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="offline-pulse-dot"></span>
+                    <span style={{ color: '#fca5a5', fontWeight: 600 }}>{t.chatbotMaintenanceStatus || 'Bảo trì / Quá tải'}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -508,11 +612,11 @@ const Chatbot = () => {
             {/* Nút xóa lịch sử chat */}
             <button
               onClick={() => {
-                setMessages([{ sender: 'bot', text: 'Cuộc hội thoại mới. Tôi có thể hỗ trợ gì cho bạn?' }]);
+                setMessages([{ sender: 'bot', text: t.chatbotNewChatMsg || 'Cuộc hội thoại mới. Tôi có thể hỗ trợ gì cho bạn?' }]);
                 setChatHistory([]);
                 setShowFaq(true);
               }}
-              title="Xóa lịch sử chat"
+              title={t.chatbotClearHistoryTitle || 'Xóa lịch sử chat'}
               style={{
                 background: 'rgba(255,255,255,0.16)',
                 border: '1px solid rgba(255,255,255,0.2)',
@@ -530,7 +634,7 @@ const Chatbot = () => {
               onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.28)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.16)')}
             >
-              <Trash2 size={13} /> Xóa
+              <Trash2 size={13} /> {t.chatbotClearHistory || 'Xóa'}
             </button>
             <button
               onClick={() => setIsOpen(false)}
@@ -556,6 +660,26 @@ const Chatbot = () => {
             backgroundColor: 'var(--bg-main)'
           }}
         >
+          {/* Cảnh báo bảo trì nếu AI Offline / Lỗi */}
+          {!aiHealth.ready && aiHealth.status !== 'CHECKING' && (
+            <div style={{
+              padding: '12px 14px',
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: '12px',
+              color: '#f87171',
+              fontSize: '13px',
+              lineHeight: 1.5,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: 16 }}>⚠️</span>
+              <div>
+                <b style={{ color: '#ef4444' }}>{t.chatbotMaintenanceStatus || "Hệ thống AI đang bảo trì"}:</b> {t.chatbotMaintenanceNotice || "Hệ thống AI hiện đang bảo trì hoặc quá tải. Bạn vui lòng thử lại sau ít phút hoặc liên hệ hotline 1900 1234."}
+              </div>
+            </div>
+          )}
           {messages.map((msg, index) => (
             <div
               key={index}
@@ -623,12 +747,12 @@ const Chatbot = () => {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0 6px' }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <HelpCircle size={14} style={{ color: 'var(--primary)' }} /> Câu hỏi phổ biến
+                <HelpCircle size={14} style={{ color: 'var(--primary)' }} /> {t.chatbotFaqTitle || 'Câu hỏi phổ biến'}
               </span>
               <button
                 onClick={() => setShowFaq(false)}
                 style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}
-              >Ẩn</button>
+              >{t.chatbotHideFaq || 'Ẩn'}</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {faqItems.map((item, idx) => (
@@ -717,6 +841,18 @@ const Chatbot = () => {
           </div>
         )}
 
+        {/* Turnstile CAPTCHA */}
+        {!hasToken && !guestCaptchaToken && import.meta.env.VITE_TURNSTILE_SITE_KEY && (
+          <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'center' }}>
+            <Turnstile
+              key={turnstileKey}
+              siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+              onSuccess={(token) => setGuestCaptchaToken(token)}
+              options={{ theme: 'auto', size: 'flexible' }}
+            />
+          </div>
+        )}
+
         {/* Khung nhập */}
         <div style={{
           padding: '14px 18px',
@@ -752,8 +888,8 @@ const Chatbot = () => {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Nhập câu hỏi..."
+            onKeyPress={(e) => e.key === 'Enter' && !loading && handleSend()}
+            placeholder={t.chatbotInputPlaceholder || "Nhập câu hỏi..."}
             style={{
               flex: 1,
               minWidth: 0,
@@ -763,8 +899,11 @@ const Chatbot = () => {
               backgroundColor: 'var(--bg-main)',
               color: 'var(--text-main)',
               fontSize: 14,
-              outline: 'none'
+              outline: 'none',
+              opacity: loading ? 0.6 : 1,
+              pointerEvents: loading ? 'none' : 'auto'
             }}
+            disabled={loading}
           />
           <button
             onClick={() => handleSend()}
