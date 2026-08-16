@@ -247,6 +247,19 @@ const TrainTickets = () => {
       const subscription = subscribe("/topic/seat-status", (update) => {
         if (update.status === "LOCK_FAILED") return;
         if (update.tripId === selectedTrip.id) {
+          const currentUserId = getSeatUserId(user);
+          const isLockedByOther = (update.status === "SELECTED" || update.status === "BOOKED") && update.userId !== currentUserId;
+          
+          if (isLockedByOther) {
+            setSelectedSeatIds((prev) => {
+              if (prev.includes(update.seatId)) {
+                setError("Ghế bạn đang chọn vừa được người khác giữ. Vui lòng chọn ghế khác.");
+                return prev.filter((id) => id !== update.seatId);
+              }
+              return prev;
+            });
+          }
+
           setSeats((prevSeats) =>
             prevSeats.map((s) =>
               s.id === update.seatId
@@ -264,7 +277,7 @@ const TrainTickets = () => {
         if (subscription) subscription.unsubscribe();
       };
     }
-  }, [selectedTrip, isConnected, subscribe]);
+  }, [selectedTrip, isConnected, subscribe, user]);
 
   // Effect quản lý đếm ngược thời gian giữ ghế (10 phút)
   useEffect(() => {
@@ -554,22 +567,24 @@ const TrainTickets = () => {
       return;
     }
 
+    const exists = selectedSeatIds.includes(seat.id);
+
+    if (exists) {
+      setError("");
+      setSelectedSeatIds((prev) => prev.filter((id) => id !== seat.id));
+      return;
+    }
+
     if (seat.booked || isSeatLockedByOthers(seat, user)) return;
 
-    const exists = selectedSeatIds.includes(seat.id);
     const maxSeats = passengers || 1;
 
-    if (!exists && selectedSeatIds.length >= maxSeats) {
+    if (selectedSeatIds.length >= maxSeats) {
       return;
     }
 
     setError("");
-    setSelectedSeatIds((prev) => {
-      if (exists) {
-        return prev.filter((id) => id !== seat.id);
-      }
-      return [...prev, seat.id];
-    });
+    setSelectedSeatIds((prev) => [...prev, seat.id]);
   };
 
   const categories = useMemo(() => {
