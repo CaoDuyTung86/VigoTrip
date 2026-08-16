@@ -434,6 +434,8 @@ const MyBookings = () => {
                   const depTime = bk.departureTime ? new Date(bk.departureTime).getTime() : 0;
                   const arrTime = bk.arrivalTime ? new Date(bk.arrivalTime).getTime() : (depTime > 0 ? depTime + 2 * 60 * 60 * 1000 : 0);
                   const isExpiredAfterArrival = arrTime > 0 && (Date.now() - arrTime > 60 * 60 * 1000);
+                  // Đã đến nơi (chuyến đi kết thúc) — nút hoàn thành chỉ hiện từ lúc này
+                  const hasArrived = arrTime > 0 && Date.now() >= arrTime;
                   const isTripFinished = arrTime > 0 && (Date.now() >= arrTime);
 
                   const dateLocale = currentLanguage?.code === "vi" ? "vi-VN" : currentLanguage?.code === "ja" ? "ja-JP" : currentLanguage?.code === "zh" ? "zh-TW" : "en-US";
@@ -534,7 +536,7 @@ const MyBookings = () => {
                           </button>
                         )}
 
-                        {bk.status === "CONFIRMED" && !isExpiredAfterArrival && (
+                        {bk.status === "CONFIRMED" && hasArrived && (
                           <button
                             onClick={() => {
                               setConfirmModal({

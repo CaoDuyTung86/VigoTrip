@@ -42,3 +42,8 @@ TROUBLESHOOTING.md
 my-react-app/public/HUONG_DAN_TAI_ANH.md
 my-react-app/public/destinations/README.txt
 my-react-app/public/logos/README.txt
+seat_map_prompt.md
+.zcode/
+dist/
+my-react-app/dist/
+

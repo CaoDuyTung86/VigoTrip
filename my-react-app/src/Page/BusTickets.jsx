@@ -3,6 +3,7 @@ import axios from "axios";
 import { useLanguage } from "../context/LanguageContext";
 import { useSavedPassengers } from "../context/SavedPassengersContext";
 import PassengerInfoForm from "../components/PassengerInfoForm";
+import BusSeatMap from "../components/BusSeatMap";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import { useAuth } from "../context/AuthContext";
@@ -1503,129 +1504,21 @@ const BusTickets = () => {
 
                   {loading && <p style={{ color: "var(--text-muted)", fontSize: 14 }}>{t.loadingSeatmap}</p>}
 
-                  {!loading && (() => {
-                    const classTypes = [...new Set(seats.map(s => s.seatType || "ECONOMY"))];
-                    return (
-                      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-                        <button type="button" onClick={() => setSelectedSeatClass("")} style={{
-                          padding: "9px 20px", borderRadius: 24, border: `2px solid ${!selectedSeatClass ? "#ef4444" : "var(--border-input)"}`,
-                          background: !selectedSeatClass ? "#ef4444" : "var(--bg-input)", color: !selectedSeatClass ? "#fff" : "var(--text-secondary)",
-                          fontWeight: 700, cursor: "pointer", fontSize: 14, transition: "all 0.2s"
-                        }}>Tất cả</button>
-                        {classTypes.map(cls => (
-                          <button key={cls} type="button" onClick={() => setSelectedSeatClass(cls)} style={{
-                            padding: "9px 20px", borderRadius: 24,
-                            border: `2px solid ${selectedSeatClass === cls ? "#ef4444" : "var(--border-input)"}`,
-                            background: selectedSeatClass === cls ? "#ef4444" : "var(--bg-input)",
-                            color: selectedSeatClass === cls ? "#fff" : "var(--text-secondary)",
-                            fontWeight: 700, cursor: "pointer", fontSize: 14, transition: "all 0.2s"
-                          }}>{cls === "SLEEPER" || cls === "BUSINESS" ? `🌟 Giường nằm VIP` : `💺 Ghế ngồi thường`}</button>
-                        ))}
-                      </div>
-                    );
-                  })()}
-
-                  {!loading && seats.length > 0 && (() => {
-                    const filteredSeats = selectedSeatClass
-                      ? seats.filter(s => (s.seatType || "ECONOMY") === selectedSeatClass)
-                      : seats;
-
-                    const parse = (sn) => { const m = String(sn || "").match(/^(\d+)([A-Za-z])$/); return m ? { row: +m[1], col: m[2].toUpperCase() } : null; };
-                    const items = filteredSeats.map(s => { const p = parse(s.seatNumber); return p ? { ...s, ...p } : null; }).filter(Boolean);
-                    const cols = [...new Set(items.map(i => i.col))].sort();
-                    const rows = [...new Set(items.map(i => i.row))].sort((a, b) => a - b);
-                    const smap = new Map(items.map(i => [`${i.row}${i.col}`, i]));
-
-                    const half = Math.ceil(cols.length / 2);
-                    const leftCols = cols.slice(0, half);
-                    const rightCols = cols.slice(half);
-
-                    return (
-                      <div style={{
-                        overflowX: "auto",
-                        background: "var(--bg-input)",
-                        padding: "24px 30px",
-                        borderRadius: "20px",
-                        border: "2px solid var(--border-main)",
-                        borderLeft: "8px solid #ef4444",
-                        boxShadow: "inset 0 4px 12px rgba(0,0,0,0.2)",
-                        position: "relative",
-                        minWidth: "fit-content",
-                        margin: "0 auto"
-                      }}>
-                        <div style={{ textAlign: "center", marginBottom: 20, color: "#ef4444", fontSize: 16, fontWeight: "800", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                          <span style={{ fontSize: 20 }}>🚌</span> Đầu Xe & Sơ Đồ Giường / Ghế
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                          <div style={{ display: "flex", gap: 10, marginBottom: 10, paddingLeft: 44, justifyContent: "center" }}>
-                            {leftCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 13 }}>{c}</div>)}
-                            <div style={{ width: 36 }} />
-                            {rightCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 13 }}>{c}</div>)}
-                          </div>
-                        {rows.map(row => (
-                          <div key={row} style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "center", justifyContent: "center" }}>
-                            <div style={{ width: 34, textAlign: "center", fontWeight: 700, color: "var(--text-muted)", fontSize: 13 }}>{row}</div>
-                            {leftCols.map(col => {
-                              const s = smap.get(`${row}${col}`);
-                              if (!s) return <div key={col} style={{ width: 44, height: 50 }} />;
-                              const sel = selectedSeatIds.includes(s.id);
-                              const isLockedByOthers = isSeatLockedByOthers(s, user);
-                              const isSleeper = s.seatType === "SLEEPER" || s.seatType === "BUSINESS";
-                              return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={!canSelectSeats(isAuthenticated, user) || s.booked || isLockedByOthers || (!sel && isMaxReached)}
-                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
-                                  style={{
-                                    width: 44, height: isSleeper ? 56 : 42, borderRadius: isSleeper ? "10px" : "12px", border: "none",
-                                    cursor: (s.booked || isLockedByOthers) ? "not-allowed" : "pointer",
-                                    background: s.booked ? "#334155" : isLockedByOthers ? "rgba(239,68,68,0.3)" : sel ? "linear-gradient(135deg,#f59e0b,#d97706)" : (isSleeper ? "linear-gradient(135deg,#3b82f6,#2563eb)" : "linear-gradient(135deg,#10b981,#059669)"),
-                                    color: s.booked ? "#64748b" : "#fff", fontWeight: 800, fontSize: 13,
-                                    boxShadow: sel ? "0 4px 12px rgba(245, 158, 11, 0.5)" : "0 2px 6px rgba(0,0,0,0.15)",
-                                    borderBottom: s.booked ? "4px solid #1e293b" : isLockedByOthers ? "4px solid #ef4444" : sel ? "4px solid #b45309" : (isSleeper ? "4px solid #1d4ed8" : "4px solid #047857"),
-                                    transition: "all 0.2s"
-                                  }}>
-                                  {isSleeper && !s.booked && !sel && !isLockedByOthers && <div style={{ fontSize: 9, lineHeight: 1 }}>🛏️</div>}
-                                  <div>{s.booked ? "✗" : isLockedByOthers ? "🔒" : s.seatNumber}</div>
-                                </button>
-                              );
-                            })}
-                            <div style={{ width: 36, textAlign: "center", color: "var(--text-muted)", fontSize: 11 }}>||</div>
-                            {rightCols.map(col => {
-                              const s = smap.get(`${row}${col}`);
-                              if (!s) return <div key={col} style={{ width: 44, height: 50 }} />;
-                              const sel = selectedSeatIds.includes(s.id);
-                              const isLockedByOthers = isSeatLockedByOthers(s, user);
-                              const isSleeper = s.seatType === "SLEEPER" || s.seatType === "BUSINESS";
-                              return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={!canSelectSeats(isAuthenticated, user) || s.booked || isLockedByOthers || (!sel && isMaxReached)}
-                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
-                                  style={{
-                                    width: 44, height: isSleeper ? 56 : 42, borderRadius: isSleeper ? "10px" : "12px", border: "none",
-                                    cursor: (s.booked || isLockedByOthers) ? "not-allowed" : "pointer",
-                                    background: s.booked ? "#334155" : isLockedByOthers ? "rgba(239,68,68,0.3)" : sel ? "linear-gradient(135deg,#f59e0b,#d97706)" : (isSleeper ? "linear-gradient(135deg,#3b82f6,#2563eb)" : "linear-gradient(135deg,#10b981,#059669)"),
-                                    color: s.booked ? "#64748b" : "#fff", fontWeight: 800, fontSize: 13,
-                                    boxShadow: sel ? "0 4px 12px rgba(245, 158, 11, 0.5)" : "0 2px 6px rgba(0,0,0,0.15)",
-                                    borderBottom: s.booked ? "4px solid #1e293b" : isLockedByOthers ? "4px solid #ef4444" : sel ? "4px solid #b45309" : (isSleeper ? "4px solid #1d4ed8" : "4px solid #047857"),
-                                    transition: "all 0.2s"
-                                  }}>
-                                  {isSleeper && !s.booked && !sel && !isLockedByOthers && <div style={{ fontSize: 9, lineHeight: 1 }}>🛏️</div>}
-                                  <div>{s.booked ? "✗" : isLockedByOthers ? "🔒" : s.seatNumber}</div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ))}
-                        </div>
-
-                        <div style={{ display: "flex", gap: 16, marginTop: 20, fontSize: 13, color: "var(--text-secondary)", justifyContent: "center", flexWrap: "wrap" }}>
-                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 14, background: "#10b981", borderRadius: 4 }} />Ghế thường</span>
-                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 14, background: "#3b82f6", borderRadius: 4 }} />Giường nằm</span>
-                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 14, background: "#f59e0b", borderRadius: 4 }} />Đang chọn</span>
-                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 14, background: "rgba(239,68,68,0.5)", borderRadius: 4 }} />Người khác đang chọn</span>
-                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 14, background: "#334155", borderRadius: 4 }} />Đã đặt</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  {!loading && seats.length > 0 && (
+                    <BusSeatMap
+                      seats={seats}
+                      selectedSeatIds={selectedSeatIds}
+                      onToggleSeat={toggleSeat}
+                      isSeatLockedByOthers={isSeatLockedByOthers}
+                      user={user}
+                      isAuthenticated={isAuthenticated}
+                      canSelectSeats={canSelectSeats}
+                      isMaxReached={isMaxReached}
+                      maxSeats={maxSeats}
+                      selectedSeatClass={selectedSeatClass}
+                      setSelectedSeatClass={setSelectedSeatClass}
+                    />
+                  )}
 
                   {!loading && seats.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 14 }}>{t.noSeatData}</p>}
 

@@ -3,6 +3,7 @@ import axios from "axios";
 import { useLanguage } from "../context/LanguageContext";
 import { useSavedPassengers } from "../context/SavedPassengersContext";
 import PassengerInfoForm from "../components/PassengerInfoForm";
+import AirplaneSeatMap from "../components/AirplaneSeatMap";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import { useAuth } from "../context/AuthContext";
@@ -1530,188 +1531,21 @@ const AirlineTickets = () => {
                   {loading && <p style={{ color: "var(--text-muted)" }}>Đang tải sơ đồ ghế...</p>}
 
 
-                  {!loading && (() => {
-                    const classTypes = [...new Set(seats.map(s => s.seatType || "ECONOMY"))];
-                    return (
-                      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-                        <button type="button" onClick={() => setSelectedSeatClass("")} style={{
-                          padding: "8px 18px", borderRadius: 20, border: `2px solid ${!selectedSeatClass ? "var(--primary)" : "var(--border-input)"}`,
-                          background: !selectedSeatClass ? "var(--primary)" : "var(--bg-input)", color: !selectedSeatClass ? "#fff" : "var(--text-secondary)",
-                          fontWeight: 600, cursor: "pointer",
-                        }}>Tất cả</button>
-                        {classTypes.map(cls => (
-                          <button key={cls} type="button" onClick={() => setSelectedSeatClass(cls)} style={{
-                            padding: "8px 18px", borderRadius: 20, border: `2px solid ${selectedSeatClass === cls ? "var(--primary)" : "var(--border-input)"}`,
-                            background: selectedSeatClass === cls ? "var(--primary)" : "var(--bg-input)", color: selectedSeatClass === cls ? "#fff" : "var(--text-secondary)",
-                            fontWeight: 600, cursor: "pointer",
-                          }}>{cls === "ECONOMY" ? "🟢 Phổ thông" : cls === "BUSINESS" ? "🔵 Thương gia" : cls}</button>
-                        ))}
-                      </div>
-                    );
-                  })()}
-
-
-                  {!loading && seats.length > 0 && (() => {
-                    const filteredSeats = selectedSeatClass
-                      ? seats.filter(s => (s.seatType || "ECONOMY") === selectedSeatClass)
-                      : seats;
-
-                    const parse = (sn) => { const m = String(sn || "").match(/^(\d+)([A-Za-z])$/); return m ? { row: +m[1], col: m[2].toUpperCase() } : null; };
-                    const items = filteredSeats.map(s => { const p = parse(s.seatNumber); return p ? { ...s, ...p } : null; }).filter(Boolean);
-                    const cols = [...new Set(items.map(i => i.col))].sort();
-                    const rows = [...new Set(items.map(i => i.row))].sort((a, b) => a - b);
-                    const smap = new Map(items.map(i => [`${i.row}${i.col}`, i]));
-
-
-                    const half = Math.ceil(cols.length / 2);
-                    const leftCols = cols.slice(0, half);
-                    const rightCols = cols.slice(half);
-
-                    return (
-                      <div style={{
-                        overflowX: "auto", background: "var(--bg-input)", padding: "50px 30px 30px",
-                        borderRadius: "150px 150px 30px 30px", border: "5px solid var(--border-main)",
-                        boxShadow: "inset 0 10px 20px rgba(0,0,0,0.3)", position: "relative",
-                        minWidth: "fit-content", margin: "0 auto"
-                      }}>
-                        <div style={{ textAlign: "center", marginBottom: 30, color: "var(--text-secondary)", fontSize: "20px", fontWeight: "bold" }}>✈ Mũi Máy Bay</div>
-
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                          <div style={{ display: "flex", gap: 6, marginBottom: 8, paddingLeft: 44 }}>
-                            {leftCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 12 }}>{c}</div>)}
-                            <div style={{ width: 32 }} />
-                            {rightCols.map(c => <div key={c} style={{ width: 44, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 12 }}>{c}</div>)}
-                          </div>
-                        {rows.map(row => (
-                          <div key={row} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
-                            <div style={{ width: 36, textAlign: "center", fontWeight: 700, color: "var(--text-secondary)", fontSize: 12 }}>{row}</div>
-                            {leftCols.map(col => {
-                              const s = smap.get(`${row}${col}`);
-                              if (!s) return <div key={col} style={{ width: 44, height: 38 }} />;
-                              const sel = selectedSeatIds.includes(s.id);
-                              const isLockedByOthers = isSeatLockedByOthers(s, user);
-                              const isBiz = ["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType);
-
-                              let bg = "linear-gradient(180deg, #1e293b, #0f172a)";
-                              let color = "#e2e8f0";
-                              let borderBottom = "5px solid #334155";
-                              let border = "1px solid #475569";
-
-                              if (s.booked) {
-                                bg = "var(--bg-hover)";
-                                color = "var(--text-muted)";
-                                borderBottom = "4px solid var(--border-main)";
-                                border = "1px solid var(--border-main)";
-                              } else if (isLockedByOthers) {
-                                bg = "#450a0a";
-                                color = "#fca5a5";
-                                borderBottom = "4px solid #7f1d1d";
-                                border = "1px solid #991b1b";
-                              } else if (sel) {
-                                bg = "linear-gradient(180deg, #d97706, #b45309)";
-                                color = "#ffffff";
-                                borderBottom = "4px solid #78350f";
-                                border = "1px solid #f59e0b";
-                              } else if (isBiz) {
-                                bg = "linear-gradient(180deg, #1e3a8a, #172554)";
-                                color = "#93c5fd";
-                                borderBottom = "4px solid #1e1b4b";
-                                border = "1px solid #2563eb";
-                              } else {
-                                bg = "linear-gradient(180deg, #14532d, #052e16)";
-                                color = "#86efac";
-                                borderBottom = "4px solid #022c22";
-                                border = "1px solid #16a34a";
-                              }
-
-                              return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={!canSelectSeats(isAuthenticated, user) || s.booked || isLockedByOthers || (!sel && isMaxReached)}
-                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
-                                  style={{
-                                    width: 44, height: isBiz ? 46 : 40,
-                                    borderRadius: "8px 8px 5px 5px", border,
-                                    cursor: (s.booked || isLockedByOthers) ? "not-allowed" : "pointer",
-                                    background: bg,
-                                    color, fontWeight: 800, fontSize: 12,
-                                    borderBottom,
-                                    boxShadow: sel ? "0 4px 12px rgba(245, 158, 11, 0.4)" : "none",
-                                    transition: "all 0.15s"
-                                  }}>
-                                  {s.booked ? "✗" : isLockedByOthers ? "🔒" : s.seatNumber}
-                                </button>
-                              );
-                            })}
-                            <div style={{ width: 32, textAlign: "center", color: "var(--text-muted)", fontSize: 10 }}>✈</div>
-                            {rightCols.map(col => {
-                              const s = smap.get(`${row}${col}`);
-                              if (!s) return <div key={col} style={{ width: 44, height: 38 }} />;
-                              const sel = selectedSeatIds.includes(s.id);
-                              const isLockedByOthers = isSeatLockedByOthers(s, user);
-                              const isBiz = ["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType);
-
-                              let bg = "linear-gradient(180deg, #1e293b, #0f172a)";
-                              let color = "#e2e8f0";
-                              let borderBottom = "5px solid #334155";
-                              let border = "1px solid #475569";
-
-                              if (s.booked) {
-                                bg = "var(--bg-hover)";
-                                color = "var(--text-muted)";
-                                borderBottom = "4px solid var(--border-main)";
-                                border = "1px solid var(--border-main)";
-                              } else if (isLockedByOthers) {
-                                bg = "#450a0a";
-                                color = "#fca5a5";
-                                borderBottom = "4px solid #7f1d1d";
-                                border = "1px solid #991b1b";
-                              } else if (sel) {
-                                bg = "linear-gradient(180deg, #d97706, #b45309)";
-                                color = "#ffffff";
-                                borderBottom = "4px solid #78350f";
-                                border = "1px solid #f59e0b";
-                              } else if (isBiz) {
-                                bg = "linear-gradient(180deg, #1e3a8a, #172554)";
-                                color = "#93c5fd";
-                                borderBottom = "4px solid #1e1b4b";
-                                border = "1px solid #2563eb";
-                              } else {
-                                bg = "linear-gradient(180deg, #14532d, #052e16)";
-                                color = "#86efac";
-                                borderBottom = "4px solid #022c22";
-                                border = "1px solid #16a34a";
-                              }
-
-                              return (
-                                <button key={s.id} type="button" onClick={() => toggleSeat(s)} disabled={!canSelectSeats(isAuthenticated, user) || s.booked || isLockedByOthers || (!sel && isMaxReached)}
-                                  title={`${s.seatNumber} ${s.seatType || "ECONOMY"} ${s.booked ? "(Đã đặt)" : isLockedByOthers ? "(Đang được người khác chọn)" : ""}`}
-                                  style={{
-                                    width: 44, height: isBiz ? 46 : 40,
-                                    borderRadius: "8px 8px 5px 5px", border,
-                                    cursor: (s.booked || isLockedByOthers) ? "not-allowed" : "pointer",
-                                    background: bg,
-                                    color, fontWeight: 800, fontSize: 12,
-                                    borderBottom,
-                                    boxShadow: sel ? "0 4px 12px rgba(217, 119, 6, 0.35)" : "none",
-                                    transition: "all 0.15s"
-                                  }}>
-                                  {s.booked ? "✗" : isLockedByOthers ? "🔒" : s.seatNumber}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ))}
-                        </div>
-
-                        <div style={{ display: "flex", gap: 16, marginTop: 16, fontSize: 12, color: "var(--text-secondary)", flexWrap: "wrap", justifyContent: "center" }}>
-                          <span><span style={{ display: "inline-block", width: 14, height: 14, background: "linear-gradient(180deg, #14532d, #052e16)", borderRadius: 3, marginRight: 6, border: "1px solid #16a34a", verticalAlign: "middle" }} />Phổ thông</span>
-                          <span><span style={{ display: "inline-block", width: 14, height: 14, background: "linear-gradient(180deg, #1e3a8a, #172554)", borderRadius: 3, marginRight: 6, border: "1px solid #2563eb", verticalAlign: "middle" }} />Thương gia</span>
-                          <span><span style={{ display: "inline-block", width: 14, height: 14, background: "linear-gradient(180deg, #d97706, #b45309)", borderRadius: 3, marginRight: 6, border: "1px solid #f59e0b", verticalAlign: "middle" }} />Đang chọn</span>
-                          <span><span style={{ display: "inline-block", width: 14, height: 14, background: "#450a0a", borderRadius: 3, marginRight: 6, border: "1px solid #991b1b", verticalAlign: "middle" }} />Có người khác chọn</span>
-                          <span><span style={{ display: "inline-block", width: 14, height: 14, background: "var(--bg-hover)", borderRadius: 3, marginRight: 6, border: "1px solid var(--border-main)", verticalAlign: "middle" }} />Đã bị đặt</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  {!loading && seats.length > 0 && (
+                    <AirplaneSeatMap
+                      seats={seats}
+                      selectedSeatIds={selectedSeatIds}
+                      onToggleSeat={toggleSeat}
+                      isSeatLockedByOthers={isSeatLockedByOthers}
+                      user={user}
+                      isAuthenticated={isAuthenticated}
+                      canSelectSeats={canSelectSeats}
+                      isMaxReached={isMaxReached}
+                      maxSeats={maxSeats}
+                      selectedSeatClass={selectedSeatClass}
+                      setSelectedSeatClass={setSelectedSeatClass}
+                    />
+                  )}
 
                   {!loading && seats.length === 0 && <p style={{ color: "var(--text-muted)" }}>Chưa có dữ liệu ghế cho chuyến này.</p>}
 
