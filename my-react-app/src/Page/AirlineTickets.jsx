@@ -12,9 +12,6 @@ import {
   canSelectSeats,
   getSeatUserId,
   isSeatLockedByOthers,
-  LOGIN_REQUIRED_SEAT_MSG,
-  SEAT_CONFLICT_MSG,
-  WS_NOT_CONNECTED_MSG,
 } from "../utils/seatBookingHelpers";
 import { useLocation } from "react-router-dom";
 import { CgSandClock } from "react-icons/cg";
@@ -227,7 +224,7 @@ const AirlineTickets = () => {
           if (isLockedByOther) {
             setSelectedSeatIds((prev) => {
               if (prev.includes(update.seatId)) {
-                setError("Ghế bạn đang chọn vừa được người khác giữ. Vui lòng chọn ghế khác.");
+                setError(t.airSeatTakenByOther);
                 return prev.filter((id) => id !== update.seatId);
               }
               return prev;
@@ -277,7 +274,7 @@ const AirlineTickets = () => {
         // Reset states
         setSelectedSeatIds([]);
         setLockDeadline(null);
-        setError("Hết thời gian giữ ghế (10 phút). Vui lòng chọn ghế và thực hiện lại.");
+        setError(t.airSeatHoldTimeout);
         setStep("seatClass");
       }
     }, 1000);
@@ -377,9 +374,9 @@ const AirlineTickets = () => {
     setCalendarOpen(false);
 
     const errs = {};
-    if (!searchFrom || !searchFrom.trim()) errs.from = "Vui lòng nhập điểm đi";
-    if (!searchTo || !searchTo.trim()) errs.to = "Vui lòng nhập điểm đến";
-    if (!searchDate) errs.date = "Vui lòng chọn ngày đi";
+    if (!searchFrom || !searchFrom.trim()) errs.from = t.errFromRequired;
+    if (!searchTo || !searchTo.trim()) errs.to = t.errToRequired;
+    if (!searchDate) errs.date = t.errDateRequired;
     if (Object.keys(errs).length > 0) {
       setFormErrors(errs);
       setError("");
@@ -417,7 +414,7 @@ const AirlineTickets = () => {
       setStep("chooseTrip");
     } catch (err) {
       console.error(err);
-      setError("Không tìm được chuyến bay. Vui lòng thử lại.");
+      setError(t.airSearchFailed);
     } finally {
       setLoading(false);
     }
@@ -435,7 +432,7 @@ const AirlineTickets = () => {
 
   const loadCalendar = async () => {
     if (!from || !to) {
-      setError("Vui lòng nhập đầy đủ điểm đi và điểm đến để xem lịch giá.");
+      setError(t.errFromToForCalendar);
       return;
     }
 
@@ -468,7 +465,7 @@ const AirlineTickets = () => {
       setCalendarData(data || []);
     } catch (err) {
       console.error(err);
-      setError("Không tải được lịch giá. Vui lòng thử lại.");
+      setError(t.errCalendarFailed);
     } finally {
       setCalendarLoading(false);
     }
@@ -505,7 +502,7 @@ const AirlineTickets = () => {
       setServices(hasMeal ? loadedServices : [...loadedServices, ...defaultMeals]);
     } catch (err) {
       console.error(err);
-      setError("Không tải được danh sách dịch vụ bổ sung.");
+      setError(t.errServicesFailed);
     } finally {
       setServicesLoading(false);
     }
@@ -530,7 +527,7 @@ const AirlineTickets = () => {
       setStep("seatClass");
     } catch (err) {
       console.error(err);
-      setError("Không tải được danh sách ghế. Vui lòng thử lại.");
+      setError(t.errSeatsFailed);
     } finally {
       setLoading(false);
     }
@@ -541,7 +538,7 @@ const AirlineTickets = () => {
 
   const toggleSeat = (seat) => {
     if (!canSelectSeats(isAuthenticated, user)) {
-      setError(LOGIN_REQUIRED_SEAT_MSG);
+      setError(t.loginRequiredSeat);
       return;
     }
 
@@ -589,14 +586,14 @@ const AirlineTickets = () => {
     for (const [idx, pi] of passengerInfoList.entries()) {
       const d = pi.data || {};
       const isAdult = pi.type === 'ADULT';
-      if (!d.fullName || d.fullName.trim() === '') return `Vui lòng nhập họ tên cho ${isAdult ? 'người lớn' : pi.type === 'CHILD' ? 'trẻ em' : 'em bé'} ${idx + 1}.`;
-      if (!d.dateOfBirth || !/^\d{2}\/\d{2}\/\d{4}$/.test(d.dateOfBirth)) return `Ngày sinh hành khách ${idx + 1} không hợp lệ. Vui lòng nhập định dạng DD/MM/YYYY.`;
-      if (!d.gender) return `Vui lòng chọn giới tính cho hành khách ${idx + 1}.`;
+      if (!d.fullName || d.fullName.trim() === '') return t.errPassengerName.replace('{type}', isAdult ? t.adult.toLowerCase() : pi.type === 'CHILD' ? t.child.toLowerCase() : t.infant.toLowerCase()).replace('{index}', idx + 1);
+      if (!d.dateOfBirth || !/^\d{2}\/\d{2}\/\d{4}$/.test(d.dateOfBirth)) return t.errDobInvalid.replace('{index}', idx + 1);
+      if (!d.gender) return t.errGenderRequired.replace('{index}', idx + 1);
 
       if (isAdult) {
-        if (!d.email || !/^\S+@\S+\.\S+$/.test(d.email)) return `Email của người lớn không hợp lệ.`;
-        if (!d.phone || !/^\d{9,10}$/.test(d.phone.replace(/\D/g, ''))) return `SĐT người lớn không hợp lệ.`;
-        if (!d.idNumber) return `Vui lòng nhập CCCD/Hộ chiếu cho người lớn.`;
+        if (!d.email || !/^\S+@\S+\.\S+$/.test(d.email)) return t.errEmailInvalid;
+        if (!d.phone || !/^\d{9,10}$/.test(d.phone.replace(/\D/g, ''))) return t.errPhoneInvalid;
+        if (!d.idNumber) return t.errIdNumberRequired;
       }
     }
     return null;
@@ -604,15 +601,15 @@ const AirlineTickets = () => {
 
   const goToExtras = async () => {
     if (!canSelectSeats(isAuthenticated, user)) {
-      setError(LOGIN_REQUIRED_SEAT_MSG);
+      setError(t.loginRequiredSeat);
       return;
     }
     if (!selectedSeatIds.length) {
-      setError("Vui lòng chọn ghế trước khi tiếp tục.");
+      setError(t.errSelectSeatFirst);
       return;
     }
     if (!isConnected) {
-      setError(WS_NOT_CONNECTED_MSG);
+      setError(t.wsNotConnected);
       return;
     }
 
@@ -626,12 +623,12 @@ const AirlineTickets = () => {
 
     if (!success) {
       if (error === "NOT_CONNECTED") {
-        setError(WS_NOT_CONNECTED_MSG);
+        setError(t.wsNotConnected);
       } else if (failed?.length) {
         setSelectedSeatIds((prev) => prev.filter((id) => !failed.includes(id)));
-        setError(SEAT_CONFLICT_MSG);
+        setError(t.seatConflict);
       } else {
-        setError("Không thể giữ ghế. Vui lòng thử lại.");
+        setError(t.errHoldSeatFailed);
       }
       return;
     }
@@ -679,26 +676,26 @@ const AirlineTickets = () => {
       } else {
         setAppliedVoucher("");
         setVoucherDiscount(0);
-        alert("Lỗi: " + res.data.message);
+        alert(t.errorPrefix + res.data.message);
       }
     } catch {
-      alert("Có lỗi xảy ra khi áp mã giảm giá.");
+      alert(t.errPromoFailed);
     }
   };
 
   const submitBooking = async () => {
     if (!isAuthenticated || !token) {
-      setError("Vui lòng đăng nhập trước khi đặt vé.");
+      setError(t.errLoginToBook);
       return;
     }
 
     if (!selectedTrip) {
-      setError("Vui lòng chọn chuyến bay.");
+      setError(t.errSelectTrip);
       return;
     }
 
     if (!selectedSeatIds.length) {
-      setError("Vui lòng chọn ghế.");
+      setError(t.errSelectSeat);
       return;
     }
 
@@ -725,7 +722,7 @@ const AirlineTickets = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        const message = data?.message || "Đặt vé thất bại. Vui lòng thử lại.";
+        const message = data?.message || t.errBookingFailed;
         setError(message);
         setSubmitLoading(false);
         return;
@@ -741,7 +738,7 @@ const AirlineTickets = () => {
       }
     } catch (err) {
       console.error(err);
-      setError("Không thể kết nối đến máy chủ để đặt vé.");
+      setError(t.errServerConnectFailed);
     } finally {
       setSubmitLoading(false);
     }
@@ -1479,7 +1476,7 @@ const AirlineTickets = () => {
                     fontSize: 14
                   }}>
                     <FiClock style={{ fontSize: 16 }} />
-                    <span>Thời gian giữ ghế còn lại: </span>
+                    <span>{t.seatHoldTimeRemaining}</span>
                     <span style={{ fontSize: 16, fontFamily: "monospace" }}>
                       {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:
                       {(timeLeft % 60).toString().padStart(2, '0')}
@@ -1490,10 +1487,10 @@ const AirlineTickets = () => {
 
                   <div style={{ position: "absolute", top: 20, left: "12.5%", right: "12.5%", height: 3, background: "var(--border-main)", zIndex: 0 }} />
                   {[
-                    { key: "seatClass", icon: <FaChair />, label: "Chọn ghế" },
-                    { key: "passenger", icon: <FaUser />, label: "Hành khách" },
-                    { key: "extras", icon: <FaBell />, label: "Dịch vụ" },
-                    { key: "review", icon: <CiCreditCard1 />, label: "Thanh toán" },
+                    { key: "seatClass", icon: <FaChair />, label: t.step1Title },
+                    { key: "passenger", icon: <FaUser />, label: t.step2Title },
+                    { key: "extras", icon: <FaBell />, label: t.step3Title },
+                    { key: "review", icon: <CiCreditCard1 />, label: t.step4Title },
                   ].map((s) => {
                     const orderMap = { seatClass: 0, passenger: 1, extras: 2, review: 3 };
                     const current = orderMap[step];
@@ -1520,15 +1517,15 @@ const AirlineTickets = () => {
             {selectedTrip && step === "seatClass" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)" }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>Bước 1: Chọn hạng vé & ghế ngồi</h2>
-                  <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 16 }}>Chọn hạng sau đó bấm vào ghế muốn ngồi.</p>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>{t.step1}</h2>
+                  <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 16 }}>{t.selectSeatInstruction}</p>
                   {!canSelectSeats(isAuthenticated, user) && (
                     <p style={{ color: "#f59e0b", fontSize: 13, marginBottom: 12, padding: "10px 12px", background: "rgba(245,158,11,0.1)", borderRadius: 8, border: "1px solid rgba(245,158,11,0.3)" }}>
-                      {LOGIN_REQUIRED_SEAT_MSG}
+                      {t.loginRequiredSeat}
                     </p>
                   )}
 
-                  {loading && <p style={{ color: "var(--text-muted)" }}>Đang tải sơ đồ ghế...</p>}
+                  {loading && <p style={{ color: "var(--text-muted)" }}>{t.loadingSeatMap}</p>}
 
 
                   {!loading && seats.length > 0 && (
@@ -1547,18 +1544,18 @@ const AirlineTickets = () => {
                     />
                   )}
 
-                  {!loading && seats.length === 0 && <p style={{ color: "var(--text-muted)" }}>Chưa có dữ liệu ghế cho chuyến này.</p>}
+                  {!loading && seats.length === 0 && <p style={{ color: "var(--text-muted)" }}>{t.noSeatData}</p>}
 
                   {error && <p style={{ color: "#ef4444", marginTop: 12 }}>{error}</p>}
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
-                    <button type="button" onClick={() => setStep("chooseTrip")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← Quay lại</button>
-                    <button type="button" onClick={goToExtras} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Tiếp theo →</button>
+                    <button type="button" onClick={() => setStep("chooseTrip")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
+                    <button type="button" onClick={goToExtras} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.nextStep} →</button>
                   </div>
                 </div>
 
 
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)", height: "fit-content", position: "sticky", top: 16 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>Thông tin đặt chỗ</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>{t.bookingSummary}</div>
                   <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.8 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                       <span>✈</span> <span>{selectedTrip.origin}</span> <span style={{ color: "var(--primary)" }}>→</span> <span>{selectedTrip.destination}</span>
@@ -1577,14 +1574,14 @@ const AirlineTickets = () => {
                       <span style={{ fontWeight: 500 }}>{selectedTrip.providerName}</span>
                     </div>
                     <div style={{ marginTop: 10, padding: "8px 10px", background: "rgba(20,83,45,0.3)", borderRadius: 8, border: "1px solid rgba(34,197,94,0.4)" }}>
-                      <div style={{ fontSize: 12, color: "#86efac", fontWeight: 600, marginBottom: 4 }}>🟢 Phổ thông (ECO)</div>
+                      <div style={{ fontSize: 12, color: "#86efac", fontWeight: 600, marginBottom: 4 }}>🟢 {t.economy} (ECO)</div>
                       <div style={{ fontWeight: 800, color: "#4ade80", fontSize: 15 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
                     </div>
                     <div style={{ marginTop: 6, padding: "8px 10px", background: "rgba(30,58,138,0.3)", borderRadius: 8, border: "1px solid rgba(59,130,246,0.4)" }}>
-                      <div style={{ fontSize: 12, color: "#93c5fd", fontWeight: 600, marginBottom: 4 }}>🔵 Thương gia (BUSINESS)</div>
+                      <div style={{ fontSize: 12, color: "#93c5fd", fontWeight: 600, marginBottom: 4 }}>🔵 {t.business} (BUSINESS)</div>
                       <div style={{ fontWeight: 800, color: "#60a5fa", fontSize: 15 }}>{Number((selectedTrip.price || 0) * 2.5).toLocaleString("vi-VN")} đ</div>
                     </div>
-                    <div style={{ marginTop: 8, color: selectedSeatIds.length >= (passengers || 1) ? "#22c55e" : "var(--text-muted)" }}>Ghế đã chọn: {selectedSeatIds.length}/{passengers || 1}</div>
+                    <div style={{ marginTop: 8, color: selectedSeatIds.length >= (passengers || 1) ? "#22c55e" : "var(--text-muted)" }}>{t.seatsSelectedCount.replace('{selected}', selectedSeatIds.length).replace('{total}', passengers || 1)}</div>
                   </div>
                 </div>
               </div>
@@ -1594,8 +1591,8 @@ const AirlineTickets = () => {
             {selectedTrip && step === "passenger" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-md)" }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Bước 2: Thông tin hành khách</h2>
-                  <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>Nhập thông tin cá nhân của hành khách. Các ô có dấu * là bắt buộc.</p>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{t.step2}</h2>
+                  <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{t.passengerInstruction}</p>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {passengerInfoList.map((pi, idx) => (
@@ -1623,7 +1620,7 @@ const AirlineTickets = () => {
                   <div style={{ display: "flex", gap: 16, marginTop: 14 }}>
                     <label style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center", cursor: "pointer", color: "var(--text-secondary)" }}>
                       <input type="checkbox" checked={globalContact.remember} onChange={e => setGlobalContact(p => ({ ...p, remember: e.target.checked }))} />
-                      Lưu thông tin cho lần sau
+                      {t.rememberInfo}
                     </label>
                   </div>
 
@@ -1639,14 +1636,14 @@ const AirlineTickets = () => {
                       setSelectedSeatIds([]);
                       setLockDeadline(null);
                       setStep("seatClass");
-                    }} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← Quay lại</button>
-                    <button type="button" onClick={goToExtrasFromPassenger} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Tiếp theo →</button>
+                    }} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
+                    <button type="button" onClick={goToExtrasFromPassenger} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.nextStep} →</button>
                   </div>
                 </div>
 
 
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)", height: "fit-content", position: "sticky", top: 16 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>Thông tin đặt chỗ</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>{t.bookingSummary}</div>
                   <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.8 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                       <span>✈</span> <span>{selectedTrip.origin}</span> <span style={{ color: "var(--primary)" }}>→</span> <span>{selectedTrip.destination}</span>
@@ -1675,12 +1672,12 @@ const AirlineTickets = () => {
                       return (
                         <>
                           <div style={{ marginTop: 8, color: "var(--text-main)" }}>
-                            Ghế: <b>{selectedSeatsObj.length === 0 ? "Chưa chọn" : selectedSeatsObj.map(s => `${s.seatNumber}${["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType) ? " (Thương gia)" : ""}`).join(", ")}</b>
+                            {t.seatPrefix} <b>{selectedSeatsObj.length === 0 ? t.notSelected : selectedSeatsObj.map(s => `${s.seatNumber}${["BUSINESS", "VIP", "SLEEPER"].includes(s.seatType) ? ` (${t.business})` : ""}`).join(", ")}</b>
                           </div>
                           <div style={{ marginTop: 10, padding: "10px 12px", background: "var(--bg-input)", borderRadius: 8, border: "1px solid var(--border-main)" }}>
-                            <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>TỔNG TIỀN VÉ</div>
+                            <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>{t.ticketTotalLabel}</div>
                             <div style={{ fontWeight: 800, color: "#f97316", fontSize: 17 }}>
-                              {totalPrice > 0 ? `${totalPrice.toLocaleString("vi-VN")} đ` : `${Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ / ghế`}
+                              {totalPrice > 0 ? `${totalPrice.toLocaleString("vi-VN")} đ` : `${Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ ${t.perSeatUnit}`}
                             </div>
                           </div>
                         </>
@@ -1695,10 +1692,10 @@ const AirlineTickets = () => {
             {selectedTrip && step === "extras" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)" }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>Bước 3: Dịch vụ bổ sung</h2>
-                  <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>Tùy chọn thêm các dịch vụ để chuyến đi thoải mái hơn.</p>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>{t.step3}</h2>
+                  <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{t.extrasInstruction}</p>
 
-                  {servicesLoading && <p style={{ color: "var(--text-muted)" }}>Đang tải dịch vụ...</p>}
+                  {servicesLoading && <p style={{ color: "var(--text-muted)" }}>{t.loadingServices}</p>}
 
                   {!servicesLoading && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1707,8 +1704,8 @@ const AirlineTickets = () => {
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                           <FaTicketAlt style={{ color: "var(--primary)", fontSize: 22 }} />
                           <div>
-                            <div style={{ fontWeight: 800, fontSize: 15, color: "var(--text-main)" }}>Hành lý ký gửi</div>
-                            <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Chọn gói hành lý ký gửi phù hợp</div>
+                            <div style={{ fontWeight: 800, fontSize: 15, color: "var(--text-main)" }}>{t.checkedBaggage}</div>
+                            <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{t.baggageSub}</div>
                           </div>
                         </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
@@ -1722,7 +1719,7 @@ const AirlineTickets = () => {
                               checked={!selectedServiceIds.some(id => categories.baggage.map(s => s.id).includes(id))}
                               onChange={() => setSingleServiceInCategory(null, categories.baggage)} />
                             <span style={{ fontSize: 16, color: "var(--text-muted)" }}>✕</span>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginTop: 2 }}>Không mua</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginTop: 2 }}>{t.doNotBuy}</span>
                           </label>
                           {categories.baggage.map(s => {
                             const kg = s.serviceName.replace(/[^\d]+/g, '') + 'kg';
@@ -1748,8 +1745,8 @@ const AirlineTickets = () => {
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                             <span style={{ fontSize: 22, color: "#f59e0b" }}>🍱</span>
                             <div>
-                              <div style={{ fontWeight: 800, fontSize: 16, color: "var(--text-main)" }}>{t.meal || "Suất ăn"}</div>
-                              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Suất ăn nóng hổi, chuẩn vị nhà hàng</div>
+                              <div style={{ fontWeight: 800, fontSize: 16, color: "var(--text-main)" }}>{t.meal}</div>
+                              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{t.mealSub}</div>
                             </div>
                           </div>
                         </div>
@@ -1765,14 +1762,14 @@ const AirlineTickets = () => {
                             <input type="radio" name="meal" style={{ display: "none" }}
                               checked={!selectedServiceIds.some(id => categories.meal.map(s => s.id).includes(id))}
                               onChange={() => setSingleServiceInCategory(null, categories.meal)} />
-                            ✕ Không chọn suất ăn
+                            ✕ {t.noMealSelect}
                           </label>
                         </div>
 
                         {categories.meal.length === 0 ? (
                           <div style={{ textAlign: "center", padding: "16px 0", color: "var(--text-secondary)", fontSize: 13 }}>
-                            Hãng bay này hiện chưa cung cấp suất ăn trực tuyến.<br />
-                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Bạn có thể mua trực tiếp trên chuyến bay.</span>
+                            {t.airlineNoMeals}<br />
+                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.buyOnboard}</span>
                           </div>
                         ) : (
                           <>
@@ -1828,7 +1825,7 @@ const AirlineTickets = () => {
                                     cursor: "pointer", transition: "all 0.2s"
                                   }}
                                 >
-                                  {showAllMeals ? "▲ Thu gọn bớt" : `▼ Xem thêm ${categories.meal.length - 4} món ăn khác`}
+                                  {showAllMeals ? `▲ ${t.showLessMeals}` : `▼ ${t.showMoreMeals.replace('{count}', categories.meal.length - 4)}`}
                                 </button>
                               </div>
                             )}
@@ -1836,11 +1833,11 @@ const AirlineTickets = () => {
                         )}
                       </div>
 
-                      {[{ cat: categories.insurance, icon: <FaShieldAlt style={{ color: "#22c55e", fontSize: 22 }} />, title: "Bảo hiểm du lịch", sub: "Bảo vệ chuyến đi của bạn" },
-                      { cat: categories.taxi, icon: <FaTaxi style={{ color: "#f59e0b", fontSize: 22 }} />, title: "Xe đưa đón sân bay", sub: "Tiện lợi với dịch vụ xe riêng" }]
-                        .map(({ cat, icon, title, sub }) => (
+                      {[{ cat: categories.insurance, icon: <FaShieldAlt style={{ color: "#22c55e", fontSize: 22 }} />, title: t.travelInsurance, sub: t.insuranceSub, id: "insurance" },
+                      { cat: categories.taxi, icon: <FaTaxi style={{ color: "#f59e0b", fontSize: 22 }} />, title: t.airportTaxi, sub: t.taxiSub, id: "taxi" }]
+                        .map(({ cat, icon, title, sub, id }) => (
                           cat.length > 0 && (
-                            <div key={title} style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, background: "var(--bg-input)" }}>
+                            <div key={id} style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, background: "var(--bg-input)" }}>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                   {icon}
@@ -1849,35 +1846,35 @@ const AirlineTickets = () => {
                                     <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{sub}</div>
                                   </div>
                                 </div>
-                                {title === "Bảo hiểm du lịch" && (
+                                {id === "insurance" && (
                                   <button
                                     type="button"
                                     onClick={() => setShowInsuranceInfo(v => !v)}
                                     style={{ fontSize: 12, padding: "4px 12px", borderRadius: 20, border: "1px solid var(--border-main)", background: "var(--bg-card)", color: "var(--primary)", cursor: "pointer", fontWeight: 600 }}
                                   >
-                                    {showInsuranceInfo ? "Ẩn" : "So sánh gói"}
+                                    {showInsuranceInfo ? t.hide : t.comparePlans}
                                   </button>
                                 )}
                               </div>
 
-                              {title === "Bảo hiểm du lịch" && showInsuranceInfo && (
+                              {id === "insurance" && showInsuranceInfo && (
                                 <div style={{ marginBottom: 14, padding: 14, background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-main)", fontSize: 13 }}>
-                                  <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--text-main)" }}>📋 So sánh gói bảo hiểm</div>
+                                  <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--text-main)" }}>📋 {t.compareInsurancePlans}</div>
                                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                                     <thead>
                                       <tr style={{ background: "var(--bg-input)" }}>
-                                        <th style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid var(--border-main)", color: "var(--text-main)" }}>Quyền lợi</th>
-                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--border-main)", color: "#22c55e" }}>Cơ bản</th>
-                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--border-main)", color: "#60a5fa" }}>Cao cấp</th>
+                                        <th style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid var(--border-main)", color: "var(--text-main)" }}>{t.benefitCol}</th>
+                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--border-main)", color: "#22c55e" }}>{t.planBasic}</th>
+                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--border-main)", color: "#60a5fa" }}>{t.planPremium}</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {[
-                                        ["Tai nạn chuyến bay", "250 triệu đ", "500 triệu đ"],
-                                        ["Hủy chuyến đột xuất", "✕", "Hoàn 100%"],
-                                        ["Hành lý thất lạc", "2 triệu đ", "5 triệu đ"],
-                                        ["Chi phí y tế", "10 triệu đ", "50 triệu đ"],
-                                        ["Trễ chuyến > 3 tiếng", "✕", "200.000đ"],
+                                        [t.insFlightAccident, `250 ${t.millionVnd}`, `500 ${t.millionVnd}`],
+                                        [t.insTripCancellation, "✕", t.insFullRefund],
+                                        [t.insLostBaggage, `2 ${t.millionVnd}`, `5 ${t.millionVnd}`],
+                                        [t.insMedicalCosts, `10 ${t.millionVnd}`, `50 ${t.millionVnd}`],
+                                        [t.insFlightDelay, "✕", t.insDelayComp],
                                       ].map(([benefit, basic, premium]) => (
                                         <tr key={benefit} style={{ borderBottom: "1px solid var(--border-main)" }}>
                                           <td style={{ padding: "6px 8px", color: "var(--text-secondary)" }}>{benefit}</td>
@@ -1888,7 +1885,7 @@ const AirlineTickets = () => {
                                     </tbody>
                                   </table>
                                   <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--bg-input)", borderRadius: 8, color: "var(--text-secondary)", fontSize: 11 }}>
-                                    💡 <b>Gợi ý:</b> Nếu bạn đi công tác hoặc du lịch ngắn ngày, gói <b>Cơ bản</b> là đủ. Chọn <b>Cao cấp</b> nếu bạn đi xa, mang nhiều hành lý hoặc lo lắng về rủi ro hủy chuyến.
+                                    💡 <b>{t.insuranceTipLabel}</b> {t.insuranceTip}
                                   </div>
                                 </div>
                               )}
@@ -1900,10 +1897,10 @@ const AirlineTickets = () => {
                                 cursor: "pointer", marginBottom: 8, fontWeight: 600, fontSize: 13,
                                 color: !selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? "var(--primary)" : "var(--text-secondary)"
                               }}>
-                                <input type="radio" name={`cat_${title}`} style={{ display: "none" }}
+                                <input type="radio" name={`cat_${id}`} style={{ display: "none" }}
                                   checked={!selectedServiceIds.some(id => cat.map(s => s.id).includes(id))}
                                   onChange={() => setSingleServiceInCategory(null, cat)} />
-                                Không chọn
+                                {t.doNotSelect}
                               </label>
 
                               {cat.map(s => {
@@ -1921,11 +1918,11 @@ const AirlineTickets = () => {
                                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                       <div>
                                         <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{shortName || s.serviceName}</div>
-                                        {sel && <div style={{ fontSize: 11, color: "var(--primary)" }}>✓ Đã chọn</div>}
+                                        {sel && <div style={{ fontSize: 11, color: "var(--primary)" }}>✓ {t.selected}</div>}
                                       </div>
                                     </div>
                                     <span style={{ fontWeight: 800, fontSize: 14, color: "#f97316" }}>
-                                      {Number(s.price || 0) === 0 ? "Miễn phí" : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}
+                                      {Number(s.price || 0) === 0 ? t.free : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}
                                     </span>
                                   </label>
                                 );
@@ -1938,13 +1935,13 @@ const AirlineTickets = () => {
 
                   {error && <p style={{ color: "#ef4444", marginTop: 12 }}>{error}</p>}
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
-                    <button type="button" onClick={() => setStep("passenger")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← Quay lại</button>
-                    <button type="button" onClick={goToReview} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Xem lại & Thanh toán →</button>
+                    <button type="button" onClick={() => setStep("passenger")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
+                    <button type="button" onClick={goToReview} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.reviewAndPay} →</button>
                   </div>
                 </div>
 
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)", height: "fit-content", position: "sticky", top: 16 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>Chi tiết thanh toán</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>{t.paymentDetails}</div>
                   <div style={{ fontSize: 13, lineHeight: 1.8, color: "var(--text-secondary)" }}>
                     {(() => {
                       const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
@@ -1957,21 +1954,21 @@ const AirlineTickets = () => {
                       return (
                         <>
                           <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "var(--text-main)", gap: 8 }}>
-                            <span>Giá vé ({selectedSeatIds.length} ghế)</span>
+                            <span>{t.ticketPriceForSeats.replace('{count}', selectedSeatIds.length).replace('{seats}', t.seatUnit)}</span>
                             <b style={{ whiteSpace: "nowrap" }}>{seatsTotal.toLocaleString("vi-VN")} đ</b>
                           </div>
-                          {ecoCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {ecoCount}x Phổ thông</span><b style={{ whiteSpace: "nowrap", fontWeight: 700 }}>{(ecoCount * basePrice).toLocaleString("vi-VN")} đ</b></div>}
-                          {bizCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {bizCount}x Thương gia</span><b style={{ whiteSpace: "nowrap", fontWeight: 700 }}>{(bizCount * basePrice * 2.5).toLocaleString("vi-VN")} đ</b></div>}
+                          {ecoCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {ecoCount}x {t.economy}</span><b style={{ whiteSpace: "nowrap", fontWeight: 700 }}>{(ecoCount * basePrice).toLocaleString("vi-VN")} đ</b></div>}
+                          {bizCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {bizCount}x {t.business}</span><b style={{ whiteSpace: "nowrap", fontWeight: 700 }}>{(bizCount * basePrice * 2.5).toLocaleString("vi-VN")} đ</b></div>}
 
                           {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", color: "var(--text-main)", gap: 10, marginTop: 4 }}>
                               <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>+ {s.serviceName}</span>
-                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? "Miễn phí" : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
+                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? t.free : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
                             </div>
                           ))}
 
                           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-main)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>Tổng cộng</span>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{t.totalLabel}</span>
                             <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{(seatsTotal + extraTotal).toLocaleString("vi-VN")} đ</span>
                           </div>
                         </>
@@ -1985,12 +1982,12 @@ const AirlineTickets = () => {
             {selectedTrip && step === "review" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)" }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>Bước 4: Xác nhận & Thanh toán</h2>
-                  <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>Kiểm tra lại mọi thông tin trước khi hoàn tất.</p>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>{t.step4}</h2>
+                  <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{t.reviewInstruction}</p>
 
 
                   <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}>✈ Chuyến bay</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}>✈ {t.flightLabel}</div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-main)" }}>{selectedTrip.origin} → {selectedTrip.destination}</div>
@@ -2010,21 +2007,21 @@ const AirlineTickets = () => {
 
 
                   <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}><FaUser /> Hành khách</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}><FaUser /> {t.passengerNameText}</div>
                     {passengerInfoList.map((pi, idx) => (
                       <div key={idx} style={{ fontSize: 14, marginBottom: 8, paddingBottom: 8, borderBottom: idx < passengerInfoList.length - 1 ? "1px dashed var(--border-main)" : "none", color: "var(--text-main)", lineHeight: 1.6 }}>
-                        <b style={{ fontSize: 15 }}>{pi.data.fullName || `Hành khách ${idx + 1}`}</b> <span style={{ color: "var(--text-secondary)" }}>({pi.type === 'ADULT' ? 'Người lớn' : pi.type === 'CHILD' ? 'Trẻ em' : 'Em bé'})</span>
+                        <b style={{ fontSize: 15 }}>{pi.data.fullName || `${t.passengerNameText} ${idx + 1}`}</b> <span style={{ color: "var(--text-secondary)" }}>({pi.type === 'ADULT' ? t.adult : pi.type === 'CHILD' ? t.child : t.infant})</span>
                         {pi.type === 'ADULT' && <div style={{ color: "var(--text-main)", marginTop: 2 }}>{pi.data.email} · {pi.data.phone ? `${pi.data.phone}` : ''}</div>}
-                        <div style={{ marginTop: 2, color: "var(--text-main)" }}>Ngày sinh: <b>{pi.data.dateOfBirth}</b> | Giới tính: <b>{pi.data.gender === 'Male' ? 'Nam' : pi.data.gender === 'Female' ? 'Nữ' : 'Khác'}</b></div>
+                        <div style={{ marginTop: 2, color: "var(--text-main)" }}>{t.dobPrefix} <b>{pi.data.dateOfBirth}</b> | {t.genderPrefix} <b>{pi.data.gender === 'Male' ? t.genderMale : pi.data.gender === 'Female' ? t.genderFemale : t.genderOther}</b></div>
                       </div>
                     ))}
-                    <div style={{ marginTop: 6, color: "var(--text-main)", fontSize: 14 }}>Ghế: <b style={{ fontSize: 15, color: "#f97316" }}>{seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ") || "Chưa chọn"}</b></div>
+                    <div style={{ marginTop: 6, color: "var(--text-main)", fontSize: 14 }}>{t.seatPrefix} <b style={{ fontSize: 15, color: "#f97316" }}>{seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ") || t.notSelected}</b></div>
                   </div>
 
 
                   {selectedServiceIds.length > 0 && (
                     <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
-                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)" }}>🛎 Dịch vụ bổ sung</div>
+                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)" }}>🛎 {t.extrasLabel}</div>
                       {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                         <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 6, color: "var(--text-main)", gap: 10 }}>
                           <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>{s.serviceName}</span>
@@ -2035,49 +2032,49 @@ const AirlineTickets = () => {
                   )}
 
                   <div style={{ border: "1px dashed var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
-                    <div style={{ fontWeight: 700, marginBottom: 10, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6 }}><FaTicketAlt style={{ color: "var(--primary)" }} /> Mã khuyến mãi / phiếu quà tặng</div>
+                    <div style={{ fontWeight: 700, marginBottom: 10, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6 }}><FaTicketAlt style={{ color: "var(--primary)" }} /> {t.promoCodeLabel}</div>
                     <div style={{ display: "flex", gap: 8 }}>
-                      <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="Nhập mã khuyến mãi..."
+                      <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder={t.promoPlaceholder}
                         style={{ flex: 1, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-main)", background: "var(--bg-card)", color: "var(--text-main)", fontSize: 14 }} />
-                      <button type="button" onClick={handleApplyVoucher} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Xác nhận</button>
+                      <button type="button" onClick={handleApplyVoucher} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.applyPromo}</button>
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 6 }}>Nhập mã nếu có để được giảm giá.</div>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 6 }}>{t.promoInstruction}</div>
                   </div>
 
                   {error && <p style={{ color: "#ef4444", marginTop: 4 }}>{error}</p>}
 
                   {bookingResult ? (
                     <div style={{ padding: 20, borderRadius: 12, background: "rgba(34, 197, 94, 0.1)", border: "1px solid #22c55e", marginTop: 8 }}>
-                      <div style={{ fontWeight: 800, color: "#22c55e", fontSize: 16, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><MdOutlineDone /> Đặt vé thành công!</div>
+                      <div style={{ fontWeight: 800, color: "#22c55e", fontSize: 16, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><MdOutlineDone /> {t.successBooking}</div>
                       <div style={{ fontSize: 14, color: "var(--text-main)", lineHeight: 1.9 }}>
-                        <div>Mã booking: <b style={{ color: "var(--primary)" }}>#{bookingResult.id}</b></div>
-                        <div>Tổng tiền: <b style={{ color: "#f97316" }}>{Number(bookingResult.totalPrice || 0).toLocaleString("vi-VN")} đ</b></div>
-                        <div>Ghế: {Array.isArray(bookingResult.seatNumbers) ? bookingResult.seatNumbers.join(", ") : ""}</div>
+                        <div>{t.bookingIdPrefix} <b style={{ color: "var(--primary)" }}>#{bookingResult.id}</b></div>
+                        <div>{t.totalAmountPrefix} <b style={{ color: "#f97316" }}>{Number(bookingResult.totalPrice || 0).toLocaleString("vi-VN")} đ</b></div>
+                        <div>{t.seatPrefix} {Array.isArray(bookingResult.seatNumbers) ? bookingResult.seatNumbers.join(", ") : ""}</div>
                       </div>
                       <button type="button"
                         onClick={async () => {
                           try {
                             const res = await axios.post("/api/payment/create", { bookingId: bookingResult.id, language: "vn" }, { headers: { Authorization: `Bearer ${token}` } });
                             if (res.data && res.data.paymentUrl) window.location.href = res.data.paymentUrl;
-                          } catch { alert("Lỗi tạo link VNPay, vui lòng thử lại."); }
+                          } catch { alert(t.errVnpayLinkFailed); }
                         }}
                         style={{ marginTop: 14, width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#005baa", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                        <CiCreditCard1 fontSize={20} /> Thanh toán qua VNPay
+                        <CiCreditCard1 fontSize={20} /> {t.paymentVNPAY}
                       </button>
                     </div>
                   ) : (
                     <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
-                      <button type="button" onClick={() => setStep("extras")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← Quay lại</button>
+                      <button type="button" onClick={() => setStep("extras")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
                       <button type="button" onClick={submitBooking} disabled={submitLoading}
                         style={{ padding: "12px 32px", borderRadius: 8, border: "none", background: "#f97316", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-                        {submitLoading ? "Đang xử lý..." : "Đặt vé ngay →"}
+                        {submitLoading ? t.processing : `${t.bookTicketNow} →`}
                       </button>
                     </div>
                   )}
                 </div>
 
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)", height: "fit-content", position: "sticky", top: 16 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>Chi tiết thanh toán</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>{t.paymentDetails}</div>
                   <div style={{ fontSize: 13, lineHeight: 1.9, color: "var(--text-secondary)" }}>
                     {(() => {
                       const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
@@ -2090,32 +2087,32 @@ const AirlineTickets = () => {
                       return (
                         <>
                           <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "var(--text-main)", gap: 8 }}>
-                            <span>Giá vé ({selectedSeatIds.length} ghế)</span>
+                            <span>{t.ticketPriceForSeats.replace('{count}', selectedSeatIds.length).replace('{seats}', t.seatUnit)}</span>
                             <b style={{ whiteSpace: "nowrap", flexShrink: 0 }}>{seatsTotal.toLocaleString("vi-VN")} đ</b>
                           </div>
-                          {ecoCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {ecoCount}x Phổ thông</span><b style={{ whiteSpace: "nowrap", flexShrink: 0, fontWeight: 700 }}>{(ecoCount * basePrice).toLocaleString("vi-VN")} đ</b></div>}
-                          {bizCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {bizCount}x Thương gia</span><b style={{ whiteSpace: "nowrap", flexShrink: 0, fontWeight: 700 }}>{(bizCount * basePrice * 2.5).toLocaleString("vi-VN")} đ</b></div>}
+                          {ecoCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {ecoCount}x {t.economy}</span><b style={{ whiteSpace: "nowrap", flexShrink: 0, fontWeight: 700 }}>{(ecoCount * basePrice).toLocaleString("vi-VN")} đ</b></div>}
+                          {bizCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {bizCount}x {t.business}</span><b style={{ whiteSpace: "nowrap", flexShrink: 0, fontWeight: 700 }}>{(bizCount * basePrice * 2.5).toLocaleString("vi-VN")} đ</b></div>}
 
                           {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", color: "var(--text-main)", gap: 10, marginTop: 4 }}>
                               <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>+ {s.serviceName}</span>
-                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? "Miễn phí" : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
+                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? t.free : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
                             </div>
                           ))}
                           {membershipDiscount > 0 && (
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 6, fontWeight: 600, gap: 8 }}>
-                              <span>🏅 Ưu đãi thành viên ({user.promotion.discountRate}%)</span>
+                              <span>🏅 {t.memberDiscountLabel.replace('{rate}', user.promotion.discountRate)}</span>
                               <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
                             </div>
                           )}
                           {appliedVoucher && (
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 4, gap: 8 }}>
-                              <span>🎟 Mã: {appliedVoucher}</span>
+                              <span>🎟 {t.codePrefix} {appliedVoucher}</span>
                               <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{voucherDiscount.toLocaleString("vi-VN")} đ</span>
                             </div>
                           )}
                           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-main)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>Tổng cộng</span>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{t.totalLabel}</span>
                             <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{Math.max(0, seatsTotal + extraTotal - membershipDiscount - voucherDiscount).toLocaleString("vi-VN")} đ</span>
                           </div>
                         </>

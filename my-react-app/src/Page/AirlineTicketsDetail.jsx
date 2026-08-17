@@ -11,6 +11,7 @@ import VNFlag from "../Picture/flags/vn.png";
 
 // Flight Booking Detail Component
 const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts }) => {
+  const { t } = useLanguage();
   const [selectedClass, setSelectedClass] = useState("economy");
   const [selectedPayment, setSelectedPayment] = useState("momo");
   const [passengerInfoList, setPassengerInfoList] = React.useState([]);
@@ -69,39 +70,39 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
   const classOptions = [
     {
       id: "economy",
-      name: "Hạng Phổ Thông",
+      name: t.detClassEconomy || "Hạng Phổ Thông",
       luggage: {
-        carryOn: "1 kiện",
-        checked: "Chưa có"
+        carryOn: t.detOnePiece || "1 kiện",
+        checked: t.detNoneYet || "Chưa có"
       },
-      flexibility: "Không hoàn",
+      flexibility: t.detNonRefundable || "Không hoàn",
       price: "2.031.000₫",
       originalPrice: "2.053.000₫",
-      benefits: ["Dặm: ít nhất 38", "Combo chuyến bay: ✓ Giá tốt"]
+      benefits: [(t.detMilesAtLeast || "Dặm: ít nhất {n}").replace("{n}", "38"), t.detComboGoodPrice || "Combo chuyến bay: ✓ Giá tốt"]
     },
     {
       id: "economyPlus",
-      name: "Hạng Phổ Thông",
+      name: t.detClassEconomy || "Hạng Phổ Thông",
       luggage: {
-        carryOn: "1 kiện",
-        checked: "Chưa có"
+        carryOn: t.detOnePiece || "1 kiện",
+        checked: t.detNoneYet || "Chưa có"
       },
       flexibility: "TripFlex · EasyCancel Plus",
-      benefits: ["4 quyền lợi", "Phí hủy: Miễn phí"],
+      benefits: [t.detFourBenefits || "4 quyền lợi", t.detFreeCancelFee || "Phí hủy: Miễn phí"],
       price: "2.053.000₫",
       originalPrice: "2.694.000₫"
     },
     {
       id: "economyLuggage",
-      name: "Hạng Phổ Thông",
+      name: t.detClassEconomy || "Hạng Phổ Thông",
       luggage: {
-        carryOn: "1 kiện",
+        carryOn: t.detOnePiece || "1 kiện",
         checked: "30 kg"
       },
-      flexibility: "Không hoàn",
+      flexibility: t.detNonRefundable || "Không hoàn",
       price: "2.694.000₫",
       originalPrice: "2.722.000₫",
-      benefits: ["Dặm: ít nhất 68"]
+      benefits: [(t.detMilesAtLeast || "Dặm: ít nhất {n}").replace("{n}", "68")]
     }
   ];
 
@@ -115,7 +116,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
     },
     {
       id: "any",
-      name: "Bất Kỳ",
+      name: t.detAnyMethod || "Bất Kỳ",
       price: "2.053.000₫",
       originalPrice: "2.053.000₫",
       discount: "0₫"
@@ -192,7 +193,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
             marginBottom: "15px",
           }}>
             <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>
-              Chiều đi · <span style={{ color: "var(--primary)" }}>{data.departureDate}</span>
+              {t.detOutboundLeg || "Chiều đi"} · <span style={{ color: "var(--primary)" }}>{data.departureDate}</span>
             </h3>
             <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "var(--text-secondary)" }}>
               <FiClock /> {data.duration}
@@ -262,7 +263,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
             marginBottom: "15px",
           }}>
             <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>
-              Chiều về · <span style={{ color: "var(--primary)" }}>{data.returnDate}</span>
+              {t.detInboundLeg || "Chiều về"} · <span style={{ color: "var(--primary)" }}>{data.returnDate}</span>
             </h3>
             <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "var(--text-secondary)" }}>
               <FiClock /> 2g 10p
@@ -325,7 +326,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
 
         {/* Class Selection */}
         <div style={{ marginBottom: "20px" }}>
-          <h3 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "15px" }}>Được đề xuất</h3>
+          <h3 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "15px" }}>{t.detRecommended || "Được đề xuất"}</h3>
           
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "15px" }}>
             {classOptions.map((option) => (
@@ -360,11 +361,11 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
                 <div style={{ marginBottom: "10px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", color: "var(--text-secondary)", marginBottom: "5px" }}>
                     <FaSuitcase style={{ color: "var(--primary)" }} />
-                    <span>Hành lý xách tay: {option.luggage.carryOn}</span>
+                    <span>{t.detCarryOnLabel || "Hành lý xách tay"}: {option.luggage.carryOn}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", color: "var(--text-secondary)" }}>
                     <FaSuitcase style={{ color: "var(--primary)" }} />
-                    <span>Hành lý ký gửi: {option.luggage.checked}</span>
+                    <span>{t.detCheckedLabel || "Hành lý ký gửi"}: {option.luggage.checked}</span>
                   </div>
                 </div>
 
@@ -401,24 +402,24 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
           marginBottom: "20px",
         }}>
           <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "15px" }}>
-            Giá khởi trình bình đối với 1 hành khách
+            {t.detPricePerPassengerTitle || "Giá khởi trình bình đối với 1 hành khách"}
           </h3>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
-              <span>Vé người lớn {priceBreakdown.adult.count} ×</span>
+              <span>{(t.detAdultTicketCount || "Vé người lớn {n} ×").replace("{n}", priceBreakdown.adult.count)}</span>
               <span>{priceBreakdown.adult.price}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", marginLeft: "20px", color: "var(--text-secondary)" }}>
-              <span>Giá</span>
+              <span>{t.detBasePrice || "Giá"}</span>
               <span>{priceBreakdown.adult.base}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", marginLeft: "20px", color: "var(--text-secondary)" }}>
-              <span>Thuế & phí</span>
+              <span>{t.detTaxAndFees || "Thuế & phí"}</span>
               <span>{priceBreakdown.adult.tax}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", color: "#4caf50" }}>
-              <span>Giảm giá MoMo</span>
+              <span>{t.detMomoDiscount || "Giảm giá MoMo"}</span>
               <span>- {priceBreakdown.adult.discount}</span>
             </div>
             <div style={{
@@ -430,7 +431,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
               marginTop: "10px",
               borderTop: "1px solid #e0e0e0",
             }}>
-              <span>Tổng giá khởi hồi</span>
+              <span>{t.detTotalFare || "Tổng giá khởi hồi"}</span>
               <span style={{ color: "var(--primary)" }}>{priceBreakdown.total}</span>
             </div>
           </div>
@@ -446,11 +447,11 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
             <FiGift style={{ color: "var(--primary)" }} />
-            <span style={{ fontSize: "14px", fontWeight: "600" }}>Quyền lợi khác</span>
+            <span style={{ fontSize: "14px", fontWeight: "600" }}>{t.detOtherBenefits || "Quyền lợi khác"}</span>
           </div>
           <div style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: "1.6" }}>
-            <div>• Dặm của hãng hàng không: ít nhất 38</div>
-            <div>• Combo chuyến bay: ✓ Giá tốt ✓ Cam kết bảo toàn hành trình</div>
+            <div>• {t.detAirlineMiles38 || "Dặm của hãng hàng không: ít nhất 38"}</div>
+            <div>• {t.detComboBenefits || "Combo chuyến bay: ✓ Giá tốt ✓ Cam kết bảo toàn hành trình"}</div>
           </div>
           <div style={{
             marginTop: "10px",
@@ -458,14 +459,14 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
             color: "var(--text-muted)",
             fontStyle: "italic",
           }}>
-            * Có hiệu lực trước giờ khởi hành của chuyến bay đầu tiên. Không được chuyển sang chuyến bay đã đổi.
+            * {t.detBenefitsNote || "Có hiệu lực trước giờ khởi hành của chuyến bay đầu tiên. Không được chuyển sang chuyến bay đã đổi."}
           </div>
         </div>
 
         {/* Payment Methods */}
         <div style={{ marginBottom: "20px" }}>
           <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "15px" }}>
-            Chọn Hình Thức Thanh Toán
+            {t.detSelectPaymentMethod || "Chọn Hình Thức Thanh Toán"}
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "15px" }}>
             {paymentMethods.map((method) => (
@@ -518,8 +519,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
           border: "1px solid #ffe0b2",
         }}>
           <div style={{ fontSize: "13px", color: "#e65100", lineHeight: "1.6" }}>
-            🏨 Được giảm giá đến 25% cho phòng khách sạn khi đặt vé máy bay, 
-            thêm quyền lợi miễn phí hủy phòng nếu chuyến bay bị đổi lịch 🚗
+            🏨 {t.detHotelPromo || "Được giảm giá đến 25% cho phòng khách sạn khi đặt vé máy bay, thêm quyền lợi miễn phí hủy phòng nếu chuyến bay bị đổi lịch"} 🚗
           </div>
         </div>
 
@@ -551,7 +551,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
               e.currentTarget.style.backgroundColor = "var(--bg-card)";
             }}
           >
-            Đóng
+            {t.detCloseBtn || "Đóng"}
           </button>
           <button
             onClick={() => {
@@ -584,7 +584,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
               e.target.style.transform = "scale(1)";
             }}
           >
-            Tiếp tục · {selectedClassData.price}
+            {t.detContinueBtn || "Tiếp tục"} · {selectedClassData.price}
           </button>
         </div>
 
@@ -595,7 +595,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue, passengerCounts 
           color: "var(--text-muted)",
           textAlign: "center",
         }}>
-          Đăng ký tại đây · Khởi tốt
+          {t.detSignupNote || "Đăng ký tại đây · Khởi tốt"}
         </div>
       </div>
     </div>
@@ -666,6 +666,13 @@ const CitySelector = ({ type, onSelect, onClose }) => {
   ];
 
   const currentCountry = countries.find(c => c.id === activeTab);
+
+  const countryNameMap = {
+    vietnam: t.vietnam,
+    north: t.northVietnam,
+    central: t.centralVietnam,
+    south: t.southVietnam
+  };
   
   const filteredCities = currentCountry?.cities.filter(city =>
     city.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -701,7 +708,7 @@ const CitySelector = ({ type, onSelect, onClose }) => {
           marginBottom: "20px",
         }}>
           <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>
-            {type === "from" ? (t.selectDeparture || "Chọn điểm đi") : (t.selectDestination || "Chọn điểm đến")}
+            {type === "from" ? t.selectDeparture : t.selectDestination}
           </h3>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}>
             <FiX size={24} />
@@ -721,7 +728,7 @@ const CitySelector = ({ type, onSelect, onClose }) => {
           <FiSearch style={{ color: "var(--text-muted)" }} />
           <input
             type="text"
-            placeholder={t.searchCity || "Tìm thành phố hoặc sân bay..."}
+            placeholder={t.searchCity}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
@@ -769,9 +776,9 @@ const CitySelector = ({ type, onSelect, onClose }) => {
                 }
               }}
             >
-              <img src={country.flag} alt={country.name} style={{ width: "20px", height: "20px", borderRadius: "50%" }} />
+              <img src={country.flag} alt={countryNameMap[country.id] || country.name} style={{ width: "20px", height: "20px", borderRadius: "50%" }} />
               <span style={{ fontSize: "14px", fontWeight: activeTab === country.id ? "600" : "400" }}>
-                {country.name}
+                {countryNameMap[country.id] || country.name}
               </span>
             </button>
           ))}
@@ -817,7 +824,7 @@ const CitySelector = ({ type, onSelect, onClose }) => {
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
                 >
-                  Chọn →
+                  {t.detSelectArrow || "Chọn →"}
                 </div>
               </div>
             </div>
@@ -830,6 +837,7 @@ const CitySelector = ({ type, onSelect, onClose }) => {
 
 // Passenger and Class Selector Component
 const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialClass }) => {
+  const { t } = useLanguage();
   const [passengers, setPassengers] = useState(initialPassengers || {
     adult: 1,
     child: 0,
@@ -838,10 +846,10 @@ const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialC
   const [selectedClass, setSelectedClass] = useState(initialClass || "economy");
 
   const classOptions = [
-    { id: "economy", label: "Phổ thông", price: "2.566.000₫", icon: "Y" },
-    { id: "premium", label: "Phổ thông đặc biệt", price: "3.120.000₫", icon: "W" },
-    { id: "business", label: "Thương gia", price: "5.890.000₫", icon: "J" },
-    { id: "first", label: "Hạng nhất", price: "8.450.000₫", icon: "F" },
+    { id: "economy", label: t.economy, price: "2.566.000₫", icon: "Y" },
+    { id: "premium", label: t.premium, price: "3.120.000₫", icon: "W" },
+    { id: "business", label: t.business, price: "5.890.000₫", icon: "J" },
+    { id: "first", label: t.first, price: "8.450.000₫", icon: "F" },
   ];
 
   const updatePassenger = (type, increment) => {
@@ -884,7 +892,7 @@ const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialC
           alignItems: "center",
           marginBottom: "20px",
         }}>
-          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>Chọn hành khách & hạng vé</h3>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>{t.detSelectPassengerClass || "Chọn hành khách & hạng vé"}</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}>
             <FiX size={24} />
           </button>
@@ -892,7 +900,7 @@ const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialC
 
         {/* Passengers */}
         <div style={{ marginBottom: "20px" }}>
-          <h4 style={{ fontSize: "14px", color: "var(--text-secondary)", marginBottom: "15px" }}>Số hành khách</h4>
+          <h4 style={{ fontSize: "14px", color: "var(--text-secondary)", marginBottom: "15px" }}>{t.detNumPassengers || "Số hành khách"}</h4>
           
           {/* Adult */}
           <div style={{
@@ -905,8 +913,8 @@ const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialC
             borderRadius: "8px",
           }}>
             <div>
-              <div style={{ fontWeight: "500" }}>Người lớn</div>
-              <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>≥ 12 tuổi</div>
+              <div style={{ fontWeight: "500" }}>{t.adult}</div>
+              <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>{t.ageAdultHint}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
               <button
@@ -950,8 +958,8 @@ const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialC
             borderRadius: "8px",
           }}>
             <div>
-              <div style={{ fontWeight: "500" }}>Trẻ em</div>
-              <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>2-11 tuổi</div>
+              <div style={{ fontWeight: "500" }}>{t.child}</div>
+              <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>{t.ageChildHint}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
               <button
@@ -995,8 +1003,8 @@ const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialC
             borderRadius: "8px",
           }}>
             <div>
-              <div style={{ fontWeight: "500" }}>Em bé</div>
-              <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>&lt; 2 tuổi</div>
+              <div style={{ fontWeight: "500" }}>{t.infant}</div>
+              <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>{t.ageInfantHint}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
               <button
@@ -1032,7 +1040,7 @@ const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialC
 
         {/* Class */}
         <div style={{ marginBottom: "20px" }}>
-          <h4 style={{ fontSize: "14px", color: "var(--text-secondary)", marginBottom: "15px" }}>Hạng vé</h4>
+          <h4 style={{ fontSize: "14px", color: "var(--text-secondary)", marginBottom: "15px" }}>{t.class}</h4>
           <div style={{ display: "grid", gap: "10px" }}>
             {classOptions.map(option => (
               <div
@@ -1109,7 +1117,7 @@ const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialC
             e.target.style.transform = "scale(1)";
           }}
         >
-          Áp dụng
+          {t.apply}
         </button>
       </div>
     </div>
@@ -1118,14 +1126,14 @@ const PassengerClassSelector = ({ onClose, onSelect, initialPassengers, initialC
 
 // Date Selector Component
 const DateSelector = ({ onClose, onSelect, initialDates }) => {
+  const { t } = useLanguage();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDeparture, setSelectedDeparture] = useState(initialDates?.departure || null);
   const [selectedReturn, setSelectedReturn] = useState(initialDates?.return || null);
 
-  const months = [
-    "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
-    "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"
-  ];
+  const months = Array.from({ length: 12 }, (_, i) =>
+    (t.detMonthName || "Tháng {n}").replace("{n}", i + 1)
+  );
 
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -1173,8 +1181,9 @@ const DateSelector = ({ onClose, onSelect, initialDates }) => {
 
   const formatDate = (date) => {
     if (!date) return "";
-    const days = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-    return `${days[date.getDay() === 0 ? 6 : date.getDay() - 1]}, ${date.getDate()} thg ${date.getMonth() + 1}`;
+    const days = (t.detWeekdayShort || "T2,T3,T4,T5,T6,T7,CN").split(",");
+    const monthAbbr = t.detMonthShort || "thg";
+    return `${days[date.getDay() === 0 ? 6 : date.getDay() - 1]}, ${date.getDate()} ${monthAbbr} ${date.getMonth() + 1}`;
   };
 
   const days = getDaysInMonth(currentMonth);
@@ -1205,7 +1214,7 @@ const DateSelector = ({ onClose, onSelect, initialDates }) => {
           alignItems: "center",
           marginBottom: "20px",
         }}>
-          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>Chọn ngày bay</h3>
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>{t.detSelectFlightDate || "Chọn ngày bay"}</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}>
             <FiX size={24} />
           </button>
@@ -1221,15 +1230,15 @@ const DateSelector = ({ onClose, onSelect, initialDates }) => {
           borderRadius: "8px",
         }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Chiều đi</div>
+            <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{t.detOutboundLeg || "Chiều đi"}</div>
             <div style={{ fontSize: "16px", fontWeight: "600", color: selectedDeparture ? "#333" : "#999" }}>
-              {selectedDeparture ? formatDate(selectedDeparture) : "Chọn ngày đi"}
+              {selectedDeparture ? formatDate(selectedDeparture) : (t.detSelectDepartDate || "Chọn ngày đi")}
             </div>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Chiều về</div>
+            <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{t.detInboundLeg || "Chiều về"}</div>
             <div style={{ fontSize: "16px", fontWeight: "600", color: selectedReturn ? "#333" : "#999" }}>
-              {selectedReturn ? formatDate(selectedReturn) : "Chọn ngày về (nếu có)"}
+              {selectedReturn ? formatDate(selectedReturn) : (t.detSelectReturnDateOpt || "Chọn ngày về (nếu có)")}
             </div>
           </div>
         </div>
@@ -1291,7 +1300,7 @@ const DateSelector = ({ onClose, onSelect, initialDates }) => {
           gap: "5px",
           marginBottom: "20px",
         }}>
-          {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map(day => (
+          {(t.detWeekdayShort || "T2,T3,T4,T5,T6,T7,CN").split(",").map(day => (
             <div key={day} style={{ textAlign: "center", fontSize: "13px", color: "var(--text-muted)", padding: "8px" }}>
               {day}
             </div>
@@ -1373,7 +1382,7 @@ const DateSelector = ({ onClose, onSelect, initialDates }) => {
             }
           }}
         >
-          Áp dụng
+          {t.apply}
         </button>
       </div>
     </div>
@@ -1426,16 +1435,17 @@ const AirlineTicketsDetail = () => {
   });
 
   const classLabels = {
-    economy: "Phổ thông",
-    premium: "Phổ thông đặc biệt",
-    business: "Thương gia",
-    first: "Hạng nhất"
+    economy: t.economy,
+    premium: t.premium,
+    business: t.business,
+    first: t.first
   };
 
   // Format date function
   const formatDate = (date) => {
-    const days = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-    return `${days[date.getDay() === 0 ? 6 : date.getDay() - 1]}, ${date.getDate()} thg ${date.getMonth() + 1}`;
+    const days = (t.detWeekdayShort || "T2,T3,T4,T5,T6,T7,CN").split(",");
+    const monthAbbr = t.detMonthShort || "thg";
+    return `${days[date.getDay() === 0 ? 6 : date.getDay() - 1]}, ${date.getDate()} ${monthAbbr} ${date.getMonth() + 1}`;
   };
 
   const handleCitySelect = (city) => {
@@ -1485,15 +1495,15 @@ const AirlineTicketsDetail = () => {
   };
 
   const tabs = [
-    { id: "oneWay", label: t.oneWay || "Một chiều" },
-    { id: "roundTrip", label: `${t.roundTrip || "Khứ hồi"} (${t.underMaintenance || "Đang bảo trì"})`, isMaintenance: true },
-    { id: "multiCity", label: t.multiCity || "Nhiều thành phố" },
+    { id: "oneWay", label: t.oneWay },
+    { id: "roundTrip", label: `${t.roundTrip} (${t.underMaintenance})`, isMaintenance: true },
+    { id: "multiCity", label: t.multiCity },
   ];
 
   const flightOptions = [
-    { id: 1, label: "Bay thẳng", count: 120 },
-    { id: 2, label: "Có hành lý ký gửi", count: 85 },
-    { id: 3, label: "Ăn các hãng hàng không giá rẻ", count: 45 },
+    { id: 1, label: t.directFlightRoute, count: 120 },
+    { id: 2, label: t.detHasCheckedBaggage || "Có hành lý ký gửi", count: 85 },
+    { id: 3, label: t.detLowCostMeals || "Ăn các hãng hàng không giá rẻ", count: 45 },
   ];
 
   const airlines = [
@@ -1575,7 +1585,7 @@ const AirlineTicketsDetail = () => {
     endDate.setDate(startDate.getDate() + 13);
     
     const formatDate = (date) => {
-      return `Thg ${date.getMonth() + 1}, ${date.getDate()}`;
+      return `${(t.detMonthShortCap || "Thg {n}").replace("{n}", date.getMonth() + 1)}, ${date.getDate()}`;
     };
     
     return `${formatDate(startDate)} - ${formatDate(endDate)}`;
@@ -1588,7 +1598,7 @@ const AirlineTicketsDetail = () => {
       arrival: "07:30",
       arrivalAirport: `${toCity.code} T1`,
       duration: "2g 10p",
-      type: "Bay thẳng",
+      type: t.directFlightRoute,
       price: "2.566.000₫",
       airline: "VietJet Air",
       luggage: "20kg",
@@ -1601,7 +1611,7 @@ const AirlineTicketsDetail = () => {
       arrival: "07:40",
       arrivalAirport: `${toCity.code} T1`,
       duration: "2g 10p",
-      type: "Bay thẳng",
+      type: t.directFlightRoute,
       price: "2.566.000₫",
       airline: "VietJet Air",
       luggage: "20kg",
@@ -1614,7 +1624,7 @@ const AirlineTicketsDetail = () => {
       arrival: "07:50",
       arrivalAirport: `${toCity.code} T1`,
       duration: "2g 10p",
-      type: "Bay thẳng",
+      type: t.directFlightRoute,
       price: "2.566.000₫",
       airline: "VietJet Air",
       luggage: "20kg",
@@ -1627,7 +1637,7 @@ const AirlineTicketsDetail = () => {
       arrival: "10:30",
       arrivalAirport: `NRT T1`,
       duration: "4g 30p",
-      type: "Bay thẳng",
+      type: t.directFlightRoute,
       price: "5.890.000₫",
       airline: "Japan Airlines",
       luggage: "30kg",
@@ -1640,7 +1650,7 @@ const AirlineTicketsDetail = () => {
       arrival: "12:45",
       arrivalAirport: `TPE T2`,
       duration: "3g 30p",
-      type: "Bay thẳng",
+      type: t.directFlightRoute,
       price: "4.250.000₫",
       airline: "EVA Air",
       luggage: "25kg",
@@ -1672,7 +1682,7 @@ const AirlineTicketsDetail = () => {
                 const now = Date.now();
                 if (!window._lastMaintenanceToast || now - window._lastMaintenanceToast > 3000) {
                   window._lastMaintenanceToast = now;
-                  showToast(t.roundTripMaintenanceMsg || "⚠️ Tính năng vé Khứ hồi hiện đang bảo trì & nâng cấp hệ thống. Vui lòng sử dụng vé Một chiều quý khách nhé!", "warning");
+                  showToast(t.roundTripMaintenanceMsg, "warning");
                 }
                 return;
               }
@@ -1723,7 +1733,7 @@ const AirlineTicketsDetail = () => {
               e.currentTarget.style.borderColor = "#ddd";
             }}
           >
-            Bay thẳng
+            {t.directFlightRoute}
           </button>
         </div>
       </div>
@@ -1859,7 +1869,7 @@ const AirlineTicketsDetail = () => {
           <FaUserFriends style={{ color: "var(--primary)" }} />
           <div>
             <div style={{ fontSize: "13px", color: "var(--text-secondary)", fontWeight: "500" }}>
-              {getTotalPassengers()} {getTotalPassengers() > 1 ? 'người' : 'người'}
+              {getTotalPassengers()} {t.detPersonUnit || "người"}
             </div>
             <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
               {classLabels[passengerInfo.selectedClass]}
@@ -1917,7 +1927,7 @@ const AirlineTicketsDetail = () => {
           marginBottom: "15px" 
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "600" }}>Bảng giá</h3>
+            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "600" }}>{t.detPriceTable || "Bảng giá"}</h3>
             <span style={{ fontSize: "14px", color: "var(--primary)", background: "#e8f4ff", padding: "4px 8px", borderRadius: "4px" }}>
               {getWeekRange()}
             </span>
@@ -1973,7 +1983,7 @@ const AirlineTicketsDetail = () => {
           gap: "10px",
           marginBottom: "10px",
         }}>
-          {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(day => (
+          {(t.detWeekdayShort || "T2,T3,T4,T5,T6,T7,CN").split(",").map(day => (
             <div key={day} style={{ fontSize: "12px", color: "var(--text-muted)", textAlign: "center" }}>
               {day}
             </div>
@@ -2027,7 +2037,7 @@ const AirlineTicketsDetail = () => {
           textAlign: "center",
         }}>
           <FiInfo style={{ marginRight: "5px", verticalAlign: "middle" }} />
-          Giá hiển thị là giá khứ hồi cho 1 người lớn, đã bao gồm thuế và phí
+          {t.detRoundTripPriceNote || "Giá hiển thị là giá khứ hồi cho 1 người lớn, đã bao gồm thuế và phí"}
         </div>
       </div>
 
@@ -2043,7 +2053,7 @@ const AirlineTicketsDetail = () => {
             marginBottom: "15px",
             boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
           }}>
-            <h4 style={{ margin: "0 0 15px 0", fontSize: "15px", fontWeight: "600" }}>Được đề xuất</h4>
+            <h4 style={{ margin: "0 0 15px 0", fontSize: "15px", fontWeight: "600" }}>{t.detRecommended || "Được đề xuất"}</h4>
             {flightOptions.map((option, index) => (
               <div key={index} style={{ marginBottom: "10px" }}>
                 <label style={{ 
@@ -2074,7 +2084,7 @@ const AirlineTicketsDetail = () => {
             marginBottom: "15px",
             boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
           }}>
-            <h4 style={{ margin: "0 0 15px 0", fontSize: "15px", fontWeight: "600" }}>Hãng hàng không</h4>
+            <h4 style={{ margin: "0 0 15px 0", fontSize: "15px", fontWeight: "600" }}>{t.detAirlines || "Hãng hàng không"}</h4>
             {airlines.map((airline, index) => (
               <div key={index} style={{ marginBottom: "12px" }}>
                 <label style={{ 
@@ -2109,7 +2119,7 @@ const AirlineTicketsDetail = () => {
                   </div>
                   <span style={{ fontSize: "13px", fontWeight: "500", color: "var(--primary)" }}>{airline.price}</span>
                 </label>
-                <div style={{ fontSize: "12px", color: "var(--text-muted)", marginLeft: "46px" }}>{airline.count} chuyến</div>
+                <div style={{ fontSize: "12px", color: "var(--text-muted)", marginLeft: "46px" }}>{(t.detFlightsCount || "{n} chuyến").replace("{n}", airline.count)}</div>
               </div>
             ))}
           </div>
@@ -2122,7 +2132,7 @@ const AirlineTicketsDetail = () => {
             marginBottom: "15px",
             boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
           }}>
-            <h4 style={{ margin: "0 0 15px 0", fontSize: "15px", fontWeight: "600" }}>Liên minh</h4>
+            <h4 style={{ margin: "0 0 15px 0", fontSize: "15px", fontWeight: "600" }}>{t.detAlliances || "Liên minh"}</h4>
             {alliances.map((alliance, index) => (
               <div key={index} style={{ marginBottom: "10px" }}>
                 <label style={{ 
@@ -2178,7 +2188,7 @@ const AirlineTicketsDetail = () => {
               e.currentTarget.style.color = "#4f7cff";
             }}
             >
-              Ưu tiên bay thẳng
+              {t.detPreferDirect || "Ưu tiên bay thẳng"}
             </button>
             <button style={{ 
               padding: "6px 12px", 
@@ -2198,7 +2208,7 @@ const AirlineTicketsDetail = () => {
               e.currentTarget.style.borderColor = "#ddd";
             }}
             >
-              Đề xuất
+              {t.detSuggested || "Đề xuất"}
             </button>
             <button style={{ 
               padding: "6px 12px", 
@@ -2218,7 +2228,7 @@ const AirlineTicketsDetail = () => {
               e.currentTarget.style.borderColor = "#ddd";
             }}
             >
-              Rẻ nhất
+              {t.detCheapest || "Rẻ nhất"}
             </button>
             <div style={{ 
               marginLeft: "auto", 
@@ -2237,7 +2247,7 @@ const AirlineTicketsDetail = () => {
               e.currentTarget.style.backgroundColor = "transparent";
             }}
             >
-              <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>Sắp xếp theo</span>
+              <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>{t.detSortBy || "Sắp xếp theo"}</span>
               <FiChevronDown />
             </div>
             <button style={{ 
@@ -2258,7 +2268,7 @@ const AirlineTicketsDetail = () => {
               e.currentTarget.style.borderColor = "#ddd";
             }}
             >
-              Tạo thông báo giá
+              {t.detPriceAlert || "Tạo thông báo giá"}
             </button>
           </div>
 
@@ -2322,7 +2332,7 @@ const AirlineTicketsDetail = () => {
                       {flight.airline}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                      Máy bay
+                      {t.commercialFlight}
                     </div>
                   </div>
 
@@ -2373,8 +2383,8 @@ const AirlineTicketsDetail = () => {
 
                   {/* Amenities */}
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
-                    <FaSuitcase style={{ color: "#4f7cff", fontSize: 16 }} title="Hành lý kí gửi" />
-                    <FaUtensils style={{ color: flight.meals ? "#4f7cff" : "#ccc", fontSize: 16 }} title="Suất ăn" />
+                    <FaSuitcase style={{ color: "#4f7cff", fontSize: 16 }} title={t.checkedBaggage || "Hành lý kí gửi"} />
+                    <FaUtensils style={{ color: flight.meals ? "#4f7cff" : "#ccc", fontSize: 16 }} title={t.meal} />
                     <FaWifi style={{ color: flight.wifi ? "#4f7cff" : "#ccc", fontSize: 16 }} title="Wifi" />
                   </div>
 
@@ -2383,7 +2393,7 @@ const AirlineTicketsDetail = () => {
 
                   {/* Price + CTA */}
                   <div style={{ textAlign: "center", minWidth: 130, flexShrink: 0 }}>
-                    <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>Giá/người</div>
+                    <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>{t.pricePerPerson}</div>
                     <div style={{
                       fontSize: 22, fontWeight: 900,
                       background: "linear-gradient(135deg,#f97316,#ef4444)",
@@ -2406,7 +2416,7 @@ const AirlineTicketsDetail = () => {
                         transition: "all 0.2s",
                       }}
                     >
-                      Chọn {activeTab === "roundTrip" ? "Khứ hồi" : "Một chiều"}
+                      {t.detChoose || "Chọn"} {activeTab === "roundTrip" ? t.roundTrip : t.oneWay}
                     </button>
                   </div>
                 </div>

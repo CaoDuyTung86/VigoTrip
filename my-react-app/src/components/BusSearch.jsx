@@ -18,6 +18,19 @@ const VIETNAM_CITIES = [
   { id: "VIN", code: "VIN", name: "Vinh" },
 ];
 
+const CITY_NAME_I18N = {
+  HAN: { vi: "Hà Nội", en: "Hanoi", ja: "ハノイ", zh: "河內" },
+  SGN: { vi: "TP. Hồ Chí Minh", en: "Ho Chi Minh City", ja: "ホーチミン", zh: "胡志明市" },
+  DAD: { vi: "Đà Nẵng", en: "Da Nang", ja: "ダナン", zh: "峴港" },
+  HUE: { vi: "Huế", en: "Hue", ja: "フエ", zh: "順化" },
+  HPH: { vi: "Hải Phòng", en: "Hai Phong", ja: "ハイフォン", zh: "海防" },
+  NTR: { vi: "Nha Trang", en: "Nha Trang", ja: "ニャチャン", zh: "芽莊" },
+  DLT: { vi: "Đà Lạt", en: "Da Lat", ja: "ダラット", zh: "大叻" },
+  SAP: { vi: "Sa Pa", en: "Sa Pa", ja: "サパ", zh: "沙壩" },
+  QNH: { vi: "Quảng Ninh", en: "Quang Ninh", ja: "クアンニン", zh: "廣寧" },
+  VIN: { vi: "Vinh", en: "Vinh", ja: "ヴィン", zh: "榮市" },
+};
+
 const inputBoxStyle = {
   border: "1px solid var(--border-input)",
   borderRadius: "12px",
@@ -27,8 +40,11 @@ const inputBoxStyle = {
 };
 
 const BusSearch = () => {
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const navigate = useNavigate();
+
+  const localName = (city) =>
+    (city && CITY_NAME_I18N[city.id]?.[currentLanguage?.code || "vi"]) || city?.name || "";
 
   const [fromCity, setFromCity] = useState(null);
   const [toCity, setToCity] = useState(null);
@@ -45,10 +61,10 @@ const BusSearch = () => {
   const [toFilter, setToFilter] = useState("");
 
   const handleSearch = () => {
-    if (!fromCity) { setSearchError("Vui lòng chọn điểm đi."); return; }
-    if (!toCity) { setSearchError("Vui lòng chọn điểm đến."); return; }
-    if (fromCity.id === toCity.id) { setSearchError("Điểm đi và điểm đến không được trùng nhau."); return; }
-    if (!departDate) { setSearchError("Vui lòng chọn ngày đi."); return; }
+    if (!fromCity) { setSearchError(t.errFromRequired); return; }
+    if (!toCity) { setSearchError(t.errToRequired); return; }
+    if (fromCity.id === toCity.id) { setSearchError(t.errSameLocations); return; }
+    if (!departDate) { setSearchError(t.errDateRequired); return; }
     setSearchError("");
 
     const params = new URLSearchParams({
@@ -69,10 +85,10 @@ const BusSearch = () => {
   };
 
   const fromOptions = VIETNAM_CITIES.filter(
-    (c) => c.id !== toCity?.id && c.name.toLowerCase().includes(fromFilter.toLowerCase())
+    (c) => c.id !== toCity?.id && localName(c).toLowerCase().includes(fromFilter.toLowerCase())
   );
   const toOptions = VIETNAM_CITIES.filter(
-    (c) => c.id !== fromCity?.id && c.name.toLowerCase().includes(toFilter.toLowerCase())
+    (c) => c.id !== fromCity?.id && localName(c).toLowerCase().includes(toFilter.toLowerCase())
   );
 
   return (
@@ -89,7 +105,7 @@ const BusSearch = () => {
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <IoLocationOutline style={{ color: "var(--primary)", fontSize: "18px", flexShrink: 0 }} />
               <span style={{ fontSize: "15px", color: fromCity ? "var(--text-main)" : "var(--text-muted)" }}>
-                {fromCity ? fromCity.name : (t.selectDeparture || "Chọn điểm đi")}
+                {fromCity ? localName(fromCity) : (t.selectDeparture || "Chọn điểm đi")}
               </span>
             </div>
           </div>
@@ -97,20 +113,20 @@ const BusSearch = () => {
             <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", border: "1px solid var(--border-light)", padding: "8px", zIndex: 20, marginTop: "4px" }}>
               <input
                 autoFocus
-                placeholder="Tìm tỉnh/thành..."
+                placeholder={t.searchProvince}
                 value={fromFilter}
                 onChange={(e) => setFromFilter(e.target.value)}
                 style={{ width: "100%", border: "1px solid var(--border-input)", borderRadius: 8, padding: "6px 10px", fontSize: 13, marginBottom: 4, boxSizing: "border-box", outline: "none", background: "var(--bg-input)" }}
               />
               <div>
                 {fromOptions.length === 0
-                  ? <div style={{ padding: "10px 12px", color: "var(--text-muted)", fontSize: 13 }}>Không tìm thấy</div>
+                  ? <div style={{ padding: "10px 12px", color: "var(--text-muted)", fontSize: 13 }}>{t.notFound}</div>
                   : fromOptions.map((city) => (
                     <div key={city.id} onClick={() => { setFromCity(city); setShowFromDropdown(false); setFromFilter(""); }}
                       style={{ padding: "10px 12px", cursor: "pointer", borderRadius: "8px", fontSize: 14 }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >{city.name}</div>
+                    >{localName(city)}</div>
                   ))
                 }
               </div>
@@ -132,7 +148,7 @@ const BusSearch = () => {
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <IoLocationOutline style={{ color: "var(--primary)", fontSize: "18px", flexShrink: 0 }} />
               <span style={{ fontSize: "15px", color: toCity ? "var(--text-main)" : "var(--text-muted)" }}>
-                {toCity ? toCity.name : (t.selectDestination || "Chọn điểm đến")}
+                {toCity ? localName(toCity) : (t.selectDestination || "Chọn điểm đến")}
               </span>
             </div>
           </div>
@@ -140,22 +156,21 @@ const BusSearch = () => {
             <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", border: "1px solid var(--border-light)", padding: "8px", zIndex: 20, marginTop: "4px" }}>
               <input
                 autoFocus
-                placeholder="Tìm tỉnh/thành..."
+                placeholder={t.searchProvince}
                 value={toFilter}
                 onChange={(e) => setToFilter(e.target.value)}
                 style={{ width: "100%", border: "1px solid var(--border-input)", borderRadius: 8, padding: "6px 10px", fontSize: 13, marginBottom: 4, boxSizing: "border-box", outline: "none", background: "var(--bg-input)" }}
               />
               <div>
                 {toOptions.length === 0
-                  ? <div style={{ padding: "10px 12px", color: "var(--text-muted)", fontSize: 13 }}>Không tìm thấy</div>
+                  ? <div style={{ padding: "10px 12px", color: "var(--text-muted)", fontSize: 13 }}>{t.notFound}</div>
                   : toOptions.map((city) => (
                     <div key={city.id} onClick={() => { setToCity(city); setShowToDropdown(false); setToFilter(""); }}
                       style={{ padding: "10px 12px", cursor: "pointer", borderRadius: "8px", fontSize: 14 }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >{city.name}</div>
-                  ))
-                }
+                    >{localName(city)}</div>
+                  ))}
               </div>
             </div>
           )}

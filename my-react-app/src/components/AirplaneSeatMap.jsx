@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { mixColor, THEME_EASE } from '../utils/sceneTheme';
+import { useLanguage } from '../context/LanguageContext';
 
 // ─── Hình học máy bay Top-Down (mũi hướng LÊN, tọa độ quanh tâm máy bay) ─────
 // Nguồn chân lý duy nhất: wingtip, động cơ, đèn hàng không, contrail và hitbox
@@ -24,7 +25,7 @@ const GEO = {
   fin: { topY: 70, midX: 8, midY: 130, tipY: 148 },
 };
 
-function drawTopDownAirplane(ctx, cx, cy, hover, t) {
+function drawTopDownAirplane(ctx, cx, cy, hover, t, tr) {
   ctx.save();
   ctx.translate(cx, cy);
 
@@ -361,7 +362,7 @@ function drawTopDownAirplane(ctx, cx, cy, hover, t) {
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 12px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('✈  Nhấn để mở sơ đồ chọn ghế', 0, -183);
+    ctx.fillText(`✈  ${tr.smOpenSeatMapHint}`, 0, -183);
 
     // Mũi tên trỏ xuống
     ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
@@ -398,6 +399,11 @@ const AirplaneSeatMap = ({
   const phaseRef   = useRef('exterior');
   const hoverRef   = useRef(false);
   const animRef    = useRef(null);
+
+  const { t } = useLanguage();
+  // Giữ bản dịch mới nhất cho RAF loop canvas — text vẽ lại theo ngôn ngữ hiện tại
+  const tRef = useRef(t);
+  useEffect(() => { tRef.current = t; }, [t]);
 
   const [phase, setPhaseRaw] = useState('exterior'); // 'exterior' | 'zooming' | 'interior'
   const [hoveredSeat, setHoveredSeat] = useState(null);
@@ -636,7 +642,7 @@ const AirplaneSeatMap = ({
         const centerX = W / 2;
         // Bồng bềnh nhẹ nhàng theo hàm sin tạo cảm giác đang bay mượt
         const centerY = (H / 2) + Math.sin(t * 0.0018) * 4.5;
-        drawTopDownAirplane(ctx, centerX, centerY, hoverRef.current, t);
+        drawTopDownAirplane(ctx, centerX, centerY, hoverRef.current, t, tRef.current);
       }
 
       // Vẽ lớp mây gần nhất (Trôi qua phía trước / trên đầu cánh tạo chiều sâu 3D)
@@ -779,8 +785,8 @@ const AirplaneSeatMap = ({
             pointerEvents: 'none',
             lineHeight: 1.6,
           }}>
-            <div style={{ fontWeight: 700 }}>Ghế {s.seatNumber}</div>
-            <div style={{ opacity: 0.75 }}>{isBiz ? 'Hạng Thương gia (×2.5)' : 'Hạng Phổ thông'}</div>
+            <div style={{ fontWeight: 700 }}>{t.smSeatLabel.replace('{seat}', s.seatNumber)}</div>
+            <div style={{ opacity: 0.75 }}>{isBiz ? `${t.smBizClass} (×2.5)` : t.smEcoClass}</div>
           </div>
         )}
       </div>
@@ -840,7 +846,7 @@ const AirplaneSeatMap = ({
             alignItems: 'center',
             gap: 8,
           }}>
-            <span style={{ color: '#38bdf8' }}>✈</span> Nhấn vào máy bay để mở sơ đồ chọn chỗ ngồi
+            <span style={{ color: '#38bdf8' }}>✈</span> {t.smPlaneHint}
           </div>
         </div>
       )}
@@ -871,12 +877,12 @@ const AirplaneSeatMap = ({
                 transition: 'all 0.2s',
               }}
             >
-              <span>←</span> Góc nhìn bên ngoài
+              <span>←</span> {t.smExteriorView}
             </button>
 
             <div style={{ width: 1, height: 24, background: 'var(--border-main)', margin: '0 4px' }} />
 
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>Khoang:</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>{t.smCabinLabel}</span>
             <button
               type="button"
               onClick={() => setSelectedSeatClass('')}
@@ -892,7 +898,7 @@ const AirplaneSeatMap = ({
                 color: !selectedSeatClass ? '#fff' : 'var(--text-secondary)',
               }}
             >
-              Tất cả
+                  {t.seatClassAll}
             </button>
             {classTypes.map(cls => {
               const biz = ['BUSINESS', 'VIP'].includes(cls);
@@ -914,7 +920,7 @@ const AirplaneSeatMap = ({
                     color: act ? '#fff' : 'var(--text-secondary)',
                   }}
                 >
-                  {cls === 'BUSINESS' ? '🔵 Thương gia' : cls === 'ECONOMY' ? '🟢 Phổ thông' : cls}
+                  {cls === 'BUSINESS' ? `🔵 ${t.seatClassBiz}` : cls === 'ECONOMY' ? `🟢 ${t.seatClassEco}` : cls}
                 </button>
               );
             })}
@@ -933,7 +939,7 @@ const AirplaneSeatMap = ({
               alignItems: 'center',
               gap: 6,
             }}>
-              Đã chọn: <span style={{ color: isMaxReached ? '#22c55e' : 'var(--primary)', fontSize: 14 }}>{selectedSeatIds.length}/{maxSeats}</span> ghế
+              {t.smSelectedCount} <span style={{ color: isMaxReached ? '#22c55e' : 'var(--primary)', fontSize: 14 }}>{selectedSeatIds.length}/{maxSeats}</span> {t.smSeatsUnit}
             </div>
           </div>
 
@@ -985,7 +991,7 @@ const AirplaneSeatMap = ({
                   gap: 6,
                   textTransform: 'uppercase',
                 }}>
-                  <span style={{ color: 'var(--primary)', fontSize: 13 }}>✈</span> Buồng lái & Cửa trước
+                  <span style={{ color: 'var(--primary)', fontSize: 13 }}>✈</span> {t.smCockpit} & {t.smFrontDoor}
                 </div>
               </div>
             </div>
@@ -1009,7 +1015,7 @@ const AirplaneSeatMap = ({
             }}>
               <div style={{ width: 36 }} />
               {leftCols.map(c => <div key={c} style={{ width: 46, textAlign: 'center', fontWeight: 800, color: 'var(--primary)', fontSize: 13 }}>{c}</div>)}
-              <div style={{ width: 44, textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)' }}>LỐI ĐI</div>
+              <div style={{ width: 44, textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)' }}>{t.smAisle}</div>
               {rightCols.map(c => <div key={c} style={{ width: 46, textAlign: 'center', fontWeight: 800, color: 'var(--primary)', fontSize: 13 }}>{c}</div>)}
             </div>
 
@@ -1077,7 +1083,7 @@ const AirplaneSeatMap = ({
                 color: 'var(--text-secondary)',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
               }}>
-                <span>🚻</span> WC & Cửa thoát hiểm sau
+                <span>🚻</span> {t.smWcEmergencyRear}
               </div>
             </div>
 
@@ -1094,11 +1100,11 @@ const AirplaneSeatMap = ({
               borderTop: '1px solid var(--border-light)',
             }}>
               {[
-                { label: 'Phổ thông', bg: 'linear-gradient(180deg,#10b981,#065f46)', bdr: '#059669' },
-                { label: 'Thương gia', bg: 'linear-gradient(180deg,#6366f1,#3730a3)', bdr: '#4f46e5' },
-                { label: 'Đang chọn', bg: 'linear-gradient(180deg,#f59e0b,#d97706)', bdr: '#fbbf24', glow: 'rgba(245,158,11,0.6)' },
-                { label: 'Đang giữ (RT)', bg: 'linear-gradient(180deg,#7f1d1d,#450a0a)', bdr: '#dc2626' },
-                { label: 'Đã đặt', bg: 'var(--bg-hover)', bdr: 'var(--border-main)' },
+                { label: t.seatClassEco, bg: 'linear-gradient(180deg,#10b981,#065f46)', bdr: '#059669' },
+                { label: t.seatClassBiz, bg: 'linear-gradient(180deg,#6366f1,#3730a3)', bdr: '#4f46e5' },
+                { label: t.smSelecting, bg: 'linear-gradient(180deg,#f59e0b,#d97706)', bdr: '#fbbf24', glow: 'rgba(245,158,11,0.6)' },
+                { label: `${t.smHeld} (RT)`, bg: 'linear-gradient(180deg,#7f1d1d,#450a0a)', bdr: '#dc2626' },
+                { label: t.smBooked, bg: 'var(--bg-hover)', bdr: 'var(--border-main)' },
               ].map(item => (
                 <span key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ width: 16, height: 16, borderRadius: 4, background: item.bg, border: `1px solid ${item.bdr}`, display: 'inline-block', boxShadow: item.glow ? `0 0 6px ${item.glow}` : 'none' }} />

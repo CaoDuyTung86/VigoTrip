@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "../context/LanguageContext";
 
 const ForgotPassword = () => {
+    const { t } = useLanguage();
     const [email, setEmail] = useState("");
     const [otp, setOtp] = useState("");
     const [newPassword, setNewPassword] = useState("");
@@ -20,9 +22,9 @@ const ForgotPassword = () => {
         try {
             await axios.post("/api/auth/forgot-password", { email });
             setStep(2);
-            setMessage({ type: "success", text: "Mã OTP đã được gửi đến email của bạn!" });
+            setMessage({ type: "success", text: t.fgpOtpSent });
         } catch (err) {
-            setMessage({ type: "error", text: err.response?.data?.message || "Không tìm thấy tài khoản với email này." });
+            setMessage({ type: "error", text: err.response?.data?.message || t.fgpEmailNotFound });
         } finally {
             setLoading(false);
         }
@@ -31,7 +33,7 @@ const ForgotPassword = () => {
     const handleResetPassword = async (e) => {
         e.preventDefault();
         if (newPassword !== confirmPassword) {
-            setMessage({ type: "error", text: "Mật khẩu xác nhận không khớp." });
+            setMessage({ type: "error", text: t.fgpPwdMismatch });
             return;
         }
 
@@ -44,12 +46,12 @@ const ForgotPassword = () => {
                 newPassword,
                 otpCode: otp
             });
-            setMessage({ type: "success", text: "Đổi mật khẩu thành công! Hệ thống sẽ đưa bạn về trang đăng nhập sau giây lát..." });
+            setMessage({ type: "success", text: t.fgpResetSuccess });
             setTimeout(() => {
                 navigate("/auth");
             }, 2000);
         } catch (err) {
-            setMessage({ type: "error", text: err.response?.data?.message || "Mã OTP không đúng hoặc đã hết hạn." });
+            setMessage({ type: "error", text: err.response?.data?.message || t.fgpOtpInvalid });
         } finally {
             setLoading(false);
         }
@@ -73,12 +75,12 @@ const ForgotPassword = () => {
                 maxWidth: "450px"
             }}>
                 <h2 style={{ fontSize: "28px", fontWeight: "800", marginBottom: "10px", color: "var(--text-heading)", textAlign: "center" }}>
-                    {step === 1 ? "Quên mật khẩu" : "Đặt lại mật khẩu"}
+                    {step === 1 ? t.fgpTitle : t.fgpResetTitle}
                 </h2>
                 <p style={{ color: "var(--text-secondary)", textAlign: "center", marginBottom: "30px", fontSize: "14px" }}>
-                    {step === 1 
-                        ? "Nhập email của bạn để nhận mã xác thực OTP." 
-                        : "Vui lòng nhập mã OTP đã gửi đến email và mật khẩu mới."}
+                    {step === 1
+                        ? t.fgpStep1Desc
+                        : t.fgpStep2Desc}
                 </p>
 
                 {message.text && (
@@ -99,7 +101,7 @@ const ForgotPassword = () => {
                 {step === 1 ? (
                     <form onSubmit={handleRequestOTP}>
                         <div style={{ marginBottom: "25px" }}>
-                            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "var(--text-heading)" }}>Email tài khoản</label>
+                            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "var(--text-heading)" }}>{t.fgpEmailLabel}</label>
                             <input 
                                 type="email"
                                 required
@@ -134,13 +136,13 @@ const ForgotPassword = () => {
                                 fontSize: "16px"
                             }}
                         >
-                            {loading ? "Đang gửi..." : "Gửi mã OTP"}
+                            {loading ? t.fgpSending : t.fgpSendOtp}
                         </button>
                     </form>
                 ) : (
                     <form onSubmit={handleResetPassword}>
                         <div style={{ marginBottom: "20px" }}>
-                            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "var(--text-heading)" }}>Nhập mã OTP (6 số)</label>
+                            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "var(--text-heading)" }}>{t.fgpOtpLabel}</label>
                             <input 
                                 type="text"
                                 required
@@ -164,7 +166,7 @@ const ForgotPassword = () => {
                             />
                         </div>
                         <div style={{ marginBottom: "20px" }}>
-                            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "var(--text-heading)" }}>Mật khẩu mới</label>
+                            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "var(--text-heading)" }}>{t.fgpNewPwd}</label>
                             <input 
                                 type="password"
                                 required
@@ -184,7 +186,7 @@ const ForgotPassword = () => {
                             />
                         </div>
                         <div style={{ marginBottom: "25px" }}>
-                            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "var(--text-heading)" }}>Xác nhận mật khẩu mới</label>
+                            <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "var(--text-heading)" }}>{t.fgpConfirmNewPwd}</label>
                             <input 
                                 type="password"
                                 required
@@ -218,7 +220,7 @@ const ForgotPassword = () => {
                                 fontSize: "16px"
                             }}
                         >
-                            {loading ? "Đang xác nhận..." : "Cập nhật mật khẩu"}
+                            {loading ? t.fgpConfirming : t.fgpUpdatePwd}
                         </button>
                         <button 
                             type="button"
@@ -236,7 +238,7 @@ const ForgotPassword = () => {
                                 fontSize: "14px"
                             }}
                         >
-                            Quay lại
+                            {t.goBack}
                         </button>
                     </form>
                 )}

@@ -57,7 +57,7 @@ const AdminRevenue = () => {
       const data = await res.json();
       setAiInsights(data.insights);
     } catch (err) {
-      setAiInsights("Lỗi khi tải nhận định từ AI: " + err.message);
+      setAiInsights(t.admAiLoadError.replace("{msg}", err.message));
     } finally {
       setAnalyzingId(null);
     }
@@ -77,7 +77,7 @@ const AdminRevenue = () => {
       const data = await res.json();
       setAiInsights(data.insights);
     } catch (err) {
-      setAiInsights("Lỗi khi tải nhận định từ AI: " + err.message);
+      setAiInsights(t.admAiLoadError.replace("{msg}", err.message));
     } finally {
       setAnalyzingId(null);
     }
@@ -157,7 +157,7 @@ const AdminRevenue = () => {
     .slice(0, 5)
     .map(item => ({
       name: item.providerName,
-      "Doanh thu": item.totalRevenue || 0
+      [t.revenueCol]: item.totalRevenue || 0
     }));
 
   const formatCurrency = (val) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
@@ -182,7 +182,7 @@ const AdminRevenue = () => {
                 <div style={{ textAlign: "center", padding: "40px 0" }}>
                   <div style={{ width: 56, height: 56, border: "4px solid var(--border-light)", borderTopColor: "#818cf8", borderRadius: "50%", margin: "0 auto 20px", animation: "spin 1s linear infinite" }} />
                   <p style={{ color: "var(--text-secondary)", fontWeight: 600, fontSize: 17 }}>{t.aiAnalyzing}</p>
-                  <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 6 }}>Vui lòng đợi trong giây lát...</p>
+                  <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 6 }}>{t.admPleaseWait}</p>
                 </div>
               ) : (
                 <div style={{ fontSize: 14.5, color: "var(--text-main)", lineHeight: 1.8 }}>
@@ -192,7 +192,7 @@ const AdminRevenue = () => {
             </div>
             {/* Footer */}
             <div style={{ padding: "16px 28px", borderTop: "1px solid var(--border-light)", display: "flex", justifyContent: "flex-end", backgroundColor: "var(--bg-main)", flexShrink: 0 }}>
-              <button onClick={() => setShowAiModal(false)} style={{ padding: "10px 28px", borderRadius: 10, background: "linear-gradient(135deg, #6366f1, #a855f7)", border: "none", fontWeight: 700, color: "white", cursor: "pointer", fontSize: 14, boxShadow: "0 4px 14px rgba(99,102,241,0.35)", transition: "0.2s" }}>Đã hiểu</button>
+              <button onClick={() => setShowAiModal(false)} style={{ padding: "10px 28px", borderRadius: 10, background: "linear-gradient(135deg, #6366f1, #a855f7)", border: "none", fontWeight: 700, color: "white", cursor: "pointer", fontSize: 14, boxShadow: "0 4px 14px rgba(99,102,241,0.35)", transition: "0.2s" }}>{t.admUnderstoodBtn}</button>
             </div>
           </div>
         </div>
@@ -229,7 +229,7 @@ const AdminRevenue = () => {
                 onMouseEnter={e => e.currentTarget.style.transform = "translateY(-1px)"}
                 onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
               >
-                <Sparkles size={16} /> Báo cáo điều hành AI (Hệ thống)
+                <Sparkles size={16} /> {t.admExecutiveAiReport}
               </button>
             </div>
 
@@ -286,7 +286,7 @@ const AdminRevenue = () => {
 
                 {/* Bar Chart: Top Providers */}
                 <div style={{ background: "var(--bg-card)", padding: "24px", borderRadius: "16px", boxShadow: "var(--shadow-md)", border: "1px solid var(--border-light)" }}>
-                  <h3 style={{ fontSize: "17px", fontWeight: "600", marginBottom: "20px", color: "var(--text-heading)" }}>Top 5 Nhà cung cấp doanh thu cao nhất</h3>
+                  <h3 style={{ fontSize: "17px", fontWeight: "600", marginBottom: "20px", color: "var(--text-heading)" }}>{t.admTopProvidersTitle}</h3>
                   <div style={{ height: "300px", width: "100%" }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
@@ -310,7 +310,7 @@ const AdminRevenue = () => {
                           itemStyle={{ color: "#a78bfa" }}
                           labelStyle={{ color: "#cbd5e1", fontWeight: 600 }}
                         />
-                        <Bar dataKey="Doanh thu" fill="url(#barGradient)" radius={[0, 6, 6, 0]} barSize={28} />
+                        <Bar dataKey={t.revenueCol} fill="url(#barGradient)" radius={[0, 6, 6, 0]} barSize={28} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -327,18 +327,18 @@ const AdminRevenue = () => {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "rgba(99,102,241,0.06)", textAlign: "left" }}>
-                    <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Mã NCC</th>
+                    <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{t.admProviderIdCol}</th>
                     <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{t.providerCol}</th>
-                    <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Loại dịch vụ</th>
+                    <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{t.admServiceTypeCol}</th>
                     <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "right" }}>{t.totalRevenue}</th>
-                    <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "center" }}>Hành động</th>
+                    <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "center" }}>{t.admActionCol}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="5" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Đang tải dữ liệu...</td></tr>
+                    <tr><td colSpan="5" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>{t.admLoadingData}</td></tr>
                   ) : revenues.length === 0 ? (
-                    <tr><td colSpan="5" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>Không có dữ liệu</td></tr>
+                    <tr><td colSpan="5" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>{t.admNoData}</td></tr>
                   ) : (
                     [...revenues]
                       .sort((a, b) => (b.totalRevenue || 0) - (a.totalRevenue || 0))

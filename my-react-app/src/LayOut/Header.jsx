@@ -141,7 +141,7 @@ const Header = () => {
           {/* Theme toggle */}
           <button
             onClick={toggleTheme}
-            title={isDark ? "Chế độ sáng" : "Chế độ tối"}
+            title={isDark ? t.themeLight : t.themeDark}
             style={{
               background: "none",
               border: "1px solid var(--border-input)",
@@ -296,7 +296,7 @@ const Header = () => {
                   whiteSpace: "nowrap",
                   fontWeight: 500,
                 }}>
-                  {t.support === "CSKH" ? "Tư vấn 24/7" : t.support === "Support" ? "24/7 Support" : t.support === "サポート" ? "24時間サポート" : "24小時客服"}
+                  {t.support247Text}
                 </div>
               </div>
             )}

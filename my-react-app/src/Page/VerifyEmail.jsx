@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useLanguage } from "../context/LanguageContext";
 
 const VerifyEmail = () => {
+    const { t } = useLanguage();
     const [otp, setOtp] = useState("");
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: "", text: "" });
@@ -23,7 +25,7 @@ const VerifyEmail = () => {
 
         try {
             const response = await axios.post(`/api/auth/verify-email?email=${email}&code=${otp}`);
-            setMessage({ type: "success", text: "Xác thực thành công! Đang chuyển hướng..." });
+            setMessage({ type: "success", text: t.vfySuccess });
             
   
             if (response.data.token) {
@@ -36,7 +38,7 @@ const VerifyEmail = () => {
                 window.location.reload(); 
             }, 2000);
         } catch (err) {
-            setMessage({ type: "error", text: err.response?.data?.message || "Mã xác thực không chính xác hoặc đã hết hạn." });
+            setMessage({ type: "error", text: err.response?.data?.message || t.vfyInvalidCode });
         } finally {
             setLoading(false);
         }
@@ -62,10 +64,10 @@ const VerifyEmail = () => {
             }}>
                 <div style={{ fontSize: "50px", marginBottom: "20px" }}>📧</div>
                 <h2 style={{ fontSize: "28px", fontWeight: "800", marginBottom: "10px", color: "var(--text-heading)" }}>
-                    Xác thực Email
+                    {t.vfyTitle}
                 </h2>
                 <p style={{ color: "var(--text-secondary)", marginBottom: "30px", fontSize: "14px" }}>
-                    Chúng tôi đã gửi mã xác thực 6 số đến email: <br/>
+                    {t.vfySentTo} <br/>
                     <strong style={{ color: "#20c997" }}>{email}</strong>
                 </p>
 
@@ -86,7 +88,7 @@ const VerifyEmail = () => {
 
                 <form onSubmit={handleVerify}>
                     <div style={{ marginBottom: "25px" }}>
-                        <label style={{ display: "block", marginBottom: "12px", fontWeight: "600", color: "#374151" }}>Nhập mã xác thực</label>
+                        <label style={{ display: "block", marginBottom: "12px", fontWeight: "600", color: "#374151" }}>{t.vfyCodeLabel}</label>
                         <input 
                             type="text"
                             required
@@ -127,11 +129,11 @@ const VerifyEmail = () => {
                             boxShadow: "0 4px 12px rgba(32, 201, 151, 0.3)"
                         }}
                     >
-                        {loading ? "Đang xác thực..." : "Xác nhận kích hoạt"}
+                        {loading ? t.vfyVerifying : t.vfyActivate}
                     </button>
                     
                     <p style={{ marginTop: "25px", fontSize: "14px", color: "var(--text-muted)" }}>
-                        Không nhận được mã? <span style={{ color: "#20c997", cursor: "pointer", fontWeight: "600" }}>Gửi lại mã</span>
+                        {t.vfyNotReceived} <span style={{ color: "#20c997", cursor: "pointer", fontWeight: "600" }}>{t.vfyResend}</span>
                     </p>
                 </form>
             </div>

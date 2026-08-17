@@ -15,9 +15,9 @@ const PassengerInfoForm = ({
 
   // Type details
   const typeConfig = {
-    ADULT: { icon: <FaUser style={{ color: "var(--primary)", fontSize: 16 }} />, label: t.adult || "Người lớn", desc: "> 12 tuổi", canSelectSaved: true },
-    CHILD: { icon: <FaChild style={{ color: "var(--primary)", fontSize: 16 }} />, label: t.child || "Trẻ em", desc: "2 - 11 tuổi", canSelectSaved: true },
-    INFANT: { icon: <FaBaby style={{ color: "var(--primary)", fontSize: 16 }} />, label: t.infant || "Em bé", desc: "< 2 tuổi", canSelectSaved: true }
+    ADULT: { icon: <FaUser style={{ color: "var(--primary)", fontSize: 16 }} />, label: t.adult, desc: t.ageAdultHint, canSelectSaved: true },
+    CHILD: { icon: <FaChild style={{ color: "var(--primary)", fontSize: 16 }} />, label: t.child, desc: t.ageChildHint, canSelectSaved: true },
+    INFANT: { icon: <FaBaby style={{ color: "var(--primary)", fontSize: 16 }} />, label: t.infant, desc: t.ageInfantHint, canSelectSaved: true }
   };
 
   const currentType = typeConfig[type] || typeConfig.ADULT;
@@ -99,7 +99,7 @@ const PassengerInfoForm = ({
                 outline: "none"
               }}
             >
-              <option value="">+ Chọn hành khách đã lưu</option>
+              <option value="">+ {t.pifSelectSaved || "Chọn hành khách đã lưu"}</option>
               {applicableSavedPassengers.map(sp => (
                 <option key={sp.id} value={sp.id}>{sp.fullName} {sp.phone ? `(${sp.phone})` : ''}</option>
               ))}
@@ -127,30 +127,30 @@ const PassengerInfoForm = ({
                 onChange={handleChange}
                 style={inputStyle}
               >
-                <option value="">Chọn giới tính</option>
-                <option value="Male">Nam</option>
-                <option value="Female">Nữ</option>
-                <option value="Other">Khác</option>
+                <option value="">{t.pifSelectGender || "Chọn giới tính"}</option>
+                <option value="Male">{t.genderMale || "Nam"}</option>
+                <option value="Female">{t.genderFemale || "Nữ"}</option>
+                <option value="Other">{t.genderOther || "Khác"}</option>
               </select>
             </div>
 
             {/* Họ và tên */}
             <div>
-              <label style={labelStyle}>{t.fullName || "Họ và Tên"} (VD: NGUYEN VAN A) *</label>
+              <label style={labelStyle}>{t.fullName || "Họ và Tên"} {t.pifNameExampleHint || "(VD: NGUYEN VAN A)"} *</label>
               <input
                 type="text"
                 name="fullName"
                 maxLength={50}
                 value={data.fullName || ''}
                 onChange={e => onChange(index, type, { ...data, fullName: e.target.value.replace(/[^a-zA-ZàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ\s]/g, '') })}
-                placeholder="NHẬP HỌ VÀ TÊN"
+                placeholder={t.pifFullNamePlaceholder || "NHẬP HỌ VÀ TÊN"}
                 style={{ ...inputStyle, textTransform: "uppercase" }}
               />
             </div>
 
             {/* Ngày sinh */}
             <div>
-              <label style={labelStyle}>{t.dob || "Ngày sinh"} *</label>
+              <label style={labelStyle}>{t.dob}</label>
               <input
                 type="text"
                 name="dateOfBirth"
@@ -164,15 +164,15 @@ const PassengerInfoForm = ({
 
             {/* Quốc tịch */}
             <div>
-              <label style={labelStyle}>{t.nationality || "Quốc tịch"} *</label>
+              <label style={labelStyle}>{t.nationality} *</label>
               <select
                 name="nationality"
                 value={data.nationality || 'Việt Nam'}
                 onChange={handleChange}
                 style={inputStyle}
               >
-                <option value="Việt Nam">Việt Nam</option>
-                <option value="Quốc tế">Quốc tế (Khác)</option>
+                <option value="Việt Nam">{t.vietnam}</option>
+                <option value="Quốc tế">{t.pifInternationalOption || "Quốc tế (Khác)"}</option>
               </select>
             </div>
 
@@ -181,7 +181,7 @@ const PassengerInfoForm = ({
               <>
                 {/* SĐT */}
                 <div>
-                  <label style={labelStyle}>{t.phoneNumber || "Số điện thoại"} *</label>
+                  <label style={labelStyle}>{t.phoneNumber}</label>
                   <div style={{ display: "flex", gap: "8px" }}>
                     <input readOnly value="+84" style={{ width: "64px", padding: "10px 8px", borderRadius: "8px", border: "1px solid var(--border-input)", background: "var(--bg-hover)", textAlign: "center", color: "var(--text-secondary)" }} />
                     <input
@@ -198,7 +198,7 @@ const PassengerInfoForm = ({
 
                 {/* Email */}
                 <div>
-                  <label style={labelStyle}>{t.emailField || "Email"} *</label>
+                  <label style={labelStyle}>{t.emailField}</label>
                   <input
                     type="email"
                     name="email"
@@ -219,7 +219,7 @@ const PassengerInfoForm = ({
                     maxLength={12}
                     value={data.idNumber || ''}
                     onChange={e => onChange(index, type, { ...data, idNumber: e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12) })}
-                    placeholder="Nhập số CCCD hoặc Mã Hộ chiếu (Tối đa 12 ký tự)"
+                    placeholder={t.pifIdNumberPlaceholder || "Nhập số CCCD hoặc Mã Hộ chiếu (Tối đa 12 ký tự)"}
                     style={inputStyle}
                   />
                 </div>

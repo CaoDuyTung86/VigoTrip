@@ -7,18 +7,38 @@ import { IoTicketSharp } from "react-icons/io5";
 import { IoIosAirplane } from "react-icons/io";
 import { useToast } from "../context/ToastContext";
 
+const CITY_NAME_I18N = {
+  hanoi: { vi: "Hà Nội", en: "Hanoi", ja: "ハノイ", zh: "河內" },
+  hcmc: { vi: "TP. Hồ Chí Minh", en: "Ho Chi Minh City", ja: "ホーチミン", zh: "胡志明市" },
+  danang: { vi: "Đà Nẵng", en: "Da Nang", ja: "ダナン", zh: "峴港" },
+  haiphong: { vi: "Hải Phòng", en: "Hai Phong", ja: "ハイフォン", zh: "海防" },
+  cantho: { vi: "Cần Thơ", en: "Can Tho", ja: "カントー", zh: "芹苴" },
+  nhatrang: { vi: "Nha Trang", en: "Nha Trang", ja: "ニャチャン", zh: "芽莊" },
+  dalat: { vi: "Đà Lạt", en: "Da Lat", ja: "ダラット", zh: "大叻" },
+  hue: { vi: "Huế", en: "Hue", ja: "フエ", zh: "順化" },
+  quangninh: { vi: "Quảng Ninh", en: "Quang Ninh", ja: "クアンニン", zh: "廣寧" },
+  vinh: { vi: "Vinh", en: "Vinh", ja: "ヴィン", zh: "榮市" },
+  quynhon: { vi: "Quy Nhơn", en: "Quy Nhon", ja: "クイニョン", zh: "歸仁" },
+  bmt: { vi: "Buôn Ma Thuột", en: "Buon Ma Thuot", ja: "バンメートート", zh: "邦美蜀" },
+  phuquoc: { vi: "Phú Quốc", en: "Phu Quoc", ja: "フーコック", zh: "富國島" },
+  halong: { vi: "Hạ Long", en: "Ha Long", ja: "ハロン", zh: "下龍" },
+  sapa: { vi: "Sa Pa", en: "Sa Pa", ja: "サパ", zh: "沙壩" },
+};
+
 const PackageSearch = () => {
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
+
+  const localName = (id) => CITY_NAME_I18N[id]?.[currentLanguage?.code || "vi"] || id;
   const [tripType, setTripType] = useState("oneway");
 
   // State cho combo
-  const [from, setFrom] = useState("TP. Hồ Chí Minh");
-  const [to, setTo] = useState("Hà Nội");
+  const [from, setFrom] = useState("hcmc");
+  const [to, setTo] = useState("hanoi");
   const [departDate, setDepartDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
 
   // State cho khách sạn
-  const [hotelDestination, setHotelDestination] = useState("Hà Nội");
+  const [hotelDestination, setHotelDestination] = useState("hanoi");
   const [checkinDate, setCheckinDate] = useState("");
   const [checkoutDate, setCheckoutDate] = useState("");
   const [nights, setNights] = useState(0);
@@ -123,17 +143,17 @@ const PackageSearch = () => {
   };
 
   const handleSelectFrom = (city) => {
-    setFrom(city.name);
+    setFrom(city.id);
     setShowFromDropdown(false);
   };
 
   const handleSelectTo = (city) => {
-    setTo(city.name);
+    setTo(city.id);
     setShowToDropdown(false);
   };
 
   const handleSelectHotel = (city) => {
-    setHotelDestination(city.name);
+    setHotelDestination(city.id);
     setShowHotelDropdown(false);
   };
 
@@ -426,7 +446,7 @@ const PackageSearch = () => {
               </label>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <IoLocationOutline style={{ color: "var(--primary)", fontSize: "14px" }} />
-                <span style={{ fontSize: "14px", color: "var(--text-main)", fontWeight: "500" }}>{from}</span>
+                <span style={{ fontSize: "14px", color: "var(--text-main)", fontWeight: "500" }}>{localName(from)}</span>
               </div>
             </div>
 
@@ -461,7 +481,7 @@ const PackageSearch = () => {
                     onMouseEnter={(e) => e.target.style.background = "#f5f5f5"}
                     onMouseLeave={(e) => e.target.style.background = "transparent"}
                   >
-                    {city.name}
+                    {localName(city.id)}
                   </div>
                 ))}
               </div>
@@ -511,7 +531,7 @@ const PackageSearch = () => {
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <IoLocationOutline style={{ color: "var(--primary)", fontSize: "14px" }} />
-                  <span style={{ fontSize: "14px", color: "var(--text-main)", fontWeight: "500" }}>{to}</span>
+                  <span style={{ fontSize: "14px", color: "var(--text-main)", fontWeight: "500" }}>{localName(to)}</span>
                 </div>
               </div>
 
@@ -546,7 +566,7 @@ const PackageSearch = () => {
                       onMouseEnter={(e) => e.target.style.background = "#f5f5f5"}
                       onMouseLeave={(e) => e.target.style.background = "transparent"}
                     >
-                      {city.name}
+                      {localName(city.id)}
                     </div>
                   ))}
                 </div>
@@ -660,7 +680,7 @@ const PackageSearch = () => {
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <IoLocationOutline style={{ color: "var(--primary)", fontSize: "14px" }} />
-              <span style={{ fontSize: "14px", color: "var(--text-main)", fontWeight: "500" }}>{hotelDestination}</span>
+              <span style={{ fontSize: "14px", color: "var(--text-main)", fontWeight: "500" }}>{localName(hotelDestination)}</span>
             </div>
           </div>
 
@@ -695,7 +715,7 @@ const PackageSearch = () => {
                   onMouseEnter={(e) => e.target.style.background = "#f5f5f5"}
                   onMouseLeave={(e) => e.target.style.background = "transparent"}
                 >
-                  {city.name}
+                  {localName(city.id)}
                 </div>
               ))}
             </div>

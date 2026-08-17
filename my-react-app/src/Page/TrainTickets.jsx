@@ -12,9 +12,6 @@ import {
   canSelectSeats,
   getSeatUserId,
   isSeatLockedByOthers,
-  LOGIN_REQUIRED_SEAT_MSG,
-  SEAT_CONFLICT_MSG,
-  WS_NOT_CONNECTED_MSG,
 } from "../utils/seatBookingHelpers";
 import { useLocation } from "react-router-dom";
 import { MdOutlineCreditCard, MdOutlineDone } from "react-icons/md";
@@ -254,7 +251,7 @@ const TrainTickets = () => {
           if (isLockedByOther) {
             setSelectedSeatIds((prev) => {
               if (prev.includes(update.seatId)) {
-                setError("Ghế bạn đang chọn vừa được người khác giữ. Vui lòng chọn ghế khác.");
+                setError(t.airSeatTakenByOther);
                 return prev.filter((id) => id !== update.seatId);
               }
               return prev;
@@ -304,7 +301,7 @@ const TrainTickets = () => {
         // Reset states
         setSelectedSeatIds([]);
         setLockDeadline(null);
-        setError("Hết thời gian giữ ghế (10 phút). Vui lòng chọn ghế và thực hiện lại.");
+        setError(t.airSeatHoldTimeout);
         setStep("seatClass");
       }
     }, 1000);
@@ -401,9 +398,9 @@ const TrainTickets = () => {
     setCalendarOpen(false);
 
     const errs = {};
-    if (!searchFrom || !searchFrom.trim()) errs.from = "Vui lòng nhập điểm đi";
-    if (!searchTo || !searchTo.trim()) errs.to = "Vui lòng nhập điểm đến";
-    if (!searchDate) errs.date = "Vui lòng chọn ngày đi";
+    if (!searchFrom || !searchFrom.trim()) errs.from = t.errFromRequired;
+    if (!searchTo || !searchTo.trim()) errs.to = t.errToRequired;
+    if (!searchDate) errs.date = t.errDateRequired;
     if (Object.keys(errs).length > 0) {
       setFormErrors(errs);
       setError("");
@@ -441,7 +438,7 @@ const TrainTickets = () => {
       setStep("chooseTrip");
     } catch (err) {
       console.error(err);
-      setError("Không tìm được chuyến tàu. Vui lòng thử lại.");
+      setError(t.trnSearchFailed);
     } finally {
       setLoading(false);
     }
@@ -460,7 +457,7 @@ const TrainTickets = () => {
 
   const loadCalendar = async () => {
     if (!from || !to) {
-      setError("Vui lòng nhập đầy đủ điểm đi và điểm đến để xem lịch giá.");
+      setError(t.errFromToForCalendar);
       return;
     }
 
@@ -493,7 +490,7 @@ const TrainTickets = () => {
       setCalendarData(data || []);
     } catch (err) {
       console.error(err);
-      setError("Không tải được lịch giá. Vui lòng thử lại.");
+      setError(t.errCalendarFailed);
     } finally {
       setCalendarLoading(false);
     }
@@ -528,7 +525,7 @@ const TrainTickets = () => {
       setServices(hasMeal ? loadedServices : [...loadedServices, ...defaultMeals]);
     } catch (err) {
       console.error(err);
-      setError("Không tải được danh sách dịch vụ bổ sung.");
+      setError(t.errServicesFailed);
     } finally {
       setServicesLoading(false);
     }
@@ -553,7 +550,7 @@ const TrainTickets = () => {
       setStep("seatClass");
     } catch (err) {
       console.error(err);
-      setError("Không tải được danh sách ghế. Vui lòng thử lại.");
+      setError(t.errSeatsFailed);
     } finally {
       setLoading(false);
     }
@@ -564,7 +561,7 @@ const TrainTickets = () => {
 
   const toggleSeat = (seat) => {
     if (!canSelectSeats(isAuthenticated, user)) {
-      setError(LOGIN_REQUIRED_SEAT_MSG);
+      setError(t.loginRequiredSeat);
       return;
     }
 
@@ -614,14 +611,14 @@ const TrainTickets = () => {
     for (const [idx, pi] of passengerInfoList.entries()) {
       const d = pi.data || {};
       const isAdult = pi.type === 'ADULT';
-      if (!d.fullName || d.fullName.trim() === '') return `Vui lòng nhập họ tên cho ${isAdult ? 'người lớn' : pi.type === 'CHILD' ? 'trẻ em' : 'em bé'} ${idx + 1}.`;
-      if (!d.dateOfBirth || !/^\d{2}\/\d{2}\/\d{4}$/.test(d.dateOfBirth)) return `Ngày sinh hành khách ${idx + 1} không hợp lệ. Vui lòng nhập định dạng DD/MM/YYYY.`;
-      if (!d.gender) return `Vui lòng chọn giới tính cho hành khách ${idx + 1}.`;
+      if (!d.fullName || d.fullName.trim() === '') return t.errPassengerName.replace('{type}', isAdult ? t.adult.toLowerCase() : pi.type === 'CHILD' ? t.child.toLowerCase() : t.infant.toLowerCase()).replace('{index}', idx + 1);
+      if (!d.dateOfBirth || !/^\d{2}\/\d{2}\/\d{4}$/.test(d.dateOfBirth)) return t.errDobInvalid.replace('{index}', idx + 1);
+      if (!d.gender) return t.errGenderRequired.replace('{index}', idx + 1);
 
       if (isAdult) {
-        if (!d.email || !/^\S+@\S+\.\S+$/.test(d.email)) return `Email của người lớn không hợp lệ.`;
-        if (!d.phone || !/^\d{9,10}$/.test(d.phone.replace(/\D/g, ''))) return `SĐT người lớn không hợp lệ.`;
-        if (!d.idNumber) return `Vui lòng nhập CCCD/Hộ chiếu cho người lớn.`;
+        if (!d.email || !/^\S+@\S+\.\S+$/.test(d.email)) return t.errEmailInvalid;
+        if (!d.phone || !/^\d{9,10}$/.test(d.phone.replace(/\D/g, ''))) return t.errPhoneInvalid;
+        if (!d.idNumber) return t.errIdNumberRequired;
       }
     }
     return null;
@@ -629,15 +626,15 @@ const TrainTickets = () => {
 
   const goToExtras = async () => {
     if (!canSelectSeats(isAuthenticated, user)) {
-      setError(LOGIN_REQUIRED_SEAT_MSG);
+      setError(t.loginRequiredSeat);
       return;
     }
     if (!selectedSeatIds.length) {
-      setError("Vui lòng chọn ghế trước khi tiếp tục.");
+      setError(t.errSelectSeatFirst);
       return;
     }
     if (!isConnected) {
-      setError(WS_NOT_CONNECTED_MSG);
+      setError(t.wsNotConnected);
       return;
     }
 
@@ -651,12 +648,12 @@ const TrainTickets = () => {
 
     if (!success) {
       if (error === "NOT_CONNECTED") {
-        setError(WS_NOT_CONNECTED_MSG);
+        setError(t.wsNotConnected);
       } else if (failed?.length) {
         setSelectedSeatIds((prev) => prev.filter((id) => !failed.includes(id)));
-        setError(SEAT_CONFLICT_MSG);
+        setError(t.seatConflict);
       } else {
-        setError("Không thể giữ ghế. Vui lòng thử lại.");
+        setError(t.errHoldSeatFailed);
       }
       return;
     }
@@ -700,26 +697,26 @@ const TrainTickets = () => {
       } else {
         setAppliedVoucher("");
         setVoucherDiscount(0);
-        alert("Lỗi: " + res.data.message);
+        alert(t.errorPrefix + res.data.message);
       }
     } catch {
-      alert("Có lỗi xảy ra khi áp mã giảm giá.");
+      alert(t.errPromoFailed);
     }
   };
 
   const submitBooking = async () => {
     if (!isAuthenticated || !token) {
-      setError("Vui lòng đăng nhập trước khi đặt vé.");
+      setError(t.errLoginToBook);
       return;
     }
 
     if (!selectedTrip) {
-      setError("Vui lòng chọn chuyến bay.");
+      setError(t.errSelectTrip);
       return;
     }
 
     if (!selectedSeatIds.length) {
-      setError("Vui lòng chọn ghế.");
+      setError(t.errSelectSeat);
       return;
     }
 
@@ -746,7 +743,7 @@ const TrainTickets = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        const message = data?.message || "Đặt vé thất bại. Vui lòng thử lại.";
+        const message = data?.message || t.errBookingFailed;
         setError(message);
         setSubmitLoading(false);
         return;
@@ -762,7 +759,7 @@ const TrainTickets = () => {
       }
     } catch (err) {
       console.error(err);
-      setError("Không thể kết nối đến máy chủ để đặt vé.");
+      setError(t.errServerConnectFailed);
     } finally {
       setSubmitLoading(false);
     }
@@ -1450,7 +1447,7 @@ const TrainTickets = () => {
                     color: timeLeft < 120 ? "#991b1b" : "#166534",
                     fontSize: 14
                   }}>
-                    <span>⏱️ Thời gian giữ ghế còn lại: </span>
+                    <span>⏱️ {t.seatHoldTimeRemaining}</span>
                     <span style={{ fontSize: 16, fontFamily: "monospace" }}>
                       {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:
                       {(timeLeft % 60).toString().padStart(2, '0')}
@@ -1495,11 +1492,11 @@ const TrainTickets = () => {
                   <p style={{ color: "var(--text-secondary)", fontSize: 14, marginBottom: 20 }}>{t.selectSeatInstruction}</p>
                   {!canSelectSeats(isAuthenticated, user) && (
                     <p style={{ color: "#f59e0b", fontSize: 13, marginBottom: 16, padding: "12px 16px", background: "rgba(245,158,11,0.1)", borderRadius: 10, border: "1px solid rgba(245,158,11,0.3)" }}>
-                      {LOGIN_REQUIRED_SEAT_MSG}
+                      {t.loginRequiredSeat}
                     </p>
                   )}
 
-                  {loading && <p style={{ color: "var(--text-muted)", fontSize: 14 }}>Đang tải sơ đồ ghế...</p>}
+                  {loading && <p style={{ color: "var(--text-muted)", fontSize: 14 }}>{t.loadingSeatMap}</p>}
 
                   {!loading && seats.length > 0 && (
                     <TrainSeatMap
@@ -1517,7 +1514,7 @@ const TrainTickets = () => {
                     />
                   )}
 
-                  {!loading && seats.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 14 }}>Chưa có dữ liệu ghế cho chuyến này.</p>}
+                  {!loading && seats.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 14 }}>{t.noSeatData}</p>}
 
                   {error && <p style={{ color: "#ef4444", marginTop: 12, fontSize: 14 }}>{error}</p>}
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
@@ -1535,7 +1532,7 @@ const TrainTickets = () => {
 
 
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)", height: "fit-content", position: "sticky", top: 16 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>Thông tin đặt chỗ</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>{t.bookingSummary}</div>
                   <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.8 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                       <span>🚆</span> <span>{selectedTrip.origin}</span> <span style={{ color: "var(--primary)" }}>→</span> <span>{selectedTrip.destination}</span>
@@ -1549,16 +1546,16 @@ const TrainTickets = () => {
                       <span style={{ fontWeight: 500 }}>{selectedTrip.providerName}</span>
                     </div>
                     <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(20,83,45,0.3)", borderRadius: 10, border: "1px solid rgba(34,197,94,0.4)" }}>
-                      <div style={{ fontSize: 12, color: "#86efac", fontWeight: 700, marginBottom: 4 }}>🟢 Phổ thông (ECO)</div>
+                      <div style={{ fontSize: 12, color: "#86efac", fontWeight: 700, marginBottom: 4 }}>🟢 {t.economy} (ECO)</div>
                       <div style={{ fontWeight: 800, color: "#4ade80", fontSize: 16 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
                     </div>
                     <div style={{ marginTop: 8, padding: "10px 12px", background: "rgba(30,58,138,0.3)", borderRadius: 10, border: "1px solid rgba(59,130,246,0.4)" }}>
-                      <div style={{ fontSize: 12, color: "#93c5fd", fontWeight: 700, marginBottom: 4 }}>🔵 Thương gia (BUSINESS)</div>
+                      <div style={{ fontSize: 12, color: "#93c5fd", fontWeight: 700, marginBottom: 4 }}>🔵 {t.business} (BUSINESS)</div>
                       <div style={{ fontWeight: 800, color: "#60a5fa", fontSize: 16 }}>
                         {Number(getSeatPrice(selectedTrip.price, "BUSINESS")).toLocaleString("vi-VN")} đ
                       </div>
                     </div>
-                    <div style={{ marginTop: 12, color: selectedSeatIds.length >= (passengers || 1) ? "#22c55e" : "var(--text-muted)", fontWeight: 600 }}>Ghế đã chọn: {selectedSeatIds.length}/{passengers || 1}</div>
+                    <div style={{ marginTop: 12, color: selectedSeatIds.length >= (passengers || 1) ? "#22c55e" : "var(--text-muted)", fontWeight: 600 }}>{t.seatsSelectedCount.replace('{selected}', selectedSeatIds.length).replace('{total}', passengers || 1)}</div>
                   </div>
                 </div>
               </div>
@@ -1626,7 +1623,7 @@ const TrainTickets = () => {
                 </div>
 
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 20, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)", height: "fit-content", position: "sticky", top: 16 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>Thông tin đặt chỗ</div>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, borderBottom: "1px solid var(--border-main)", paddingBottom: 10, color: "var(--text-main)" }}>{t.bookingSummary}</div>
                   <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.8 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                       <span>🚆</span> <span>{selectedTrip.origin}</span> <span style={{ color: "var(--primary)" }}>→</span> <span>{selectedTrip.destination}</span>
@@ -1640,7 +1637,7 @@ const TrainTickets = () => {
                       <span style={{ fontWeight: 500 }}>{selectedTrip.providerName}</span>
                     </div>
                     <div style={{ marginTop: 10, padding: "12px 14px", background: "var(--bg-input)", borderRadius: 10, border: "1px solid var(--border-main)" }}>
-                      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Ghế đã chọn:</div>
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>{t.seatsSelectedLabel}</div>
                       <div style={{ fontWeight: 800, color: "var(--primary)", fontSize: 15, marginBottom: 8 }}>
                         {seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ")}
                       </div>
@@ -1650,7 +1647,7 @@ const TrainTickets = () => {
                           const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
                           const basePrice = Number(selectedTrip.price || 0);
                           const total = selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s), 0);
-                          return total > 0 ? `${total.toLocaleString("vi-VN")} đ` : `${basePrice.toLocaleString("vi-VN")} đ / ghế`;
+                          return total > 0 ? `${total.toLocaleString("vi-VN")} đ` : `${basePrice.toLocaleString("vi-VN")} đ ${t.perSeatUnit}`;
                         })()}
                       </div>
                     </div>
@@ -1665,7 +1662,7 @@ const TrainTickets = () => {
                   <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>{t.step3}</h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{t.extrasInstruction}</p>
 
-                  {servicesLoading && <p style={{ color: "var(--text-muted)" }}>Đang tải dịch vụ...</p>}
+                  {servicesLoading && <p style={{ color: "var(--text-muted)" }}>{t.loadingServices}</p>}
 
                   {!servicesLoading && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1676,7 +1673,7 @@ const TrainTickets = () => {
                           <FaTicketAlt style={{ color: "var(--primary)", fontSize: 22 }} />
                           <div>
                             <div style={{ fontWeight: 800, fontSize: 15, color: "var(--text-main)" }}>{t.baggage}</div>
-                            <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Chọn gói hành lý phù hợp</div>
+                            <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{t.busBaggageSub}</div>
                           </div>
                         </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
@@ -1689,7 +1686,7 @@ const TrainTickets = () => {
                               checked={!selectedServiceIds.some(id => categories.baggage.map(s => s.id).includes(id))}
                               onChange={() => setSingleServiceInCategory(null, categories.baggage)} />
                             <span style={{ fontSize: 16, color: "var(--text-muted)" }}>✕</span>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginTop: 2 }}>Không mua thêm</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginTop: 2 }}>{t.doNotBuyMore}</span>
                           </label>
                           {categories.baggage.map(s => {
                             const isSel = selectedServiceIds.includes(s.id);
@@ -1715,7 +1712,7 @@ const TrainTickets = () => {
                             <span style={{ fontSize: 22, color: "#f59e0b" }}>🍱</span>
                             <div>
                               <div style={{ fontWeight: 800, fontSize: 16, color: "var(--text-main)" }}>{t.meal}</div>
-                              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Suất ăn nóng hổi, chuẩn vị nhà hàng</div>
+                              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{t.mealSub}</div>
                             </div>
                           </div>
                         </div>
@@ -1730,14 +1727,14 @@ const TrainTickets = () => {
                             <input type="radio" name="meal" style={{ display: "none" }}
                               checked={!selectedServiceIds.some(id => categories.meal.map(s => s.id).includes(id))}
                               onChange={() => setSingleServiceInCategory(null, categories.meal)} />
-                            ✕ Không chọn suất ăn
+                            ✕ {t.noMealSelect}
                           </label>
                         </div>
 
                         {categories.meal.length === 0 ? (
                           <div style={{ textAlign: "center", padding: "16px 0", color: "var(--text-secondary)", fontSize: 13 }}>
-                            Hãng tàu này hiện chưa cung cấp suất ăn trực tuyến.<br />
-                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Bạn có thể mua trực tiếp trên tàu.</span>
+                            {t.trnNoMeals}<br />
+                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.trnBuyOnTrain}</span>
                           </div>
                         ) : (
                           <>
@@ -1793,7 +1790,7 @@ const TrainTickets = () => {
                                     cursor: "pointer", transition: "all 0.2s"
                                   }}
                                 >
-                                  {showAllMeals ? "▲ Thu gọn bớt" : `▼ Xem thêm ${categories.meal.length - 4} món ăn khác`}
+                                  {showAllMeals ? `▲ ${t.showLessMeals}` : `▼ ${t.showMoreMeals.replace('{count}', categories.meal.length - 4)}`}
                                 </button>
                               </div>
                             )}
@@ -1802,11 +1799,11 @@ const TrainTickets = () => {
                       </div>
 
                       {/* Bảo hiểm & Xe đưa đón */}
-                      {[{ cat: categories.insurance, icon: <FaShieldAlt style={{ color: "#22c55e", fontSize: 22 }} />, title: "Bảo hiểm du lịch", sub: "Bảo vệ chuyến đi của bạn" },
-                      { cat: categories.taxi, icon: <FaTaxi style={{ color: "#f59e0b", fontSize: 22 }} />, title: "Xe đưa đón sân ga", sub: "Tiện lợi với dịch vụ xe riêng" }]
-                        .map(({ cat, icon, title, sub }) => (
+                      {[{ cat: categories.insurance, icon: <FaShieldAlt style={{ color: "#22c55e", fontSize: 22 }} />, title: t.travelInsurance, sub: t.insuranceSub, id: "insurance" },
+                      { cat: categories.taxi, icon: <FaTaxi style={{ color: "#f59e0b", fontSize: 22 }} />, title: t.trnStationTaxi, sub: t.taxiSub, id: "taxi" }]
+                        .map(({ cat, icon, title, sub, id }) => (
                           cat.length > 0 && (
-                            <div key={title} style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, background: "var(--bg-input)" }}>
+                            <div key={id} style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, background: "var(--bg-input)" }}>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                   {icon}
@@ -1815,35 +1812,35 @@ const TrainTickets = () => {
                                     <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{sub}</div>
                                   </div>
                                 </div>
-                                {title === "Bảo hiểm du lịch" && (
+                                {id === "insurance" && (
                                   <button
                                     type="button"
                                     onClick={() => setShowInsuranceInfo(v => !v)}
                                     style={{ fontSize: 12, padding: "4px 12px", borderRadius: 20, border: "1px solid var(--border-main)", background: "var(--bg-card)", color: "var(--primary)", cursor: "pointer", fontWeight: 600 }}
                                   >
-                                    {showInsuranceInfo ? "Ẩn" : "So sánh gói"}
+                                    {showInsuranceInfo ? t.hide : t.comparePlans}
                                   </button>
                                 )}
                               </div>
 
-                              {title === "Bảo hiểm du lịch" && showInsuranceInfo && (
+                              {id === "insurance" && showInsuranceInfo && (
                                 <div style={{ marginBottom: 14, padding: 14, background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-main)", fontSize: 13 }}>
-                                  <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--text-main)" }}>📋 So sánh gói bảo hiểm</div>
+                                  <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--text-main)" }}>📋 {t.compareInsurancePlans}</div>
                                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                                     <thead>
                                       <tr style={{ background: "var(--bg-input)" }}>
-                                        <th style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid var(--border-main)", color: "var(--text-main)" }}>Quyền lợi</th>
-                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--border-main)", color: "#22c55e" }}>Cơ bản</th>
-                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--border-main)", color: "#60a5fa" }}>Cao cấp</th>
+                                        <th style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid var(--border-main)", color: "var(--text-main)" }}>{t.benefitCol}</th>
+                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--border-main)", color: "#22c55e" }}>{t.planBasic}</th>
+                                        <th style={{ padding: "6px 8px", textAlign: "center", borderBottom: "1px solid var(--border-main)", color: "#60a5fa" }}>{t.planPremium}</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {[
-                                        ["Tai nạn trên tàu", "150 triệu đ", "300 triệu đ"],
-                                        ["Hủy chuyến đột xuất", "✕", "Hoàn 100%"],
-                                        ["Hành lý thất lạc", "2 triệu đ", "5 triệu đ"],
-                                        ["Chi phí y tế", "5 triệu đ", "20 triệu đ"],
-                                        ["Trễ chuyến > 3 tiếng", "✕", "150.000đ"],
+                                        [t.trnInsAccident, `150 ${t.millionVnd}`, `300 ${t.millionVnd}`],
+                                        [t.insTripCancellation, "✕", t.insFullRefund],
+                                        [t.insLostBaggage, `2 ${t.millionVnd}`, `5 ${t.millionVnd}`],
+                                        [t.insMedicalCosts, `5 ${t.millionVnd}`, `20 ${t.millionVnd}`],
+                                        [t.insFlightDelay, "✕", t.insVnd150k],
                                       ].map(([benefit, basic, premium]) => (
                                         <tr key={benefit} style={{ borderBottom: "1px solid var(--border-main)" }}>
                                           <td style={{ padding: "6px 8px", color: "var(--text-secondary)" }}>{benefit}</td>
@@ -1854,7 +1851,7 @@ const TrainTickets = () => {
                                     </tbody>
                                   </table>
                                   <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--bg-input)", borderRadius: 8, color: "var(--text-secondary)", fontSize: 11 }}>
-                                    💡 <b>Gợi ý:</b> Gói <b>Cơ bản</b> phù hợp cho hành trình ngắn. Chọn <b>Cao cấp</b> nếu bạn đi xa, mang nhiều hành lý có giá trị.
+                                    💡 <b>{t.insuranceTipLabel}</b> {t.shortTripInsuranceTip}
                                   </div>
                                 </div>
                               )}
@@ -1865,10 +1862,10 @@ const TrainTickets = () => {
                                 background: "var(--bg-card)", cursor: "pointer", marginBottom: 8, fontWeight: 600, fontSize: 13,
                                 color: !selectedServiceIds.some(id => cat.map(s => s.id).includes(id)) ? "var(--primary)" : "var(--text-secondary)"
                               }}>
-                                <input type="radio" name={`cat_${title}`} style={{ display: "none" }}
+                                <input type="radio" name={`cat_${id}`} style={{ display: "none" }}
                                   checked={!selectedServiceIds.some(id => cat.map(s => s.id).includes(id))}
                                   onChange={() => setSingleServiceInCategory(null, cat)} />
-                                Không chọn
+                                {t.doNotSelect}
                               </label>
 
                               {cat.map(s => {
@@ -1886,11 +1883,11 @@ const TrainTickets = () => {
                                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                       <div>
                                         <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{shortName || s.serviceName}</div>
-                                        {sel && <div style={{ fontSize: 11, color: "var(--primary)" }}>✓ Đã chọn</div>}
+                                        {sel && <div style={{ fontSize: 11, color: "var(--primary)" }}>{t.selected}</div>}
                                       </div>
                                     </div>
                                     <span style={{ fontWeight: 800, fontSize: 14, color: "#f97316", flexShrink: 0 }}>
-                                      {Number(s.price || 0) === 0 ? "Miễn phí" : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}
+                                      {Number(s.price || 0) === 0 ? t.free : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}
                                     </span>
                                   </label>
                                 );
@@ -1921,23 +1918,23 @@ const TrainTickets = () => {
                       return (
                         <>
                           <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "var(--text-main)", gap: 8 }}>
-                            <span>Giá vé ({selectedSeatIds.length} ghế)</span>
+                            <span>{t.ticketPriceForSeats.replace('{count}', selectedSeatIds.length).replace('{seats}', t.seatUnit)}</span>
                             <b style={{ whiteSpace: "nowrap", flexShrink: 0 }}>{seatsTotal.toLocaleString("vi-VN")} đ</b>
                           </div>
                           {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", color: "var(--text-secondary)", gap: 10, marginTop: 4 }}>
                               <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>+ {s.serviceName}</span>
-                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? "Miễn phí" : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
+                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? t.free : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
                             </div>
                           ))}
                           {membershipDiscount > 0 && (
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 6, fontWeight: 600, gap: 8 }}>
-                              <span>🏅 Ưu đãi thành viên ({user.promotion.discountRate}%)</span>
+                              <span>🏅 {t.memberDiscountLabel.replace('{rate}', user.promotion.discountRate)}</span>
                               <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
                             </div>
                           )}
                           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-main)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>Tổng cộng</span>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{t.totalLabel}</span>
                             <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{Math.max(0, seatsTotal + extraTotal - membershipDiscount).toLocaleString("vi-VN")} đ</span>
                           </div>
                         </>
@@ -1957,7 +1954,7 @@ const TrainTickets = () => {
 
 
                   <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}>🚆 Chuyến tàu</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}>🚆 {t.trnTripLabel}</div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-main)" }}>{selectedTrip.origin} → {selectedTrip.destination}</div>
@@ -1975,21 +1972,21 @@ const TrainTickets = () => {
 
 
                   <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}><FaUser /> Hành khách</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}><FaUser /> {t.passengerNameText}</div>
                     {passengerInfoList.map((pi, idx) => (
                       <div key={idx} style={{ fontSize: 14, marginBottom: 8, paddingBottom: 8, borderBottom: idx < passengerInfoList.length - 1 ? "1px dashed var(--border-main)" : "none", color: "var(--text-main)", lineHeight: 1.6 }}>
-                        <b style={{ fontSize: 15 }}>{pi.data.fullName || `Hành khách ${idx + 1}`}</b> <span style={{ color: "var(--text-secondary)" }}>({pi.type === 'ADULT' ? 'Người lớn' : pi.type === 'CHILD' ? 'Trẻ em' : 'Em bé'})</span>
+                        <b style={{ fontSize: 15 }}>{pi.data.fullName || `${t.passengerNameText} ${idx + 1}`}</b> <span style={{ color: "var(--text-secondary)" }}>({pi.type === 'ADULT' ? t.adult : pi.type === 'CHILD' ? t.child : t.infant})</span>
                         {pi.type === 'ADULT' && <div style={{ color: "var(--text-main)", marginTop: 2 }}>{pi.data.email} · {pi.data.phone ? `${pi.data.phone}` : ''}</div>}
-                        <div style={{ marginTop: 2, color: "var(--text-main)" }}>Ngày sinh: <b>{pi.data.dateOfBirth}</b> | Giới tính: <b>{pi.data.gender === 'Male' ? 'Nam' : pi.data.gender === 'Female' ? 'Nữ' : 'Khác'}</b></div>
+                        <div style={{ marginTop: 2, color: "var(--text-main)" }}>{t.dobPrefix} <b>{pi.data.dateOfBirth}</b> | {t.genderPrefix} <b>{pi.data.gender === 'Male' ? t.genderMale : pi.data.gender === 'Female' ? t.genderFemale : t.genderOther}</b></div>
                       </div>
                     ))}
-                    <div style={{ marginTop: 6, color: "var(--text-main)", fontSize: 14 }}>Ghế: <b style={{ fontSize: 15, color: "#f97316" }}>{seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ") || "Chưa chọn"}</b></div>
+                    <div style={{ marginTop: 6, color: "var(--text-main)", fontSize: 14 }}>{t.seatPrefix} <b style={{ fontSize: 15, color: "#f97316" }}>{seats.filter(s => selectedSeatIds.includes(s.id)).map(s => s.seatNumber).join(", ") || t.notSelected}</b></div>
                   </div>
 
 
                   {selectedServiceIds.length > 0 && (
                     <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
-                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)" }}>🛎 Dịch vụ bổ sung</div>
+                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)" }}>🛎 {t.extrasLabel}</div>
                       {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                         <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 6, color: "var(--text-main)", gap: 10 }}>
                           <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>{s.serviceName}</span>
@@ -2003,7 +2000,7 @@ const TrainTickets = () => {
                   <div style={{ border: "1px dashed var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
                     <div style={{ fontWeight: 700, marginBottom: 10, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 6 }}><FaTicketAlt style={{ color: "var(--primary)" }} /> {t.promoCodeLabel}</div>
                     <div style={{ display: "flex", gap: 8 }}>
-                      <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="Nhập mã ưu đãi..."
+                      <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder={t.promoPlaceholder}
                         style={{ flex: 1, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-main)", background: "var(--bg-card)", color: "var(--text-main)", fontSize: 14 }} />
                       <button type="button" onClick={handleApplyVoucher} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.applyPromo}</button>
                     </div>
@@ -2016,16 +2013,16 @@ const TrainTickets = () => {
                     <div style={{ padding: 20, borderRadius: 12, background: "rgba(34, 197, 94, 0.1)", border: "1px solid #22c55e", marginTop: 8 }}>
                       <div style={{ fontWeight: 800, color: "#22c55e", fontSize: 16, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><MdOutlineDone /> {t.successBooking}</div>
                       <div style={{ fontSize: 14, color: "var(--text-main)", lineHeight: 1.9 }}>
-                        <div>Mã booking: <b style={{ color: "var(--primary)" }}>#{bookingResult.id}</b></div>
+                        <div>{t.bookingIdPrefix} <b style={{ color: "var(--primary)" }}>#{bookingResult.id}</b></div>
                         <div>{t.totalCost}: <b style={{ color: "#f97316" }}>{Number(bookingResult.totalPrice || 0).toLocaleString("vi-VN")} đ</b></div>
-                        <div>Ghế: {Array.isArray(bookingResult.seatNumbers) ? bookingResult.seatNumbers.join(", ") : ""}</div>
+                        <div>{t.seatPrefix} {Array.isArray(bookingResult.seatNumbers) ? bookingResult.seatNumbers.join(", ") : ""}</div>
                       </div>
                       <button type="button"
                         onClick={async () => {
                           try {
                             const res = await axios.post("/api/payment/create", { bookingId: bookingResult.id, language: "vn" }, { headers: { Authorization: `Bearer ${token}` } });
                             if (res.data && res.data.paymentUrl) window.location.href = res.data.paymentUrl;
-                          } catch { alert("Lỗi tạo link VNPay, vui lòng thử lại."); }
+                          } catch { alert(t.errVnpayLinkFailed); }
                         }}
                         style={{ marginTop: 14, width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#005baa", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                         <MdOutlineCreditCard fontSize={20} /> {t.paymentVNPAY}
@@ -2036,7 +2033,7 @@ const TrainTickets = () => {
                       <button type="button" onClick={() => setStep("extras")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
                       <button type="button" onClick={submitBooking} disabled={submitLoading}
                         style={{ padding: "12px 32px", borderRadius: 8, border: "none", background: "#f97316", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-                        {submitLoading ? "Đang xử lý..." : "Đặt vé ngay →"}
+                        {submitLoading ? t.processing : `${t.bookTicketNow} →`}
                       </button>
                     </div>
                   )}
@@ -2055,29 +2052,29 @@ const TrainTickets = () => {
                       return (
                         <>
                           <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "var(--text-main)", gap: 8 }}>
-                            <span>Giá vé ({selectedSeatIds.length} ghế)</span>
+                            <span>{t.ticketPriceForSeats.replace('{count}', selectedSeatIds.length).replace('{seats}', t.seatUnit)}</span>
                             <b style={{ whiteSpace: "nowrap", flexShrink: 0 }}>{seatsTotal.toLocaleString("vi-VN")} đ</b>
                           </div>
                           {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", color: "var(--text-main)", gap: 10, marginTop: 4 }}>
                               <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>+ {s.serviceName}</span>
-                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? "Miễn phí" : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
+                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? t.free : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
                             </div>
                           ))}
                           {membershipDiscount > 0 && (
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 6, fontWeight: 600, gap: 8 }}>
-                              <span>🏅 Ưu đãi thành viên ({user.promotion.discountRate}%)</span>
+                              <span>🏅 {t.memberDiscountLabel.replace('{rate}', user.promotion.discountRate)}</span>
                               <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
                             </div>
                           )}
                           {appliedVoucher && (
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 4, gap: 8 }}>
-                              <span>🎟 Mã: {appliedVoucher}</span>
+                              <span>🎟 {t.codePrefix} {appliedVoucher}</span>
                               <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{voucherDiscount.toLocaleString("vi-VN")} đ</span>
                             </div>
                           )}
                           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-main)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>Tổng cộng</span>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{t.totalLabel}</span>
                             <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{Math.max(0, seatsTotal + extraTotal - membershipDiscount - voucherDiscount).toLocaleString("vi-VN")} đ</span>
                           </div>
                         </>

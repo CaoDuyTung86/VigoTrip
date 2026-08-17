@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useLanguage } from "../context/LanguageContext";
 import { FiInfo, FiChevronDown, FiChevronUp, FiClock, FiCalendar, FiGift } from "react-icons/fi";
 import { FaSuitcase, FaUtensils, FaWifi, FaUserFriends, FaChair, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 import { MdFlightTakeoff, MdFlightLand } from "react-icons/md";
@@ -6,6 +7,7 @@ import { GiCommercialAirplane } from "react-icons/gi";
 import { IoIosArrowForward } from "react-icons/io";
 
 const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
+  const { t } = useLanguage();
   const [selectedClass, setSelectedClass] = useState("economy");
   const [selectedPayment, setSelectedPayment] = useState("momo");
 
@@ -52,39 +54,39 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
   const classOptions = [
     {
       id: "economy",
-      name: "Hạng Phổ Thông",
+      name: t.fbClassEconomy || "Hạng Phổ Thông",
       luggage: {
-        carryOn: "1 kiện",
-        checked: "Chưa có"
+        carryOn: t.fbOnePiece || "1 kiện",
+        checked: t.fbNoneYet || "Chưa có"
       },
-      flexibility: "Không hoàn",
+      flexibility: t.fbNonRefundable || "Không hoàn",
       price: "2.031.000₫",
       originalPrice: "2.053.000₫",
-      benefits: ["Dặm: ít nhất 38", "Combo chuyến bay: ✓ Giá tốt"]
+      benefits: [(t.fbMilesAtLeast || "Dặm: ít nhất {n}").replace("{n}", "38"), t.fbComboGoodPrice || "Combo chuyến bay: ✓ Giá tốt"]
     },
     {
       id: "economyPlus",
-      name: "Hạng Phổ Thông",
+      name: t.fbClassEconomy || "Hạng Phổ Thông",
       luggage: {
-        carryOn: "1 kiện",
-        checked: "Chưa có"
+        carryOn: t.fbOnePiece || "1 kiện",
+        checked: t.fbNoneYet || "Chưa có"
       },
       flexibility: "TripFlex · EasyCancel Plus",
-      benefits: ["4 quyền lợi", "Phí hủy: Miễn phí"],
+      benefits: [t.fbFourBenefits || "4 quyền lợi", t.fbFreeCancelFee || "Phí hủy: Miễn phí"],
       price: "2.053.000₫",
       originalPrice: "2.694.000₫"
     },
     {
       id: "economyLuggage",
-      name: "Hạng Phổ Thông",
+      name: t.fbClassEconomy || "Hạng Phổ Thông",
       luggage: {
-        carryOn: "1 kiện",
+        carryOn: t.fbOnePiece || "1 kiện",
         checked: "30 kg"
       },
-      flexibility: "Không hoàn",
+      flexibility: t.fbNonRefundable || "Không hoàn",
       price: "2.694.000₫",
       originalPrice: "2.722.000₫",
-      benefits: ["Dặm: ít nhất 68"]
+      benefits: [(t.fbMilesAtLeast || "Dặm: ít nhất {n}").replace("{n}", "68")]
     }
   ];
 
@@ -98,7 +100,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
     },
     {
       id: "any",
-      name: "Bất Kỳ",
+      name: t.fbAnyMethod || "Bất Kỳ",
       price: "2.053.000₫",
       originalPrice: "2.053.000₫",
       discount: "0₫"
@@ -175,7 +177,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
             marginBottom: "15px",
           }}>
             <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>
-              Chiều đi · <span style={{ color: "var(--primary)" }}>{data.departureDate}</span>
+              {t.fbOutboundLeg || "Chiều đi"} · <span style={{ color: "var(--primary)" }}>{data.departureDate}</span>
             </h3>
             <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "var(--text-secondary)" }}>
               <FiClock /> {data.duration}
@@ -245,7 +247,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
             marginBottom: "15px",
           }}>
             <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>
-              Chiều về · <span style={{ color: "var(--primary)" }}>{data.returnDate}</span>
+              {t.fbInboundLeg || "Chiều về"} · <span style={{ color: "var(--primary)" }}>{data.returnDate}</span>
             </h3>
             <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "var(--text-secondary)" }}>
               <FiClock /> 2g 10p
@@ -308,7 +310,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
 
         {/* Class Selection */}
         <div style={{ marginBottom: "20px" }}>
-          <h3 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "15px" }}>Được đề xuất</h3>
+          <h3 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "15px" }}>{t.fbRecommended || "Được đề xuất"}</h3>
           
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "15px" }}>
             {classOptions.map((option) => (
@@ -343,11 +345,11 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
                 <div style={{ marginBottom: "10px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", color: "var(--text-secondary)", marginBottom: "5px" }}>
                     <FaSuitcase style={{ color: "var(--primary)" }} />
-                    <span>Hành lý xách tay: {option.luggage.carryOn}</span>
+                    <span>{t.fbCarryOnLabel || "Hành lý xách tay"}: {option.luggage.carryOn}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", color: "var(--text-secondary)" }}>
                     <FaSuitcase style={{ color: "var(--primary)" }} />
-                    <span>Hành lý ký gửi: {option.luggage.checked}</span>
+                    <span>{t.fbCheckedLabel || "Hành lý ký gửi"}: {option.luggage.checked}</span>
                   </div>
                 </div>
 
@@ -384,24 +386,24 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
           marginBottom: "20px",
         }}>
           <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "15px" }}>
-            Giá khởi trình bình đối với 1 hành khách
+            {t.fbPricePerPassengerTitle || "Giá khởi trình bình đối với 1 hành khách"}
           </h3>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
-              <span>Vé người lớn {priceBreakdown.adult.count} ×</span>
+              <span>{(t.fbAdultTicketCount || "Vé người lớn {n} ×").replace("{n}", priceBreakdown.adult.count)}</span>
               <span>{priceBreakdown.adult.price}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", marginLeft: "20px", color: "var(--text-secondary)" }}>
-              <span>Giá</span>
+              <span>{t.fbBasePrice || "Giá"}</span>
               <span>{priceBreakdown.adult.base}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", marginLeft: "20px", color: "var(--text-secondary)" }}>
-              <span>Thuế & phí</span>
+              <span>{t.fbTaxAndFees || "Thuế & phí"}</span>
               <span>{priceBreakdown.adult.tax}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", color: "#4caf50" }}>
-              <span>Giảm giá MoMo</span>
+              <span>{t.fbMomoDiscount || "Giảm giá MoMo"}</span>
               <span>- {priceBreakdown.adult.discount}</span>
             </div>
             <div style={{
@@ -413,7 +415,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
               marginTop: "10px",
               borderTop: "1px solid #e0e0e0",
             }}>
-              <span>Tổng giá khởi hồi</span>
+              <span>{t.fbTotalFare || "Tổng giá khởi hồi"}</span>
               <span style={{ color: "var(--primary)" }}>{priceBreakdown.total}</span>
             </div>
           </div>
@@ -429,11 +431,11 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
             <FiGift style={{ color: "var(--primary)" }} />
-            <span style={{ fontSize: "14px", fontWeight: "600" }}>Quyền lợi khác</span>
+            <span style={{ fontSize: "14px", fontWeight: "600" }}>{t.fbOtherBenefits || "Quyền lợi khác"}</span>
           </div>
           <div style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: "1.6" }}>
-            <div>• Dặm của hãng hàng không: ít nhất 38</div>
-            <div>• Combo chuyến bay: ✓ Giá tốt ✓ Cam kết bảo toàn hành trình</div>
+            <div>• {t.fbAirlineMiles38 || "Dặm của hãng hàng không: ít nhất 38"}</div>
+            <div>• {t.fbComboBenefits || "Combo chuyến bay: ✓ Giá tốt ✓ Cam kết bảo toàn hành trình"}</div>
           </div>
           <div style={{
             marginTop: "10px",
@@ -441,14 +443,14 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
             color: "var(--text-muted)",
             fontStyle: "italic",
           }}>
-            * Có hiệu lực trước giờ khởi hành của chuyến bay đầu tiên. Không được chuyển sang chuyến bay đã đổi.
+            * {t.fbBenefitsNote || "Có hiệu lực trước giờ khởi hành của chuyến bay đầu tiên. Không được chuyển sang chuyến bay đã đổi."}
           </div>
         </div>
 
         {/* Payment Methods */}
         <div style={{ marginBottom: "20px" }}>
           <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "15px" }}>
-            Chọn Hình Thức Thanh Toán
+            {t.fbSelectPaymentMethod || "Chọn Hình Thức Thanh Toán"}
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "15px" }}>
             {paymentMethods.map((method) => (
@@ -501,8 +503,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
           border: "1px solid #ffe0b2",
         }}>
           <div style={{ fontSize: "13px", color: "#e65100", lineHeight: "1.6" }}>
-            🏨 Được giảm giá đến 25% cho phòng khách sạn khi đặt vé máy bay, 
-            thêm quyền lợi miễn phí hủy phòng nếu chuyến bay bị đổi lịch 🚗
+            🏨 {t.fbHotelPromo || "Được giảm giá đến 25% cho phòng khách sạn khi đặt vé máy bay, thêm quyền lợi miễn phí hủy phòng nếu chuyến bay bị đổi lịch"} 🚗
           </div>
         </div>
 
@@ -534,7 +535,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
               e.currentTarget.style.backgroundColor = "var(--bg-card)";
             }}
           >
-            Đóng
+            {t.fbCloseBtn || "Đóng"}
           </button>
           <button
             onClick={onContinue}
@@ -558,7 +559,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
               e.target.style.transform = "scale(1)";
             }}
           >
-            Tiếp tục · {selectedClassData.price}
+            {t.fbContinueBtn || "Tiếp tục"} · {selectedClassData.price}
           </button>
         </div>
 
@@ -569,7 +570,7 @@ const FlightBookingDetail = ({ flightData, onClose, onContinue }) => {
           color: "var(--text-muted)",
           textAlign: "center",
         }}>
-          Đăng ký tại đây · Khởi tốt
+          {t.fbSignupNote || "Đăng ký tại đây · Khởi tốt"}
         </div>
       </div>
     </div>

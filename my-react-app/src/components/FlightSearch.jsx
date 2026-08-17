@@ -60,10 +60,10 @@ const FlightSearch = () => {
   const handleSearch = () => {
     if (tripType === "multi") return;
 
-    if (!fromCity) { setSearchError("Vui lòng chọn điểm đi."); return; }
-    if (!toCity) { setSearchError("Vui lòng chọn điểm đến."); return; }
-    if (fromCity.code === toCity.code) { setSearchError("Điểm đi và điểm đến không được trùng nhau."); return; }
-    if (!departDate) { setSearchError("Vui lòng chọn ngày đi."); return; }
+    if (!fromCity) { setSearchError(t.errFromRequired); return; }
+    if (!toCity) { setSearchError(t.errToRequired); return; }
+    if (fromCity.code === toCity.code) { setSearchError(t.errSameLocations); return; }
+    if (!departDate) { setSearchError(t.errDateRequired); return; }
     setSearchError("");
 
     const params = new URLSearchParams({
@@ -325,7 +325,7 @@ const FlightSearch = () => {
                       f.id === flight.id ? { ...f, departDate: e.target.value } : f
                     ));
                   }}
-                  placeholder="Chọn ngày"
+                  placeholder={t.pickDate}
                   style={{
                     border: "none",
                     background: "transparent",

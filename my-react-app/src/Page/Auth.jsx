@@ -88,12 +88,12 @@ const Auth = ({ isOpen, onClose }) => {
     }
 
     if (!fullName.trim() || !phone.trim()) {
-      setApiError("Vui lòng nhập đầy đủ họ tên và số điện thoại.");
+      setApiError(t.authXNamePhoneRequired);
       return;
     }
 
     if (!isValidPhone(phone.trim())) {
-      setApiError("Số điện thoại phải bắt đầu bằng 0 và có đúng 10 chữ số.");
+      setApiError(t.authXPhoneInvalid);
       return;
     }
 
@@ -116,7 +116,7 @@ const Auth = ({ isOpen, onClose }) => {
       const data = await response.json();
 
       if (!response.ok) {
-        const message = data?.message || "Đăng ký thất bại. Vui lòng thử lại.";
+        const message = data?.message || t.authXRegisterFailed;
         setApiError(message);
         setIsSubmitting(false);
         return;
@@ -126,7 +126,7 @@ const Auth = ({ isOpen, onClose }) => {
         loginSuccess(data);
       }
 
-      setSuccessMessage("Đăng ký thành công! Vui lòng kiểm tra email để lấy mã xác thực.");
+      setSuccessMessage(t.authXRegisterSuccessVerify);
       setShowSuccess(true);
 
       clearTempData();
@@ -137,8 +137,8 @@ const Auth = ({ isOpen, onClose }) => {
       }, 1500);
     } catch (error) {
       console.error("Register error:", error);
-      setApiError("Lỗi kết nối: " + error.message);
-      alert("Lỗi kết nối: " + error.message);
+      setApiError(t.authXConnError.replace('{error}', error.message));
+      alert(t.authXConnError.replace('{error}', error.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -183,7 +183,7 @@ const Auth = ({ isOpen, onClose }) => {
       const data = await response.json();
 
       if (!response.ok) {
-        const message = data?.message || "Đăng nhập thất bại. Vui lòng thử lại.";
+        const message = data?.message || t.authXLoginFailed;
         setApiError(message);
         setIsSubmitting(false);
         return;
@@ -193,7 +193,7 @@ const Auth = ({ isOpen, onClose }) => {
         loginSuccess(data);
       }
 
-      setSuccessMessage("Đăng nhập thành công!");
+      setSuccessMessage(t.authXLoginSuccess);
       setShowSuccess(true);
 
       setTimeout(() => {
@@ -216,8 +216,8 @@ const Auth = ({ isOpen, onClose }) => {
       }, 1000);
     } catch (error) {
       console.error("Login error:", error);
-      setApiError("Lỗi kết nối: " + error.message);
-      alert("Lỗi kết nối: " + error.message);
+      setApiError(t.authXConnError.replace('{error}', error.message));
+      alert(t.authXConnError.replace('{error}', error.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -300,7 +300,7 @@ const Auth = ({ isOpen, onClose }) => {
           color: "white"
         }}>
           <h2 style={{ fontSize: "24px", fontWeight: "800", marginBottom: "16px" }}>VigoTrip</h2>
-          <p style={{ fontSize: "14px", opacity: 0.8, lineHeight: "1.6" }}>Khám phá những hành trình tuyệt vời cùng chúng tôi.</p>
+          <p style={{ fontSize: "14px", opacity: 0.8, lineHeight: "1.6" }}>{t.authXSideTagline}</p>
         </div>
         {isModal && (
           <button
@@ -336,10 +336,10 @@ const Auth = ({ isOpen, onClose }) => {
             <div style={{ flex: 1, padding: "50px 40px", display: "flex", flexDirection: "column" }}>
               <div style={{ marginBottom: "12px" }}>
                 <h3 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "var(--text-heading)" }}>
-                  {mode === "login" ? "Chào mừng trở lại!" : "Tham gia cùng chúng tôi"}
+                  {mode === "login" ? t.authXWelcomeBack : t.authXJoinUs}
                 </h3>
                 <p style={{ color: "var(--text-muted)", fontSize: "14px", marginTop: "4px" }}>
-                  {mode === "login" ? "Đăng nhập để tiếp tục hành trình" : "Tạo tài khoản mới trong vài giây"}
+                  {mode === "login" ? t.authXLoginSubtitle : t.authXRegisterSubtitle}
                 </p>
               </div>
 
@@ -361,7 +361,7 @@ const Auth = ({ isOpen, onClose }) => {
                   onMouseEnter={e => e.currentTarget.style.backgroundColor = "var(--border-light)"}
                   onMouseLeave={e => e.currentTarget.style.backgroundColor = "var(--bg-hover)"}
                 >
-                  {mode === "login" ? "Đăng ký tài khoản mới" : "Đã có tài khoản? Đăng nhập"}
+                  {mode === "login" ? t.authXSwitchToRegister : t.authXSwitchToLogin}
                 </button>
               </div>
 
@@ -419,7 +419,7 @@ const Auth = ({ isOpen, onClose }) => {
                 onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
                 onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
               >
-                {mode === "login" ? "Tiếp tục đăng nhập" : "Tiếp tục đăng ký"}
+                {mode === "login" ? t.authXContinueLogin : t.authXContinueRegister}
               </button>
 
               <div
@@ -431,7 +431,7 @@ const Auth = ({ isOpen, onClose }) => {
                   margin: "10px 0 30px",
                 }}
               >
-                <span style={{ background: "var(--bg-card)", padding: "0 15px", color: "var(--text-secondary)", fontSize: "14px" }}>hoặc</span>
+                <span style={{ background: "var(--bg-card)", padding: "0 15px", color: "var(--text-secondary)", fontSize: "14px" }}>{t.authXOrLower}</span>
               </div>
 
               <div style={{ marginBottom: "12px", width: "100%", display: "flex", justifyContent: "center" }}>
@@ -439,7 +439,7 @@ const Auth = ({ isOpen, onClose }) => {
                   onSuccess={async (credentialResponse) => {
                     console.log("Google response:", credentialResponse);
                     if (!credentialResponse.credential) {
-                      alert("Google không trả về Token. Có thể trình duyệt đã chặn Cookie.");
+                      alert(t.authXGoogleNoToken);
                       return;
                     }
                     // alert("DEBUG - Credential nhận được: " + credentialResponse.credential.substring(0, 20) + "...");
@@ -455,7 +455,7 @@ const Auth = ({ isOpen, onClose }) => {
                       const data = await response.json();
                       if (response.ok) {
                         loginSuccess(data);
-                        setSuccessMessage("Đăng nhập Google thành công!");
+                        setSuccessMessage(t.authXGoogleLoginSuccess);
                         setShowSuccess(true);
                         setTimeout(() => {
                           if (onClose) {
@@ -465,20 +465,20 @@ const Auth = ({ isOpen, onClose }) => {
                           }
                         }, 1500);
                       } else {
-                        setApiError("Backend lỗi: " + (data.message || "Không xác định"));
-                        alert("Lỗi Backend: " + (data.message || "Không xác định"));
+                        setApiError(t.authXBackendError.replace('{msg}', data.message || t.authXUnknown));
+                        alert(t.authXBackendErrorAlert.replace('{msg}', data.message || t.authXUnknown));
                       }
                     } catch (error) {
                       console.error("Google login error:", error);
-                      const errorMsg = "Lỗi đăng nhập Google: " + error.message;
+                      const errorMsg = t.authXGoogleLoginError.replace('{error}', error.message);
                       setApiError(errorMsg);
                       alert(errorMsg);
                     }
                   }}
                   onError={(error) => {
                     console.error("Google OAuth Error:", error);
-                    setApiError("Đăng nhập Google thất bại");
-                    alert("Lỗi Google OAuth: " + JSON.stringify(error || "Không xác định"));
+                    setApiError(t.authXGoogleLoginFailed);
+                    alert(t.authXGoogleOAuthError.replace('{error}', JSON.stringify(error || t.authXUnknown)));
                   }}
                   theme="outline"
                   size="large"
@@ -501,7 +501,7 @@ const Auth = ({ isOpen, onClose }) => {
               textAlign: "center",
               fontWeight: "600"
             }}>
-              {mode === "register" ? t.createAccount : "Đăng nhập"}
+              {mode === "register" ? t.createAccount : t.authXLoginBtn}
             </h2>
 
             <p style={{
@@ -510,7 +510,7 @@ const Auth = ({ isOpen, onClose }) => {
               textAlign: "center",
               fontSize: "16px"
             }}>
-              {mode === "register" ? t.setPassword : `Nhập mật khẩu cho tài khoản ${email}`}
+              {mode === "register" ? t.setPassword : t.authXEnterPwdFor.replace('{email}', email)}
             </p>
 
             <div style={{
@@ -571,12 +571,12 @@ const Auth = ({ isOpen, onClose }) => {
                         color: "var(--text-secondary)",
                       }}
                     >
-                      Họ và tên
+                      {t.authXFullName}
                     </label>
                       <input
                         type="text"
                         name="fullName"
-                        placeholder="Nhập họ và tên"
+                        placeholder={t.authXFullNamePlaceholder}
                         value={fullName}
                         onChange={(e) => {
                           setFullName(e.target.value);
@@ -611,12 +611,12 @@ const Auth = ({ isOpen, onClose }) => {
                         color: "var(--text-secondary)",
                       }}
                     >
-                      Số điện thoại
+                      {t.authXPhoneLabel}
                     </label>
                       <input
                         type="tel"
                         name="phone"
-                        placeholder="Nhập số điện thoại"
+                        placeholder={t.authXPhonePlaceholder}
                         value={phone}
                         onChange={(e) => {
                           setPhone(e.target.value);
@@ -742,7 +742,7 @@ const Auth = ({ isOpen, onClose }) => {
                     }}
                     style={{ color: "var(--primary)", cursor: "pointer", fontSize: "14px", fontWeight: "500", textDecoration: "underline" }}
                   >
-                    Quên mật khẩu?
+                    {t.authXForgotPwd}
                   </span>
                 </div>
               )}
@@ -768,10 +768,10 @@ const Auth = ({ isOpen, onClose }) => {
                 onMouseOut={(e) => e.target.style.backgroundColor = "var(--primary)"}
               >
                 {isSubmitting
-                  ? "Đang xử lý..."
+                  ? t.processing
                   : mode === "register"
                     ? t.registerAndLogin
-                    : "Đăng nhập"}
+                    : t.authXLoginBtn}
               </button>
             </form>
 
@@ -784,7 +784,7 @@ const Auth = ({ isOpen, onClose }) => {
               paddingTop: "20px",
               marginTop: "10px",
             }}>
-              {t.termsPrefix} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.termsAndConditions}</a> {t.termsPrefix === "Bằng việc đăng nhập hoặc đăng ký, bạn được xem như đã đồng ý với" ? "và" : "and"} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.privacyPolicy}</a> {t.of} VigoTrip.
+              {t.termsPrefix} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.termsAndConditions}</a> {t.authXAnd} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.privacyPolicy}</a> {t.of} VigoTrip.
             </p>
           </div>
         )}

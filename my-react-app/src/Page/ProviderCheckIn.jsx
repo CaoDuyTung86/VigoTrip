@@ -3,9 +3,11 @@ import { Html5Qrcode } from "html5-qrcode";
 import axios from "axios";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
+import { useLanguage } from "../context/LanguageContext";
 import { FaSearch, FaHistory, FaCheckCircle, FaImage, FaCamera, FaSync } from "react-icons/fa";
 
 const ProviderCheckIn = () => {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
   const [isScanning, setIsScanning] = useState(false);
@@ -69,7 +71,7 @@ const ProviderCheckIn = () => {
     const isPWA = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
     if (isPWA) {
       setMessage({
-        text: "Camera không hoạt động trong chế độ App. Hãy dùng 'Quét ảnh' hoặc mở trang này trong Safari để quét trực tiếp.",
+        text: t.chkCameraPwaError,
         type: "error"
       });
       return;
@@ -106,7 +108,7 @@ const ProviderCheckIn = () => {
             onScanSuccess
           );
         } else {
-          throw new Error("Không tìm thấy camera.");
+          throw new Error(t.chkNoCamera);
         }
       }
     } catch (err) {
@@ -121,7 +123,7 @@ const ProviderCheckIn = () => {
       } catch (fallbackErr) {
         console.error("Scanner fallback error:", fallbackErr);
         setIsScanning(false);
-        setMessage({ text: "Không thể bật camera. Hãy dùng 'Quét ảnh' hoặc nhập mã vé thủ công.", type: "error" });
+        setMessage({ text: t.chkCameraFail, type: "error" });
       }
     }
   };
@@ -148,7 +150,7 @@ const ProviderCheckIn = () => {
 
     try {
       setLoading(true);
-      setMessage({ text: "Đang phân tích ảnh...", type: "" });
+      setMessage({ text: t.chkAnalyzingImage, type: "" });
 
       if (isScanning) {
         await stopScanner();
@@ -157,7 +159,7 @@ const ProviderCheckIn = () => {
       const result = await scannerRef.current.scanFile(file, true);
       handleCheckIn(result);
     } catch {
-      setMessage({ text: "Không tìm thấy mã QR. Hãy thử chụp rõ hơn.", type: "error" });
+      setMessage({ text: t.chkQrNotFound, type: "error" });
     } finally {
       setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -172,7 +174,7 @@ const ProviderCheckIn = () => {
 
     try {
       setLoading(true);
-      setMessage({ text: "Đang xác thực...", type: "" });
+      setMessage({ text: t.chkVerifying, type: "" });
 
       try {
         const data = JSON.parse(qrData);
@@ -186,7 +188,7 @@ const ProviderCheckIn = () => {
       }
 
       if (!targetBookingId) {
-        throw new Error("Mã vé không hợp lệ.");
+        throw new Error(t.chkInvalidTicket);
       }
 
       console.log("Đang gửi request check-in cho ID:", targetBookingId);
@@ -198,12 +200,12 @@ const ProviderCheckIn = () => {
       });
 
       console.log("Check-in thành công:", response.data);
-      setMessage({ text: `Xong! Vé #${targetBookingId} đã check-in thành công.`, type: "success" });
+      setMessage({ text: t.chkCheckInSuccess.replace("{id}", targetBookingId), type: "success" });
       setManualId("");
       fetchRecentCheckIns();
     } catch (err) {
       console.error("Lỗi check-in:", err);
-      const errorMsg = err.response?.data?.message || err.message || "Lỗi xử lý";
+      const errorMsg = err.response?.data?.message || err.message || t.chkProcessingError;
 
       if (errorMsg.includes("đã được check-in vào lúc")) {
         const parts = errorMsg.split("vào lúc ");
@@ -213,7 +215,7 @@ const ProviderCheckIn = () => {
             const dateObj = new Date(parts[1]);
             const formattedTime = dateObj.toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' });
             const formattedDate = dateObj.toLocaleDateString("vi-VN");
-            displayMsg = `đã được check-in lúc ${formattedTime} ngày ${formattedDate}`;
+            displayMsg = t.chkAlreadyCheckedIn.replace("{time}", formattedTime).replace("{date}", formattedDate);
           } catch {
             displayMsg = errorMsg.replace("Vé này ", "");
           }
@@ -221,10 +223,10 @@ const ProviderCheckIn = () => {
           displayMsg = errorMsg.replace("Vé này ", "");
         }
 
-        setMessage({ text: `Thông tin: Vé #${targetBookingId} ${displayMsg}`, type: "success" });
+        setMessage({ text: t.chkInfoMessage.replace("{id}", targetBookingId).replace("{msg}", displayMsg), type: "success" });
         setTimeout(() => fetchRecentCheckIns(), 100); 
       } else {
-        setMessage({ text: `Lỗi: ${errorMsg}`, type: "error" });
+        setMessage({ text: t.chkErrorPrefix.replace("{msg}", errorMsg), type: "error" });
       }
     } finally {
       console.log("Kết thúc xử lý check-in");
@@ -241,12 +243,12 @@ const ProviderCheckIn = () => {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "25px", maxWidth: "1100px", width: "100%" }}>
 
             <div style={{ background: "var(--bg-card)", padding: 25, borderRadius: 24, boxShadow: "var(--shadow-card)", textAlign: "center" }}>
-              <h2 style={{ marginBottom: 15, color: "var(--text-heading)", fontSize: "20px" }}>Quét & Kiểm tra vé</h2>
+              <h2 style={{ marginBottom: 15, color: "var(--text-heading)", fontSize: "20px" }}>{t.chkTitle}</h2>
 
               <div style={{ display: "flex", gap: "8px", marginBottom: 20 }}>
                 <input
                   type="text"
-                  placeholder="Nhập mã vé..."
+                  placeholder={t.chkTicketPlaceholder}
                   value={manualId}
                   onChange={(e) => setManualId(e.target.value)}
                   style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1px solid var(--border-input)", background: "var(--bg-main)", color: "var(--text-main)" }}
@@ -272,8 +274,8 @@ const ProviderCheckIn = () => {
                     color: "#888", gap: "12px", pointerEvents: "none", backgroundColor: "#111", borderRadius: 18
                   }}>
                     <FaCamera style={{ fontSize: "40px", opacity: 0.3 }} />
-                    <span style={{ fontSize: "14px" }}>Bấm "Bật Camera" để quét mã QR</span>
-                    <span style={{ fontSize: "11px", opacity: 0.5 }}>hoặc dùng "Quét ảnh" / nhập mã thủ công</span>
+                    <span style={{ fontSize: "14px" }}>{t.chkScanHint1}</span>
+                    <span style={{ fontSize: "11px", opacity: 0.5 }}>{t.chkScanHint2}</span>
                   </div>
                 )}
               </div>
@@ -292,7 +294,7 @@ const ProviderCheckIn = () => {
                   >
                     {cameras.map(cam => (
                       <option key={cam.id} value={cam.id}>
-                        {cam.label || `Camera ${cam.id.substring(0, 5)}...`}
+                        {cam.label || t.chkCameraLabel.replace("{id}", cam.id.substring(0, 5))}
                       </option>
                     ))}
                   </select>
@@ -309,7 +311,7 @@ const ProviderCheckIn = () => {
                     fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px"
                   }}
                 >
-                  <FaCamera /> {isScanning ? "Dừng Cam" : "Bật Cam"}
+                  <FaCamera /> {isScanning ? t.chkStopCam : t.chkStartCam}
                 </button>
 
                 <button
@@ -320,7 +322,7 @@ const ProviderCheckIn = () => {
                     fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px"
                   }}
                 >
-                  <FaImage /> Quét ảnh
+                  <FaImage /> {t.chkScanImage}
                 </button>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" style={{ display: "none" }} />
               </div>
@@ -339,13 +341,13 @@ const ProviderCheckIn = () => {
 
             <div style={{ background: "var(--bg-card)", padding: 25, borderRadius: 24, boxShadow: "var(--shadow-card)", display: "flex", flexDirection: "column" }}>
               <h3 style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: "10px", color: "var(--text-heading)", fontSize: "18px" }}>
-                <FaHistory style={{ color: "var(--primary)" }} /> Lịch sử quét
+                <FaHistory style={{ color: "var(--primary)" }} /> {t.chkScanHistory}
               </h3>
 
               <div style={{ flex: 1, overflowY: "auto", maxHeight: "400px", display: "flex", flexDirection: "column", gap: "8px" }}>
                 {recentCheckIns.length === 0 ? (
                   <div style={{ padding: "40px 20px", textAlign: "center", color: "#94a3b8", border: "2px dashed var(--border-input)", borderRadius: 18 }}>
-                    Chưa có lượt quét nào
+                    {t.chkNoScans}
                   </div>
                 ) : (
                   recentCheckIns.map((item, index) => (
@@ -369,7 +371,7 @@ const ProviderCheckIn = () => {
                       }}
                     >
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--text-main)" }}>Mã vé: #{item.id}</div>
+                        <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--text-main)" }}>{t.ticketCode}: #{item.id}</div>
                         <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
                           {new Date(item.checkInDate).toLocaleTimeString()}
                         </div>
@@ -400,47 +402,47 @@ const ProviderCheckIn = () => {
             position: "relative"
           }} onClick={e => e.stopPropagation()}>
             <h3 style={{ marginBottom: "20px", color: "var(--text-heading)", borderBottom: "1px solid var(--border-input)", paddingBottom: "10px" }}>
-              Chi tiết vé #{selectedTicket.id}
+              {t.chkTicketDetail.replace("{id}", selectedTicket.id)}
             </h3>
             
             <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <div>
-                  <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>Lộ trình</label>
+                  <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>{t.chkRouteLabel}</label>
                   <div style={{ fontWeight: 600 }}>{selectedTicket.origin || "N/A"} → {selectedTicket.destination || "N/A"}</div>
                 </div>
                 <div>
-                  <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>Loại xe</label>
+                  <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>{t.chkVehicleTypeLabel}</label>
                   <div style={{ fontWeight: 600 }}>{selectedTicket.vehicleType || "N/A"}</div>
                 </div>
               </div>
 
               <div>
-                <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>Hành khách & Chỗ ngồi</label>
+                <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>{t.chkPassengerSeatLabel}</label>
                 <div style={{ marginTop: "5px", display: "flex", flexDirection: "column", gap: "5px" }}>
                   {selectedTicket.ticketDetails && selectedTicket.ticketDetails.length > 0 ? (
                     selectedTicket.ticketDetails.map((td, idx) => (
                       <div key={idx} style={{ background: "var(--bg-main)", padding: "8px 12px", borderRadius: "10px", display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
-                        <span>{td.passengerName || "Khách lẻ"}</span>
-                        <span style={{ color: "var(--primary)", fontWeight: 700 }}>Ghế: {td.seatNumber || "N/A"}</span>
+                        <span>{td.passengerName || t.chkWalkInGuest}</span>
+                        <span style={{ color: "var(--primary)", fontWeight: 700 }}>{t.seatPrefix} {td.seatNumber || "N/A"}</span>
                       </div>
                     ))
                   ) : (
-                    <div style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>Không có chi tiết chỗ ngồi</div>
+                    <div style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>{t.chkNoSeatDetails}</div>
                   )}
                 </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <div>
-                  <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>Check-in lúc</label>
+                  <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>{t.chkCheckInAtLabel}</label>
                   <div style={{ fontWeight: 600 }}>
                     {selectedTicket.checkInDate ? new Date(selectedTicket.checkInDate).toLocaleString() : "N/A"}
                   </div>
                 </div>
                 <div>
-                  <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>Trạng thái</label>
-                  <div style={{ color: "#16a34a", fontWeight: 700 }}>ĐÃ XÁC THỰC</div>
+                  <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>{t.status}</label>
+                  <div style={{ color: "#16a34a", fontWeight: 700 }}>{t.chkVerified}</div>
                 </div>
               </div>
             </div>
@@ -453,7 +455,7 @@ const ProviderCheckIn = () => {
                 cursor: "pointer"
               }}
             >
-              Đóng
+              {t.qrCloseBtn}
             </button>
           </div>
         </div>

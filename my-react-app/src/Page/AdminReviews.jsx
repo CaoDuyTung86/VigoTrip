@@ -27,7 +27,7 @@ const AdminReviews = () => {
         setReviews(res.data);
       } catch (err) {
         console.error(err);
-        setError("Lỗi tải đánh giá");
+        setError(t.admReviewsLoadError);
       } finally {
         setLoading(false);
       }
@@ -52,7 +52,7 @@ const AdminReviews = () => {
       <div style={{ marginBottom: "20px" }}>
         <input 
           type="text" 
-          placeholder="Tìm kiếm theo chuyến bay, hãng, hoặc nội dung..." 
+          placeholder={t.searchPlaceholder} 
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
           style={{ padding: "10px", width: "300px", borderRadius: "8px", border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)" }}
@@ -62,7 +62,7 @@ const AdminReviews = () => {
       {error && <p style={{ color: "red" }}>{error}</p>}
       
       {loading ? (
-        <p>Đang tải...</p>
+        <p>{t.admLoading}</p>
       ) : (
         <div style={{ background: "var(--bg-card)", borderRadius: "12px", boxShadow: "var(--shadow-md)", overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>

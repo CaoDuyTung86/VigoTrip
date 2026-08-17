@@ -40,7 +40,7 @@ const MyBookings = () => {
     if (!token) {
       setLoading(false);
       setErrorStatus(401);
-      setError("Vui lòng đăng nhập để xem lịch sử đặt vé.");
+      setError(t.mbLoginRequired);
       return;
     }
 
@@ -56,9 +56,9 @@ const MyBookings = () => {
       const status = err.response?.status;
       setErrorStatus(status || 500);
       if (status === 401 || status === 403) {
-        setError("Phiên đăng nhập đã hết hạn hoặc không có quyền truy cập. Vui lòng đăng nhập lại.");
+        setError(t.mbSessionExpired);
       } else {
-        setError(err.response?.data?.message || "Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
+        setError(err.response?.data?.message || t.mbConnectFailed);
       }
     } finally {
       setLoading(false);
@@ -75,10 +75,10 @@ const MyBookings = () => {
     const reviewBookingId = params.get("reviewBookingId");
 
     if (payment === "success") {
-      setToastMsg({ text: "Thanh toán thành công! Vé của bạn đã được xác nhận.", type: "success" });
+      setToastMsg({ text: t.mbPaySuccess, type: "success" });
       navigate("/my-bookings", { replace: true });
     } else if (payment === "failed") {
-      setToastMsg({ text: "Thanh toán thất bại hoặc đã bị hủy.", type: "error" });
+      setToastMsg({ text: t.mbPayFailed, type: "error" });
       navigate("/my-bookings", { replace: true });
     } else if (reviewBookingId && bookings.length > 0) {
       const targetBooking = bookings.find(b => String(b.id) === String(reviewBookingId));
@@ -227,7 +227,7 @@ const MyBookings = () => {
                     padding: "0 4px",
                     lineHeight: 1
                   }}
-                  title="Đóng thông báo"
+                  title={t.mbCloseToast}
                 >
                   ✕
                 </button>
@@ -342,7 +342,7 @@ const MyBookings = () => {
                 </div>
                 <div style={{ maxWidth: 480 }}>
                   <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-heading)", marginBottom: 8 }}>
-                    {t.noMatchingFlightTrips ? "Lỗi tải dữ liệu" : "Không thể tải lịch sử vé"}
+                    {t.mbLoadErrorTitle}
                   </h3>
                   <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.6 }}>
                     {error}
@@ -551,7 +551,7 @@ const MyBookings = () => {
                                     setToastMsg({ text: t.tripCompletedToast || "Chuyến đi đã hoàn thành. Cảm ơn bạn!", type: "success" });
                                     await fetchBookings();
                                   } catch (e) {
-                                    setError("Có lỗi xảy ra: " + (e.response?.data?.message || e.message));
+                                    setError(t.errorPrefix + (e.response?.data?.message || e.message));
                                   } finally {
                                     setLoading(false);
                                   }
@@ -577,10 +577,10 @@ const MyBookings = () => {
                                 if (res.data && res.data.paymentUrl) {
                                   window.location.href = res.data.paymentUrl;
                                 } else {
-                                  alert("Lỗi tạo link thanh toán, vui lòng thử lại.");
+                                  alert(t.errVnpayLinkFailed);
                                 }
                               } catch (e) {
-                                alert("Lỗi tiếp tục thanh toán: " + (e.response?.data?.message || e.message));
+                                alert(t.mbPayContinueError + (e.response?.data?.message || e.message));
                               } finally {
                                 setLoading(false);
                               }

@@ -37,10 +37,10 @@ const Chatbot = () => {
         const data = await res.json();
         setAiHealth(data);
       } else {
-        setAiHealth({ status: 'OFFLINE', ready: false, message: 'Không thể kết nối máy chủ AI' });
+        setAiHealth({ status: 'OFFLINE', ready: false, message: t.cbAiOffline });
       }
     } catch {
-      setAiHealth({ status: 'OFFLINE', ready: false, message: 'Mất kết nối' });
+      setAiHealth({ status: 'OFFLINE', ready: false, message: t.cbAiDisconnected });
     }
   };
 
@@ -98,12 +98,12 @@ const Chatbot = () => {
     if (loading) return; // chặn spam khi đang xử lý
 
     if (!hasToken && !guestCaptchaToken && import.meta.env.VITE_TURNSTILE_SITE_KEY) {
-      setMessages(prev => [...prev, { sender: 'bot', text: 'Vui lòng xác thực CAPTCHA trước khi gửi tin nhắn.' }]);
+      setMessages(prev => [...prev, { sender: 'bot', text: t.cbCaptchaRequired }]);
       return;
     }
 
     if (messageToSend.length > 500) {
-      setMessages(prev => [...prev, { sender: 'bot', text: 'Tin nhắn quá dài (tối đa 500 ký tự). Vui lòng rút gọn và thử lại.' }]);
+      setMessages(prev => [...prev, { sender: 'bot', text: t.cbMsgTooLong }]);
       return;
     }
 
@@ -225,11 +225,11 @@ const Chatbot = () => {
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        botReply = data.reply || 'Xin lỗi, không thể xử lý câu hỏi lúc này.';
+        botReply = data.reply || t.cbReplyFallback;
         setMessages(prev => [...prev, { sender: 'bot', text: botReply }]);
       } catch (fallbackError) {
         console.error('Fallback chat cũng lỗi:', fallbackError);
-        setMessages(prev => [...prev, { sender: 'bot', text: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối và thử lại.' }]);
+        setMessages(prev => [...prev, { sender: 'bot', text: t.cbConnectError }]);
       }
     }
 
@@ -414,7 +414,7 @@ const Chatbot = () => {
                 }}
               >
                 <div style={{ fontSize: '11px', opacity: 0.9, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Tag size={12} /> Mã giảm giá dành cho bạn
+                  <Tag size={12} /> {t.cbPromoForYou}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{
@@ -440,10 +440,10 @@ const Chatbot = () => {
                       textarea.select();
                       document.execCommand('copy');
                       document.body.removeChild(textarea);
-                      btn.textContent = 'Đã sao chép!';
+                      btn.textContent = t.cbCopied;
                       btn.style.background = 'rgba(255,255,255,0.5)';
                       setTimeout(() => {
-                        btn.textContent = 'Sao chép';
+                        btn.textContent = t.cbCopy;
                         btn.style.background = 'rgba(255,255,255,0.3)';
                       }, 2000);
                     }}
@@ -459,7 +459,7 @@ const Chatbot = () => {
                       transition: 'background 0.2s',
                     }}
                   >
-                    Sao chép
+                    {t.cbCopy}
                   </button>
                 </div>
               </div>

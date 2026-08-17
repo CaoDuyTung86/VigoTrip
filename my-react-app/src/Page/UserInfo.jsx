@@ -1,40 +1,34 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo } from "react";
 import { FiUser, FiMail, FiPhone, FiMapPin, FiCalendar, FiUsers } from "react-icons/fi";
 import { useLanguage } from "../context/LanguageContext";
 
 const UserInfo = ({ userData }) => {
   const { t } = useLanguage();
-  const [userInfo, setUserInfo] = useState(null);
 
-  useEffect(() => {
-    // Nếu có userData từ props thì dùng
-    if (userData) {
-      setUserInfo(userData);
-      return;
-    }
-
-    // Nếu không có userData, lấy từ localStorage
-    const savedEmail = localStorage.getItem("userEmail");
-    
+  const userInfo = useMemo(() => {
+    if (userData) return userData;
+    const savedEmail = typeof window !== "undefined" ? localStorage.getItem("userEmail") : null;
     if (savedEmail) {
-      // Lấy thêm các thông tin khác từ localStorage nếu có
       const savedUserData = localStorage.getItem("userData");
-      
       if (savedUserData) {
-        setUserInfo(JSON.parse(savedUserData));
-      } else {
-        // Chỉ hiển thị email từ localStorage, các thông tin khác để trống
-        setUserInfo({
-          fullName: "",
-          email: savedEmail,
-          phone: "",
-          address: "",
-          gender: "",
-          birthDate: "",
-        });
+        try {
+          return JSON.parse(savedUserData);
+        } catch {
+          // ignore error
+        }
       }
+      return {
+        fullName: "",
+        email: savedEmail,
+        phone: "",
+        address: "",
+        gender: "",
+        birthDate: "",
+      };
     }
+    return null;
   }, [userData]);
+
 
   // Nếu chưa có dữ liệu, hiển thị loading hoặc thông báo đăng nhập
   if (!userInfo) {
@@ -57,7 +51,7 @@ const UserInfo = ({ userData }) => {
           textAlign: "center",
         }}>
           <p style={{ color: "var(--text-secondary)", fontSize: "16px" }}>
-            Vui lòng đăng nhập để xem thông tin
+            {t.usrLoginToView}
           </p>
         </div>
       </div>
@@ -65,12 +59,12 @@ const UserInfo = ({ userData }) => {
   }
 
   const infoItems = [
-    { icon: <FiUser />, label: t.fullName || "HỌ VÀ TÊN", value: userInfo.fullName || "Chưa cập nhật" },
+    { icon: <FiUser />, label: t.fullName || "HỌ VÀ TÊN", value: userInfo.fullName || t.usrNotUpdated },
     { icon: <FiMail />, label: t.email || "EMAIL", value: userInfo.email },
-    { icon: <FiPhone />, label: t.phone || "SỐ ĐIỆN THOẠI", value: userInfo.phone || "Chưa cập nhật" },
-    { icon: <FiCalendar />, label: t.birthDate || "NGÀY SINH", value: userInfo.birthDate || "Chưa cập nhật" },
-    { icon: <FiUsers />, label: t.gender || "GIỚI TÍNH", value: userInfo.gender || "Chưa cập nhật" },
-    { icon: <FiMapPin />, label: t.address || "ĐỊA CHỈ", value: userInfo.address || "Chưa cập nhật" },
+    { icon: <FiPhone />, label: t.phone || "SỐ ĐIỆN THOẠI", value: userInfo.phone || t.usrNotUpdated },
+    { icon: <FiCalendar />, label: t.birthDate || "NGÀY SINH", value: userInfo.birthDate || t.usrNotUpdated },
+    { icon: <FiUsers />, label: t.gender || "GIỚI TÍNH", value: userInfo.gender || t.usrNotUpdated },
+    { icon: <FiMapPin />, label: t.address || "ĐỊA CHỈ", value: userInfo.address || t.usrNotUpdated },
   ];
 
   return (
@@ -118,7 +112,7 @@ const UserInfo = ({ userData }) => {
             fontWeight: "600",
             color: "var(--text-main)",
           }}>
-            {userInfo.fullName || "Người dùng"}
+            {userInfo.fullName || t.usrDefaultName}
           </h2>
           <p style={{
             margin: 0,

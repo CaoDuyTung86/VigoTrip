@@ -948,10 +948,10 @@ const OrderByPackage = () => {
 
   const handleCustomerInfoSubmit = () => {
     const errors = {};
-    if (!customerInfo.lastName.trim()) errors.lastName = "Vui lòng nhập họ";
-    if (!customerInfo.firstName.trim()) errors.firstName = "Vui lòng nhập tên";
-    if (!customerInfo.email.trim()) errors.email = "Vui lòng nhập email";
-    if (!customerInfo.phoneDigits.trim()) errors.phoneDigits = "Vui lòng nhập số điện thoại";
+    if (!customerInfo.lastName.trim()) errors.lastName = t.pkgErrLastName;
+    if (!customerInfo.firstName.trim()) errors.firstName = t.pkgErrFirstName;
+    if (!customerInfo.email.trim()) errors.email = t.pkgErrEmail;
+    if (!customerInfo.phoneDigits.trim()) errors.phoneDigits = t.pkgErrPhone;
     setCustomerErrors(errors);
     if (Object.keys(errors).length > 0) return;
     setBookingStep("payment");
@@ -969,7 +969,7 @@ const OrderByPackage = () => {
         window.location.href = res.data.paymentUrl;
       }
     } catch {
-      alert("Lỗi tạo link VNPay, vui lòng thử lại.");
+      alert(t.errVnpayLinkFailed);
     }
   };
 
@@ -1683,13 +1683,13 @@ const OrderByPackage = () => {
                   padding: "32px"
                 }}>
                   <h2 style={{ fontSize: "24px", fontWeight: "700", color: "var(--text-heading)", marginBottom: "24px" }}>
-                    Thông tin đặt gói
+                    {t.pkgBookingInfo}
                   </h2>
 
                   {/* Travelers */}
                   <div style={{ marginBottom: "24px" }}>
                     <label style={{ display: "block", fontSize: "14px", fontWeight: "600", color: "var(--text-heading)", marginBottom: "8px" }}>
-                      Số lượng khách
+                      {t.pkgTravelersCount}
                     </label>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                       <button
@@ -1743,7 +1743,7 @@ const OrderByPackage = () => {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
                     <div>
                       <label style={{ display: "block", fontSize: "14px", fontWeight: "600", color: "var(--text-heading)", marginBottom: "8px" }}>
-                        Ngày khởi hành
+                        {t.pkgStartDate}
                       </label>
                       <select
                         value={departureDate}
@@ -1758,7 +1758,7 @@ const OrderByPackage = () => {
                           color: "var(--text-main)"
                         }}
                       >
-                        <option value="">Chọn ngày</option>
+                        <option value="">{t.pickDate}</option>
                         {selectedPackage.availableDates.map((date) => (
                           <option key={date} value={date}>{date}</option>
                         ))}
@@ -1766,7 +1766,7 @@ const OrderByPackage = () => {
                     </div>
                     <div>
                       <label style={{ display: "block", fontSize: "14px", fontWeight: "600", color: "var(--text-heading)", marginBottom: "8px" }}>
-                        Ngày kết thúc
+                        {t.pkgEndDate}
                       </label>
                       <select
                         value={returnDate}
@@ -1781,7 +1781,7 @@ const OrderByPackage = () => {
                           color: "var(--text-main)"
                         }}
                       >
-                        <option value="">Chọn ngày</option>
+                        <option value="">{t.pickDate}</option>
                         {selectedPackage.availableDates.map((date) => (
                           <option key={date} value={date}>{date}</option>
                         ))}
@@ -1792,7 +1792,7 @@ const OrderByPackage = () => {
                   {/* Extras */}
                   <div style={{ marginBottom: "24px" }}>
                     <h3 style={{ fontSize: "16px", fontWeight: "700", color: "var(--text-heading)", marginBottom: "16px" }}>
-                      Dịch vụ bổ sung
+                      {t.extrasLabel}
                     </h3>
                     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                       {extraServices.map((extra) => (
@@ -1828,14 +1828,14 @@ const OrderByPackage = () => {
                   {/* Promo Code */}
                   <div style={{ marginBottom: "24px" }}>
                     <label style={{ display: "block", fontSize: "14px", fontWeight: "600", color: "var(--text-heading)", marginBottom: "8px" }}>
-                      Mã khuyến mãi
+                      {t.pkgPromoCode}
                     </label>
                     <div style={{ display: "flex", gap: "12px" }}>
                       <input
                         type="text"
                         value={promoCode}
                         onChange={(e) => setPromoCode(e.target.value)}
-                        placeholder="Nhập mã giảm giá"
+                        placeholder={t.promoPlaceholder}
                         style={{
                           flex: 1,
                           padding: "12px",
@@ -1857,7 +1857,7 @@ const OrderByPackage = () => {
                           cursor: "pointer"
                         }}
                       >
-                        Áp dụng
+                        {t.apply}
                       </button>
                     </div>
                   </div>
@@ -1870,7 +1870,7 @@ const OrderByPackage = () => {
                     marginBottom: "24px"
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                      <span>Giá gói cơ bản ({travelers} khách)</span>
+                      <span>{t.pkgBasePriceFor.replace('{count}', travelers)}</span>
                       <span style={{ fontWeight: "600" }}>{(selectedPackage.price * travelers).toLocaleString("vi-VN")}đ</span>
                     </div>
                     {selectedExtras.map(id => {
@@ -1892,7 +1892,7 @@ const OrderByPackage = () => {
                       fontSize: "18px",
                       color: "#2563eb"
                     }}>
-                      <span>Tổng cộng</span>
+                      <span>{t.totalLabel}</span>
                       <span>{calculateTotal().toLocaleString("vi-VN")}đ</span>
                     </div>
                   </div>
@@ -1912,7 +1912,7 @@ const OrderByPackage = () => {
                         cursor: "pointer"
                       }}
                     >
-                      Quay lại
+                      {t.goBack}
                     </button>
                     <button
                       onClick={handleBookingSubmit}
@@ -1927,7 +1927,7 @@ const OrderByPackage = () => {
                         cursor: "pointer"
                       }}
                     >
-                      Tiến hành thanh toán
+                      {t.pkgProceedPayment}
                     </button>
                   </div>
                 </div>
@@ -1939,12 +1939,12 @@ const OrderByPackage = () => {
               <div style={{ maxWidth: "800px", margin: "0 auto" }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: "20px", padding: "32px" }}>
                   <h2 style={{ fontSize: "24px", fontWeight: "700", color: "var(--text-heading)", marginBottom: "24px" }}>
-                    Thông tin khách hàng
+                    {t.pkgCustomerInfo}
                   </h2>
-                  <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "20px" }}>Nhập thông tin cá nhân. Các ô có dấu * là bắt buộc.</p>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "20px" }}>{t.passengerInstruction}</p>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                    {[{ label: "Họ *", key: "lastName" }, { label: "Tên & tên đệm *", key: "firstName" }].map(f => (
+                    {[{ label: t.passengerLastName, key: "lastName" }, { label: t.passengerFirstName, key: "firstName" }].map(f => (
                       <div key={f.key}>
                         <label style={{ display: "block", fontSize: "14px", fontWeight: "600", marginBottom: "8px" }}>{f.label}</label>
                         <input value={customerInfo[f.key]}
@@ -1954,13 +1954,13 @@ const OrderByPackage = () => {
                       </div>
                     ))}
                     <div>
-                      <label style={{ display: "block", fontSize: "14px", fontWeight: "600", marginBottom: "8px" }}>Ngày sinh</label>
+                      <label style={{ display: "block", fontSize: "14px", fontWeight: "600", marginBottom: "8px" }}>{t.pkgDobLabel}</label>
                       <input type="date" value={customerInfo.dob}
                         onChange={e => setCustomerInfo(p => ({ ...p, dob: e.target.value }))}
                         style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-light)", fontSize: "14px", boxSizing: "border-box", background: "var(--bg-input)", color: "var(--text-main)" }} />
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: "14px", fontWeight: "600", marginBottom: "8px" }}>Quốc tịch</label>
+                      <label style={{ display: "block", fontSize: "14px", fontWeight: "600", marginBottom: "8px" }}>{t.nationality}</label>
                       <select value={customerInfo.nationality}
                         onChange={e => setCustomerInfo(p => ({ ...p, nationality: e.target.value }))}
                         style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-light)", fontSize: "14px", boxSizing: "border-box", background: "var(--bg-input)", color: "var(--text-main)" }}>
@@ -1968,7 +1968,7 @@ const OrderByPackage = () => {
                       </select>
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: "14px", fontWeight: "600", marginBottom: "8px" }}>Số điện thoại *</label>
+                      <label style={{ display: "block", fontSize: "14px", fontWeight: "600", marginBottom: "8px" }}>{t.phoneNumber}</label>
                       <div style={{ display: "flex", gap: "8px" }}>
                         <input readOnly value="+84" style={{ width: "64px", padding: "12px 8px", borderRadius: "8px", border: "1px solid var(--border-light)", background: "var(--bg-hover)", textAlign: "center", color: "var(--text-main)" }} />
                         <input value={customerInfo.phoneDigits}
@@ -1990,11 +1990,11 @@ const OrderByPackage = () => {
                   <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
                     <button onClick={() => setBookingStep("booking")}
                       style={{ flex: 1, padding: "14px", background: "var(--bg-card)", color: "var(--text-muted)", border: "1px solid var(--border-light)", borderRadius: "8px", fontWeight: "600", cursor: "pointer" }}>
-                      Quay lại
+                      {t.goBack}
                     </button>
                     <button onClick={handleCustomerInfoSubmit}
                       style={{ flex: 2, padding: "14px", background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "white", border: "none", borderRadius: "8px", fontWeight: "700", cursor: "pointer" }}>
-                      Tiến hành thanh toán
+                      {t.pkgProceedPayment}
                     </button>
                   </div>
                 </div>
@@ -2006,18 +2006,18 @@ const OrderByPackage = () => {
               <div style={{ maxWidth: "600px", margin: "0 auto" }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: "20px", padding: "32px" }}>
                   <h2 style={{ fontSize: "24px", fontWeight: "700", color: "var(--text-heading)", marginBottom: "24px" }}>
-                    Thanh toán
+                    {t.step4Title}
                   </h2>
 
                   {/* Booking Summary */}
                   <div style={{ border: "1px solid var(--border-main)", borderRadius: "12px", padding: "16px", marginBottom: "16px", background: "var(--bg-input)" }}>
-                    <div style={{ fontWeight: "700", marginBottom: "8px", color: "#2563eb" }}>📦 Gói du lịch</div>
+                    <div style={{ fontWeight: "700", marginBottom: "8px", color: "#2563eb" }}>📦 {t.pkgTourLabel}</div>
                     <div style={{ fontWeight: "700", fontSize: "16px" }}>{selectedPackage.title}</div>
                     <div style={{ color: "var(--text-muted)", fontSize: "13px", marginTop: "4px" }}>{selectedPackage.duration} · {selectedPackage.departureCity} → {selectedPackage.destinationCity}</div>
                   </div>
 
                   <div style={{ border: "1px solid var(--border-main)", borderRadius: "12px", padding: "16px", marginBottom: "16px", background: "var(--bg-input)" }}>
-                    <div style={{ fontWeight: "700", marginBottom: "8px", color: "#2563eb" }}>👤 Khách hàng</div>
+                    <div style={{ fontWeight: "700", marginBottom: "8px", color: "#2563eb" }}>👤 {t.pkgCustomerLabel}</div>
                     <div style={{ fontSize: "14px" }}>
                       <b>{customerInfo.lastName} {customerInfo.firstName}</b>
                       <div style={{ color: "var(--text-muted)", fontSize: "13px", marginTop: "4px" }}>{customerInfo.email} · +84 {customerInfo.phoneDigits}</div>
@@ -2027,7 +2027,7 @@ const OrderByPackage = () => {
                   {/* Total */}
                   <div style={{ background: "var(--bg-hover)", borderRadius: "12px", padding: "20px", marginBottom: "24px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                      <span>Giá gói ({travelers} khách)</span>
+                      <span>{t.pkgPriceFor.replace('{count}', travelers)}</span>
                       <span style={{ fontWeight: "600" }}>{(selectedPackage.price * travelers).toLocaleString("vi-VN")}đ</span>
                     </div>
                     {selectedExtras.map(id => {
@@ -2039,7 +2039,7 @@ const OrderByPackage = () => {
                       );
                     })}
                     <div style={{ borderTop: "1px solid var(--border-light)", marginTop: "12px", paddingTop: "12px", display: "flex", justifyContent: "space-between", fontWeight: "700", fontSize: "18px", color: "#2563eb" }}>
-                      <span>Tổng cộng</span>
+                      <span>{t.totalLabel}</span>
                       <span>{calculateTotal().toLocaleString("vi-VN")}đ</span>
                     </div>
                   </div>
@@ -2048,11 +2048,11 @@ const OrderByPackage = () => {
                   <div style={{ display: "flex", gap: "12px" }}>
                     <button onClick={() => setBookingStep("customerInfo")}
                       style={{ flex: 1, padding: "14px", background: "var(--bg-card)", color: "var(--text-muted)", border: "1px solid var(--border-light)", borderRadius: "8px", fontWeight: "600", cursor: "pointer" }}>
-                      Quay lại
+                      {t.goBack}
                     </button>
                     <button onClick={handleVNPayPayment}
                       style={{ flex: 2, padding: "14px", background: "#005baa", color: "white", border: "none", borderRadius: "8px", fontWeight: "800", fontSize: "15px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                      <MdCreditCard /> Thanh toán qua VNPay
+                      <MdCreditCard /> {t.paymentVNPAY}
                     </button>
                   </div>
                 </div>

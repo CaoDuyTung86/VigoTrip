@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '../context/ThemeContext';
 import { mixColor, withAlpha, THEME_EASE } from '../utils/sceneTheme';
+import { useLanguage } from '../context/LanguageContext';
 
 // ─── Component sơ đồ ghế tàu hỏa "sống động" ─────────────────────────────────
 // Kiến trúc mirror AirplaneSeatMap: 3 pha 'train → zooming → interior',
@@ -19,6 +20,8 @@ const TrainSeatMap = ({
   selectedSeatClass,
   setSelectedSeatClass,
 }) => {
+  const { t } = useLanguage();
+
   const canvasRef = useRef(null);
   const wrapRef   = useRef(null);
   const trainRef  = useRef(null);
@@ -429,7 +432,7 @@ const TrainSeatMap = ({
           type="button"
           onClick={() => handleSeatClick(s)}
           disabled={!canSelectSeats(isAuthenticated, user) || s.booked || locked || (!sel && isMaxReached)}
-          aria-label={`Ghế ${s.seatNumber}, ${isSleeper ? 'Giường nằm' : isBiz ? 'Thương gia' : 'Phổ thông'}, ${s.booked ? 'đã đặt' : locked ? 'đang giữ' : 'trống'}`}
+          aria-label={`${t.smSeatLabel.replace('{seat}', s.seatNumber)}, ${isSleeper ? t.smSleeper : isBiz ? t.seatClassBiz : t.seatClassEco}, ${s.booked ? t.smBooked : locked ? t.smHeld : t.smVacant}`}
           onMouseEnter={() => setHoveredSeat(s)}
           onMouseLeave={() => setHoveredSeat(null)}
           style={{
@@ -455,9 +458,9 @@ const TrainSeatMap = ({
           }}
         >
           {rip && <span style={{ position: 'absolute', width: 60, height: 60, borderRadius: '50%', background: 'rgba(255,255,255,0.4)', animation: 'rippleSeat 0.4s linear' }} />}
-          {isSleeper && <span style={{ position: 'absolute', top: 3, left: 3, fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 4, background: 'rgba(255,255,255,0.18)' }}>{berthUpper ? 'TRÊN' : 'DƯỚI'}</span>}
+          {isSleeper && <span style={{ position: 'absolute', top: 3, left: 3, fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 4, background: 'rgba(255,255,255,0.18)' }}>{berthUpper ? t.smUpper : t.smLower}</span>}
           <span style={{ lineHeight: 1 }}>{s.booked ? '✕' : locked ? '🔒' : isSleeper ? '🛏' : s.seatNumber}</span>
-          {(isBiz || isSleeper) && !s.booked && !locked && <span style={{ fontSize: 8, opacity: 0.85, fontWeight: 700 }}>{isSleeper ? 'NẰM' : 'VIP'}</span>}
+          {(isBiz || isSleeper) && !s.booked && !locked && <span style={{ fontSize: 8, opacity: 0.85, fontWeight: 700 }}>{isSleeper ? t.smLie : 'VIP'}</span>}
         </button>
 
         {/* Tooltip on hover */}
@@ -479,8 +482,8 @@ const TrainSeatMap = ({
             pointerEvents: 'none',
             lineHeight: 1.6,
           }}>
-            <div style={{ fontWeight: 700 }}>Ghế {s.seatNumber}</div>
-            <div style={{ opacity: 0.75 }}>{isSleeper ? `Giường nằm tầng ${berthUpper ? 'trên' : 'dưới'}` : isBiz ? 'Hạng Thương gia' : 'Hạng Phổ thông'}</div>
+            <div style={{ fontWeight: 700 }}>{t.smSeatLabel.replace('{seat}', s.seatNumber)}</div>
+            <div style={{ opacity: 0.75 }}>{isSleeper ? t.smSleeperBerth.replace('{berth}', berthUpper ? t.smBerthUpper : t.smBerthLower) : isBiz ? t.smBizClass : t.smEcoClass}</div>
           </div>
         )}
       </div>
@@ -545,16 +548,16 @@ const TrainSeatMap = ({
 
               {/* Các toa — phong cách Shinkansen: thân trắng, dải cửa sổ liền
                   mạch, sọc indigo + chỉ đỏ, gầm kín khí động học */}
-              {[...toas].reverse().map(t => (
-                <div key={t.idx} style={{ display: 'flex', alignItems: 'flex-end', flexShrink: 0 }}>
+              {[...toas].reverse().map(toa => (
+                <div key={toa.idx} style={{ display: 'flex', alignItems: 'flex-end', flexShrink: 0 }}>
 
                   {/* Thân toa: sạch, KHÔNG nhãn — thông tin chỉ hiện khi hover */}
                   <div
                     role="button"
-                    aria-label={`Mở sơ đồ toa ${t.idx + 1}`}
-                    onClick={() => openToa(toas.indexOf(t))}
+                    aria-label={t.smOpenCarriageMap.replace('{index}', toa.idx + 1)}
+                    onClick={() => openToa(toas.indexOf(toa))}
                     onMouseEnter={(e) => {
-                      setHoveredToa(t.idx);
+                      setHoveredToa(toa.idx);
                       const r = e.currentTarget.getBoundingClientRect();
                       setTooltipPos({ x: r.left + r.width / 2, y: r.top });
                     }}
@@ -565,8 +568,8 @@ const TrainSeatMap = ({
                       flexShrink: 0,
                       borderRadius: '14px 14px 10px 10px',
                       background: 'linear-gradient(180deg, #ffffff 0%, #f1f5f9 60%, #dbe3ec 100%)',
-                      border: `2px solid ${hoveredToa === t.idx ? '#6366f1' : 'rgba(100,116,139,0.4)'}`,
-                      boxShadow: hoveredToa === t.idx
+                      border: `2px solid ${hoveredToa === toa.idx ? '#6366f1' : 'rgba(100,116,139,0.4)'}`,
+                      boxShadow: hoveredToa === toa.idx
                         ? '0 0 22px rgba(99,102,241,0.55)'
                         : '0 8px 18px rgba(0,0,0,0.45)',
                       cursor: 'pointer',
@@ -574,7 +577,7 @@ const TrainSeatMap = ({
                     }}
                   >
                     {/* Lớp rung sway bên trong — element click giữ tĩnh để ổn định hit-target */}
-                    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', animation: 'trainRock 1.7s ease-in-out infinite', animationDelay: `${t.idx * 0.14}s` }}>
+                    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', animation: 'trainRock 1.7s ease-in-out infinite', animationDelay: `${toa.idx * 0.14}s` }}>
                     {/* Nóc mượt + 2 cụm máy lạnh phẳng */}
                     <div style={{ position: 'absolute', top: 3, left: 12, right: 12, height: 3, background: 'rgba(148,163,184,0.55)', borderRadius: 2 }} />
                     <div style={{ position: 'absolute', top: -5, left: 30, width: 34, height: 7, background: '#cbd5e1', borderRadius: '4px 4px 0 0' }} />
@@ -586,7 +589,7 @@ const TrainSeatMap = ({
                       borderRadius: 8,
                       overflow: 'hidden',
                       border: '1.5px solid rgba(15,23,42,0.35)',
-                      background: t.available > 0
+                      background: toa.available > 0
                         ? 'linear-gradient(180deg, #3b82f6 0%, #1e3a8a 70%)'
                         : 'linear-gradient(180deg, #64748b 0%, #334155 70%)',
                     }}>
@@ -618,7 +621,7 @@ const TrainSeatMap = ({
                     {/* Gầm kín khí động học + bánh xe */}
                     <div style={{ position: 'absolute', left: 3, right: 3, bottom: 3, height: 14, background: 'linear-gradient(180deg, #475569, #1e293b)', borderRadius: '3px 3px 6px 6px' }} />
                     <div style={{ position: 'absolute', bottom: -11, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', padding: '0 26px' }}>
-                      {wheel(t.idx * 0.1)}{wheel(t.idx * 0.1 + 0.05)}
+                      {wheel(toa.idx * 0.1)}{wheel(toa.idx * 0.1 + 0.05)}
                     </div>
                     </div>{/* /lớp rung sway */}
                   </div>
@@ -737,7 +740,7 @@ const TrainSeatMap = ({
             alignItems: 'center',
             gap: 8,
           }}>
-            <span style={{ color: '#818cf8' }}>🚄</span> Rê chuột vào toa để xem thông tin — bấm để chọn chỗ
+            <span style={{ color: '#818cf8' }}>🚄</span> {t.smTrainHint}
           </div>
         </div>
       )}
@@ -745,8 +748,8 @@ const TrainSeatMap = ({
       {/* Tooltip toa — portal ra body với position: fixed → KHÔNG BAO GIỜ bị
           canvas/scene/scale cắt */}
       {hoveredToa !== null && tooltipPos && (() => {
-        const t = toas.find(x => x.idx === hoveredToa);
-        if (!t) return null;
+        const toa = toas.find(x => x.idx === hoveredToa);
+        if (!toa) return null;
         return createPortal(
           <div style={{
             position: 'fixed',
@@ -765,9 +768,9 @@ const TrainSeatMap = ({
             pointerEvents: 'none',
             lineHeight: 1.7,
           }}>
-            <div style={{ fontWeight: 800 }}>Toa {t.idx + 1} • {t.hasSleeper ? 'Giường nằm' : t.isBiz ? 'Thương gia' : 'Phổ thông'}</div>
+            <div style={{ fontWeight: 800 }}>{t.smCarriage.replace('{index}', toa.idx + 1)} • {toa.hasSleeper ? t.smSleeper : toa.isBiz ? t.seatClassBiz : t.seatClassEco}</div>
             <div style={{ opacity: 0.8 }}>
-              Còn <b style={{ color: t.available > 0 ? '#34d399' : '#f87171' }}>{t.available}</b>/{t.total} chỗ trống
+              {t.smRemaining} <b style={{ color: toa.available > 0 ? '#34d399' : '#f87171' }}>{toa.available}</b>/{toa.total} {t.smVacantSeats}
             </div>
           </div>,
           document.body
@@ -799,13 +802,13 @@ const TrainSeatMap = ({
                 transition: 'all 0.2s',
               }}
             >
-              <span>←</span> Quay lại đoàn tàu
+              <span>←</span> {t.smBackToTrain}
             </button>
 
             <div style={{ width: 1, height: 24, background: 'var(--border-main)', margin: '0 4px' }} />
 
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
-              Toa {active.idx + 1} — Hạng:
+              {t.smCarriage.replace('{index}', active.idx + 1)} — {t.smClassLabel}
             </span>
             <button
               type="button"
@@ -822,7 +825,7 @@ const TrainSeatMap = ({
                 color: !selectedSeatClass ? '#fff' : 'var(--text-secondary)',
               }}
             >
-              Tất cả
+                  {t.seatClassAll}
             </button>
             {(() => {
               // Chip filter lấy theo hạng có thật trong toa đang mở
@@ -847,7 +850,7 @@ const TrainSeatMap = ({
                       color: act ? '#fff' : 'var(--text-secondary)',
                     }}
                   >
-                    {cls === 'SLEEPER' ? '🛏 Giường nằm' : cls === 'BUSINESS' || cls === 'VIP' ? '🔵 Thương gia' : cls === 'ECONOMY' ? '🟢 Phổ thông' : cls}
+                    {cls === 'SLEEPER' ? `🛏 ${t.smSleeper}` : cls === 'BUSINESS' || cls === 'VIP' ? `🔵 ${t.seatClassBiz}` : cls === 'ECONOMY' ? `🟢 ${t.seatClassEco}` : cls}
                   </button>
                 );
               });
@@ -867,7 +870,7 @@ const TrainSeatMap = ({
               alignItems: 'center',
               gap: 6,
             }}>
-              Đã chọn: <span style={{ color: isMaxReached ? '#22c55e' : 'var(--primary)', fontSize: 14 }}>{selectedSeatIds.length}/{maxSeats}</span> ghế
+              {t.smSelectedCount} <span style={{ color: isMaxReached ? '#22c55e' : 'var(--primary)', fontSize: 14 }}>{selectedSeatIds.length}/{maxSeats}</span> {t.smSeatsUnit}
             </div>
           </div>
 
@@ -909,7 +912,7 @@ const TrainSeatMap = ({
                   letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: 6,
                   textTransform: 'uppercase',
                 }}>
-                  <span style={{ color: 'var(--primary)', fontSize: 13 }}>🚄</span> Toa {active.idx + 1} • Cửa trước
+                  <span style={{ color: 'var(--primary)', fontSize: 13 }}>🚄</span> {t.smCarriage.replace('{index}', active.idx + 1)} • {t.smFrontDoor}
                 </div>
               </div>
             </div>
@@ -932,7 +935,7 @@ const TrainSeatMap = ({
             }}>
               <div style={{ width: 36 }} />
               {leftCols.map(c => <div key={c} style={{ width: 46, textAlign: 'center', fontWeight: 800, color: 'var(--primary)', fontSize: 13 }}>{c}</div>)}
-              <div style={{ width: 44, textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)' }}>LỐI ĐI</div>
+              <div style={{ width: 44, textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)' }}>{t.smAisle}</div>
               {rightCols.map(c => <div key={c} style={{ width: 46, textAlign: 'center', fontWeight: 800, color: 'var(--primary)', fontSize: 13 }}>{c}</div>)}
             </div>
 
@@ -1000,7 +1003,7 @@ const TrainSeatMap = ({
                 color: 'var(--text-secondary)',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
               }}>
-                <span>🚻</span> WC & Cửa kết nối
+                <span>🚻</span> {t.smWcConnector}
               </div>
             </div>
 
@@ -1017,11 +1020,11 @@ const TrainSeatMap = ({
               borderTop: '1px solid var(--border-light)',
             }}>
               {[
-                { label: 'Phổ thông', bg: 'linear-gradient(180deg,#10b981,#065f46)', bdr: '#059669' },
-                { label: 'Thương gia / Giường nằm', bg: 'linear-gradient(180deg,#6366f1,#3730a3)', bdr: '#4f46e5' },
-                { label: 'Đang chọn', bg: 'linear-gradient(180deg,#f59e0b,#d97706)', bdr: '#fbbf24', glow: 'rgba(245,158,11,0.6)' },
-                { label: 'Đang giữ (RT)', bg: 'linear-gradient(180deg,#7f1d1d,#450a0a)', bdr: '#dc2626' },
-                { label: 'Đã đặt', bg: 'var(--bg-hover)', bdr: 'var(--border-main)' },
+                { label: t.seatClassEco, bg: 'linear-gradient(180deg,#10b981,#065f46)', bdr: '#059669' },
+                { label: `${t.seatClassBiz} / ${t.smSleeper}`, bg: 'linear-gradient(180deg,#6366f1,#3730a3)', bdr: '#4f46e5' },
+                { label: t.smSelecting, bg: 'linear-gradient(180deg,#f59e0b,#d97706)', bdr: '#fbbf24', glow: 'rgba(245,158,11,0.6)' },
+                { label: `${t.smHeld} (RT)`, bg: 'linear-gradient(180deg,#7f1d1d,#450a0a)', bdr: '#dc2626' },
+                { label: t.smBooked, bg: 'var(--bg-hover)', bdr: 'var(--border-main)' },
               ].map(item => (
                 <span key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ width: 16, height: 16, borderRadius: 4, background: item.bg, border: `1px solid ${item.bdr}`, display: 'inline-block', boxShadow: item.glow ? `0 0 6px ${item.glow}` : 'none' }} />

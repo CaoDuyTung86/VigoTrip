@@ -52,10 +52,10 @@ const TrainSearch = () => {
   ];
 
   const handleSearch = () => {
-    if (!fromCity) { setSearchError("Vui lòng chọn ga khởi hành."); return; }
-    if (!toCity) { setSearchError("Vui lòng chọn ga đến."); return; }
-    if ((fromCity.code || fromCity.name) === (toCity.code || toCity.name)) { setSearchError("Ga đi và ga đến không được trùng nhau."); return; }
-    if (!departDate) { setSearchError("Vui lòng chọn ngày đi."); return; }
+    if (!fromCity) { setSearchError(t.errSelectDepartureStation); return; }
+    if (!toCity) { setSearchError(t.errSelectArrivalStation); return; }
+    if ((fromCity.code || fromCity.name) === (toCity.code || toCity.name)) { setSearchError(t.errSameStations); return; }
+    if (!departDate) { setSearchError(t.errDateRequired); return; }
     setSearchError("");
 
     const totalPassengers = passengers.adult + passengers.child + passengers.infant;

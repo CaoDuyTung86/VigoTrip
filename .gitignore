@@ -46,4 +46,5 @@ seat_map_prompt.md
 .zcode/
 dist/
 my-react-app/dist/
-
+i18n_replace.py
+i18n_addkeys.py
