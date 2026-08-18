@@ -6,16 +6,18 @@ import { GoogleLogin } from "@react-oauth/google";
 
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 const Auth = ({ isOpen, onClose }) => {
+  const { showToast } = useToast();
   const [step, setStep] = useState(1);
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
   const [apiError, setApiError] = useState("");
+  const [phone, setPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -113,10 +115,17 @@ const Auth = ({ isOpen, onClose }) => {
         }),
       });
 
-      const data = await response.json();
+      let data = {};
+      try {
+        const text = await response.text();
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
 
       if (!response.ok) {
-        const message = data?.message || t.authXRegisterFailed;
+        const message = data?.message || (response.status === 401 ? "Sai tài khoản hoặc mật khẩu" : t.authXRegisterFailed);
+        showToast(message, "error");
         setApiError(message);
         setIsSubmitting(false);
         return;
@@ -128,6 +137,7 @@ const Auth = ({ isOpen, onClose }) => {
 
       setSuccessMessage(t.authXRegisterSuccessVerify);
       setShowSuccess(true);
+      showToast(t.authXRegisterSuccessVerify, "success");
 
       clearTempData();
 
@@ -137,8 +147,9 @@ const Auth = ({ isOpen, onClose }) => {
       }, 1500);
     } catch (error) {
       console.error("Register error:", error);
-      setApiError(t.authXConnError.replace('{error}', error.message));
-      alert(t.authXConnError.replace('{error}', error.message));
+      const errMsg = "Không thể kết nối đến máy chủ backend (hãy kiểm tra backend đã chạy chưa)";
+      showToast(errMsg, "error");
+      setApiError(errMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -180,10 +191,17 @@ const Auth = ({ isOpen, onClose }) => {
         }),
       });
 
-      const data = await response.json();
+      let data = {};
+      try {
+        const text = await response.text();
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
 
       if (!response.ok) {
-        const message = data?.message || t.authXLoginFailed;
+        const message = data?.message || (response.status === 401 ? "Sai tài khoản hoặc mật khẩu" : (response.status === 403 ? "Tài khoản chưa được kích hoạt hoặc bị khóa" : t.authXLoginFailed));
+        showToast(message, "error");
         setApiError(message);
         setIsSubmitting(false);
         return;
@@ -195,6 +213,7 @@ const Auth = ({ isOpen, onClose }) => {
 
       setSuccessMessage(t.authXLoginSuccess);
       setShowSuccess(true);
+      showToast(t.authXLoginSuccess, "success");
 
       setTimeout(() => {
         setShowSuccess(false);
@@ -216,8 +235,9 @@ const Auth = ({ isOpen, onClose }) => {
       }, 1000);
     } catch (error) {
       console.error("Login error:", error);
-      setApiError(t.authXConnError.replace('{error}', error.message));
-      alert(t.authXConnError.replace('{error}', error.message));
+      const errMsg = "Không thể kết nối đến máy chủ backend (hãy kiểm tra backend đã chạy chưa)";
+      showToast(errMsg, "error");
+      setApiError(errMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -701,22 +721,20 @@ const Auth = ({ isOpen, onClose }) => {
               )}
 
               {apiError && (
-                <p
-                  style={{
-                    color: "#ff4444",
-                    fontSize: "13px",
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                  }}
-                >
-                  <span>
-                    <IoIosWarning />
-                  </span>
-                  {apiError}
+                <p style={{
+                  color: "#ff4444",
+                  fontSize: "13px",
+                  marginBottom: "12px",
+                  marginTop: "-8px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px"
+                }}>
+                  <span><IoIosWarning /></span> {apiError}
                 </p>
               )}
+
+
 
               {mode === "register" && (
                 <p style={{
@@ -737,7 +755,7 @@ const Auth = ({ isOpen, onClose }) => {
                 <div style={{ textAlign: "right", marginBottom: "20px" }}>
                   <span
                     onClick={() => {
-                      onClose();
+                      if (onClose) onClose();
                       navigate("/forgot-password");
                     }}
                     style={{ color: "var(--primary)", cursor: "pointer", fontSize: "14px", fontWeight: "500", textDecoration: "underline" }}

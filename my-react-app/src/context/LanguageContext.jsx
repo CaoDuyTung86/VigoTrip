@@ -238,7 +238,7 @@ const translations = {
     processing: "Đang xử lý...",
 
     // Extra Strings
-    adminTrips: "Admin Trips",
+    adminTrips: "Quản lý chuyến đi",
     adminReviews: "Quản lý đánh giá",
     providerReviews: "Đánh giá",
     revenue: "Doanh thu",
@@ -688,7 +688,7 @@ const translations = {
     admDelayError: "Lỗi hoãn: {msg}",
     admCancelReasonRequired: "Cần nhập lý do hủy.",
     admCancelError: "Lỗi hủy: {msg}",
-    admTripsTitle: "Quản trị chuyến đi",
+    admTripsTitle: "Quản lý chuyến đi",
     admAdminOnly: "Bạn cần đăng nhập bằng tài khoản admin để truy cập trang này.",
     admTripsSubtitle: "Quản lý lịch trình, tạo chuyến đi mới, điều chỉnh giá vé và trạng thái chuyến đi",
     admSearchPlaceholder: "Tìm địa điểm hoặc ID...",

@@ -281,4 +281,32 @@ public class AdminService {
         }
         return result;
     }
+
+    // ==================== USER MANAGEMENT ====================
+
+    private final UserRepository userRepository;
+
+    @Transactional(readOnly = true)
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
+
+    @Transactional
+    public User updateUserRole(Long userId, String newRole) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng với ID: " + userId));
+        user.setRole(newRole);
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public User toggleUserStatus(Long userId, Boolean enabled) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng với ID: " + userId));
+        user.setEnabled(enabled);
+        if (Boolean.TRUE.equals(enabled)) {
+            user.setVerificationCode(null); // Xóa mã nếu admin kích hoạt trực tiếp
+        }
+        return userRepository.save(user);
+    }
 }

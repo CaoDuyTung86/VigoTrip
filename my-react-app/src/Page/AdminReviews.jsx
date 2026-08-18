@@ -14,7 +14,7 @@ const AdminReviews = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    if (!isAuthenticated || user?.role !== "ROLE_PROVIDER") {
+    if (!isAuthenticated || (user?.role !== "ROLE_PROVIDER" && user?.role !== "ROLE_ADMIN")) {
       navigate("/");
       return;
     }

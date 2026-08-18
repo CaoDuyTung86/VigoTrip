@@ -20,4 +20,5 @@ public class UserResponse {
     private String membershipLevel;
     private Double discountPercent;
     private boolean hasPassword;
+    private Boolean enabled;
 }

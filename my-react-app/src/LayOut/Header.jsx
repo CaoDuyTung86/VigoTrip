@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { FaQrcode } from "react-icons/fa";
 import { MdOutlinePhone } from "react-icons/md";
 import { IoChevronDown } from "react-icons/io5";
 import Auth from "../Page/Auth";
@@ -16,7 +15,7 @@ import VNFlag from "../Picture/flags/vn.png";
 import UKFlag from "../Picture/flags/uk.png";
 import JPFlag from "../Picture/flags/jp.png";
 import TWFlag from "../Picture/flags/tw.png";
-import { User, Ticket, LogOut } from "lucide-react";
+import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users } from "lucide-react";
 
 const Header = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -302,28 +301,7 @@ const Header = () => {
             )}
           </div>
 
-          {/* Admin/Provider buttons */}
-          {isAuthenticated && (user?.role === "ROLE_ADMIN" || user?.role === "ROLE_PROVIDER") && (
-            <div style={{ display: "flex", gap: 8 }}>
-              {user?.role === "ROLE_ADMIN" && (
-                <>
-                  <button onClick={() => navigate("/admin/trips")} style={glowBtnStyle("#3b82f6", "rgba(59, 130, 246, 0.2)", "rgba(59, 130, 246, 0.35)")}>{t.adminTrips}</button>
-                  <button onClick={() => navigate("/provider/refunds")} style={glowBtnStyle("#ef4444", "rgba(239, 68, 68, 0.2)", "rgba(239, 68, 68, 0.35)")}>{t.refunds}</button>
-                </>
-              )}
-              {user?.role === "ROLE_PROVIDER" && (
-                <>
-                  <button onClick={() => navigate("/admin/reviews")} style={glowBtnStyle("#60a5fa", "rgba(96, 165, 250, 0.2)", "rgba(96, 165, 250, 0.35)")}>{t.providerReviews}</button>
-                  <button onClick={() => navigate("/admin/revenue")} style={glowBtnStyle("#fbbf24", "rgba(251, 191, 36, 0.2)", "rgba(251, 191, 36, 0.35)")}>{t.revenue}</button>
-                </>
-              )}
-              <button onClick={() => navigate("/provider/check-in")} style={{ ...glowBtnStyle("#34d399", "rgba(52, 211, 153, 0.2)", "rgba(52, 211, 153, 0.35)"), display: "flex", alignItems: "center", gap: 6 }}>
-                <FaQrcode style={{ fontSize: 13, color: "#34d399" }} /> {t.checkInQR}
-              </button>
-            </div>
-          )}
-
-          {/* User area */}
+          {/* User area & Dropdown Menu */}
           {isAuthenticated ? (
             <div className="user-menu-container" style={{ position: "relative" }}>
               <button
@@ -368,14 +346,16 @@ const Header = () => {
                   position: "absolute",
                   top: 44,
                   right: 0,
-                  width: 190,
+                  width: 230,
                   background: "var(--bg-dropdown)",
                   borderRadius: 12,
                   boxShadow: "var(--shadow-lg)",
                   border: "1px solid var(--border-light)",
                   zIndex: 1001,
                   overflow: "hidden",
+                  padding: "4px 0",
                 }}>
+                  {/* Mục cá nhân */}
                   {[
                     { label: t.account, path: "/account", icon: <User size={16} /> },
                     { label: t.bookingHistory, path: "/my-bookings", icon: <Ticket size={16} /> },
@@ -390,6 +370,62 @@ const Header = () => {
                       <span style={{ display: "flex", alignItems: "center" }}>{item.icon}</span> {item.label}
                     </button>
                   ))}
+
+                  {/* Mục chức năng Quản trị / Admin */}
+                  {user?.role === "ROLE_ADMIN" && (
+                    <>
+                      <div style={{ borderTop: "1px solid var(--border-light)", margin: "4px 0" }} />
+                      <div style={{ padding: "4px 14px 2px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Quản trị hệ thống
+                      </div>
+                      {[
+                        { label: t.adminTrips || "Quản lý chuyến đi", path: "/admin/trips", icon: <Navigation size={16} color="#3b82f6" /> },
+                        { label: "Quản lý tuyến đường", path: "/admin/routes", icon: <MapPin size={16} color="#8b5cf6" /> },
+                        { label: "Quản lý người dùng", path: "/admin/users", icon: <Users size={16} color="#06b6d4" /> },
+                        { label: t.refunds || "Hoàn tiền & Hủy vé", path: "/provider/refunds", icon: <Undo2 size={16} color="#ef4444" /> },
+                        { label: t.revenue || "Thống kê doanh thu", path: "/admin/revenue", icon: <DollarSign size={16} color="#fbbf24" /> },
+                        { label: t.providerReviews || "Đánh giá & Feedback", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },
+                        { label: t.checkInQR || "Quét vé (Check-in)", path: "/provider/check-in", icon: <QrCode size={16} color="#10b981" /> },
+                      ].map((item) => (
+                        <button
+                          key={item.path}
+                          style={dropdownItemStyle}
+                          onClick={() => { navigate(item.path); setShowUserMenu(false); }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
+                          onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                        >
+                          <span style={{ display: "flex", alignItems: "center" }}>{item.icon}</span> {item.label}
+                        </button>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Mục chức năng Nhà cung cấp / Provider */}
+                  {user?.role === "ROLE_PROVIDER" && (
+                    <>
+                      <div style={{ borderTop: "1px solid var(--border-light)", margin: "4px 0" }} />
+                      <div style={{ padding: "4px 14px 2px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Nhà cung cấp
+                      </div>
+                      {[
+                        { label: t.providerReviews || "Đánh giá khách hàng", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },
+                        { label: t.revenue || "Doanh thu", path: "/admin/revenue", icon: <DollarSign size={16} color="#fbbf24" /> },
+                        { label: t.checkInQR || "Quét vé (Check-in)", path: "/provider/check-in", icon: <QrCode size={16} color="#10b981" /> },
+                      ].map((item) => (
+                        <button
+                          key={item.path}
+                          style={dropdownItemStyle}
+                          onClick={() => { navigate(item.path); setShowUserMenu(false); }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
+                          onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                        >
+                          <span style={{ display: "flex", alignItems: "center" }}>{item.icon}</span> {item.label}
+                        </button>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Nút Đăng xuất */}
                   <div style={{ borderTop: "1px solid var(--border-light)", margin: "4px 0" }} />
                   <button
                     style={{ ...dropdownItemStyle, color: "var(--danger)" }}
@@ -431,20 +467,7 @@ const Header = () => {
   );
 };
 
-const glowBtnStyle = (color, bg, border) => ({
-  padding: "6px 13px",
-  borderRadius: 8,
-  border: `1px solid ${border}`,
-  background: bg,
-  color: color,
-  cursor: "pointer",
-  fontSize: 13,
-  fontWeight: 700,
-  fontFamily: "inherit",
-  whiteSpace: "nowrap",
-  boxShadow: `0 0 10px ${bg}`,
-  transition: "all 0.2s",
-});
+
 
 const dropdownItemStyle = {
   width: "100%",

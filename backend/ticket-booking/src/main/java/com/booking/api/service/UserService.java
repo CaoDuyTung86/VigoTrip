@@ -72,6 +72,7 @@ public class UserService {
                 .membershipLevel(level)
                 .discountPercent(discount)
                 .hasPassword(user.getPassword() != null && !user.getPassword().isEmpty())
+                .enabled(user.getEnabled())
                 .build();
     }
 

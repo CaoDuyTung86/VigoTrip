@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import Header from "./LayOut/Header";
@@ -18,6 +18,8 @@ import MyBookings from "./Page/MyBookings";
 import ForgotPassword from "./Page/ForgotPassword";
 import VerifyEmail from "./Page/VerifyEmail";
 import AdminTrips from "./Page/AdminTrips";
+import AdminRoutes from "./Page/AdminRoutes";
+import AdminUsers from "./Page/AdminUsers";
 import AdminReviews from "./Page/AdminReviews";
 import AccountPage from "./Page/AccountPage";
 import AdminRevenue from "./Page/AdminRevenue";
@@ -25,14 +27,28 @@ import ProviderRefunds from "./Page/ProviderRefunds";
 import ProviderCheckIn from "./Page/ProviderCheckIn";
 import Chatbot from "./components/Chatbot";
 
-import { ToastProvider } from "./context/ToastContext";
+import { ToastProvider, useToast } from "./context/ToastContext";
 
 function AppWrapper() {
   const location = useLocation();
+  const toast = useToast();
+  const toastShown = useRef(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
+
+  // Hiển thị toast khi bị force-logout (tài khoản bị khóa)
+  useEffect(() => {
+    if (toastShown.current) return;
+    const msg = sessionStorage.getItem("forceLogoutMessage");
+    if (msg) {
+      sessionStorage.removeItem("forceLogoutMessage");
+      toastShown.current = true;
+      setTimeout(() => toast.showToast(msg, "error"), 300);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const showHeader = location.pathname !== "/auth" && location.pathname !== "/my-bookings" && location.pathname !== "/forgot-password" && location.pathname !== "/verify-email";
   const showFooter = location.pathname !== "/auth" && location.pathname !== "/my-bookings" && location.pathname !== "/forgot-password" && location.pathname !== "/verify-email";
@@ -51,6 +67,8 @@ function AppWrapper() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/admin/trips" element={<AdminTrips />} />
+        <Route path="/admin/routes" element={<AdminRoutes />} />
+        <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/reviews" element={<AdminReviews />} />
         <Route path="/admin/revenue" element={<AdminRevenue />} />
         <Route path="/account" element={<AccountPage />} />

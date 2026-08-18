@@ -33,14 +33,39 @@ public class AIService {
     // Model nhẹ hơn cho chatbot — free tier quota cao hơn, đủ mạnh cho function calling
     private static final String CHAT_MODEL = "gemini-flash-lite-latest";
 
-    // Model thông minh hơn cho phân tích doanh thu (Analytics)
-    private static final String ANALYSIS_MODEL = "gemini-flash-latest";
+    // Model cho phân tích doanh thu (Analytics).
+    // Lưu ý: "gemini-flash-latest" thường xuyên trả 503 (overloaded) với payload báo cáo lớn
+    // (test 4/4 lần fail), trong khi flash-lite ổn định 4/4 — dùng lite cho đến khi flash ổn định lại.
+    private static final String ANALYSIS_MODEL = "gemini-flash-lite-latest";
 
     // Giới hạn an toàn — tiết kiệm token, tránh Rate Limit Gemini Free Tier
     private static final int MAX_HISTORY_PAIRS = 3;     // Chỉ lấy 3 lượt chat gần nhất
     private static final int MAX_CONTENT_LENGTH = 200;  // Tối đa 200 ký tự/tin nhắn trong history
     private static final int CHAT_MAX_TOKENS = 800;     // Đủ để AI trả lời đầy đủ sau khi dùng tools
     private static final int ANALYSIS_MAX_TOKENS = 4000;  // Đủ cho báo cáo BI tiếng Việt đầy đủ
+
+    // Gemini hay trả 429/503 tạm thời ("high demand") — retry thay vì báo lỗi ngay
+    private static final int MAX_RETRIES = 3;
+    private static final long RETRY_DELAY_MS = 2000;
+
+    private ResponseEntity<Map> postForEntityWithRetry(HttpEntity<Map<String, Object>> entity) throws InterruptedException {
+        org.springframework.web.client.RestClientResponseException lastException = null;
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                return restTemplate.postForEntity(AI_API_URL, entity, Map.class);
+            } catch (org.springframework.web.client.HttpClientErrorException.TooManyRequests e) {
+                lastException = e;
+            } catch (org.springframework.web.client.HttpServerErrorException e) {
+                // 5xx từ Gemini thường là quá tải tạm thời
+                lastException = e;
+            }
+            if (attempt < MAX_RETRIES) {
+                log.warn("Gemini API tạm lỗi ({}), thử lại lần {}/{}", lastException.getStatusCode(), attempt, MAX_RETRIES);
+                Thread.sleep(RETRY_DELAY_MS * attempt);
+            }
+        }
+        throw lastException;
+    }
 
     public interface ToolHandler {
         String executeTool(String functionName, Map<String, Object> arguments);
@@ -162,7 +187,7 @@ public class AIService {
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
         try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(AI_API_URL, entity, Map.class);
+            ResponseEntity<Map> response = postForEntityWithRetry(entity);
             Map<String, Object> responseBody = response.getBody();
 
             if (responseBody != null && responseBody.containsKey("choices")) {
@@ -212,7 +237,7 @@ public class AIService {
                             secondBody.put("temperature", temperature);
 
                             HttpEntity<Map<String, Object>> secondEntity = new HttpEntity<>(secondBody, headers);
-                            ResponseEntity<Map> secondResponse = restTemplate.postForEntity(AI_API_URL, secondEntity, Map.class);
+                            ResponseEntity<Map> secondResponse = postForEntityWithRetry(secondEntity);
                             Map<String, Object> secondBodyObj = secondResponse.getBody();
 
                             if (secondBodyObj != null && secondBodyObj.containsKey("choices")) {
@@ -238,6 +263,12 @@ public class AIService {
                 return "AI đang quá tải (Rate limit), vui lòng thử lại sau vài giây.";
             }
             return "Lỗi kết nối AI (" + e.getStatusCode() + ").";
+        } catch (org.springframework.web.client.HttpServerErrorException e) {
+            log.error("Gemini server error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            return "Máy chủ AI đang bận (quá tải tạm thời), vui lòng bấm thử lại sau ít phút.";
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "Đã có lỗi xảy ra khi kết nối với máy chủ AI.";
         } catch (Exception e) {
             log.error("AI Service Error", e);
             return "Đã có lỗi xảy ra khi kết nối với máy chủ AI.";
@@ -295,7 +326,7 @@ public class AIService {
 
         try {
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-            ResponseEntity<Map> response = restTemplate.postForEntity(AI_API_URL, entity, Map.class);
+            ResponseEntity<Map> response = postForEntityWithRetry(entity);
             Map<String, Object> responseBody = response.getBody();
 
             if (responseBody != null && responseBody.containsKey("choices")) {
@@ -359,6 +390,10 @@ public class AIService {
             } else {
                 chunkConsumer.accept("Lỗi kết nối AI (" + e.getStatusCode() + ").");
             }
+            return;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            chunkConsumer.accept(" [Đã gián đoạn kết nối AI]");
             return;
         } catch (Exception e) {
             log.error("Error during setup for streaming AI response", e);

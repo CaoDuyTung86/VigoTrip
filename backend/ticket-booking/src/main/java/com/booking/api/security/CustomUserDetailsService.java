@@ -25,6 +25,10 @@ public class CustomUserDetailsService implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
+                Boolean.TRUE.equals(user.getEnabled()),  // enabled – false → bị khóa → token vô hiệu
+                true,               // accountNonExpired
+                true,               // credentialsNonExpired
+                true,               // accountNonLocked
                 Collections.singletonList(new SimpleGrantedAuthority(user.getRole())));
     }
 }
