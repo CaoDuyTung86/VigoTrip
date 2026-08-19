@@ -33,6 +33,7 @@ public class PaymentService {
     private final VNPayConfig vnPayConfig;
     private final EmailService emailService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final VoucherService voucherService;
 
     /**
      * Tạo URL thanh toán VNPay
@@ -246,6 +247,11 @@ public class PaymentService {
     private void cancelBookingAndBroadcast(Booking booking) {
         booking.setStatus("FAILED");
         bookingRepository.save(booking);
+
+        // Thanh toán thất bại/bị hủy => hoàn lại lượt sử dụng voucher vì chưa thực sự áp dụng thành công
+        if (booking.getVoucherCode() != null && !booking.getVoucherCode().isBlank()) {
+            voucherService.refundVoucherUsage(booking.getVoucherCode());
+        }
 
         if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
             Long tripId = booking.getTickets().get(0).getTrip().getId();

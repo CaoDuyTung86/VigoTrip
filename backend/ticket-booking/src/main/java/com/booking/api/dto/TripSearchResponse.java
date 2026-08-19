@@ -17,6 +17,7 @@ public class TripSearchResponse {
     private LocalDateTime arrivalTime;
     private BigDecimal price;
     private String vehicleType;
+    private Long providerId;
     private String providerName;
     private Integer totalSeats;
     private Integer availableSeats;

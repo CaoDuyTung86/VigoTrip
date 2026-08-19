@@ -36,4 +36,19 @@ public class AdminDTO {
         private BigDecimal price;
         private String status;
     }
+
+    @Data
+    public static class VoucherRequest {
+        private String code;
+        private Double discountPercent;
+        private Double maxDiscountAmount;
+        private Double minOrderAmount;
+        private LocalDateTime startDate;
+        private LocalDateTime expiryDate;
+        private Integer maxUsage;
+        private String description;
+        private Boolean isActive;
+        /** Hãng phương tiện áp dụng riêng; null = áp dụng cho tất cả các hãng. */
+        private Long providerId;
+    }
 }

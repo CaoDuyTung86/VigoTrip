@@ -211,14 +211,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .header-nav-tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
+  gap: 7px;
+  padding: 8px 18px;
   border-radius: 8px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: 15.5px;
+  font-weight: 600;
   cursor: pointer;
   text-decoration: none;
   transition: background 0.18s, color 0.18s;
@@ -450,16 +450,16 @@ body:not(.dark) .trip-type-btn:hover:not(.maintenance):not(.active) {
   max-width: 720px;
 }
 .hero-title {
-  font-size: clamp(24px, 4vw, 44px);
+  font-size: clamp(32px, 5.5vw, 60px);
   font-weight: 800;
   color: #fff;
-  margin: 0 0 10px;
+  margin: 0 0 14px;
   line-height: 1.2;
   letter-spacing: -0.5px;
   text-shadow: 0 2px 20px rgba(0,0,0,0.2);
 }
 .hero-subtitle {
-  font-size: clamp(13px, 1.8vw, 16px);
+  font-size: clamp(16px, 2.4vw, 22px);
   color: rgba(255,255,255,0.82);
   margin: 0;
   font-weight: 400;
@@ -480,8 +480,8 @@ body:not(.dark) .trip-type-btn:hover:not(.maintenance):not(.active) {
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255,255,255,0.22);
   border-radius: 20px;
-  padding: 5px 13px;
-  font-size: 12px;
+  padding: 6px 15px;
+  font-size: 13.5px;
   color: #fff;
   font-weight: 500;
 }

@@ -21,6 +21,7 @@ public class BookingCleanupService {
 
     private final BookingRepository bookingRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final VoucherService voucherService;
 
     // Chạy mỗi 1 phút một lần
     @Scheduled(fixedRate = 60000)
@@ -47,6 +48,13 @@ public class BookingCleanupService {
                             messagingTemplate.convertAndSend("/topic/seat-status", update);
                         }
                     }
+                }
+
+                // Hoàn lại lượt sử dụng voucher vì đơn hàng chưa thanh toán thành công
+                if (booking.getVoucherCode() != null && !booking.getVoucherCode().isBlank()) {
+                    voucherService.refundVoucherUsage(booking.getVoucherCode());
+                    log.info("Refunded voucher usage for code {} (booking {} expired unpaid).",
+                            booking.getVoucherCode(), booking.getId());
                 }
             }
             bookingRepository.saveAll(expiredBookings);

@@ -47,6 +47,8 @@ class BookingServiceTest {
     private SeatLockService seatLockService;
     @Mock
     private SimpMessagingTemplate messagingTemplate;
+    @Mock
+    private com.booking.api.repository.ReviewRepository reviewRepository;
 
     @InjectMocks
     private BookingService bookingService;
@@ -163,9 +165,11 @@ class BookingServiceTest {
         when(seatLockService.getLockedBy(1L)).thenReturn(null);
         when(additionalServiceRepository.findAllById(Collections.singletonList(10L)))
                 .thenReturn(Collections.singletonList(addService));
-        when(bookingRepository.existsByUserIdAndVoucherCodeAndStatusNot(1L, "SALE20", "CANCELLED"))
-                .thenReturn(false);
-        when(voucherService.validateVoucher(eq("SALE20"), any(java.math.BigDecimal.class))).thenReturn(voucherResult);
+        when(bookingRepository.existsByUserIdAndVoucherCodeAndStatusNotIn(1L, "SALE20",
+                BookingRepository.VOUCHER_RELEASING_STATUSES)).thenReturn(false);
+        when(voucherService.validateVoucher(eq("SALE20"), any(java.math.BigDecimal.class), any()))
+                .thenReturn(voucherResult);
+        when(voucherService.useVoucher(99L)).thenReturn(true);
         when(bookingMapper.toBookingResponse(any(), any())).thenReturn(new BookingResponse());
 
         BookingResponse response = bookingService.createBooking("test@example.com", request);
@@ -179,6 +183,70 @@ class BookingServiceTest {
             assertEquals("SALE20", b.getVoucherCode());
             return true;
         }));
+    }
+
+    /** Dựng sẵn phần stub chung cho một đơn có mã giảm giá hợp lệ. */
+    private void stubValidVoucherBooking() {
+        request.setVoucherCode("SALE20");
+
+        Map<String, Object> voucherResult = new HashMap<>();
+        voucherResult.put("valid", true);
+        voucherResult.put("discountAmount", java.math.BigDecimal.valueOf(30000).setScale(2, java.math.RoundingMode.HALF_UP));
+        voucherResult.put("voucherId", 99L);
+
+        when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
+        when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
+        when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
+        when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
+        when(seatLockService.getLockedBy(1L)).thenReturn(null);
+        when(bookingRepository.existsByUserIdAndVoucherCodeAndStatusNotIn(1L, "SALE20",
+                BookingRepository.VOUCHER_RELEASING_STATUSES)).thenReturn(false);
+        when(voucherService.validateVoucher(eq("SALE20"), any(java.math.BigDecimal.class), any()))
+                .thenReturn(voucherResult);
+    }
+
+    @Test
+    @DisplayName("Hai đơn song song: đơn thua bị unique index chặn ở INSERT và không trừ lượt của mã")
+    void createBooking_Fail_WhenConcurrentBookingHitsUniqueIndex() {
+        stubValidVoucherBooking();
+
+        // Request song song đã kịp ghi đơn trước → INSERT này đụng uq_booking_user_voucher_active
+        when(bookingRepository.save(any(Booking.class))).thenThrow(
+                new org.springframework.dao.DataIntegrityViolationException(
+                        "Cannot insert duplicate key row in object 'dbo.dat_ve' with unique index "
+                                + "'uq_booking_user_voucher_active'."));
+
+        BookingException ex = assertThrows(BookingException.class,
+                () -> bookingService.createBooking("test@example.com", request));
+
+        assertTrue(ex.getMessage().contains("SALE20"));
+        // Quan trọng: đơn thua không được tiêu lượt của mã
+        verify(voucherService, never()).useVoucher(anyLong());
+    }
+
+    @Test
+    @DisplayName("Lỗi ràng buộc khác không bị dịch nhầm thành lỗi trùng mã giảm giá")
+    void createBooking_Fail_UnrelatedConstraintViolationIsRethrown() {
+        stubValidVoucherBooking();
+
+        when(bookingRepository.save(any(Booking.class))).thenThrow(
+                new org.springframework.dao.DataIntegrityViolationException("FK_dat_ve_user violation"));
+
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> bookingService.createBooking("test@example.com", request));
+        verify(voucherService, never()).useVoucher(anyLong());
+    }
+
+    @Test
+    @DisplayName("Mã hết lượt ngay trước khi ghi đơn thì phải hủy cả đơn")
+    void createBooking_Fail_WhenVoucherRunsOutBeforeIncrement() {
+        stubValidVoucherBooking();
+        when(voucherService.useVoucher(99L)).thenReturn(false); // lượt cuối vừa bị người khác lấy
+
+        BookingException ex = assertThrows(BookingException.class,
+                () -> bookingService.createBooking("test@example.com", request));
+
+        assertTrue(ex.getMessage().contains("hết lượt"));
     }
 
     @Test
@@ -228,8 +296,8 @@ class BookingServiceTest {
         when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
         when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
         when(seatLockService.getLockedBy(1L)).thenReturn(null);
-        when(bookingRepository.existsByUserIdAndVoucherCodeAndStatusNot(1L, "USED_CODE", "CANCELLED"))
-                .thenReturn(true);
+        when(bookingRepository.existsByUserIdAndVoucherCodeAndStatusNotIn(1L, "USED_CODE",
+                BookingRepository.VOUCHER_RELEASING_STATUSES)).thenReturn(true);
 
         BookingException ex = assertThrows(BookingException.class,
                 () -> bookingService.createBooking("test@example.com", request));

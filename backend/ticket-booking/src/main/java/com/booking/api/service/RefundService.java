@@ -26,6 +26,7 @@ public class RefundService {
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final EmailService emailService;
+    private final VoucherService voucherService;
 
     /** User gửi yêu cầu hoàn tiền */
     @Transactional
@@ -96,6 +97,12 @@ public class RefundService {
         // Cập nhật booking status
         Booking booking = refund.getBooking();
         booking.setStatus("CANCELLED");
+
+        // Đơn đã hủy thì mã giảm giá được dùng lại — trả lại lượt dùng cho voucher.
+        if (booking.getVoucherCode() != null && !booking.getVoucherCode().isBlank()) {
+            voucherService.refundVoucherUsage(booking.getVoucherCode());
+        }
+
         bookingRepository.save(booking);
 
         Refund saved = refundRepository.save(refund);

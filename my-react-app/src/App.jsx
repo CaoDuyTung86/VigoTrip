@@ -21,6 +21,8 @@ import AdminTrips from "./Page/AdminTrips";
 import AdminRoutes from "./Page/AdminRoutes";
 import AdminUsers from "./Page/AdminUsers";
 import AdminReviews from "./Page/AdminReviews";
+import AdminVouchers from "./Page/AdminVouchers";
+import VoucherPromotions from "./Page/VoucherPromotions";
 import AccountPage from "./Page/AccountPage";
 import AdminRevenue from "./Page/AdminRevenue";
 import ProviderRefunds from "./Page/ProviderRefunds";
@@ -62,6 +64,7 @@ function AppWrapper() {
         <Route path="/ve-tau-hoa" element={<TrainTickets />} />
         <Route path="/xe-khach" element={<BusTickets />} />
         <Route path="/dat-theo-goi" element={<OrderByPackage />} />
+        <Route path="/uu-dai" element={<VoucherPromotions />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/my-bookings" element={<MyBookings />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -69,6 +72,7 @@ function AppWrapper() {
         <Route path="/admin/trips" element={<AdminTrips />} />
         <Route path="/admin/routes" element={<AdminRoutes />} />
         <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/vouchers" element={<AdminVouchers />} />
         <Route path="/admin/reviews" element={<AdminReviews />} />
         <Route path="/admin/revenue" element={<AdminRevenue />} />
         <Route path="/account" element={<AccountPage />} />

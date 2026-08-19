@@ -6,7 +6,9 @@ import PassengerInfoForm from "../components/PassengerInfoForm";
 import TrainSeatMap from "../components/TrainSeatMap";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
+import SavedVoucherPicker from "../components/SavedVoucherPicker";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { useWebSocket } from "../context/WebSocketContext";
 import {
   canSelectSeats,
@@ -40,15 +42,15 @@ const formatFormattedDateTime = (isoString) => {
   }
 };
 
+// Phụ thu theo loại chỗ — PHẢI khớp BookingService.createBooking ở backend
+// (VIP = x2, BUSINESS = +100.000, SLEEPER = +50.000), nếu không giá hiển thị sẽ
+// lệch với số tiền thật khi tạo booking/thanh toán.
 const getSeatPrice = (base, seat) => {
-  if (typeof seat === "object" && seat !== null && seat.price && Number(seat.price) > 0) {
-    return Number(seat.price);
-  }
   const type = typeof seat === "string" ? seat : seat?.seatType;
   const basePrice = Number(base || 0);
-  if (["BUSINESS", "VIP", "SLEEPER"].includes(type)) {
-    return basePrice + 500000;
-  }
+  if ("VIP" === type) return basePrice * 2;
+  if ("BUSINESS" === type) return basePrice + 100000;
+  if ("SLEEPER" === type) return basePrice + 50000;
   return basePrice;
 };
 
@@ -72,7 +74,8 @@ const PROVIDER_LOGOS = {
 
 const TrainTickets = () => {
   const { t, currentLanguage } = useLanguage();
-  const { token, isAuthenticated, user } = useAuth();
+  const { token, isAuthenticated, user, membershipDiscountPercent } = useAuth();
+  const { showToast } = useToast();
   const { isConnected, subscribe, lockSeats, unlockSeats } = useWebSocket();
   const location = useLocation();
 
@@ -337,15 +340,25 @@ const TrainTickets = () => {
   const [showInsuranceInfo, setShowInsuranceInfo] = useState(false);
   const [showAllMeals, setShowAllMeals] = useState(false);
 
-  // Tính giảm giá hạng thành viên từ promotion của user
-  const membershipDiscount = useMemo(() => {
-    if (!user?.promotion?.discountRate) return 0;
+  // Tổng tiền gốc (ghế + dịch vụ) — phải khớp đúng cách backend cộng tiền trong BookingService
+  const orderSubtotal = useMemo(() => {
+    if (!selectedTrip) return 0;
     const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
-    const basePrice = Number(selectedTrip?.price || 0);
+    const basePrice = Number(selectedTrip.price || 0);
     const seatsTotal = selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s.seatType), 0);
     const extraTotal = services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum, s) => sum + (s.price || 0), 0);
-    return Math.round((seatsTotal + extraTotal) * (user.promotion.discountRate / 100));
-  }, [user, seats, selectedSeatIds, selectedTrip, services, selectedServiceIds]);
+    return seatsTotal + extraTotal;
+  }, [seats, selectedSeatIds, selectedTrip, services, selectedServiceIds]);
+
+  // Giảm giá theo hạng thành viên — backend trừ khoản này TRƯỚC khi áp voucher,
+  // nên giao diện phải trừ theo đúng thứ tự đó thì tổng tiền mới khớp lúc thanh toán.
+  const membershipDiscount = useMemo(() => {
+    if (!membershipDiscountPercent) return 0;
+    return Math.round(orderSubtotal * (membershipDiscountPercent / 100));
+  }, [orderSubtotal, membershipDiscountPercent]);
+
+  // Số tiền voucher được tính trên: đã trừ ưu đãi thành viên (giống backend)
+  const voucherBaseAmount = Math.max(0, orderSubtotal - membershipDiscount);
 
   const API_BASE = "/api";
   const todayISO = useMemo(() => {
@@ -678,31 +691,41 @@ const TrainTickets = () => {
     setStep("review");
   };
 
-  const calculateTotalBeforeDiscount = () => {
-    if (!selectedTrip) return 0;
-    const seatsTotal = seats.filter(s => selectedSeatIds.includes(s.id)).reduce((sum, s) => sum + getSeatPrice(selectedTrip.price, s), 0);
-    const extraTotal = services.filter(s => selectedServiceIds.includes(s.id)).reduce((sum, s) => sum + (s.price || 0), 0);
-    return seatsTotal + extraTotal;
-  };
-
-  const handleApplyVoucher = async () => {
-    if (!promoCode) return;
+  const handleApplyVoucher = async (codeOverride, opts = {}) => {
+    const code = (codeOverride || promoCode || "").trim().toUpperCase();
+    if (!code) return;
+    // Bấm "Xác nhận" lại với đúng mã đang áp dụng → chỉ nhắc lại, không báo "giảm thành công" lần nữa
+    if (!opts.silent && code === appliedVoucher) {
+      showToast(t.promoAlreadyApplied.replace("{code}", code), "info");
+      return;
+    }
     try {
-      const orderAmount = calculateTotalBeforeDiscount();
-      const res = await axios.post("/api/voucher/validate", { code: promoCode, orderAmount });
+      const res = await axios.post(
+        "/api/voucher/validate",
+        { code, orderAmount: voucherBaseAmount, providerId: selectedTrip?.providerId },
+        token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+      );
       if (res.data.valid) {
-        setAppliedVoucher(promoCode);
-        setVoucherDiscount(res.data.discountAmount);
-        alert(res.data.message);
+        setPromoCode(code);
+        setAppliedVoucher(code);
+        setVoucherDiscount(Number(res.data.discountAmount) || 0);
+        if (!opts.silent) showToast(res.data.message, "success");
       } else {
         setAppliedVoucher("");
         setVoucherDiscount(0);
-        alert(t.errorPrefix + res.data.message);
+        showToast(res.data.message, "error");
       }
     } catch {
-      alert(t.errPromoFailed);
+      showToast(t.errPromoFailed, "error");
     }
   };
+
+  // Đổi ghế/dịch vụ sau khi đã áp mã → số tiền giảm cũ không còn đúng, tính lại theo tổng mới
+  useEffect(() => {
+    if (!appliedVoucher) return;
+    handleApplyVoucher(appliedVoucher, { silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voucherBaseAmount]);
 
   const submitBooking = async () => {
     if (!isAuthenticated || !token) {
@@ -1929,7 +1952,7 @@ const TrainTickets = () => {
                           ))}
                           {membershipDiscount > 0 && (
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 6, fontWeight: 600, gap: 8 }}>
-                              <span>🏅 {t.memberDiscountLabel.replace('{rate}', user.promotion.discountRate)}</span>
+                              <span>🏅 {t.memberDiscountLabel.replace('{rate}', membershipDiscountPercent)}</span>
                               <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
                             </div>
                           )}
@@ -2002,9 +2025,12 @@ const TrainTickets = () => {
                     <div style={{ display: "flex", gap: 8 }}>
                       <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder={t.promoPlaceholder}
                         style={{ flex: 1, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-main)", background: "var(--bg-card)", color: "var(--text-main)", fontSize: 14 }} />
-                      <button type="button" onClick={handleApplyVoucher} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.applyPromo}</button>
+                      <button type="button" onClick={() => handleApplyVoucher()} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.applyPromo}</button>
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 6 }}>{t.promoInstruction}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{t.promoInstruction}</div>
+                      <SavedVoucherPicker providerId={selectedTrip?.providerId} orderAmount={voucherBaseAmount} onApply={handleApplyVoucher} />
+                    </div>
                   </div>
 
                   {error && <p style={{ color: "#ef4444", marginTop: 4 }}>{error}</p>}
@@ -2022,7 +2048,7 @@ const TrainTickets = () => {
                           try {
                             const res = await axios.post("/api/payment/create", { bookingId: bookingResult.id, language: "vn" }, { headers: { Authorization: `Bearer ${token}` } });
                             if (res.data && res.data.paymentUrl) window.location.href = res.data.paymentUrl;
-                          } catch { alert(t.errVnpayLinkFailed); }
+                          } catch { showToast(t.errVnpayLinkFailed, "error"); }
                         }}
                         style={{ marginTop: 14, width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#005baa", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                         <MdOutlineCreditCard fontSize={20} /> {t.paymentVNPAY}
@@ -2063,7 +2089,7 @@ const TrainTickets = () => {
                           ))}
                           {membershipDiscount > 0 && (
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 6, fontWeight: 600, gap: 8 }}>
-                              <span>🏅 {t.memberDiscountLabel.replace('{rate}', user.promotion.discountRate)}</span>
+                              <span>🏅 {t.memberDiscountLabel.replace('{rate}', membershipDiscountPercent)}</span>
                               <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
                             </div>
                           )}

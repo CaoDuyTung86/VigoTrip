@@ -9,6 +9,11 @@ import org.mapstruct.MappingTarget;
 @Mapper(componentModel = "spring")
 public interface AdminMapper {
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "currentUsage", ignore = true)
+    @Mapping(target = "provider", ignore = true)
+    Voucher toEntity(VoucherRequest request);
+
     Route toEntity(RouteRequest request);
     void updateEntity(RouteRequest request, @MappingTarget Route route);
 

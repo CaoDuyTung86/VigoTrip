@@ -31,8 +31,19 @@ public class Voucher {
     @Column(name = "min_order_amount")
     private Double minOrderAmount;
 
+    @Column(name = "start_date")
+    private LocalDateTime startDate;
+
     @Column(name = "expiry_date")
     private LocalDateTime expiryDate;
+
+    /**
+     * Hãng phương tiện (máy bay/xe khách/tàu hỏa) mà voucher này áp dụng.
+     * Null nghĩa là áp dụng cho tất cả các hãng.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "provider_id")
+    private Provider provider;
 
     @Column(name = "max_usage")
     private Integer maxUsage;

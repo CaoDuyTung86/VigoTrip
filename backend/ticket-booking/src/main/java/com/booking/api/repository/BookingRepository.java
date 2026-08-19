@@ -52,7 +52,24 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT SUM(b.totalPrice) FROM Booking b JOIN b.tickets t WHERE t.trip.vehicle.provider.id = :providerId AND b.status IN ('CONFIRMED', 'PAID', 'COMPLETED')")
     Double calculateTotalRevenueByProvider(@Param("providerId") Long providerId);
 
-    boolean existsByUserIdAndVoucherCodeAndStatusNot(Long userId, String voucherCode, String status);
+    /**
+     * Đơn ở các trạng thái này coi như KHÔNG tiêu mã giảm giá, nên mã được dùng lại:
+     * CANCELLED (người dùng hủy / hết hạn giữ chỗ) và FAILED (thanh toán thất bại).
+     * Danh sách này phải khớp với bộ lọc của index uq_booking_user_voucher_active
+     * (xem VoucherUsageConstraintInitializer).
+     */
+    List<String> VOUCHER_RELEASING_STATUSES = List.of("CANCELLED", "FAILED");
+
+    boolean existsByUserIdAndVoucherCodeAndStatusNotIn(Long userId, String voucherCode, List<String> statuses);
+
+    /**
+     * Các mã giảm giá người dùng đang thực sự chiếm ở những đơn còn hiệu lực — dùng để chặn
+     * dùng lại cùng một mã cho chuyến khác (mỗi mã chỉ dùng được 1 lần / tài khoản).
+     */
+    @Query("SELECT DISTINCT UPPER(b.voucherCode) FROM Booking b " +
+           "WHERE b.user.id = :userId AND b.voucherCode IS NOT NULL " +
+           "AND b.status NOT IN ('CANCELLED', 'FAILED')")
+    List<String> findUsedVoucherCodesByUserId(@Param("userId") Long userId);
 
     @Query("SELECT DISTINCT b FROM Booking b " +
            "LEFT JOIN FETCH b.tickets t " +

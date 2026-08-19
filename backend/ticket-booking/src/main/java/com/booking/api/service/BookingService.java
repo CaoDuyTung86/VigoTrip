@@ -3,6 +3,7 @@ package com.booking.api.service;
 import com.booking.api.dto.BookingRequest;
 import com.booking.api.dto.BookingResponse;
 import com.booking.api.entity.*;
+import com.booking.api.config.VoucherUsageConstraintInitializer;
 import com.booking.api.exception.BookingException;
 import com.booking.api.exception.ResourceNotFoundException;
 import com.booking.api.mapper.BookingMapper;
@@ -145,26 +146,28 @@ public class BookingService {
         }
 
         // Apply voucher if provided
-        if (request.getVoucherCode() != null && !request.getVoucherCode().isBlank()) {
-            // Check if user has used this voucher code before (and not cancelled)
-            boolean alreadyUsed = bookingRepository.existsByUserIdAndVoucherCodeAndStatusNot(user.getId(),
-                    request.getVoucherCode(), "CANCELLED");
+        Long appliedVoucherId = null;
+        String voucherCode = VoucherService.normalizeCode(request.getVoucherCode());
+        if (voucherCode != null && !voucherCode.isBlank()) {
+            // Chặn sớm nếu tài khoản đang giữ mã này ở một đơn còn hiệu lực
+            boolean alreadyUsed = bookingRepository.existsByUserIdAndVoucherCodeAndStatusNotIn(user.getId(),
+                    voucherCode, BookingRepository.VOUCHER_RELEASING_STATUSES);
             if (alreadyUsed) {
                 throw new BookingException("Bạn đã sử dụng mã giảm giá này cho một đơn hàng khác.");
             }
 
-            java.util.Map<String, Object> validation = voucherService.validateVoucher(request.getVoucherCode(),
-                    booking.getTotalPrice());
+            Long providerId = trip.getVehicle() != null && trip.getVehicle().getProvider() != null
+                    ? trip.getVehicle().getProvider().getId() : null;
+            java.util.Map<String, Object> validation = voucherService.validateVoucher(voucherCode,
+                    booking.getTotalPrice(), providerId);
             if (Boolean.TRUE.equals(validation.get("valid"))) {
                 java.math.BigDecimal discount = (java.math.BigDecimal) validation.get("discountAmount");
                 java.math.BigDecimal newTotal = booking.getTotalPrice().subtract(discount);
                 booking.setTotalPrice(newTotal.compareTo(java.math.BigDecimal.ZERO) < 0
                         ? java.math.BigDecimal.ZERO : newTotal);
 
-                // Track usage (at this stage it's locked to this booking)
-                Long voucherId = (Long) validation.get("voucherId");
-                voucherService.useVoucher(voucherId);
-                booking.setVoucherCode(request.getVoucherCode()); // Store it to prevent reuse
+                appliedVoucherId = (Long) validation.get("voucherId");
+                booking.setVoucherCode(voucherCode); // Store it to prevent reuse
             } else {
                 throw new BookingException((String) validation.get("message"));
             }
@@ -180,7 +183,24 @@ public class BookingService {
         }
         booking.setTickets(tickets);
 
-        bookingRepository.save(booking);
+        // Chỉ tới đây mã mới thực sự bị "tiêu". Thứ tự ghi booking trước rồi mới trừ lượt là
+        // cố ý: nếu hai request song song cùng qua được vòng kiểm tra ở trên thì unique index
+        // uq_booking_user_voucher_active sẽ đánh trượt request thua ngay tại INSERT này,
+        // và nó không kịp trừ lượt của mã.
+        try {
+            bookingRepository.save(booking);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            if (isVoucherReuseViolation(e)) {
+                throw new BookingException(
+                        "Bạn đã sử dụng mã giảm giá \"" + voucherCode + "\" cho một đơn hàng khác.");
+            }
+            throw e;
+        }
+
+        if (appliedVoucherId != null && !voucherService.useVoucher(appliedVoucherId)) {
+            // Lượt cuối cùng vừa bị người khác dùng mất giữa lúc validate và lúc ghi đơn
+            throw new BookingException("Mã giảm giá đã hết lượt sử dụng.");
+        }
 
         // Remove locks and broadcast BOOKED status
         for (Long seatId : request.getSeatIds()) {
@@ -190,6 +210,21 @@ public class BookingService {
         }
 
         return bookingMapper.toBookingResponse(booking, trip);
+    }
+
+    /**
+     * Phân biệt lỗi đụng unique index voucher với các lỗi ràng buộc khác, để chỉ dịch sang
+     * thông báo "đã dùng mã này rồi" khi đúng là như vậy.
+     */
+    private boolean isVoucherReuseViolation(org.springframework.dao.DataIntegrityViolationException e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            String message = t.getMessage();
+            if (message != null && message.toLowerCase()
+                    .contains(VoucherUsageConstraintInitializer.INDEX_NAME.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Transactional(readOnly = true)
@@ -278,6 +313,13 @@ public class BookingService {
         }
 
         booking.setStatus("CANCELLED");
+
+        // Đơn đã hủy thì mã giảm giá được dùng lại (xem BookingRepository.VOUCHER_RELEASING_STATUSES),
+        // nên phải trả lại lượt dùng để currentUsage không bị đếm thừa.
+        if (booking.getVoucherCode() != null && !booking.getVoucherCode().isBlank()) {
+            voucherService.refundVoucherUsage(booking.getVoucherCode());
+        }
+
         bookingRepository.save(booking);
 
         if (booking.getTickets() != null) {

@@ -15,7 +15,7 @@ import VNFlag from "../Picture/flags/vn.png";
 import UKFlag from "../Picture/flags/uk.png";
 import JPFlag from "../Picture/flags/jp.png";
 import TWFlag from "../Picture/flags/tw.png";
-import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users } from "lucide-react";
+import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users, Tag } from "lucide-react";
 
 const Header = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -48,6 +48,7 @@ const Header = () => {
     { icon: <MdOutlineTrain />, label: t.train, path: "/ve-tau-hoa" },
     { icon: <IoIosBus />, label: t.bus, path: "/xe-khach" },
     { icon: <MdOutlinePercent />, label: t.package, path: "/dat-theo-goi" },
+    { icon: <Tag size={16} />, label: "Ưu đãi", path: "/uu-dai" },
   ];
 
   const handleLogoClick = () => navigate("/");
@@ -93,15 +94,15 @@ const Header = () => {
             style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8, userSelect: "none" }}
           >
             <div style={{
-              width: 32,
-              height: 32,
+              width: 38,
+              height: 38,
               background: "linear-gradient(135deg, #0071EB, #00b4d8)",
-              borderRadius: 8,
+              borderRadius: 9,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               color: "#fff",
-              fontSize: 16,
+              fontSize: 19,
               fontWeight: 800,
               flexShrink: 0,
             }}>
@@ -109,7 +110,7 @@ const Header = () => {
             </div>
             <span style={{
               fontWeight: 800,
-              fontSize: 18,
+              fontSize: 22,
               background: "linear-gradient(135deg, #0071EB, #00b4d8)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
@@ -145,14 +146,14 @@ const Header = () => {
               background: "none",
               border: "1px solid var(--border-input)",
               borderRadius: 8,
-              width: 34,
-              height: 34,
+              width: 38,
+              height: 38,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
               color: "var(--text-secondary)",
-              fontSize: 16,
+              fontSize: 19,
               flexShrink: 0,
             }}
           >
@@ -167,20 +168,20 @@ const Header = () => {
                 alignItems: "center",
                 gap: 6,
                 cursor: "pointer",
-                padding: "5px 10px",
+                padding: "7px 12px",
                 borderRadius: 8,
                 border: "1px solid var(--border-input)",
                 background: isLanguageOpen ? "var(--bg-hover)" : "transparent",
-                fontSize: 13,
+                fontSize: 15,
                 color: "var(--text-main)",
-                fontWeight: 500,
+                fontWeight: 600,
                 fontFamily: "inherit",
               }}
               onClick={(e) => { e.stopPropagation(); setIsLanguageOpen(!isLanguageOpen); setShowPhone(false); setShowUserMenu(false); }}
             >
-              <img src={currentLanguage.flag} alt={currentLanguage.code} style={{ width: 20, height: 20, objectFit: "cover", borderRadius: "50%" }} />
+              <img src={currentLanguage.flag} alt={currentLanguage.code} style={{ width: 22, height: 22, objectFit: "cover", borderRadius: "50%" }} />
               <span>{currentLanguage.code.toUpperCase()}</span>
-              <IoChevronDown style={{ fontSize: 12, color: "var(--text-muted)", transform: isLanguageOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }} />
+              <IoChevronDown style={{ fontSize: 14, color: "var(--text-muted)", transform: isLanguageOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }} />
             </button>
             {isLanguageOpen && (
               <div style={{
@@ -239,17 +240,18 @@ const Header = () => {
                 alignItems: "center",
                 gap: 5,
                 cursor: "pointer",
-                padding: "5px 10px",
+                padding: "7px 12px",
                 borderRadius: 8,
                 border: "1px solid var(--border-input)",
                 background: showPhone ? "var(--bg-hover)" : "transparent",
-                fontSize: 13,
+                fontSize: 15,
+                fontWeight: 600,
                 color: "var(--text-secondary)",
                 fontFamily: "inherit",
               }}
               onClick={(e) => { e.stopPropagation(); setShowPhone(!showPhone); setIsLanguageOpen(false); setShowUserMenu(false); }}
             >
-              <MdOutlinePhone style={{ fontSize: 15 }} />
+              <MdOutlinePhone style={{ fontSize: 17 }} />
               {t.support}
             </button>
             {showPhone && (
@@ -309,12 +311,12 @@ const Header = () => {
                   display: "flex",
                   alignItems: "center",
                   gap: 7,
-                  padding: "6px 12px",
+                  padding: "7px 14px",
                   borderRadius: 8,
                   border: "1px solid var(--border-input)",
                   background: showUserMenu ? "var(--bg-hover)" : "transparent",
                   cursor: "pointer",
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: 600,
                   color: "var(--text-main)",
                   fontFamily: "inherit",
@@ -322,24 +324,24 @@ const Header = () => {
                 onClick={(e) => { e.stopPropagation(); setShowUserMenu(!showUserMenu); setIsLanguageOpen(false); setShowPhone(false); }}
               >
                 <div style={{
-                  width: 26,
-                  height: 26,
+                  width: 30,
+                  height: 30,
                   borderRadius: "50%",
                   background: "linear-gradient(135deg, #0071EB, #00b4d8)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   color: "#fff",
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: 700,
                   flexShrink: 0,
                 }}>
                   {(user?.fullName || user?.email || "U")[0].toUpperCase()}
                 </div>
-                <span style={{ maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {user?.fullName || user?.email}
                 </span>
-                <IoChevronDown style={{ fontSize: 12, color: "var(--text-muted)", transform: showUserMenu ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }} />
+                <IoChevronDown style={{ fontSize: 14, color: "var(--text-muted)", transform: showUserMenu ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }} />
               </button>
               {showUserMenu && (
                 <div style={{
@@ -382,6 +384,7 @@ const Header = () => {
                         { label: t.adminTrips || "Quản lý chuyến đi", path: "/admin/trips", icon: <Navigation size={16} color="#3b82f6" /> },
                         { label: "Quản lý tuyến đường", path: "/admin/routes", icon: <MapPin size={16} color="#8b5cf6" /> },
                         { label: "Quản lý người dùng", path: "/admin/users", icon: <Users size={16} color="#06b6d4" /> },
+                        { label: "Quản lý voucher", path: "/admin/vouchers", icon: <Tag size={16} color="#f59e0b" /> },
                         { label: t.refunds || "Hoàn tiền & Hủy vé", path: "/provider/refunds", icon: <Undo2 size={16} color="#ef4444" /> },
                         { label: t.revenue || "Thống kê doanh thu", path: "/admin/revenue", icon: <DollarSign size={16} color="#fbbf24" /> },
                         { label: t.providerReviews || "Đánh giá & Feedback", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },
@@ -442,14 +445,14 @@ const Header = () => {
             <button
               onClick={() => setIsAuthOpen(true)}
               style={{
-                padding: "7px 18px",
+                padding: "9px 22px",
                 borderRadius: 8,
                 border: "none",
                 background: "var(--primary)",
                 color: "#fff",
                 cursor: "pointer",
-                fontWeight: 600,
-                fontSize: 13.5,
+                fontWeight: 700,
+                fontSize: 15.5,
                 fontFamily: "inherit",
                 transition: "background 0.18s",
               }}

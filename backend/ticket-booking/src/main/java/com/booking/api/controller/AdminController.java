@@ -7,11 +7,13 @@ import com.booking.api.entity.Provider;
 import com.booking.api.entity.Route;
 import com.booking.api.entity.Trip;
 import com.booking.api.entity.Vehicle;
+import com.booking.api.entity.Voucher;
 import com.booking.api.entity.User;
 import com.booking.api.dto.UserResponse;
 import com.booking.api.mapper.AdminMapper;
 import com.booking.api.service.AdminService;
 import com.booking.api.service.UserService;
+import com.booking.api.service.VoucherService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,6 +31,7 @@ public class AdminController {
     private final AdminService adminService;
     private final AdminMapper adminMapper;
     private final UserService userService;
+    private final VoucherService voucherService;
 
     // ==================== ROUTE ====================
 
@@ -185,5 +188,36 @@ public class AdminController {
         }
         User updated = adminService.toggleUserStatus(id, enabled);
         return ResponseEntity.ok(userService.toResponse(updated));
+    }
+
+    // ==================== VOUCHER ====================
+
+    @GetMapping("/vouchers")
+    public ResponseEntity<List<Voucher>> getAllVouchers() {
+        return ResponseEntity.ok(voucherService.getAllVouchers());
+    }
+
+    /**
+     * Danh sách voucher đang hoạt động và còn hiệu lực — dùng cho giao diện chỉ xem của tài khoản provider.
+     */
+    @GetMapping("/vouchers/active")
+    public ResponseEntity<List<Voucher>> getActiveVouchers() {
+        return ResponseEntity.ok(voucherService.getActiveVouchers());
+    }
+
+    @PostMapping("/vouchers")
+    public ResponseEntity<Voucher> createVoucher(@RequestBody VoucherRequest request) {
+        return ResponseEntity.ok(voucherService.createVoucher(adminMapper.toEntity(request), request.getProviderId()));
+    }
+
+    @PutMapping("/vouchers/{id}")
+    public ResponseEntity<Voucher> updateVoucher(@PathVariable Long id, @RequestBody VoucherRequest request) {
+        return ResponseEntity.ok(voucherService.updateVoucher(id, adminMapper.toEntity(request), request.getProviderId()));
+    }
+
+    @DeleteMapping("/vouchers/{id}")
+    public ResponseEntity<Void> deleteVoucher(@PathVariable Long id) {
+        voucherService.deleteVoucher(id);
+        return ResponseEntity.noContent().build();
     }
 }

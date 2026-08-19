@@ -11,6 +11,7 @@ public interface TripMapper {
     @Mapping(target = "origin", source = "route.origin")
     @Mapping(target = "destination", source = "route.destination")
     @Mapping(target = "vehicleType", source = "vehicle.vehicleType")
+    @Mapping(target = "providerId", source = "vehicle.provider.id")
     @Mapping(target = "providerName", source = "vehicle.provider.providerName")
     @Mapping(target = "totalSeats", ignore = true)
     @Mapping(target = "availableSeats", ignore = true)
