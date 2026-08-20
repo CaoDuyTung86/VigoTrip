@@ -45,6 +45,13 @@ app:
 gemini:
   api-key: test-dummy-gemini-api-key-1234567890
 
+# Test KHÔNG được gọi mạng. api-key rỗng khiến embedding client tự báo không khả dụng,
+# nên seeder vẫn chạy (vẫn kiểm chứng được phần đọc YAML và ghi DB trên H2) nhưng không
+# gọi API nào, và HybridRetriever lùi về BM25 thuần — đúng đường đi khi thiếu key.
+rag:
+  embedding:
+    api-key: ""
+
 GEMINI_API_KEY: test-dummy-gemini-api-key-1234567890
 SPRING_DATASOURCE_PASSWORD: testpassword
 SPRING_MAIL_PASSWORD: testpassword

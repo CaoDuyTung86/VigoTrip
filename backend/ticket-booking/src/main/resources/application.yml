@@ -50,6 +50,11 @@ vnpay:
 # Frontend URL (dùng cho redirect sau thanh toán VNPay)
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  # Số proxy tin cậy đứng trước ứng dụng (mỗi proxy nối thêm 1 mục vào X-Forwarded-For).
+  # 0 = chạy trực tiếp/dev local. 1 = sau Render. 2 = sau Vercel rewrite -> Render.
+  # Đặt CAO hơn thực tế sẽ cho phép client giả mạo IP để né rate limit — khi không
+  # chắc, cứ để 0 (nhiều client dùng chung hạn mức, phiền nhưng an toàn).
+  trusted-proxy-count: ${APP_TRUSTED_PROXY_COUNT:0}
   admin:
     email: ${ADMIN_EMAIL:admin@gmail.com}
     password: ${ADMIN_PASSWORD:Abc123456!}
@@ -82,6 +87,103 @@ management:
 # Gemini AI Configuration
 gemini:
   api-key: ${GEMINI_API_KEY:}
+
+# Cấu hình tầng LLM (Multi-model Gateway)
+llm:
+  timeouts:
+    connect-seconds: ${LLM_CONNECT_TIMEOUT:5}
+    read-seconds: ${LLM_READ_TIMEOUT:30}
+
+  # Chuỗi nhà cung cấp cho từng tác vụ, thử theo đúng thứ tự khai báo.
+  # Nhà cung cấp nào bỏ trống api-key sẽ bị LOẠI lúc khởi động — nhờ vậy Groq/OpenRouter
+  # hoàn toàn tùy chọn, không cấu hình thì hệ thống chạy y như trước.
+  tasks:
+    chat:
+      - name: gemini
+        base-url: https://generativelanguage.googleapis.com/v1beta/openai
+        api-key: ${GEMINI_API_KEY:}
+        # flash-lite: quota free tier cao hơn, vẫn đủ mạnh cho function calling
+        model: ${GEMINI_CHAT_MODEL:gemini-flash-lite-latest}
+        max-tokens: 800
+        temperature: 0.7
+      - name: groq
+        base-url: https://api.groq.com/openai/v1
+        api-key: ${GROQ_API_KEY:}
+        # Groq đổi danh mục model khá thường xuyên. Nếu log báo 404 "model does not
+        # exist", liệt kê model hiện có bằng:
+        #   curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY"
+        model: ${GROQ_CHAT_MODEL:openai/gpt-oss-120b}
+        max-tokens: 800
+        temperature: 0.7
+    analysis:
+      - name: gemini
+        base-url: https://generativelanguage.googleapis.com/v1beta/openai
+        api-key: ${GEMINI_API_KEY:}
+        # "gemini-flash-latest" hay trả 503 với payload báo cáo BI lớn; flash-lite ổn định hơn.
+        model: ${GEMINI_ANALYSIS_MODEL:gemini-flash-lite-latest}
+        max-tokens: 4000
+        temperature: 0.3
+      - name: groq
+        base-url: https://api.groq.com/openai/v1
+        api-key: ${GROQ_API_KEY:}
+        model: ${GROQ_ANALYSIS_MODEL:openai/gpt-oss-120b}
+        max-tokens: 4000
+        temperature: 0.3
+
+  history:
+    max-pairs: ${LLM_HISTORY_MAX_PAIRS:3}
+    max-content-length: ${LLM_HISTORY_MAX_CONTENT:200}
+
+  circuit-breaker:
+    failure-threshold: ${LLM_CIRCUIT_FAILURE_THRESHOLD:3}
+    open-seconds: ${LLM_CIRCUIT_OPEN_SECONDS:60}
+
+  retry:
+    # Cố tình để thấp: khi đã có nhà cung cấp dự phòng thì chuyển nhà nhanh hơn
+    # nhiều so với ngồi retry một endpoint đang quá tải.
+    max-attempts: ${LLM_RETRY_ATTEMPTS:2}
+    backoff-ms: ${LLM_RETRY_BACKOFF_MS:1000}
+  budget:
+    # Trần tổng số request AI/ngày cho TOÀN hệ thống. Chốt chặn cuối chống việc
+    # đốt sạch quota Gemini free tier; rate limit theo IP không đủ khi bị tấn công
+    # từ nhiều nguồn. Đếm trong bộ nhớ tiến trình (hợp với kiến trúc 1 container).
+    daily-request-cap: ${LLM_DAILY_REQUEST_CAP:2000}
+
+# Lịch sử hội thoại chatbot.
+# CHỈ lưu với người dùng đã đăng nhập; khách vãng lai không được lưu gì vì họ không có
+# cách nào xem lại hay yêu cầu xóa dữ liệu của mình.
+chat:
+  history:
+    enabled: ${CHAT_HISTORY_ENABLED:true}
+    # Tin nhắn chat có thể chứa thông tin cá nhân — giữ vô thời hạn là không nên.
+    retention-days: ${CHAT_HISTORY_RETENTION_DAYS:30}
+    max-messages-returned: ${CHAT_HISTORY_MAX_RETURNED:50}
+    cleanup-cron: ${CHAT_HISTORY_CLEANUP_CRON:0 0 3 * * *}
+
+# Retrieval-Augmented Generation: tri thức chatbot đọc từ bảng tri_thuc,
+# nguồn gốc là resources/knowledge/*.yml
+rag:
+  enabled: ${RAG_ENABLED:true}
+  # Số chunk nhét vào prompt. Cao hơn sẽ loãng ngữ cảnh và tốn token.
+  top-k: ${RAG_TOP_K:4}
+  candidates-per-branch: ${RAG_CANDIDATES:10}
+  # Ngưỡng cosine cho nhánh ngữ nghĩa; dưới ngưỡng coi như không liên quan.
+  min-similarity: ${RAG_MIN_SIMILARITY:0.55}
+  # Hằng số k của Reciprocal Rank Fusion (giá trị chuẩn trong tài liệu gốc).
+  rrf-k: ${RAG_RRF_K:60}
+  seed-on-startup: ${RAG_SEED_ON_STARTUP:true}
+
+  embedding:
+    base-url: https://generativelanguage.googleapis.com/v1beta/openai
+    # Dùng chung key với chat. Bỏ trống = tắt tìm kiếm ngữ nghĩa, hệ thống tự
+    # lùi về BM25 thuần (dev local và CI vẫn chạy được chatbot bình thường).
+    api-key: ${GEMINI_API_KEY:}
+    # LƯU Ý: tên model embedding của Google hay đổi. Nếu log báo 404 model không
+    # tồn tại, chạy `node test_gemini_models.js` ở thư mục gốc để xem model khả
+    # dụng với key hiện tại rồi đặt lại biến này.
+    model: ${RAG_EMBEDDING_MODEL:gemini-embedding-001}
+    dimensions: ${RAG_EMBEDDING_DIMENSIONS:768}
+    batch-size: ${RAG_EMBEDDING_BATCH_SIZE:32}
 
 # Google OAuth2 — dùng để verify Google ID Token phía server
 # Lấy Client ID từ: https://console.cloud.google.com → Credentials → OAuth 2.0 Client IDs

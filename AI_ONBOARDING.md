@@ -87,7 +87,7 @@ To keep the project stable, please enforce these rules on the developer:
 - **Backend:** Spring Boot 3 + JPA + WebSocket (STOMP) + MapStruct + Caffeine Cache.
 - **Frontend:** React + Vite + CSS Variables + Recharts + PWA.
 - **Real-time:** Handled via `/ws` endpoint for seat synchronization (`SeatLockService`).
-- **AI Engine:** Google Gemini AI API with RAG (Retrieval-Augmented Generation) for Assistant Chatbot & BI Analytics.
+- **AI Engine:** Multi-provider LLM Gateway (Gemini + Groq fallback) with Hybrid RAG (vector + BM25, fused by Reciprocal Rank Fusion). Full explanation: [docs/CHATBOT_AI.md](./docs/CHATBOT_AI.md).
 - **Security:** JWT stateless filter + Spring Security 6 + Google OAuth2.
 - **Static Analysis:** Excluded `target/` and generated `MapperImpl` files to maintain high quality scores.
 

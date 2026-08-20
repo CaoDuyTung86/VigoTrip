@@ -29,6 +29,8 @@
 	<properties>
 		<java.version>17</java.version>
 		<mapstruct.version>1.6.3</mapstruct.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<sonar.exclusions>
 			**/target/**,
 			**/*MapperImpl.java,
@@ -222,6 +224,11 @@
 						<goals>
 							<goal>prepare-agent</goal>
 						</goals>
+						<configuration>
+							<!-- Đổi tên property mặc định "argLine" để không tự ghi đè
+							     cấu hình encoding UTF-8 đặt trong surefire bên dưới. -->
+							<propertyName>jacocoArgLine</propertyName>
+						</configuration>
 					</execution>
 					<execution>
 						<id>report</id>
@@ -231,6 +238,15 @@
 						</goals>
 					</execution>
 				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!-- Console Windows mặc định dùng codepage cp1252, hiển thị tiếng
+					     Việt lỗi thành "?". Ép JVM đọc/ghi UTF-8 ở mọi luồng I/O. -->
+					<argLine>-Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 @{jacocoArgLine}</argLine>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>

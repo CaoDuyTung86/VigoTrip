@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send, X, MessageCircle, Search, Bot, User, Link as LinkIcon, HelpCircle, Tag, Ticket, CreditCard, RotateCcw, TrainTrack, Bus, Trash2 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import { Turnstile } from '@marsidev/react-turnstile';
 
 const API_BASE = '/api';
@@ -11,6 +12,10 @@ const MAX_HISTORY_PAIRS_FRONTEND = 10; // Sliding window: chỉ giữ 10 cặp c
 const Chatbot = () => {
   const navigate = useNavigate();
   const { t, currentLanguage } = useLanguage();
+  // Lấy từ AuthContext chứ không đọc localStorage: trước đây token được chụp một lần
+  // lúc mount và không bao giờ đọc lại, nên người dùng đăng nhập giữa phiên vẫn bị
+  // hỏi CAPTCHA cho tới khi component remount.
+  const { token: authToken, isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     { sender: 'bot', text: t.chatbotWelcomeMsg || 'Xin chào. Tôi là trợ lý của **VigoTrip**. Tôi có thể hỗ trợ bạn tra cứu chuyến đi, tìm vé giá tốt hoặc giải đáp thắc mắc dịch vụ. Bạn cần hỗ trợ gì hôm nay?' }
@@ -25,10 +30,12 @@ const Chatbot = () => {
   const [startX, setStartX] = useState(0);
   const [scrollLeftState, setScrollLeftState] = useState(0);
   const dragDistance = useRef(0);
+  const pointerStartX = useRef(0);
+  const DRAG_THRESHOLD_PX = 8; // dưới ngưỡng này coi là click, không phải kéo
   
   const [guestCaptchaToken, setGuestCaptchaToken] = useState(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
-  const hasToken = !!localStorage.getItem('authToken');
+  const hasToken = isAuthenticated;
 
   const fetchAiStatus = async () => {
     try {
@@ -60,6 +67,7 @@ const Chatbot = () => {
     if (!chipsRef.current) return;
     setIsMouseDown(true);
     dragDistance.current = 0;
+    pointerStartX.current = e.pageX;
     setStartX(e.pageX - chipsRef.current.offsetLeft);
     setScrollLeftState(chipsRef.current.scrollLeft);
   };
@@ -70,10 +78,11 @@ const Chatbot = () => {
 
   const handleChipsMouseMove = (e) => {
     if (!isMouseDown || !chipsRef.current) return;
+    dragDistance.current = Math.abs(e.pageX - pointerStartX.current);
+    if (dragDistance.current <= DRAG_THRESHOLD_PX) return; // chưa phải kéo -> để click chạy bình thường
     e.preventDefault();
     const x = e.pageX - chipsRef.current.offsetLeft;
     const walk = (x - startX) * 1.8;
-    dragDistance.current += Math.abs(e.movementX);
     chipsRef.current.scrollLeft = scrollLeftState - walk;
   };
 
@@ -134,24 +143,25 @@ const Chatbot = () => {
 
     const trimmedHistory = chatHistory.slice(-MAX_HISTORY_PAIRS_FRONTEND * 2);
 
-    const token = localStorage.getItem('authToken');
     const headers = {
       'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+    };
+
+    // Dựng một lần rồi dùng cho cả nhánh stream lẫn nhánh fallback. Trước đây hai
+    // nhánh dựng payload riêng, thêm một trường là phải nhớ sửa cả hai chỗ.
+    const payload = {
+      message: messageToSend,
+      sessionId,
+      history: trimmedHistory,
+      language: currentLanguage?.code || 'vi',
+      captchaToken: guestCaptchaToken
     };
 
     let botReply = '';
     let streamSuccess = false;
 
     try {
-      const payload = { 
-        message: messageToSend, 
-        sessionId, 
-        history: trimmedHistory, 
-        language: currentLanguage?.code || 'vi',
-        captchaToken: guestCaptchaToken 
-      };
-
       const response = await fetch(`${API_BASE}/chat/stream`, {
         method: 'POST',
         headers,
@@ -211,13 +221,6 @@ const Chatbot = () => {
     if (!streamSuccess) {
       // Fallback sang POST /api/chat chuẩn
       try {
-        const payload = { 
-          message: messageToSend, 
-          sessionId, 
-          history: trimmedHistory, 
-          language: currentLanguage?.code || 'vi',
-          captchaToken: guestCaptchaToken 
-        };
         const response = await fetch(`${API_BASE}/chat`, {
           method: 'POST',
           headers,
@@ -530,9 +533,10 @@ const Chatbot = () => {
           gap: '10px',
           zIndex: 1000,
           transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-          transform: isOpen ? 'translateY(100px) opacity(0)' : 'translateY(0) opacity(1)',
+          transform: isOpen ? 'translateY(24px) scale(0.92)' : 'translateY(0) scale(1)',
           opacity: isOpen ? 0 : 1,
-          pointerEvents: isOpen ? 'none' : 'all'
+          visibility: isOpen ? 'hidden' : 'visible',
+          pointerEvents: isOpen ? 'none' : 'auto'
         }}
       >
         <MessageCircle size={28} />
@@ -541,6 +545,7 @@ const Chatbot = () => {
 
       {/* Cửa sổ Chatbot */}
       <div
+        inert={!isOpen}
         style={{
           position: 'fixed',
           bottom: '30px',
@@ -559,10 +564,11 @@ const Chatbot = () => {
           display: 'flex',
           flexDirection: 'column',
           zIndex: 1000,
-          transition: 'opacity 0.3s ease, transform 0.3s ease',
+          transition: 'opacity 0.3s ease, transform 0.3s ease, visibility 0.3s',
           opacity: isOpen ? 1 : 0,
           transform: isOpen ? 'translateY(0)' : 'translateY(20px)',
-          pointerEvents: isOpen ? 'all' : 'none',
+          visibility: isOpen ? 'visible' : 'hidden',
+          pointerEvents: isOpen ? 'auto' : 'none',
           border: '1px solid var(--border-light)'
         }}
       >
@@ -814,7 +820,7 @@ const Chatbot = () => {
               <button
                 key={idx}
                 onClick={() => {
-                  if (dragDistance.current > 6) return;
+                  if (dragDistance.current > DRAG_THRESHOLD_PX) return;
                   handleSend(item.text);
                 }}
                 style={{
@@ -901,7 +907,7 @@ const Chatbot = () => {
               fontSize: 14,
               outline: 'none',
               opacity: loading ? 0.6 : 1,
-              pointerEvents: loading ? 'none' : 'auto'
+              pointerEvents: (loading || !isOpen) ? 'none' : 'auto'
             }}
             disabled={loading}
           />

@@ -48,3 +48,8 @@ dist/
 my-react-app/dist/
 i18n_replace.py
 i18n_addkeys.py
+docs/diagrams/chatbot-sequence.puml
+docs/diagrams/chatbot-sequence.mmd
+docs/diagrams/chatbot-sequence-preview.svg
+docs/diagrams/chatbot-architecture.drawio.xml
+docs/DEMO_SCRIPT.md

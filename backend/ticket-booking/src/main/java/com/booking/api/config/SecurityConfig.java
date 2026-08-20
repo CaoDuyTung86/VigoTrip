@@ -63,8 +63,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                // Thứ tự quan trọng: JWT chạy TRƯỚC để SecurityContext đã có danh tính,
+                // nhờ đó RateLimitingFilter phân biệt được khách với thành viên bằng
+                // context thật thay vì bằng sự tồn tại của header Authorization.
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(rateLimitingFilter, JwtAuthFilter.class);
 
         return http.build();
     }

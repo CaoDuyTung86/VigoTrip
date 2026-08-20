@@ -30,6 +30,9 @@ public class ChatService implements AIService.ToolHandler {
     private final com.booking.api.repository.VoucherRepository voucherRepository;
     private final com.booking.api.repository.RouteRepository routeRepository;
     private final AIService aiService;
+    private final org.springframework.web.client.RestTemplate aiRestTemplate;
+    private final com.booking.api.ai.rag.HybridRetriever hybridRetriever;
+    private final ChatHistoryService chatHistoryService;
 
     // Giới hạn an toàn
     private static final int MAX_USER_MESSAGE_LENGTH = 500; // ký tự
@@ -43,46 +46,10 @@ public class ChatService implements AIService.ToolHandler {
             .maximumSize(2000)
             .build();
 
-    // RAG Knowledge Base với Tiếng Việt & Từ đồng nghĩa (Synonym-aware RAG Engine)
-    private static final Map<String, String> FAQ_DB = Map.of(
-            "PETS",
-            "Quy định thú cưng: Máy bay không cho phép mang thú cưng lên khoang hành khách. Xe khách cho phép mang thú cưng nhỏ nếu để trong lồng chuyên dụng dưới gầm xe.",
-            "CANCEL",
-            "Chính sách hủy vé: Hủy trước 24h khởi hành được hoàn 100%. Hủy trước 12h hoàn 50%. Dưới 12h không được hoàn tiền. Khách hàng truy cập mục [Lịch sử đặt vé] để hủy.",
-            "BAGGAGE",
-            "Quy định hành lý: Máy bay bao gồm 7kg xách tay + 20kg ký gửi. Xe khách miễn phí tối đa 20kg/hành khách.",
-            "CHILDREN",
-            "Vé trẻ em: Dưới 2 tuổi miễn phí (ngồi cùng người lớn). Từ 2-12 tuổi tính 75% giá vé người lớn.",
-            "PAYMENT",
-            "Phương thức thanh toán: Hệ thống hỗ trợ thanh toán trực tuyến qua VNPAY (Thẻ ATM, QR Code, Visa/Mastercard, Ví điện tử).",
-            "PROMO",
-            "Mã giảm giá hiện có: WELCOME20 (giảm 20%), SUMMER2026 (giảm 15%), AI_PROMO_10 (giảm 10% độc quyền AI).");
-
-    // Từ điển đồng nghĩa & Không dấu (Synonyms & Normalized Keywords)
-    private static final Map<String, List<String>> SYNONYM_MAP = Map.of(
-            "PETS",
-            List.of("thú cưng", "thu cung", "chó", "cho", "mèo", "meo", "pet", "động vật", "dong vat", "cún", "cun"),
-            "CANCEL",
-            List.of("hủy vé", "huy ve", "trả vé", "tra ve", "đổi vé", "doi ve", "hoàn vé", "hoan ve", "bùng vé",
-                    "bung ve", "cancel"),
-            "BAGGAGE",
-            List.of("hành lý", "hanh ly", "vali", "xách tay", "xach tay", "ký gửi", "ky gui", "mấy kg", "may kg",
-                    "mấy cân", "may can", "luggage", "baggage"),
-            "CHILDREN",
-            List.of("trẻ em", "tre em", "em bé", "em be", "bé", "be", "trẻ nhỏ", "tre nho", "baby", "kid", "nhỏ tuổi"),
-            "PAYMENT",
-            List.of("thanh toán", "thanh toan", "chuyển khoản", "chuyen khoan", "vnpay", "ví", "vi", "thẻ", "the",
-                    "trả tiền", "tra tien", "pay"),
-            "PROMO", List.of("khuyến mãi", "khuyen mai", "giảm giá", "giam gia", "voucher", "mã", "ma", "discount",
-                    "ưu đãi", "uu dai", "rẻ hơn", "re hon"));
-
-    private String removeAccents(String str) {
-        if (str == null)
-            return "";
-        String nfdNormalizedString = java.text.Normalizer.normalize(str, java.text.Normalizer.Form.NFD);
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
-        return pattern.matcher(nfdNormalizedString).replaceAll("").replace('đ', 'd').replace('Đ', 'D');
-    }
+    // FAQ_DB và SYNONYM_MAP đã được gỡ bỏ: tri thức nay nằm trong bảng tri_thuc và
+    // được truy hồi qua HybridRetriever (xem resources/knowledge/*.yml).
+    // Phần xử lý từ đồng nghĩa chuyển sang com.booking.api.ai.rag.SynonymExpander,
+    // nơi nó mở rộng truy vấn BM25 thay vì tự quyết định trả về nội dung nào.
 
     @Override
     public String executeTool(String functionName, Map<String, Object> arguments) {
@@ -348,27 +315,15 @@ public class ChatService implements AIService.ToolHandler {
         String userContextStr = username != null ? "Email khách hàng hiện tại: " + username
                 : "Khách hàng chưa đăng nhập";
 
-        // Retrieve RAG Context (Synonym & Accent-aware RAG Engine)
+        // Truy hồi tri thức: tìm kiếm lai (vector + BM25) trên knowledge base trong DB.
+        // Thay cho bảng FAQ hardcode 6 mục + khớp từ khóa trước đây.
         StringBuilder ragContext = new StringBuilder();
-        if (userMessage != null && !userMessage.isBlank()) {
-            String lowerMsg = userMessage.toLowerCase();
-            String normalizedMsg = removeAccents(lowerMsg);
-
-            java.util.Set<String> matchedCategories = new java.util.HashSet<>();
-            SYNONYM_MAP.forEach((category, synonyms) -> {
-                for (String syn : synonyms) {
-                    if (lowerMsg.contains(syn) || normalizedMsg.contains(syn)) {
-                        matchedCategories.add(category);
-                        break;
-                    }
-                }
-            });
-
-            matchedCategories.forEach(cat -> {
-                if (FAQ_DB.containsKey(cat)) {
-                    ragContext.append("- ").append(FAQ_DB.get(cat)).append("\n");
-                }
-            });
+        for (com.booking.api.entity.KnowledgeChunk chunk : hybridRetriever.retrieve(userMessage)) {
+            ragContext.append("- ");
+            if (chunk.getTitle() != null && !chunk.getTitle().isBlank()) {
+                ragContext.append(chunk.getTitle()).append(": ");
+            }
+            ragContext.append(chunk.getContent()).append("\n");
         }
 
         // Retrieve State Cache
@@ -478,19 +433,36 @@ public class ChatService implements AIService.ToolHandler {
         String effectiveKey = (username != null && !username.isBlank()) ? username : sessionKey;
         String systemInstruction = buildSystemInstruction(username, effectiveKey, userMessage, language);
 
-        // Pass ToolHandler callback
-        return aiService.getChatResponse(systemInstruction, safeHistory, userMessage, (fnName, args) -> {
-            if ("get_user_bookings".equals(fnName) && username != null) {
-                if (args == null)
-                    args = Map.of("username", username);
-                else {
-                    Map<String, Object> newArgs = new java.util.HashMap<>(args);
-                    newArgs.put("username", username);
-                    args = newArgs;
-                }
+        String reply = aiService.getChatResponse(systemInstruction, safeHistory, userMessage,
+                securedToolHandler(username, effectiveKey));
+
+        chatHistoryService.saveExchange(username, sessionKey, userMessage, reply, language);
+        return reply;
+    }
+
+    /**
+     * Zero-Trust: danh tính khách hàng LUÔN lấy từ JWT, không bao giờ lấy từ tham số do
+     * model sinh ra.
+     *
+     * Ta chủ động XÓA mọi "username" model gửi lên trước khi ghi đè bằng danh tính đã
+     * xác thực. Việc xóa là cần thiết chứ không thừa: schema tool không khai tham số
+     * username cho get_booking_by_id, nhưng không có gì ngăn một model bị prompt-injection
+     * phát thêm trường đó — và executeTool sẽ dùng nguyên giá trị ấy để tra đơn hàng.
+     * Khách chưa đăng nhập thì không có username nào được đặt, các tool sẽ trả lời là
+     * chưa đăng nhập.
+     */
+    private AIService.ToolHandler securedToolHandler(String username, String effectiveKey) {
+        return (fnName, args) -> {
+            Map<String, Object> safeArgs = args == null
+                    ? new java.util.HashMap<>()
+                    : new java.util.HashMap<>(args);
+
+            safeArgs.remove("username");
+            if (username != null && !username.isBlank()) {
+                safeArgs.put("username", username);
             }
-            return executeTool(fnName, args, effectiveKey);
-        });
+            return executeTool(fnName, safeArgs, effectiveKey);
+        };
     }
 
     public void streamChatResponse(String userMessage, String username, String sessionKey, List<MessageDto> history, String language,
@@ -513,18 +485,16 @@ public class ChatService implements AIService.ToolHandler {
         String effectiveKey = (username != null && !username.isBlank()) ? username : sessionKey;
         String systemInstruction = buildSystemInstruction(username, effectiveKey, userMessage, language);
 
-        aiService.streamChatResponse(systemInstruction, safeHistory, userMessage, (fnName, args) -> {
-            if ("get_user_bookings".equals(fnName) && username != null) {
-                if (args == null)
-                    args = Map.of("username", username);
-                else {
-                    Map<String, Object> newArgs = new java.util.HashMap<>(args);
-                    newArgs.put("username", username);
-                    args = newArgs;
-                }
-            }
-            return executeTool(fnName, args, effectiveKey);
-        }, chunkConsumer);
+        // Gom lại toàn bộ câu trả lời trong lúc stream để còn lưu lịch sử — người dùng
+        // vẫn nhận từng mẩu ngay, việc lưu chỉ xảy ra sau khi stream kết thúc.
+        StringBuilder fullReply = new StringBuilder();
+        aiService.streamChatResponse(systemInstruction, safeHistory, userMessage,
+                securedToolHandler(username, effectiveKey), chunk -> {
+                    fullReply.append(chunk);
+                    chunkConsumer.accept(chunk);
+                });
+
+        chatHistoryService.saveExchange(username, sessionKey, userMessage, fullReply.toString(), language);
     }
 
     public Map<String, Object> getAiHealthStatus() {
@@ -534,18 +504,31 @@ public class ChatService implements AIService.ToolHandler {
     @org.springframework.beans.factory.annotation.Value("${TURNSTILE_SECRET_KEY:}")
     private String turnstileSecretKey;
 
+    /**
+     * Cảnh báo một lần lúc khởi động nếu chưa cấu hình Turnstile. verifyTurnstile()
+     * cố tình fail-open trong trường hợp này để dev local không phải dựng CAPTCHA,
+     * nhưng trên production mà thiếu key thì /api/chat là đường vào không kiểm soát
+     * tới một API trả phí — phải nhìn thấy được trong log, không được im lặng.
+     */
+    @jakarta.annotation.PostConstruct
+    void warnIfCaptchaDisabled() {
+        if (turnstileSecretKey == null || turnstileSecretKey.isBlank()) {
+            log.warn("TURNSTILE_SECRET_KEY chưa được cấu hình — CAPTCHA cho khách vãng lai đang TẮT. "
+                    + "Chấp nhận được khi dev local, nhưng PHẢI cấu hình trên production.");
+        }
+    }
+
     public boolean verifyTurnstile(String token) {
         if (turnstileSecretKey == null || turnstileSecretKey.isBlank()) return true; // Skip if no key
         if (token == null || token.isBlank()) return false;
         try {
-            org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
             headers.setContentType(org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED);
             org.springframework.util.MultiValueMap<String, String> body = new org.springframework.util.LinkedMultiValueMap<>();
             body.add("secret", turnstileSecretKey);
             body.add("response", token);
             org.springframework.http.HttpEntity<org.springframework.util.MultiValueMap<String, String>> request = new org.springframework.http.HttpEntity<>(body, headers);
-            Map response = restTemplate.postForObject("https://challenges.cloudflare.com/turnstile/v0/siteverify", request, Map.class);
+            Map response = aiRestTemplate.postForObject("https://challenges.cloudflare.com/turnstile/v0/siteverify", request, Map.class);
             return response != null && Boolean.TRUE.equals(response.get("success"));
         } catch (Exception e) {
             log.error("Turnstile verification failed", e);
