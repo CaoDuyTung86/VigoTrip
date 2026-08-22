@@ -274,6 +274,45 @@ class BookingServiceTest {
     }
 
     @Test
+    @DisplayName("Tạo đơn thất bại do Số ghế ít hơn số hành khách")
+    void createBooking_Fail_FewerSeatsThanPassengers() {
+        request.setSeatIds(Collections.singletonList(1L));
+        request.setPassengerNames(Arrays.asList("Hành khách A", "Hành khách B", "Hành khách C"));
+
+        when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
+        when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
+
+        BookingException ex = assertThrows(BookingException.class,
+                () -> bookingService.createBooking("test@example.com", request));
+        assertTrue(ex.getMessage().contains("3 hành khách"));
+        verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Tạo đơn thất bại do Dịch vụ bổ sung không tồn tại trong CSDL")
+    void createBooking_Fail_UnknownAdditionalService() {
+        request.setAdditionalServiceIds(Arrays.asList(10L, 901L));
+
+        AdditionalService addService = new AdditionalService();
+        addService.setId(10L);
+        addService.setPrice(java.math.BigDecimal.valueOf(50000));
+
+        when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
+        when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
+        when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
+        when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
+        when(seatLockService.getLockedBy(1L)).thenReturn(null);
+        // id 901 không có trong bảng nên findAllById chỉ trả về 1 dòng
+        when(additionalServiceRepository.findAllById(Arrays.asList(10L, 901L)))
+                .thenReturn(Collections.singletonList(addService));
+
+        BookingException ex = assertThrows(BookingException.class,
+                () -> bookingService.createBooking("test@example.com", request));
+        assertTrue(ex.getMessage().contains("không còn khả dụng"));
+        verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("Tạo đơn thất bại do Danh sách ghế có trùng lặp")
     void createBooking_Fail_DuplicateSeatsInRequest() {
         request.setSeatIds(Arrays.asList(1L, 1L));

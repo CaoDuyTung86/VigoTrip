@@ -110,6 +110,29 @@ public class AuthService {
         return generateAuthResponse(user);
     }
 
+    /**
+     * Cấp lại mã xác thực cho tài khoản chưa kích hoạt.
+     *
+     * Trước đây không có đường này: ai không nhận được mail lúc đăng ký là kẹt vĩnh viễn,
+     * vì email đã chiếm chỗ trong DB nên đăng ký lại cũng bị chặn bởi existsByEmail.
+     *
+     * Luôn trả về thành công dù email không tồn tại hay đã kích hoạt — nếu phân biệt,
+     * endpoint này thành công cụ dò xem email nào đã đăng ký trên hệ thống.
+     */
+    @Transactional
+    public void resendVerification(String email) {
+        String normalizedEmail = normalizeEmail(email);
+        userRepository.findByEmail(normalizedEmail).ifPresent(user -> {
+            if (Boolean.TRUE.equals(user.getEnabled())) {
+                return;
+            }
+            String verificationCode = String.format("%06d", secureRandom.nextInt(1000000));
+            user.setVerificationCode(verificationCode);
+            userRepository.save(user);
+            emailService.sendVerificationEmail(user.getEmail(), verificationCode);
+        });
+    }
+
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
         User user = userRepository.findByEmail(request.getEmail())

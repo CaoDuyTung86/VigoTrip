@@ -32,6 +32,17 @@ spring:
           starttls:
             enable: true
 
+# Brevo — đường gửi mail qua HTTPS, thay cho SMTP.
+# BẮT BUỘC trên Render: Render chặn outbound port 25/465/587 nên SMTP Gmail luôn
+# timeout (MailConnectException). Bỏ trống key thì MailConfig tự quay về SMTP,
+# tiện cho chạy local.
+brevo:
+  api-key: ${BREVO_API_KEY:}
+  sender:
+    # Phải là địa chỉ đã verify trong Brevo (Senders & IP), nếu không API trả 400.
+    email: ${BREVO_SENDER_EMAIL:${SPRING_MAIL_USERNAME:}}
+    name: ${BREVO_SENDER_NAME:VigoTrip}
+
 server:
   port: ${PORT:8080}
 
@@ -50,6 +61,9 @@ vnpay:
 # Frontend URL (dùng cho redirect sau thanh toán VNPay)
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  # URL công khai của chính backend. Dùng để nhúng ảnh QR vào email — client mail nằm
+  # ngoài mạng nội bộ nên localhost không dùng được khi deploy.
+  backend-url: ${BACKEND_URL:http://localhost:8080}
   # Số proxy tin cậy đứng trước ứng dụng (mỗi proxy nối thêm 1 mục vào X-Forwarded-For).
   # 0 = chạy trực tiếp/dev local. 1 = sau Render. 2 = sau Vercel rewrite -> Render.
   # Đặt CAO hơn thực tế sẽ cho phép client giả mạo IP để né rate limit — khi không

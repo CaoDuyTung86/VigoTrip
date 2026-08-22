@@ -49,6 +49,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/api/chat/**", "/api/voucher/**", "/ws/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
+                        // Ảnh QR nhúng trong mail: client mail không gửi kèm JWT được.
+                        .requestMatchers(HttpMethod.GET, "/api/public/qr/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/trips/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/additional-services/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/trip/**").permitAll()

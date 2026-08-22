@@ -49,6 +49,13 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    /** Gửi lại mã xác thực cho tài khoản chưa kích hoạt. Luôn 204 để không lộ email nào tồn tại. */
+    @PostMapping("/resend-verification")
+    public ResponseEntity<Void> resendVerification(@RequestParam String email) {
+        authService.resendVerification(email);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/google-login")
     public ResponseEntity<AuthResponse> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
         AuthResponse response = authService.googleLogin(request);

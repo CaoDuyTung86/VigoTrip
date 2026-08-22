@@ -3,6 +3,7 @@ import axios from "axios";
 import { useLanguage } from "../context/LanguageContext";
 import { useSavedPassengers } from "../context/SavedPassengersContext";
 import PassengerInfoForm from "../components/PassengerInfoForm";
+import { validatePassengerDob } from "../utils/passengerValidation";
 import AirplaneSeatMap from "../components/AirplaneSeatMap";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
@@ -17,6 +18,7 @@ import {
   getSeatUserId,
   isSeatLockedByOthers,
 } from "../utils/seatBookingHelpers";
+import { getMealImage } from "../utils/mealImages";
 import { useLocation } from "react-router-dom";
 import { CgSandClock } from "react-icons/cg";
 import { IoMdSearch } from "react-icons/io";
@@ -497,23 +499,9 @@ const AirlineTickets = () => {
       const loadedServices = Array.isArray(data) ? data : [];
 
       // Món ăn mặc định kèm ảnh địa phương trong /suat an/
-      const defaultMeals = [
-        { id: 901, serviceName: "Suất ăn - Combo Bánh chưng chà bông, hạt điều & nước suối", price: 99000, img: "/suat an/Combo Banh chung cha bong, hat dieu va nuoc suoi.jpg" },
-        { id: 902, serviceName: "Suất ăn - Combo Bún xào Singapore, nước suối & hạt điều", price: 99000, img: "/suat an/Combo Bun xao Singapore va Nuoc suoi va Hat dieu.jpg" },
-        { id: 903, serviceName: "Suất ăn - Combo Cơm chiên Thái, nước suối & hạt điều", price: 99000, img: "/suat an/Combo Com chien Thai va Nuoc suoi va Hat dieu.jpg" },
-        { id: 904, serviceName: "Suất ăn - Combo Cơm chiên Dương Châu chay, nước suối & hạt điều", price: 99000, img: "/suat an/Combo Com chien duong chau chay va Nuoc suoi va Hat dieu.jpg" },
-        { id: 905, serviceName: "Suất ăn - Combo Cơm thịt bò, hạt điều & nước suối", price: 99000, img: "/suat an/Combo Com thit bo, hat dieu va nuoc suoi.jpg" },
-        { id: 906, serviceName: "Suất ăn - Combo Hattrick Bia, khô gà & chả giò", price: 110000, img: "/suat an/Combo Hattrick Bia, Kho ga va Cha gio.jpg" },
-        { id: 907, serviceName: "Suất ăn - Combo Miến xào tôm cua, nước suối & hạt điều", price: 99000, img: "/suat an/Combo Mien xao Tom cua va Nuoc suoi va Hat dieu.jpg" },
-        { id: 908, serviceName: "Suất ăn - Combo Mỳ Ý, nước suối & hạt điều", price: 99000, img: "/suat an/Combo My Y va Nuoc suoi va Hat dieu.jpg" },
-        { id: 909, serviceName: "Suất ăn - Combo Penalty Soda dâu & hạt Macca", price: 100000, img: "/suat an/Combo Penalty Soda Dau va Hat Macca.jpg" },
-        { id: 910, serviceName: "Suất ăn - Combo Xôi khúc giò, hạt điều & nước suối", price: 99000, img: "/suat an/Combo Xoi khuc gio, hat dieu va nuoc suoi.jpg" },
-        { id: 911, serviceName: "Suất ăn - Combo Xôi mặn, hạt điều & nước suối", price: 99000, img: "/suat an/Combo Xoi man, hat dieu va nuoc suoi.jpg" },
-      ];
-
-      // Nếu API không trả về suất ăn thì bổ sung danh sách mặc định
-      const hasMeal = loadedServices.some(s => (s.serviceName || "").startsWith("Suất ăn"));
-      setServices(hasMeal ? loadedServices : [...loadedServices, ...defaultMeals]);
+      // Suất ăn lấy thẳng từ cơ sở dữ liệu (AdditionalServiceSeeder) để id gửi lên khi đặt vé
+      // là id có thật; ảnh minh hoạ tra theo tên trong utils/mealImages.js.
+      setServices(loadedServices.map(s => ({ ...s, img: s.img || getMealImage(s.serviceName) })));
     } catch (err) {
       console.error(err);
       setError(t.errServicesFailed);
@@ -547,7 +535,7 @@ const AirlineTickets = () => {
     }
   };
 
-  const maxSeats = (passengerCounts.adult + passengerCounts.child + passengerCounts.infant) || 1;
+  const maxSeats = passengers || 1;  // em bé dưới 2 tuổi ngồi cùng người lớn, không tính chỗ riêng
   const isMaxReached = selectedSeatIds.length >= maxSeats;
 
   const toggleSeat = (seat) => {
@@ -566,7 +554,7 @@ const AirlineTickets = () => {
 
     if (seat.booked || isSeatLockedByOthers(seat, user)) return;
 
-    const maxSeats = (passengerCounts.adult + passengerCounts.child + passengerCounts.infant) || 1;
+    const maxSeats = passengers || 1;  // em bé dưới 2 tuổi ngồi cùng người lớn, không tính chỗ riêng
 
     if (selectedSeatIds.length >= maxSeats) {
       return;
@@ -601,7 +589,10 @@ const AirlineTickets = () => {
       const d = pi.data || {};
       const isAdult = pi.type === 'ADULT';
       if (!d.fullName || d.fullName.trim() === '') return t.errPassengerName.replace('{type}', isAdult ? t.adult.toLowerCase() : pi.type === 'CHILD' ? t.child.toLowerCase() : t.infant.toLowerCase()).replace('{index}', idx + 1);
-      if (!d.dateOfBirth || !/^\d{2}\/\d{2}\/\d{4}$/.test(d.dateOfBirth)) return t.errDobInvalid.replace('{index}', idx + 1);
+      const dobError = validatePassengerDob(d.dateOfBirth, pi.type, selectedTrip?.departureTime ? new Date(selectedTrip.departureTime) : undefined);
+      if (dobError === 'future') return t.errDobFuture.replace('{index}', idx + 1);
+      if (dobError === 'ageMismatch') return t.errDobAgeMismatch.replace('{index}', idx + 1).replace('{type}', isAdult ? t.adult.toLowerCase() : pi.type === 'CHILD' ? t.child.toLowerCase() : t.infant.toLowerCase());
+      if (dobError) return t.errDobInvalid.replace('{index}', idx + 1);
       if (!d.gender) return t.errGenderRequired.replace('{index}', idx + 1);
 
       if (isAdult) {
@@ -620,6 +611,10 @@ const AirlineTickets = () => {
     }
     if (!selectedSeatIds.length) {
       setError(t.errSelectSeatFirst);
+      return;
+    }
+    if (selectedSeatIds.length < maxSeats) {
+      setError(t.errSeatCountMismatch.replaceAll('{total}', maxSeats).replace('{selected}', selectedSeatIds.length));
       return;
     }
     if (!isConnected) {
@@ -719,10 +714,15 @@ const AirlineTickets = () => {
       return;
     }
 
+    if (selectedSeatIds.length < maxSeats) {
+      setError(t.errSeatCountMismatch.replaceAll('{total}', maxSeats).replace('{selected}', selectedSeatIds.length));
+      return;
+    }
+
     setError("");
     setSubmitLoading(true);
 
-    const names = passengerInfoList.map(p => p.data.fullName).filter(Boolean);
+    const names = passengerInfoList.filter(p => p.type !== 'INFANT').map(p => p.data.fullName).filter(Boolean);
 
     try {
       const res = await fetch(`${API_BASE}/bookings`, {
@@ -2119,7 +2119,7 @@ const AirlineTickets = () => {
                           )}
                           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-main)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{t.totalLabel}</span>
-                            <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{Math.max(0, seatsTotal + extraTotal - membershipDiscount - voucherDiscount).toLocaleString("vi-VN")} đ</span>
+                            <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{Number(bookingResult ? bookingResult.totalPrice || 0 : Math.max(0, seatsTotal + extraTotal - membershipDiscount - voucherDiscount)).toLocaleString("vi-VN")} đ</span>
                           </div>
                         </>
                       );

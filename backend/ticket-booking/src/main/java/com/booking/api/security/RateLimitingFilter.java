@@ -109,6 +109,13 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                 sendRateLimitResponse(response, "Bạn đã yêu cầu gửi OTP quá 3 lần. Vui lòng đợi 15 phút.");
                 return;
             }
+        } else if (path.startsWith("/api/auth/resend-verification")) {
+            // Mỗi lần gọi là một email thật gửi đi, mà Brevo free chỉ 300 mail/ngày —
+            // không chặn thì một script đủ đốt sạch quota của cả hệ thống.
+            if (isRateLimited(clientIp + ":resend_verify", forgotPasswordCounts, FORGOT_PW_LIMIT_PER_15MIN)) {
+                sendRateLimitResponse(response, "Bạn đã yêu cầu gửi lại mã quá 3 lần. Vui lòng đợi 15 phút.");
+                return;
+            }
         } else if (path.startsWith("/api/chat") && !path.equals("/api/chat/status")) {
             // Thành viên đã đăng nhập khóa theo danh tính: không bị ảnh hưởng khi dùng
             // chung IP với người khác, và cũng không nhân được hạn mức bằng cách đổi IP.

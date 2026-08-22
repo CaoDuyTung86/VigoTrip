@@ -65,6 +65,15 @@ public class BookingService {
             throw new BookingException("Danh sách chỗ ngồi có chứa dữ liệu trùng lặp.");
         }
 
+        // Mỗi hành khách khai báo phải có đúng một chỗ. Thiếu ghế thì đơn chỉ tính tiền số ghế
+        // đã chọn trong khi vé lại ghi nhiều tên hành khách -> thu thiếu tiền.
+        int passengerCount = request.getPassengerNames() == null ? 0 : request.getPassengerNames().size();
+        if (passengerCount > request.getSeatIds().size()) {
+            throw new BookingException(String.format(
+                    "Đã chọn %d chỗ nhưng có %d hành khách. Vui lòng chọn đủ %d chỗ.",
+                    request.getSeatIds().size(), passengerCount, passengerCount));
+        }
+
         List<Ticket> tickets = new ArrayList<>();
         java.math.BigDecimal totalPrice = java.math.BigDecimal.ZERO;
 
@@ -125,8 +134,14 @@ public class BookingService {
         booking.setStatus("PENDING");
 
         if (request.getAdditionalServiceIds() != null && !request.getAdditionalServiceIds().isEmpty()) {
-            List<AdditionalService> services = additionalServiceRepository
-                    .findAllById(request.getAdditionalServiceIds());
+            List<Long> requestedServiceIds = request.getAdditionalServiceIds().stream().distinct().toList();
+            List<AdditionalService> services = additionalServiceRepository.findAllById(requestedServiceIds);
+            // findAllById lặng lẽ bỏ qua id không tồn tại. Không chặn ở đây thì dịch vụ "ma"
+            // vẫn hiện giá trên giao diện nhưng không vào tổng tiền của đơn.
+            if (services.size() != requestedServiceIds.size()) {
+                throw new BookingException(
+                        "Một số dịch vụ bổ sung đã chọn không còn khả dụng. Vui lòng chọn lại.");
+            }
             booking.setAdditionalServices(services);
             java.math.BigDecimal servicesTotal = services.stream()
                     .map(s -> s.getPrice() != null ? s.getPrice() : java.math.BigDecimal.ZERO)

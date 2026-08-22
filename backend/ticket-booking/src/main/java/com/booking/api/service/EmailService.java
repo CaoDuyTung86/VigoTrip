@@ -1,14 +1,9 @@
 package com.booking.api.service;
 
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.client.j2se.MatrixToImageWriter;
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.qrcode.QRCodeWriter;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -18,7 +13,6 @@ import com.booking.api.entity.Booking;
 import com.booking.api.entity.Trip;
 import com.booking.api.entity.Ticket;
 
-import java.io.ByteArrayOutputStream;
 
 @Service
 @Async("emailTaskExecutor")
@@ -27,6 +21,10 @@ import java.io.ByteArrayOutputStream;
 public class EmailService {
 
     private final JavaMailSender mailSender;
+
+    /** URL gốc của chính backend, dùng để nhúng ảnh QR vào mail bằng <img src>. */
+    @org.springframework.beans.factory.annotation.Value("${app.backend-url:http://localhost:8080}")
+    private String backendUrl;
 
     public void sendResetPasswordEmail(String toEmail, String otpCode) {
         try {
@@ -135,7 +133,7 @@ public class EmailService {
             helper.setTo(toEmail);
             helper.setSubject("Xác nhận đặt vé thành công #" + bookingId + " - VigoTrip");
 
-            byte[] qrCodeImage = generateQRCodeImage("BOOKING_" + bookingId, 250, 250);
+            String qrUrl = backendUrl + "/api/public/qr/booking/" + bookingId;
 
             String htmlContent = "<div style='font-family: \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 40px 20px; color: #1e293b;'>"
                     + "<div style='max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;'>"
@@ -157,7 +155,7 @@ public class EmailService {
 
                     + "<div style='text-align: center; margin-bottom: 28px; padding: 20px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;'>"
                     + "<p style='margin: 0 0 12px 0; font-size: 13.5px; color: #64748b; font-weight: 600;'>MÃ CHECK-IN ĐIỆN TỬ</p>"
-                    + "<img src='cid:qrcode' alt='Mã vé QR' style='width: 180px; height: 180px;' />"
+                    + "<img src='" + qrUrl + "' alt='Mã vé QR' style='width: 180px; height: 180px;' />"
                     + "<p style='margin: 12px 0 0 0; font-size: 12.5px; color: #94a3b8;'>Vui lòng xuất trình mã QR này cho nhân viên soát vé</p>"
                     + "</div>"
 
@@ -170,22 +168,11 @@ public class EmailService {
                     + "</div>";
 
             helper.setText(htmlContent, true);
-            helper.addInline("qrcode", new ByteArrayResource(qrCodeImage), "image/png");
-            
             mailSender.send(message);
             log.info("Booking confirmation email with QR code sent successfully to {}", toEmail);
         } catch (Exception e) {
             log.error("Failed to send booking confirmation email with QR code to {}", toEmail, e);
         }
-    }
-
-    private byte[] generateQRCodeImage(String text, int width, int height) throws Exception {
-        QRCodeWriter qrCodeWriter = new QRCodeWriter();
-        BitMatrix bitMatrix = qrCodeWriter.encode(text, BarcodeFormat.QR_CODE, width, height);
-        
-        ByteArrayOutputStream pngOutputStream = new ByteArrayOutputStream();
-        MatrixToImageWriter.writeToStream(bitMatrix, "PNG", pngOutputStream);
-        return pngOutputStream.toByteArray();
     }
 
     public void sendSurveyEmail(String toEmail, Long bookingId) {
