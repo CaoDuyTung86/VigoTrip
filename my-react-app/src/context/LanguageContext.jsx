@@ -1,6 +1,27 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
+import VNFlag from '../Picture/flags/vn.png';
+import UKFlag from '../Picture/flags/uk.png';
+import JPFlag from '../Picture/flags/jp.png';
+import TWFlag from '../Picture/flags/tw.png';
+
+// Nguồn dữ liệu duy nhất cho danh sách ngôn ngữ. `flag` là URL do Vite sinh ra lúc
+// build (có hash nội dung) nên KHÔNG được lưu xuống localStorage: mỗi lần deploy
+// hash đổi, URL cũ trả về 404 và ảnh cờ vỡ. Chỉ lưu `code`, còn cờ/tên luôn lấy
+// lại từ danh sách này của bản build đang chạy.
+export const LANGUAGES = [
+  { code: 'vi', name: 'Tiếng Việt', flag: VNFlag },
+  { code: 'en', name: 'English', flag: UKFlag },
+  { code: 'ja', name: '日本語', flag: JPFlag },
+  { code: 'zh', name: '繁體中文', flag: TWFlag },
+];
+
+export const DEFAULT_LANGUAGE = LANGUAGES[0];
+
+const getLanguageByCode = (code) =>
+  LANGUAGES.find((lang) => lang.code === code) || DEFAULT_LANGUAGE;
+
 const translations = {
   vi: {
     // Header
@@ -518,6 +539,8 @@ const translations = {
     notFound: "Không tìm thấy",
     pickDate: "Chọn ngày",
     seatHoldTimeRemaining: "Thời gian giữ ghế còn lại: ",
+    paymentHoldTimeRemaining: "Thời gian thanh toán còn lại: ",
+    paymentHoldTimeout: "Đơn đã hết hạn giữ chỗ (5 phút) do chưa thanh toán. Vui lòng đặt lại.",
     loadingSeatMap: "Đang tải sơ đồ ghế...",
     noSeatData: "Chưa có dữ liệu ghế cho chuyến này.",
     notSelected: "Chưa chọn",
@@ -599,6 +622,7 @@ const translations = {
     mbConnectFailed: "Không thể kết nối đến máy chủ. Vui lòng thử lại sau.",
     mbPaySuccess: "Thanh toán thành công! Vé của bạn đã được xác nhận.",
     mbPayFailed: "Thanh toán thất bại hoặc đã bị hủy.",
+    mbPayRefundPending: "Tiền đã bị trừ nhưng đơn không còn hiệu lực. Yêu cầu hoàn tiền đã được tạo, nhà cung cấp sẽ xử lý.",
     mbCloseToast: "Đóng thông báo",
     mbLoadErrorTitle: "Lỗi tải dữ liệu",
     mbPayContinueError: "Lỗi tiếp tục thanh toán: ",
@@ -857,6 +881,7 @@ const translations = {
     authXConnError: "Lỗi kết nối: {error}",
     authXLoginFailed: "Đăng nhập thất bại. Vui lòng thử lại.",
     authXLoginSuccess: "Đăng nhập thành công!",
+    authXLogoutSuccess: "Đã đăng xuất. Hẹn gặp lại!",
     authXSideTagline: "Khám phá những hành trình tuyệt vời cùng chúng tôi.",
     authXWelcomeBack: "Chào mừng trở lại!",
     authXJoinUs: "Tham gia cùng chúng tôi",
@@ -1516,6 +1541,8 @@ const translations = {
     notFound: "Not found",
     pickDate: "Select date",
     seatHoldTimeRemaining: "Seat hold time remaining: ",
+    paymentHoldTimeRemaining: "Time left to pay: ",
+    paymentHoldTimeout: "The booking hold expired (5 minutes) without payment. Please book again.",
     loadingSeatMap: "Loading seat map...",
     noSeatData: "No seat data available for this trip.",
     notSelected: "Not selected",
@@ -1597,6 +1624,7 @@ const translations = {
     mbConnectFailed: "Cannot connect to the server. Please try again later.",
     mbPaySuccess: "Payment successful! Your ticket has been confirmed.",
     mbPayFailed: "Payment failed or was cancelled.",
+    mbPayRefundPending: "You were charged but the booking is no longer valid. A refund request has been created for the provider to process.",
     mbCloseToast: "Close notification",
     mbLoadErrorTitle: "Error loading data",
     mbPayContinueError: "Error continuing payment: ",
@@ -1855,6 +1883,7 @@ const translations = {
     authXConnError: "Connection error: {error}",
     authXLoginFailed: "Login failed. Please try again.",
     authXLoginSuccess: "Login successful!",
+    authXLogoutSuccess: "Logged out. See you again!",
     authXSideTagline: "Discover wonderful journeys with us.",
     authXWelcomeBack: "Welcome back!",
     authXJoinUs: "Join us",
@@ -2517,6 +2546,8 @@ const translations = {
     notFound: "見つかりません",
     pickDate: "日付を選択",
     seatHoldTimeRemaining: "座席保持残り時間：",
+    paymentHoldTimeRemaining: "支払い残り時間：",
+    paymentHoldTimeout: "未払いのため予約の保持期限（5分）が切れました。もう一度予約してください。",
     loadingSeatMap: "座席図を読み込み中...",
     noSeatData: "この便の座席データがまだありません。",
     notSelected: "未選択",
@@ -2598,6 +2629,7 @@ const translations = {
     mbConnectFailed: "サーバーに接続できません。後でもう一度お試しください。",
     mbPaySuccess: "お支払いが完了しました！チケットが確定されました。",
     mbPayFailed: "お支払いに失敗したか、キャンセルされました。",
+    mbPayRefundPending: "決済は完了しましたが予約が無効になっています。返金リクエストを作成しました。",
     mbCloseToast: "通知を閉じる",
     mbLoadErrorTitle: "データの読み込みエラー",
     mbPayContinueError: "お支払いの継続エラー：",
@@ -2856,6 +2888,7 @@ const translations = {
     authXConnError: "接続エラー：{error}",
     authXLoginFailed: "ログインに失敗しました。もう一度お試しください。",
     authXLoginSuccess: "ログインに成功しました！",
+    authXLogoutSuccess: "ログアウトしました。またお越しください！",
     authXSideTagline: "私たちと素晴らしい旅を発見しましょう。",
     authXWelcomeBack: "おかえりなさい！",
     authXJoinUs: "私たちに参加しましょう",
@@ -3521,6 +3554,8 @@ const translations = {
     notFound: "未找到",
     pickDate: "选择日期",
     seatHoldTimeRemaining: "座位锁定剩余时间：",
+    paymentHoldTimeRemaining: "支付剩余时间：",
+    paymentHoldTimeout: "订单因未支付已超过保留时间（5分钟），请重新预订。",
     loadingSeatMap: "正在加载座位图...",
     noSeatData: "该班次暂无座位数据。",
     notSelected: "未选择",
@@ -3602,6 +3637,7 @@ const translations = {
     mbConnectFailed: "无法连接服务器，请稍后重试。",
     mbPaySuccess: "支付成功！您的车票已确认。",
     mbPayFailed: "支付失败或已被取消。",
+    mbPayRefundPending: "款项已扣除但订单已失效。已为您创建退款申请，供应商将进行处理。",
     mbCloseToast: "关闭通知",
     mbLoadErrorTitle: "数据加载错误",
     mbPayContinueError: "继续支付错误：",
@@ -3860,6 +3896,7 @@ const translations = {
     authXConnError: "连接错误：{error}",
     authXLoginFailed: "登录失败，请重试。",
     authXLoginSuccess: "登录成功！",
+    authXLogoutSuccess: "已登出，期待再次光临！",
     authXSideTagline: "与我们一起探索精彩旅程。",
     authXWelcomeBack: "欢迎回来！",
     authXJoinUs: "加入我们",
@@ -4012,18 +4049,26 @@ const translations = {
 
 const LanguageContext = createContext();
 
-export const LanguageProvider = ({ children }) => {
-  const [currentLanguage, setCurrentLanguage] = useState(() => {
-    try {
-      const savedLanguage = localStorage.getItem("language");
-      if (savedLanguage) {
-        return JSON.parse(savedLanguage);
-      }
-    } catch {
-      // Ignore parse error
+// Đọc mã ngôn ngữ đã lưu. Hỗ trợ cả dữ liệu cũ (lưu nguyên object kèm URL cờ đã hash).
+const readSavedLanguageCode = () => {
+  try {
+    const saved = localStorage.getItem("language");
+    if (!saved) return null;
+    if (saved.trim().startsWith("{")) {
+      return JSON.parse(saved)?.code ?? null;
     }
-    return { code: 'vi', name: 'Tiếng Việt', flag: null };
-  });
+    return saved.replace(/^"|"$/g, "");
+  } catch {
+    return null;
+  }
+};
+
+export const LanguageProvider = ({ children }) => {
+  const [languageCode, setLanguageCode] = useState(
+    () => getLanguageByCode(readSavedLanguageCode()).code
+  );
+
+  const currentLanguage = React.useMemo(() => getLanguageByCode(languageCode), [languageCode]);
 
   const t = React.useMemo(() => {
     return translations[currentLanguage.code] || translations.vi;
@@ -4033,11 +4078,13 @@ export const LanguageProvider = ({ children }) => {
     document.documentElement.lang = currentLanguage.code;
   }, [currentLanguage.code]);
 
+  // Nhận vào mã ngôn ngữ ('vi') hoặc cả object ngôn ngữ, chỉ lưu lại mã.
   const changeLanguage = React.useCallback((language) => {
-    setCurrentLanguage(language);
-    localStorage.setItem("language", JSON.stringify(language));
-    document.documentElement.lang = language.code;
-    globalThis.dispatchEvent(new CustomEvent('languageChange', { detail: { language: language.code } }));
+    const code = getLanguageByCode(typeof language === "string" ? language : language?.code).code;
+    setLanguageCode(code);
+    localStorage.setItem("language", code);
+    document.documentElement.lang = code;
+    globalThis.dispatchEvent(new CustomEvent('languageChange', { detail: { language: code } }));
   }, []);
 
   const value = React.useMemo(

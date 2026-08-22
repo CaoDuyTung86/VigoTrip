@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { IoIosWarning } from "react-icons/io";
-import { TiTick } from "react-icons/ti";
 import { GoogleLogin } from "@react-oauth/google";
 
 import { useLanguage } from "../context/LanguageContext";
@@ -19,8 +18,6 @@ const Auth = ({ isOpen, onClose }) => {
   const [apiError, setApiError] = useState("");
   const [phone, setPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
   const { t } = useLanguage();
   const { loginSuccess } = useAuth();
   const navigate = useNavigate();
@@ -37,6 +34,19 @@ const Auth = ({ isOpen, onClose }) => {
       sessionStorage.setItem("tempEmail", email);
     }
   }, [email]);
+
+  // Modal Auth luôn được mount sẵn trong Header và chỉ trả về null khi đóng, nên state
+  // không tự reset. Phải dọn tay, nếu không lần mở sau (ví dụ sau khi đăng xuất) vẫn
+  // còn nguyên bước/lỗi/thông báo của phiên đăng nhập trước.
+  useEffect(() => {
+    if (onClose && !isOpen) {
+      setStep(1);
+      setApiError("");
+      setEmailError("");
+      setPasswordError("");
+      setIsSubmitting(false);
+    }
+  }, [onClose, isOpen]);
 
   const clearTempData = () => {
     sessionStorage.removeItem("tempEmail");
@@ -135,14 +145,12 @@ const Auth = ({ isOpen, onClose }) => {
         loginSuccess(data);
       }
 
-      setSuccessMessage(t.authXRegisterSuccessVerify);
-      setShowSuccess(true);
       showToast(t.authXRegisterSuccessVerify, "success");
 
       clearTempData();
 
       setTimeout(() => {
-        onClose();
+        if (onClose) onClose();
         navigate(`/verify-email?email=${email}`);
       }, 1500);
     } catch (error) {
@@ -211,13 +219,7 @@ const Auth = ({ isOpen, onClose }) => {
         loginSuccess(data);
       }
 
-      setSuccessMessage(t.authXLoginSuccess);
-      setShowSuccess(true);
       showToast(t.authXLoginSuccess, "success");
-
-      setTimeout(() => {
-        setShowSuccess(false);
-      }, 2000);
 
       setTimeout(() => {
         if (onClose) {
@@ -269,31 +271,6 @@ const Auth = ({ isOpen, onClose }) => {
       }}
       onClick={onClose}
     >
-      {showSuccess && (
-        <div
-          style={{
-            position: "fixed",
-            top: "20px",
-            right: "20px",
-            backgroundColor: "#4caf50",
-            color: "white",
-            padding: "16px 24px",
-            borderRadius: "8px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-            zIndex: 10001,
-            animation: "slideIn 0.3s ease",
-            fontSize: "16px",
-            fontWeight: "500",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-          }}
-        >
-          <span style={{ fontSize: "20px" }}><TiTick /></span>
-          {successMessage}
-        </div>
-      )}
-
       <div
         style={{
           position: "relative",
@@ -457,9 +434,8 @@ const Auth = ({ isOpen, onClose }) => {
               <div style={{ marginBottom: "12px", width: "100%", display: "flex", justifyContent: "center" }}>
                 <GoogleLogin
                   onSuccess={async (credentialResponse) => {
-                    console.log("Google response:", credentialResponse);
                     if (!credentialResponse.credential) {
-                      alert(t.authXGoogleNoToken);
+                      showToast(t.authXGoogleNoToken, "error");
                       return;
                     }
                     // alert("DEBUG - Credential nhận được: " + credentialResponse.credential.substring(0, 20) + "...");
@@ -475,30 +451,30 @@ const Auth = ({ isOpen, onClose }) => {
                       const data = await response.json();
                       if (response.ok) {
                         loginSuccess(data);
-                        setSuccessMessage(t.authXGoogleLoginSuccess);
-                        setShowSuccess(true);
+                        showToast(t.authXGoogleLoginSuccess, "success");
                         setTimeout(() => {
                           if (onClose) {
                             onClose();
                           } else {
                             navigate("/");
                           }
-                        }, 1500);
+                        }, 1000);
                       } else {
-                        setApiError(t.authXBackendError.replace('{msg}', data.message || t.authXUnknown));
-                        alert(t.authXBackendErrorAlert.replace('{msg}', data.message || t.authXUnknown));
+                        const errorMsg = t.authXBackendError.replace('{msg}', data.message || t.authXUnknown);
+                        setApiError(errorMsg);
+                        showToast(errorMsg, "error");
                       }
                     } catch (error) {
                       console.error("Google login error:", error);
                       const errorMsg = t.authXGoogleLoginError.replace('{error}', error.message);
                       setApiError(errorMsg);
-                      alert(errorMsg);
+                      showToast(errorMsg, "error");
                     }
                   }}
                   onError={(error) => {
                     console.error("Google OAuth Error:", error);
                     setApiError(t.authXGoogleLoginFailed);
-                    alert(t.authXGoogleOAuthError.replace('{error}', JSON.stringify(error || t.authXUnknown)));
+                    showToast(t.authXGoogleLoginFailed, "error");
                   }}
                   theme="outline"
                   size="large"

@@ -47,7 +47,15 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT DISTINCT b FROM Booking b JOIN b.tickets t WHERE t.trip.id = :tripId AND b.status IN ('CONFIRMED', 'PAID')")
     List<Booking> findActiveBookingsByTripId(@Param("tripId") Long tripId);
 
-    List<Booking> findByStatusAndBookingDateBefore(String status, java.time.LocalDateTime cutoffTime);
+    /**
+     * Đơn PENDING quá hạn giữ chỗ VÀ không có phiên thanh toán nào đang mở.
+     * Điều kiện paymentExpiresAt là để không dọn mất đơn khi người dùng đang ở cổng
+     * thanh toán — nếu hủy lúc đó thì tiền vẫn bị trừ mà đơn đã CANCELLED.
+     */
+    @Query("SELECT b FROM Booking b WHERE b.status = 'PENDING' AND b.bookingDate < :cutoffTime " +
+           "AND (b.paymentExpiresAt IS NULL OR b.paymentExpiresAt < :now)")
+    List<Booking> findExpiredPendingBookings(@Param("cutoffTime") java.time.LocalDateTime cutoffTime,
+                                             @Param("now") java.time.LocalDateTime now);
 
     @Query("SELECT SUM(b.totalPrice) FROM Booking b JOIN b.tickets t WHERE t.trip.vehicle.provider.id = :providerId AND b.status IN ('CONFIRMED', 'PAID', 'COMPLETED')")
     Double calculateTotalRevenueByProvider(@Param("providerId") Long providerId);

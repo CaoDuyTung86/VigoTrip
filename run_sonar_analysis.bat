@@ -1,5 +1,9 @@
 @echo off
-set SONAR_TOKEN=sqa_7efd2af215c21539356527c6b64789c40ea9ec18
+if "%SONAR_TOKEN%"=="" (
+  echo ERROR: Bien moi truong SONAR_TOKEN chua duoc set.
+  echo Chay lenh sau mot lan roi mo terminal moi:  setx SONAR_TOKEN "sqa_xxx"
+  exit /b 1
+)
 
 echo ================================================
 echo    DANG QUET BACKEND (JAVA)

@@ -96,10 +96,15 @@ public class RefundService {
 
         // Cập nhật booking status
         Booking booking = refund.getBooking();
+        // Đơn có thể đã ở trạng thái nhả voucher từ trước (hết hạn giữ chỗ, thanh toán hỏng);
+        // khi đó lượt dùng đã được trả rồi, trả thêm lần nữa là đếm thiếu.
+        boolean voucherAlreadyReleased =
+                BookingRepository.VOUCHER_RELEASING_STATUSES.contains(booking.getStatus());
         booking.setStatus("CANCELLED");
 
         // Đơn đã hủy thì mã giảm giá được dùng lại — trả lại lượt dùng cho voucher.
-        if (booking.getVoucherCode() != null && !booking.getVoucherCode().isBlank()) {
+        if (!voucherAlreadyReleased
+                && booking.getVoucherCode() != null && !booking.getVoucherCode().isBlank()) {
             voucherService.refundVoucherUsage(booking.getVoucherCode());
         }
 

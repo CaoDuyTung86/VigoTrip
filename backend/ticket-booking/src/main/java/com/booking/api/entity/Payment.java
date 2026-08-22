@@ -35,4 +35,11 @@ public class Payment {
 
     @Column(name = "payment_status")
     private String paymentStatus;
+
+    /**
+     * vnp_TxnRef của giao dịch. Cổng có thể báo kết quả hai lần (Return + IPN),
+     * cột này là khóa chống xử lý trùng.
+     */
+    @Column(name = "transaction_ref", length = 64)
+    private String transactionRef;
 }

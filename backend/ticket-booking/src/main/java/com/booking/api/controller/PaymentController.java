@@ -58,6 +58,9 @@ public class PaymentController {
         String redirectUrl = frontendUrl + "/my-bookings";
         if ("SUCCESS".equals(result)) {
             redirectUrl += "?payment=success";
+        } else if ("LATE_REFUND".equals(result)) {
+            // Tiền đã bị trừ nhưng đơn không còn hiệu lực -> đã tự mở yêu cầu hoàn tiền
+            redirectUrl += "?payment=refund_pending";
         } else {
             redirectUrl += "?payment=failed";
         }

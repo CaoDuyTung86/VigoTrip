@@ -64,4 +64,12 @@ public class Booking {
 
     @Column(name = "reminder_sent")
     private Boolean reminderSent = false;
+
+    /**
+     * Hạn chót của phiên thanh toán đang mở ở cổng (VNPay). Còn hạn thì
+     * BookingCleanupService không được hủy đơn, tránh cảnh cổng trừ tiền xong
+     * mới phát hiện đơn đã bị dọn mất.
+     */
+    @Column(name = "payment_expires_at")
+    private LocalDateTime paymentExpiresAt;
 }

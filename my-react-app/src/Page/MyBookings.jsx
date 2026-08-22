@@ -80,6 +80,10 @@ const MyBookings = () => {
     } else if (payment === "failed") {
       setToastMsg({ text: t.mbPayFailed, type: "error" });
       navigate("/my-bookings", { replace: true });
+    } else if (payment === "refund_pending") {
+      // Cổng báo thành công nhưng đơn đã hết hiệu lực -> backend đã tự mở yêu cầu hoàn tiền
+      setToastMsg({ text: t.mbPayRefundPending, type: "error" });
+      navigate("/my-bookings", { replace: true });
     } else if (reviewBookingId && bookings.length > 0) {
       const targetBooking = bookings.find(b => String(b.id) === String(reviewBookingId));
       if (targetBooking) {

@@ -9,24 +9,33 @@ import com.booking.api.entity.Trip;
 import com.booking.api.entity.User;
 import com.booking.api.exception.BookingException;
 import com.booking.api.exception.ResourceNotFoundException;
+import com.booking.api.entity.Payment;
+import com.booking.api.entity.Refund;
 import com.booking.api.repository.BookingRepository;
+import com.booking.api.repository.PaymentRepository;
 import com.booking.api.repository.PromotionRepository;
+import com.booking.api.repository.RefundRepository;
 import com.booking.api.repository.UserRepository;
 import com.booking.api.util.VNPayUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -37,6 +46,15 @@ class PaymentServiceTest {
 
     @Mock
     private BookingRepository bookingRepository;
+
+    @Mock
+    private PaymentRepository paymentRepository;
+
+    @Mock
+    private RefundRepository refundRepository;
+
+    @Mock
+    private VoucherService voucherService;
 
     @Mock
     private UserRepository userRepository;
@@ -281,5 +299,115 @@ class PaymentServiceTest {
             assertEquals("02", result.get("RspCode"));
             assertEquals("Order already confirmed", result.get("Message"));
         }
+    }
+
+    // ==================== Cửa sổ thanh toán & tiền về muộn ====================
+
+    /** Dựng bộ tham số callback có chữ ký thật, ký bằng {@code secret}. */
+    private Map<String, String> signedCallback(String responseCode, String txnRef) {
+        SortedMap<String, String> params = new TreeMap<>();
+        params.put("vnp_OrderInfo", "Thanh_toan_booking_123");
+        params.put("vnp_ResponseCode", responseCode);
+        params.put("vnp_Amount", "10000000");
+        params.put("vnp_TxnRef", txnRef);
+
+        Map<String, String> callback = new HashMap<>(params);
+        callback.put("vnp_SecureHash", VNPayUtil.hmacSHA512("secret", VNPayUtil.buildHashData(params)));
+        return callback;
+    }
+
+    @Test
+    @DisplayName("Tạo link thanh toán thì mở cửa sổ thanh toán trên đơn và báo hạn cho cổng")
+    void createVNPayPayment_OpensPaymentWindow() {
+        PaymentRequest request = new PaymentRequest();
+        request.setBookingId(123L);
+
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+        when(vnPayConfig.getTmnCode()).thenReturn("TMNCODE123");
+        when(vnPayConfig.getReturnUrl()).thenReturn("http://localhost/return");
+        when(vnPayConfig.getPayUrl()).thenReturn("https://sandbox.vnpayment.vn/paymentv2/vpcpay.html");
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+
+        LocalDateTime before = LocalDateTime.now();
+        PaymentResponse response = paymentService.createVNPayPayment("test@example.com", request, "127.0.0.1");
+
+        assertNotNull(booking.getPaymentExpiresAt(), "phải mở cửa sổ thanh toán để cleanup không hủy đơn");
+        assertTrue(booking.getPaymentExpiresAt()
+                .isAfter(before.plusMinutes(PaymentService.PAYMENT_WINDOW_MINUTES - 1)));
+        assertTrue(response.getPaymentUrl().contains("vnp_ExpireDate="), "cổng phải biết hạn để tự đóng phiên");
+        verify(bookingRepository).save(booking);
+    }
+
+    @Test
+    @DisplayName("Thanh toán thành công thì lưu giao dịch kèm mã và đóng cửa sổ thanh toán")
+    void handleVNPayIPN_Success_RecordsTransaction() {
+        booking.setPaymentExpiresAt(LocalDateTime.now().plusMinutes(10));
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_OK"));
+
+        assertEquals("00", result.get("RspCode"));
+        assertEquals("CONFIRMED", booking.getStatus());
+        assertNull(booking.getPaymentExpiresAt(), "thanh toán xong thì đóng cửa sổ thanh toán");
+
+        ArgumentCaptor<Payment> payment = ArgumentCaptor.forClass(Payment.class);
+        verify(paymentRepository).save(payment.capture());
+        assertEquals("SUCCESS", payment.getValue().getPaymentStatus());
+        assertEquals("TXN_OK", payment.getValue().getTransactionRef());
+        verify(refundRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Tiền về sau khi đơn đã bị hủy thì phải mở yêu cầu hoàn tiền, không được bỏ qua")
+    void handleVNPayIPN_SuccessAfterBookingCancelled_OpensRefund() {
+        booking.setStatus("CANCELLED"); // cleanup đã dọn đơn trong lúc khách còn ở cổng
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_LATE"));
+
+        assertEquals("00", result.get("RspCode"), "phải nhận kết quả để cổng ngừng gọi lại");
+
+        ArgumentCaptor<Payment> payment = ArgumentCaptor.forClass(Payment.class);
+        verify(paymentRepository).save(payment.capture());
+        assertEquals("SUCCESS_NEEDS_REFUND", payment.getValue().getPaymentStatus());
+
+        ArgumentCaptor<Refund> refund = ArgumentCaptor.forClass(Refund.class);
+        verify(refundRepository).save(refund.capture());
+        assertEquals("PENDING", refund.getValue().getStatus());
+        assertEquals(0, BigDecimal.valueOf(100000).compareTo(refund.getValue().getRefundAmount()));
+        assertEquals("CANCELLED", booking.getStatus(), "đơn đã hủy thì giữ nguyên, tiền xử lý qua hoàn tiền");
+    }
+
+    @Test
+    @DisplayName("Cùng một giao dịch về hai lần (Return rồi IPN) chỉ được xử lý một lần")
+    void handleVNPayIPN_DuplicateTransaction_IsIgnored() {
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+        when(paymentRepository.existsByTransactionRef("TXN_DUP")).thenReturn(true);
+
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_DUP"));
+
+        assertEquals("02", result.get("RspCode"));
+        verify(paymentRepository, never()).save(any());
+        verify(refundRepository, never()).save(any());
+        assertEquals("PENDING", booking.getStatus(), "đơn phải giữ nguyên, không bị xử lý lần hai");
+    }
+
+    @Test
+    @DisplayName("Thanh toán hỏng thì hoàn lại lượt voucher của đơn")
+    void handleVNPayIPN_Failure_RefundsVoucherUsage() {
+        booking.setVoucherCode("SALE50");
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("24", "TXN_FAIL"));
+
+        assertEquals("00", result.get("RspCode"));
+        assertEquals("FAILED", booking.getStatus());
+        verify(voucherService).refundVoucherUsage("SALE50");
+        verify(emailService, never()).sendBookingConfirmation(anyString(), any());
     }
 }

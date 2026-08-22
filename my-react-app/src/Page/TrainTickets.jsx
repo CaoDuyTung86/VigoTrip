@@ -10,6 +10,8 @@ import SavedVoucherPicker from "../components/SavedVoucherPicker";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useWebSocket } from "../context/WebSocketContext";
+import useCountdown from "../hooks/useCountdown";
+import HoldCountdownBanner from "../components/HoldCountdownBanner";
 import {
   canSelectSeats,
   getSeatUserId,
@@ -23,6 +25,13 @@ import { IoMdSearch } from "react-icons/io";
 import { FiChevronDown, FiSearch } from "react-icons/fi";
 import { CgSandClock } from "react-icons/cg";
 import { CiCreditCard1 } from "react-icons/ci";
+
+/**
+ * Thời gian giữ chỗ của một đơn PENDING chưa bấm thanh toán.
+ * PHẢI khớp BookingCleanupService.PENDING_HOLD_MINUTES ở backend.
+ */
+const PENDING_HOLD_MS = 5 * 60 * 1000;
+
 
 
 
@@ -156,7 +165,7 @@ const TrainTickets = () => {
   const [selectedSeatIds, setSelectedSeatIds] = useState([]);
   const [step, setStep] = useState("search");
   const [lockDeadline, setLockDeadline] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(null);
+  const [paymentDeadline, setPaymentDeadline] = useState(null);
 
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -280,37 +289,29 @@ const TrainTickets = () => {
     }
   }, [selectedTrip, isConnected, subscribe, user]);
 
-  // Effect quản lý đếm ngược thời gian giữ ghế (10 phút)
-  useEffect(() => {
-    if (!lockDeadline) {
-      setTimeLeft(null);
-      return;
-    }
+  // Giữ ghế bằng lock tạm ở backend (SeatLockService, 10 phút). Hết giờ thì nhả ghế.
+  const timeLeft = useCountdown(lockDeadline, () => {
+    unlockSeats({
+      tripId: selectedTrip?.id,
+      seatIds: selectedSeatIds,
+      userId: getSeatUserId(user),
+    });
+    setSelectedSeatIds([]);
+    setLockDeadline(null);
+    setError(t.airSeatHoldTimeout);
+    setStep("seatClass");
+  });
 
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.round((lockDeadline - Date.now()) / 1000));
-      setTimeLeft(remaining);
-
-      if (remaining <= 0) {
-        clearInterval(interval);
-
-        // Hết thời gian: Giải phóng ghế
-        unlockSeats({
-          tripId: selectedTrip?.id,
-          seatIds: selectedSeatIds,
-          userId: getSeatUserId(user),
-        });
-
-        // Reset states
-        setSelectedSeatIds([]);
-        setLockDeadline(null);
-        setError(t.airSeatHoldTimeout);
-        setStep("seatClass");
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [lockDeadline, selectedSeatIds, selectedTrip, user, unlockSeats]);
+  // Sau khi tạo đơn, ghế do đơn PENDING giữ chứ không còn lock tạm nữa
+  // (BookingCleanupService.PENDING_HOLD_MINUTES) — đây là thời gian còn lại để bấm
+  // sang cổng thanh toán. Bấm rồi thì backend tự gia hạn theo phiên của cổng.
+  const paymentTimeLeft = useCountdown(paymentDeadline, () => {
+    setPaymentDeadline(null);
+    setBookingResult(null);
+    setSelectedSeatIds([]);
+    setError(t.paymentHoldTimeout);
+    setStep("seatClass");
+  });
 
   useEffect(() => {
     const newList = [];
@@ -773,6 +774,10 @@ const TrainTickets = () => {
       }
 
       setBookingResult(data);
+      // Ghế đã chuyển sang do đơn PENDING giữ -> đồng hồ giữ ghế hết nhiệm vụ,
+      // không được để nó đá người dùng ra khỏi màn thanh toán.
+      setLockDeadline(null);
+      setPaymentDeadline(Date.now() + PENDING_HOLD_MS);
       if (globalContact.remember) {
         passengerInfoList.forEach(pi => {
           if (pi.type === 'ADULT' && pi.data.fullName) {
@@ -1455,28 +1460,8 @@ const TrainTickets = () => {
 
             {["seatClass", "passenger", "extras", "review"].includes(step) && (
               <div style={{ marginBottom: 20, background: "var(--bg-card)", borderRadius: 12, padding: "16px 24px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
-                {timeLeft !== null && (
-                  <div style={{
-                    marginBottom: 16,
-                    padding: "10px 16px",
-                    borderRadius: 8,
-                    background: timeLeft < 120 ? "#fef2f2" : "#f0fdf4",
-                    border: timeLeft < 120 ? "1px solid #fecaca" : "1px solid #bbf7d0",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                    fontWeight: 700,
-                    color: timeLeft < 120 ? "#991b1b" : "#166534",
-                    fontSize: 14
-                  }}>
-                    <span>⏱️ {t.seatHoldTimeRemaining}</span>
-                    <span style={{ fontSize: 16, fontFamily: "monospace" }}>
-                      {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:
-                      {(timeLeft % 60).toString().padStart(2, '0')}
-                    </span>
-                  </div>
-                )}
+                <HoldCountdownBanner seconds={timeLeft} label={t.seatHoldTimeRemaining} />
+                <HoldCountdownBanner seconds={paymentTimeLeft} label={t.paymentHoldTimeRemaining} />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
                   <div style={{ position: "absolute", top: 21, left: "12%", right: "12%", height: 3, background: "var(--border-main)", zIndex: 0 }} />
                   {[

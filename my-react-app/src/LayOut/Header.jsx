@@ -2,19 +2,16 @@ import React, { useState } from "react";
 import { MdOutlinePhone } from "react-icons/md";
 import { IoChevronDown } from "react-icons/io5";
 import Auth from "../Page/Auth";
-import { useLanguage } from "../context/LanguageContext";
+import { useLanguage, LANGUAGES } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { useToast } from "../context/ToastContext";
 import { AiOutlineGlobal } from "react-icons/ai";
 import { MdOutlineLightMode, MdOutlineDarkMode } from "react-icons/md";
 import { PiAirplaneTilt } from "react-icons/pi";
 import { MdOutlineTrain, MdOutlinePercent } from "react-icons/md";
 import { IoIosBus } from "react-icons/io";
 import { useNavigate, useLocation } from "react-router-dom";
-import VNFlag from "../Picture/flags/vn.png";
-import UKFlag from "../Picture/flags/uk.png";
-import JPFlag from "../Picture/flags/jp.png";
-import TWFlag from "../Picture/flags/tw.png";
 import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users, Tag } from "lucide-react";
 
 const Header = () => {
@@ -26,15 +23,11 @@ const Header = () => {
   const { currentLanguage, t, changeLanguage } = useLanguage();
   const { user, isAuthenticated, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const languages = [
-    { code: "vi", name: "Tiếng Việt", flag: VNFlag },
-    { code: "en", name: "English", flag: UKFlag },
-    { code: "ja", name: "日本語", flag: JPFlag },
-    { code: "zh", name: "繁體中文", flag: TWFlag },
-  ];
+  const languages = LANGUAGES;
 
   const phoneNumbers = {
     vi: "0977.999999",
@@ -179,7 +172,18 @@ const Header = () => {
               }}
               onClick={(e) => { e.stopPropagation(); setIsLanguageOpen(!isLanguageOpen); setShowPhone(false); setShowUserMenu(false); }}
             >
-              <img src={currentLanguage.flag} alt={currentLanguage.code} style={{ width: 22, height: 22, objectFit: "cover", borderRadius: "50%" }} />
+              <img
+                src={currentLanguage.flag}
+                alt={currentLanguage.name}
+                style={{
+                  width: 26,
+                  height: 18,
+                  objectFit: "cover",
+                  borderRadius: 3,
+                  border: "1px solid var(--border-light)",
+                  flexShrink: 0,
+                }}
+              />
               <span>{currentLanguage.code.toUpperCase()}</span>
               <IoChevronDown style={{ fontSize: 14, color: "var(--text-muted)", transform: isLanguageOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }} />
             </button>
@@ -188,7 +192,7 @@ const Header = () => {
                 position: "absolute",
                 top: 44,
                 right: 0,
-                width: 220,
+                width: 236,
                 background: "var(--bg-dropdown)",
                 borderRadius: 12,
                 boxShadow: "var(--shadow-lg)",
@@ -196,19 +200,19 @@ const Header = () => {
                 zIndex: 1001,
                 padding: 8,
               }}>
-                <div style={{ padding: "4px 8px 8px", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                <div style={{ padding: "4px 8px 8px", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                   <AiOutlineGlobal style={{ marginRight: 4 }} />{t.selectLanguage}
                 </div>
                 {languages.map((lang) => (
                   <button
                     key={lang.code}
                     style={{
-                      padding: "9px 10px",
+                      padding: "10px 10px",
                       border: "none",
                       borderRadius: 8,
                       background: currentLanguage.code === lang.code ? "var(--primary-light)" : "transparent",
                       cursor: "pointer",
-                      fontSize: 13,
+                      fontSize: 14.5,
                       color: currentLanguage.code === lang.code ? "var(--primary)" : "var(--text-main)",
                       textAlign: "left",
                       display: "flex",
@@ -223,7 +227,18 @@ const Header = () => {
                     onMouseEnter={(e) => { if (currentLanguage.code !== lang.code) e.currentTarget.style.background = "var(--bg-hover)"; }}
                     onMouseLeave={(e) => { if (currentLanguage.code !== lang.code) e.currentTarget.style.background = "transparent"; }}
                   >
-                    <img src={lang.flag} alt={lang.code} style={{ width: 22, height: 14, objectFit: "cover", borderRadius: 2 }} />
+                    <img
+                      src={lang.flag}
+                      alt={lang.name}
+                      style={{
+                        width: 30,
+                        height: 21,
+                        objectFit: "cover",
+                        borderRadius: 3,
+                        border: "1px solid var(--border-light)",
+                        flexShrink: 0,
+                      }}
+                    />
                     <span>{lang.name}</span>
                     {currentLanguage.code === lang.code && <span style={{ marginLeft: "auto", color: "var(--primary)", fontSize: 14 }}>✓</span>}
                   </button>
@@ -432,7 +447,7 @@ const Header = () => {
                   <div style={{ borderTop: "1px solid var(--border-light)", margin: "4px 0" }} />
                   <button
                     style={{ ...dropdownItemStyle, color: "var(--danger)" }}
-                    onClick={() => { logout(); setShowUserMenu(false); }}
+                    onClick={() => { logout(); setShowUserMenu(false); showToast(t.authXLogoutSuccess, "info"); }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "#fff0f0"}
                     onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                   >
