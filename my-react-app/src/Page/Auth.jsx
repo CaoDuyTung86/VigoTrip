@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { IoIosWarning } from "react-icons/io";
 import { GoogleLogin } from "@react-oauth/google";
@@ -6,6 +6,7 @@ import { GoogleLogin } from "@react-oauth/google";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { apiFetch, WAKING_UP_MESSAGE } from "../utils/apiClient";
 
 const Auth = ({ isOpen, onClose }) => {
   const { showToast } = useToast();
@@ -18,6 +19,11 @@ const Auth = ({ isOpen, onClose }) => {
   const [apiError, setApiError] = useState("");
   const [phone, setPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Khóa chống bấm Google Login hai lần. Dùng ref (không phải state) vì cần chặn NGAY
+  // trong cùng một vòng lặp sự kiện — state cập nhật bất đồng bộ nên vẫn lọt request thứ hai.
+  // Hai request google-login song song từng tạo ra hai tài khoản trùng email.
+  const googleInFlight = useRef(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const { t } = useLanguage();
   const { loginSuccess } = useAuth();
   const navigate = useNavigate();
@@ -188,24 +194,22 @@ const Auth = ({ isOpen, onClose }) => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const { ok, status, data: body } = await apiFetch(
+        "/api/auth/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email.trim().toLowerCase(),
+            password,
+          }),
         },
-        body: JSON.stringify({
-          email: email.trim(),
-          password,
-        }),
-      });
-
-      let data = {};
-      try {
-        const text = await response.text();
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        data = {};
-      }
+        { onRetry: () => showToast(WAKING_UP_MESSAGE, "info") },
+      );
+      const data = body || {};
+      const response = { ok, status };
 
       if (!response.ok) {
         const message = data?.message || (response.status === 401 ? "Sai tài khoản hoặc mật khẩu" : (response.status === 403 ? "Tài khoản chưa được kích hoạt hoặc bị khóa" : t.authXLoginFailed));
@@ -237,7 +241,9 @@ const Auth = ({ isOpen, onClose }) => {
       }, 1000);
     } catch (error) {
       console.error("Login error:", error);
-      const errMsg = "Không thể kết nối đến máy chủ backend (hãy kiểm tra backend đã chạy chưa)";
+      const errMsg = error?.isColdStart
+        ? WAKING_UP_MESSAGE
+        : "Không thể kết nối đến máy chủ backend (hãy kiểm tra backend đã chạy chưa)";
       showToast(errMsg, "error");
       setApiError(errMsg);
     } finally {
@@ -431,25 +437,49 @@ const Auth = ({ isOpen, onClose }) => {
                 <span style={{ background: "var(--bg-card)", padding: "0 15px", color: "var(--text-secondary)", fontSize: "14px" }}>{t.authXOrLower}</span>
               </div>
 
-              <div style={{ marginBottom: "12px", width: "100%", display: "flex", justifyContent: "center" }}>
+              {/* Khi đang gửi request: chặn tương tác với nút Google (nút do Google render
+                  trong iframe nên không thể disable trực tiếp) và cho người dùng thấy
+                  hệ thống đang xử lý — tránh việc bấm lại tạo request trùng. */}
+              <div
+                style={{
+                  marginBottom: "12px",
+                  width: "100%",
+                  display: "flex",
+                  justifyContent: "center",
+                  pointerEvents: googleLoading ? "none" : "auto",
+                  opacity: googleLoading ? 0.55 : 1,
+                  transition: "opacity 0.15s",
+                }}
+              >
                 <GoogleLogin
                   onSuccess={async (credentialResponse) => {
                     if (!credentialResponse.credential) {
                       showToast(t.authXGoogleNoToken, "error");
                       return;
                     }
-                    // alert("DEBUG - Credential nhận được: " + credentialResponse.credential.substring(0, 20) + "...");
-                    
+                    // Chặn request thứ hai khi request đầu chưa xong. Nếu để lọt, hai lần
+                    // google-login song song cùng thấy "email chưa tồn tại" và cùng tạo user
+                    // → sinh hai tài khoản trùng email → những lần đăng nhập sau đó báo lỗi
+                    // backend hoặc "tài khoản đã bị khóa".
+                    if (googleInFlight.current) return;
+                    googleInFlight.current = true;
+                    setGoogleLoading(true);
+                    setApiError("");
+
                     try {
-                      const response = await fetch("/api/auth/google-login", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          idToken: credentialResponse.credential
-                        }),
-                      });
-                      const data = await response.json();
-                      if (response.ok) {
+                      const { ok, data } = await apiFetch(
+                        "/api/auth/google-login",
+                        {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            idToken: credentialResponse.credential
+                          }),
+                        },
+                        { onRetry: () => showToast(WAKING_UP_MESSAGE, "info") },
+                      );
+
+                      if (ok && data?.token) {
                         loginSuccess(data);
                         showToast(t.authXGoogleLoginSuccess, "success");
                         setTimeout(() => {
@@ -460,15 +490,22 @@ const Auth = ({ isOpen, onClose }) => {
                           }
                         }, 1000);
                       } else {
-                        const errorMsg = t.authXBackendError.replace('{msg}', data.message || t.authXUnknown);
+                        const errorMsg = t.authXBackendError.replace('{msg}', data?.message || t.authXUnknown);
                         setApiError(errorMsg);
                         showToast(errorMsg, "error");
                       }
                     } catch (error) {
                       console.error("Google login error:", error);
-                      const errorMsg = t.authXGoogleLoginError.replace('{error}', error.message);
+                      // Cold start của Render có thông báo riêng — nói "đăng nhập Google thất bại"
+                      // khiến người dùng bấm lại liên tục, đúng thứ gây ra tài khoản trùng.
+                      const errorMsg = error?.isColdStart
+                        ? WAKING_UP_MESSAGE
+                        : t.authXGoogleLoginError.replace('{error}', error.message);
                       setApiError(errorMsg);
                       showToast(errorMsg, "error");
+                    } finally {
+                      googleInFlight.current = false;
+                      setGoogleLoading(false);
                     }
                   }}
                   onError={(error) => {
@@ -483,6 +520,11 @@ const Auth = ({ isOpen, onClose }) => {
                   width="100%"
                 />
               </div>
+              {googleLoading && (
+                <div style={{ textAlign: "center", fontSize: 13, color: "var(--text-secondary)", marginBottom: 12 }}>
+                  Đang đăng nhập bằng Google, vui lòng không bấm lại...
+                </div>
+              )}
 
               </div>
           </>

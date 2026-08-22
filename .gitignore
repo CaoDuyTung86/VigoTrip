@@ -36,3 +36,4 @@ dist/
 my-react-app/dist/
 docs/DEMO_SCRIPT.md
 .agents/rules/caveman.md
+docs/db/fix-duplicate-users.sql

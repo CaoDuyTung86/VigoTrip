@@ -9,6 +9,10 @@
       "destination": "https://datxe-com.onrender.com/ws/:path*"
     },
     {
+      "source": "/actuator/health",
+      "destination": "https://datxe-com.onrender.com/actuator/health"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

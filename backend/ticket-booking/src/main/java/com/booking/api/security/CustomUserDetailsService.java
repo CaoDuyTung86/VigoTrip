@@ -22,13 +22,21 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user với email: " + email));
 
+        // Tài khoản tạo qua Google Login không có mật khẩu (password = null).
+        // Constructor của Spring Security User NÉM IllegalArgumentException nếu password null,
+        // khiến JwtAuthFilter nuốt lỗi → request không được xác thực → 403 → frontend tưởng
+        // "tài khoản bị khóa / phiên hết hạn". Dùng chuỗi rỗng: BCrypt không bao giờ khớp nên
+        // vẫn không thể đăng nhập bằng mật khẩu, mà JWT thì vẫn xác thực bình thường.
+        String password = user.getPassword() != null ? user.getPassword() : "";
+        String role = user.getRole() != null ? user.getRole() : "ROLE_USER";
+
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
-                user.getPassword(),
+                password,
                 Boolean.TRUE.equals(user.getEnabled()),  // enabled – false → bị khóa → token vô hiệu
                 true,               // accountNonExpired
                 true,               // credentialsNonExpired
                 true,               // accountNonLocked
-                Collections.singletonList(new SimpleGrantedAuthority(user.getRole())));
+                Collections.singletonList(new SimpleGrantedAuthority(role)));
     }
 }

@@ -14,6 +14,7 @@ import com.booking.api.security.JwtService;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -46,7 +47,7 @@ public class AuthService {
 
         User user = new User();
         user.setFullName(request.getFullName());
-        user.setEmail(request.getEmail());
+        user.setEmail(normalizeEmail(request.getEmail()));
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setPhone(request.getPhone());
         user.setRole("ROLE_USER");
@@ -56,7 +57,12 @@ public class AuthService {
         String verificationCode = String.format("%06d", secureRandom.nextInt(1000000));
         user.setVerificationCode(verificationCode);
 
-        userRepository.save(user);
+        try {
+            userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException e) {
+            // Hai lần submit gần như đồng thời cùng vượt qua existsByEmail ở trên.
+            throw new DuplicateResourceException("Email đã được sử dụng: " + request.getEmail());
+        }
 
         // Gửi email xác thực
         emailService.sendVerificationEmail(user.getEmail(), verificationCode);
@@ -160,25 +166,52 @@ public class AuthService {
             throw new BadCredentialsException("Email Google chưa được xác thực.");
         }
 
-        // Bước 3: Tạo hoặc load user dựa trên email từ Google (đã được verify)
-        User user = userRepository.findByEmail(email)
-                .orElseGet(() -> {
-                    User newUser = new User();
-                    newUser.setEmail(email);
-                    newUser.setFullName(fullName != null ? fullName : email.split("@")[0]);
-                    newUser.setRole("ROLE_USER");
-                    newUser.setEnabled(true); // Google đã verify email rồi
-                    log.info("[GoogleLogin] Tạo tài khoản mới từ Google cho: {}", email);
-                    return userRepository.save(newUser);
-                });
+        // Bước 3: Chuẩn hóa email về chữ thường. Google trả email đã chuẩn hóa, nhưng người
+        // dùng có thể đã tự đăng ký trước đó bằng "Abc@Gmail.com" — nếu so sánh phân biệt
+        // hoa/thường thì sẽ tạo ra tài khoản thứ hai cho cùng một người.
+        final String normalizedEmail = normalizeEmail(email);
+
+        // Bước 4: Tạo hoặc load user dựa trên email từ Google (đã được verify).
+        // findByEmail + save KHÔNG phải thao tác nguyên tử: hai request Google Login chạy
+        // song song (người dùng bấm lại khi backend Render đang "thức dậy", hoặc proxy
+        // Vercel timeout rồi client retry trong khi backend vẫn đang xử lý request cũ)
+        // đều thấy "chưa có user" và cùng insert → sinh 2 tài khoản trùng email.
+        // Unique constraint trên cột email chặn được ca thứ hai, nên ở đây chỉ cần bắt
+        // lỗi vi phạm ràng buộc rồi đọc lại bản ghi mà request kia vừa tạo.
+        User user = userRepository.findByEmail(normalizedEmail)
+                .orElseGet(() -> createGoogleUser(normalizedEmail, fullName));
 
         if (!Boolean.TRUE.equals(user.getEnabled())) {
             user.setEnabled(true);
             userRepository.save(user);
         }
 
-        log.info("[GoogleLogin] Đăng nhập thành công: {}", email);
+        log.info("[GoogleLogin] Đăng nhập thành công: {}", normalizedEmail);
         return generateAuthResponse(user);
+    }
+
+    private User createGoogleUser(String email, String fullName) {
+        User newUser = new User();
+        newUser.setEmail(email);
+        newUser.setFullName(fullName != null ? fullName : email.split("@")[0]);
+        newUser.setRole("ROLE_USER");
+        newUser.setEnabled(true); // Google đã verify email rồi
+        try {
+            User saved = userRepository.saveAndFlush(newUser);
+            log.info("[GoogleLogin] Tạo tài khoản mới từ Google cho: {}", email);
+            return saved;
+        } catch (DataIntegrityViolationException e) {
+            // Một request song song đã tạo tài khoản này trước ta trong tích tắc → dùng lại nó.
+            log.warn("[GoogleLogin] Phát hiện tạo tài khoản đồng thời cho {} — dùng lại bản ghi đã có.", email);
+            return userRepository.findByEmail(email)
+                    .orElseThrow(() -> new BadCredentialsException(
+                            "Không thể khởi tạo tài khoản Google. Vui lòng thử lại."));
+        }
+    }
+
+    /** Email không phân biệt hoa/thường — chuẩn hóa để một người chỉ có duy nhất một tài khoản. */
+    private String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     private AuthResponse generateAuthResponse(User user) {

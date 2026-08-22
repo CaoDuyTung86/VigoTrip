@@ -11,7 +11,12 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "nguoi_dung")
+@Table(
+        name = "nguoi_dung",
+        // Chốt chặn cuối cùng chống tài khoản trùng email (đặc biệt khi 2 request
+        // Google Login chạy song song cùng lúc tạo user). Không có ràng buộc này,
+        // findByEmail trả về nhiều bản ghi → login 500 + mọi request kèm JWT đều 403.
+        uniqueConstraints = @UniqueConstraint(name = "uk_nguoi_dung_email", columnNames = "email"))
 public class User {
 
     @Id
@@ -29,7 +34,7 @@ public class User {
     @Column(name = "points")
     private Integer points = 0;
 
-    @Column(name = "email")
+    @Column(name = "email", nullable = false, unique = true)
     private String email;
 
     @Column(name = "password")

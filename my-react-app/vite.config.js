@@ -47,6 +47,12 @@ export default defineConfig({
         ws: true,
         changeOrigin: true,
       },
+      // Dùng cho warm-up ping lúc mở trang (xem utils/apiClient.js).
+      // Trên production, vercel.json rewrite đường dẫn này sang backend Render.
+      '/actuator/health': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
     },
   },
 })

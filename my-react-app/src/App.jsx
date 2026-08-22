@@ -30,6 +30,7 @@ import ProviderCheckIn from "./Page/ProviderCheckIn";
 import Chatbot from "./components/Chatbot";
 
 import { ToastProvider, useToast } from "./context/ToastContext";
+import { warmUpBackend } from "./utils/apiClient";
 
 function AppWrapper() {
   const location = useLocation();
@@ -39,6 +40,14 @@ function AppWrapper() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
+
+  // Đánh thức backend ngay khi mở trang. Render gói free cho container ngủ sau ~15 phút
+  // không có lưu lượng, và lần gọi đầu tiên phải chờ 30–60 giây để nó khởi động lại —
+  // đủ lâu để proxy của Vercel bỏ cuộc và người dùng nhận về lỗi "Backend lỗi".
+  // Gọi trước ở đây thì tới lúc người dùng thật sự bấm đăng nhập, container đã sẵn sàng.
+  useEffect(() => {
+    warmUpBackend();
+  }, []);
 
   // Hiển thị toast khi bị force-logout (tài khoản bị khóa)
   useEffect(() => {
