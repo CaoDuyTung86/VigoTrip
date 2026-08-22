@@ -51,7 +51,7 @@ public class MailConfig {
     private String smtpPassword;
 
     @Bean
-    public JavaMailSender mailSender(ObjectMapper objectMapper) {
+    public JavaMailSender mailSender() {
         if (brevoApiKey == null || brevoApiKey.isBlank()) {
             log.warn("BREVO_API_KEY chưa được cấu hình - fallback sang SMTP {}:{}. "
                     + "Trên Render đường này sẽ timeout vì port SMTP bị chặn.", smtpHost, smtpPort);
@@ -63,7 +63,10 @@ public class MailConfig {
                             + "Địa chỉ này phải là sender đã verify trong Brevo.");
         }
         log.info("Gửi mail qua Brevo API, sender = {} <{}>", brevoSenderName, brevoSenderEmail);
-        return new BrevoMailSender(brevoRestClient(), objectMapper, brevoSenderEmail, brevoSenderName);
+        // Dùng Jackson 2 riêng thay vì ObjectMapper bean của Spring: từ Boot 4, bean
+        // auto-config là Jackson 3 (tools.jackson.databind.ObjectMapper), khác type
+        // với com.fasterxml.jackson.databind.ObjectMapper mà BrevoMailSender cần.
+        return new BrevoMailSender(brevoRestClient(), new ObjectMapper(), brevoSenderEmail, brevoSenderName);
     }
 
     /**
