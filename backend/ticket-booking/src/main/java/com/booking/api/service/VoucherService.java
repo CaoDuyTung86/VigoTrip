@@ -59,6 +59,7 @@ public class VoucherService {
      * chặn trường hợp tài khoản đã dùng mã này ở một đơn khác (mỗi mã chỉ dùng 1 lần / tài khoản).
      * email = null nghĩa là khách chưa đăng nhập — chỉ kiểm tra điều kiện chung.
      */
+    @Transactional(readOnly = true)
     public Map<String, Object> validateVoucherForUser(String code, java.math.BigDecimal orderAmount,
                                                       Long providerId, String email) {
         Map<String, Object> result = validateVoucher(code, orderAmount, providerId);

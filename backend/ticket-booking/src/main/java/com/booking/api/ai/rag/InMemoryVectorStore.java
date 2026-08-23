@@ -5,8 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Kho vector giữ trong bộ nhớ, quét cosine tuần tự.
@@ -23,6 +25,31 @@ public class InMemoryVectorStore implements VectorStore {
 
     /** Chunk kèm vector đã giải mã sẵn — tránh decode Base64 ở mỗi truy vấn. */
     private record Entry(KnowledgeChunk chunk, float[] vector) {
+
+        /**
+         * Record mặc định so sánh mảng theo tham chiếu; ở đây so theo nội dung để hai Entry
+         * cùng dữ liệu được coi là bằng nhau.
+         */
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            return o instanceof Entry other
+                    && Objects.equals(chunk, other.chunk)
+                    && Arrays.equals(vector, other.vector);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * Objects.hashCode(chunk) + Arrays.hashCode(vector);
+        }
+
+        /** Chỉ in số chiều thay vì toàn bộ vector — một vector có tới hàng trăm phần tử. */
+        @Override
+        public String toString() {
+            return "Entry[chunk=" + chunk + ", vector=" + (vector == null ? "null" : vector.length + " chiều") + "]";
+        }
     }
 
     private volatile List<Entry> entries = List.of();
