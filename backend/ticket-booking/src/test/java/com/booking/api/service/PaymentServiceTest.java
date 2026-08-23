@@ -1,9 +1,12 @@
 package com.booking.api.service;
 
 import com.booking.api.config.VNPayConfig;
+import com.booking.api.dto.BookingConfirmationMail;
 import com.booking.api.dto.PaymentRequest;
 import com.booking.api.dto.PaymentResponse;
 import com.booking.api.entity.Booking;
+import com.booking.api.entity.Route;
+import com.booking.api.entity.Seat;
 import com.booking.api.entity.Ticket;
 import com.booking.api.entity.Trip;
 import com.booking.api.entity.User;
@@ -237,7 +240,48 @@ class PaymentServiceTest {
             assertEquals(10, user.getPoints()); // 100,000 / 10,000 = 10 điểm
             verify(bookingRepository, times(1)).save(booking);
             verify(userRepository, times(1)).save(user);
-            verify(emailService, times(1)).sendBookingConfirmation(eq(user.getEmail()), eq(booking));
+            verify(emailService, times(1)).sendBookingConfirmation(
+                    eq(user.getEmail()), argThat(mail -> mail.bookingId().equals(123L)));
+        }
+    }
+
+    @Test
+    @DisplayName("Mail xác nhận nhận dữ liệu đã phẳng hóa, không phải entity còn LAZY")
+    void handleVNPayIPN_Success_FlattensBookingBeforeSendingMail() {
+        Route route = new Route();
+        route.setOrigin("Hà Nội");
+        route.setDestination("Sài Gòn");
+
+        Trip trip = new Trip();
+        trip.setId(10L);
+        trip.setRoute(route);
+        trip.setDepartureTime(LocalDateTime.of(2026, 1, 2, 8, 30));
+
+        Seat seat = new Seat();
+        seat.setSeatNumber("A01");
+
+        Ticket ticket = new Ticket();
+        ticket.setTrip(trip);
+        ticket.setSeat(seat);
+        booking.setTickets(Collections.singletonList(ticket));
+
+        try (MockedStatic<VNPayUtil> mockedVNPayUtil = mockStatic(VNPayUtil.class)) {
+            mockedVNPayUtil.when(() -> VNPayUtil.validateHash(any(), anyString())).thenReturn(true);
+            when(vnPayConfig.getHashSecret()).thenReturn("secret");
+            when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+
+            paymentService.handleVNPayIPN(ipnParams);
+
+            ArgumentCaptor<BookingConfirmationMail> captor =
+                    ArgumentCaptor.forClass(BookingConfirmationMail.class);
+            verify(emailService).sendBookingConfirmation(eq(user.getEmail()), captor.capture());
+
+            // Đọc xong hết ở luồng gọi thì thread gửi mail không còn phải chạm vào Hibernate
+            BookingConfirmationMail mail = captor.getValue();
+            assertEquals(123L, mail.bookingId());
+            assertEquals("Hà Nội ➔ Sài Gòn", mail.route());
+            assertEquals("08:30 - 02/01/2026", mail.departureTime());
+            assertEquals("A01", mail.seats());
         }
     }
 

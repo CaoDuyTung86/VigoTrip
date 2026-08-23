@@ -22,9 +22,6 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    @org.springframework.beans.factory.annotation.Value("${app.frontend-url:http://localhost:5173}")
-    private String frontendUrl;
-
     @Operation(summary = "Tạo link thanh toán VNPay", description = "Tạo URL thanh toán cho booking, trả về link chuyển hướng đến cổng VNPay")
     @PostMapping("/create")
     public ResponseEntity<PaymentResponse> createPayment(
@@ -32,6 +29,7 @@ public class PaymentController {
             @Valid @RequestBody PaymentRequest request,
             HttpServletRequest httpRequest) {
         String ipAddress = getClientIpAddress(httpRequest);
+        fillReturnOrigin(request, httpRequest);
         PaymentResponse response = paymentService.createVNPayPayment(
                 userDetails.getUsername(), request, ipAddress);
         return ResponseEntity.ok(response);
@@ -44,6 +42,7 @@ public class PaymentController {
             @RequestBody PaymentRequest request,
             HttpServletRequest httpRequest) {
         String ipAddress = getClientIpAddress(httpRequest);
+        fillReturnOrigin(request, httpRequest);
         PaymentResponse response = paymentService.createVNPayPayment(
                 userDetails.getUsername(), request, ipAddress);
         return ResponseEntity.ok(response);
@@ -55,7 +54,9 @@ public class PaymentController {
             @RequestParam Map<String, String> params) {
         String result = paymentService.handleVNPayReturn(params);
 
-        String redirectUrl = frontendUrl + "/my-bookings";
+        // Không dùng thẳng frontendUrl: khách phải quay về đúng tên miền họ đang mở,
+        // nếu không token trong localStorage của tên miền kia coi như không tồn tại.
+        String redirectUrl = paymentService.resolveReturnFrontendUrl(params) + "/my-bookings";
         if ("SUCCESS".equals(result)) {
             redirectUrl += "?payment=success";
         } else if ("LATE_REFUND".equals(result)) {
@@ -74,6 +75,22 @@ public class PaymentController {
     @GetMapping("/vnpay-ipn")
     public Map<String, String> vnPayIPN(@RequestParam Map<String, String> params) {
         return paymentService.handleVNPayIPN(params);
+    }
+
+    /**
+     * Client nên tự gửi returnOrigin; nhưng bản frontend cũ (đã cache trên máy người dùng)
+     * thì không, nên suy ra từ header của chính request. PaymentService vẫn đối chiếu
+     * giá trị này với allowlist trước khi tin.
+     */
+    private void fillReturnOrigin(PaymentRequest request, HttpServletRequest httpRequest) {
+        if (request.getReturnOrigin() != null && !request.getReturnOrigin().isBlank()) {
+            return;
+        }
+        String origin = httpRequest.getHeader("Origin");
+        if (origin == null || origin.isBlank()) {
+            origin = httpRequest.getHeader("Referer");
+        }
+        request.setReturnOrigin(origin);
     }
 
     private String getClientIpAddress(HttpServletRequest request) {

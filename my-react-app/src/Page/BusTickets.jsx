@@ -2056,7 +2056,7 @@ const BusTickets = () => {
                       <button type="button"
                         onClick={async () => {
                           try {
-                            const res = await axios.post("/api/payment/create", { bookingId: bookingResult.id, language: "vn" }, { headers: { Authorization: `Bearer ${token}` } });
+                            const res = await axios.post("/api/payment/create", { bookingId: bookingResult.id, language: "vn", returnOrigin: window.location.origin }, { headers: { Authorization: `Bearer ${token}` } });
                             if (res.data && res.data.paymentUrl) {
                               window.location.href = res.data.paymentUrl;
                             } else {

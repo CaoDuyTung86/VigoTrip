@@ -575,7 +575,7 @@ const MyBookings = () => {
                                 setLoading(true);
                                 const token = localStorage.getItem("authToken");
                                 const res = await axios.post(`/api/payment/resume`,
-                                  { bookingId: bk.id, language: "vn" },
+                                  { bookingId: bk.id, language: "vn", returnOrigin: window.location.origin },
                                   { headers: { Authorization: `Bearer ${token}` } }
                                 );
                                 if (res.data && res.data.paymentUrl) {

@@ -61,6 +61,12 @@ vnpay:
 # Frontend URL (dùng cho redirect sau thanh toán VNPay)
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  # Các origin frontend được phép nhận redirect sau khi VNPay trả kết quả.
+  # Cổng chỉ gọi ngược về backend, nên backend là bên quyết định đưa khách về đâu; trả về
+  # sai tên miền là khách mất token trong localStorage và bị đá ra khỏi phiên đăng nhập.
+  # Đây là allowlist chứ không phải giá trị tin cậy tuyệt đối: origin do client gửi lên,
+  # không lọc thì thành open redirect. Thêm tên miền mới vào đây khi đổi chỗ deploy.
+  allowed-frontend-origins: ${ALLOWED_FRONTEND_ORIGINS:https://vigotrip.vercel.app,https://datxe.duckdns.org,http://localhost:5173}
   # URL công khai của chính backend. Dùng để nhúng ảnh QR vào email — client mail nằm
   # ngoài mạng nội bộ nên localhost không dùng được khi deploy.
   backend-url: ${BACKEND_URL:http://localhost:8080}

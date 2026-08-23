@@ -9,9 +9,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import com.booking.api.entity.Booking;
-import com.booking.api.entity.Trip;
-import com.booking.api.entity.Ticket;
+import com.booking.api.dto.BookingConfirmationMail;
 
 
 @Service
@@ -105,30 +103,21 @@ public class EmailService {
         }
     }
 
-    public void sendBookingConfirmation(String toEmail, Booking booking) {
+    /**
+     * Nhận dữ liệu đã phẳng hóa chứ không nhận entity Booking: hàm này chạy trên thread
+     * @Async nên không còn Hibernate Session, đụng vào quan hệ LAZY ở đây là
+     * LazyInitializationException. Việc đọc entity thuộc về phía gọi, trong transaction.
+     */
+    public void sendBookingConfirmation(String toEmail, BookingConfirmationMail data) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            Long bookingId = booking.getId();
-            java.math.BigDecimal totalPrice = booking.getTotalPrice();
-            String seats = booking.getTickets() == null ? "" : booking.getTickets().stream()
-                    .map(t -> t.getSeat().getSeatNumber())
-                    .collect(java.util.stream.Collectors.joining(", "));
-
-            String route = "Đang cập nhật";
-            String departureTime = "Đang cập nhật";
-            if (booking.getTickets() != null && !booking.getTickets().isEmpty()) {
-                var trip = booking.getTickets().get(0).getTrip();
-                if (trip != null) {
-                    if (trip.getRoute() != null) {
-                        route = trip.getRoute().getOrigin() + " ➔ " + trip.getRoute().getDestination();
-                    }
-                    if (trip.getDepartureTime() != null) {
-                        departureTime = trip.getDepartureTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm - dd/MM/yyyy"));
-                    }
-                }
-            }
+            Long bookingId = data.bookingId();
+            java.math.BigDecimal totalPrice = data.totalPrice();
+            String seats = data.seats();
+            String route = data.route();
+            String departureTime = data.departureTime();
 
             helper.setTo(toEmail);
             helper.setSubject("Xác nhận đặt vé thành công #" + bookingId + " - VigoTrip");
@@ -149,7 +138,7 @@ public class EmailService {
                     + "<div style='display: flex; justify-content: space-between; margin-bottom: 12px;'><span style='color: #64748b; font-size: 13.5px;'>Mã đơn vé:</span><strong style='color: #2563eb; font-size: 15px;'>#" + bookingId + "</strong></div>"
                     + "<div style='display: flex; justify-content: space-between; margin-bottom: 12px;'><span style='color: #64748b; font-size: 13.5px;'>Tuyến đường:</span><strong style='color: #0f172a; font-size: 15px;'>" + route + "</strong></div>"
                     + "<div style='display: flex; justify-content: space-between; margin-bottom: 12px;'><span style='color: #64748b; font-size: 13.5px;'>Khởi hành:</span><strong style='color: #dc2626; font-size: 15px;'>" + departureTime + "</strong></div>"
-                    + "<div style='display: flex; justify-content: space-between; margin-bottom: 12px;'><span style='color: #64748b; font-size: 13.5px;'>Ghế đã chọn:</span><strong style='color: #0f172a; font-size: 15px;'>" + (seats.isEmpty() ? "Đang cập nhật" : seats) + "</strong></div>"
+                    + "<div style='display: flex; justify-content: space-between; margin-bottom: 12px;'><span style='color: #64748b; font-size: 13.5px;'>Ghế đã chọn:</span><strong style='color: #0f172a; font-size: 15px;'>" + seats + "</strong></div>"
                     + "<div style='display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; padding-top: 12px; margin-top: 12px;'><span style='color: #0f172a; font-weight: 700; font-size: 14.5px;'>Tổng thanh toán:</span><strong style='color: #f97316; font-size: 18px;'>" + String.format("%,.0f đ", totalPrice) + "</strong></div>"
                     + "</div>"
 
@@ -171,7 +160,10 @@ public class EmailService {
             mailSender.send(message);
             log.info("Booking confirmation email with QR code sent successfully to {}", toEmail);
         } catch (Exception e) {
-            log.error("Failed to send booking confirmation email with QR code to {}", toEmail, e);
+            // Nhét luôn lý do vào dòng log: giao diện log của Render gộp stacktrace lại,
+            // không có cái này thì chỉ thấy "gửi hỏng" mà không biết hỏng vì đâu.
+            log.error("Failed to send booking confirmation email with QR code to {}: {}",
+                    toEmail, e.toString(), e);
         }
     }
 

@@ -72,4 +72,13 @@ public class Booking {
      */
     @Column(name = "payment_expires_at")
     private LocalDateTime paymentExpiresAt;
+
+    /**
+     * Origin của trang web đã mở phiên thanh toán gần nhất (vd https://vigotrip.vercel.app).
+     * Cổng VNPay chỉ gọi ngược về backend, nên đây là manh mối duy nhất để đưa khách quay
+     * lại đúng tên miền họ đang dùng. Trả về một tên miền khác đồng nghĩa với localStorage
+     * khác -> mất token -> khách bị "văng ra" khỏi phiên đăng nhập ngay sau khi trả tiền.
+     */
+    @Column(name = "payment_return_origin", length = 255)
+    private String paymentReturnOrigin;
 }

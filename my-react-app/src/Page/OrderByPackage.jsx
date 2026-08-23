@@ -962,7 +962,7 @@ const OrderByPackage = () => {
       const bookingId = Date.now();
       const res = await axios.post(
         "/api/payment/create",
-        { bookingId, language: "vn" },
+        { bookingId, language: "vn", returnOrigin: window.location.origin },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.data?.paymentUrl) {

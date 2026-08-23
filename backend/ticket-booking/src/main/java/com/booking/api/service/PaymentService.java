@@ -1,6 +1,7 @@
 package com.booking.api.service;
 
 import com.booking.api.config.VNPayConfig;
+import com.booking.api.dto.BookingConfirmationMail;
 import com.booking.api.dto.PaymentRequest;
 import com.booking.api.dto.PaymentResponse;
 import com.booking.api.entity.Booking;
@@ -67,6 +68,17 @@ public class PaymentService {
     private final SimpMessagingTemplate messagingTemplate;
     private final VoucherService voucherService;
 
+    /** Tên miền frontend mặc định, dùng khi không xác định được nơi khách bắt đầu trả tiền. */
+    @org.springframework.beans.factory.annotation.Value("${app.frontend-url:http://localhost:5173}")
+    private String defaultFrontendUrl;
+
+    /**
+     * Các origin frontend được phép nhận redirect sau thanh toán, ngăn cách bởi dấu phẩy.
+     * Có allowlist vì origin đến từ phía client: không lọc thì đây là một open redirect.
+     */
+    @org.springframework.beans.factory.annotation.Value("${app.allowed-frontend-origins:}")
+    private String allowedFrontendOrigins;
+
     /**
      * Tạo URL thanh toán VNPay
      */
@@ -92,6 +104,11 @@ public class PaymentService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime paymentExpiresAt = now.plusMinutes(PAYMENT_WINDOW_MINUTES);
         booking.setPaymentExpiresAt(paymentExpiresAt);
+        // Ghi lại nơi khách bấm thanh toán để lát nữa trả họ về đúng tên miền đó
+        String returnOrigin = allowedOriginOrNull(request.getReturnOrigin());
+        if (returnOrigin != null) {
+            booking.setPaymentReturnOrigin(returnOrigin);
+        }
         bookingRepository.save(booking);
 
         // Tạo mã giao dịch nội bộ
@@ -137,6 +154,78 @@ public class PaymentService {
         String paymentUrl = vnPayConfig.getPayUrl() + "?" + queryString + "&vnp_SecureHash=" + secureHash;
 
         return new PaymentResponse(paymentUrl, txnRef, "Tạo thanh toán thành công. Chuyển hướng đến VNPay.");
+    }
+
+    /**
+     * Tên miền frontend để đưa khách quay về sau khi cổng trả kết quả.
+     *
+     * Ưu tiên origin đã ghi lại lúc mở phiên thanh toán, vì token đăng nhập nằm trong
+     * localStorage — vốn tách riêng theo từng origin. Trả khách về một tên miền khác
+     * (kể cả một alias cũ của cùng dự án) thì trình duyệt không thấy token nào, khách
+     * bị đá về màn hình đăng nhập và mọi lời gọi API sau đó đều hỏng.
+     */
+    public String resolveReturnFrontendUrl(Map<String, String> params) {
+        Long bookingId = parseBookingId(params.get("vnp_OrderInfo"));
+        if (bookingId != null) {
+            String origin = bookingRepository.findById(bookingId)
+                    .map(Booking::getPaymentReturnOrigin)
+                    .orElse(null);
+            String allowed = allowedOriginOrNull(origin);
+            if (allowed != null) {
+                return allowed;
+            }
+            if (origin != null) {
+                log.warn("Origin {} của booking {} không nằm trong app.allowed-frontend-origins, "
+                        + "dùng app.frontend-url thay thế", origin, bookingId);
+            }
+        }
+        return trimTrailingSlash(defaultFrontendUrl != null ? defaultFrontendUrl : "");
+    }
+
+    /**
+     * Chuẩn hóa origin do client gửi lên và đối chiếu với allowlist.
+     * @return origin dạng scheme://host[:port], hoặc null nếu không hợp lệ / không được phép.
+     */
+    private String allowedOriginOrNull(String rawOrigin) {
+        String origin = normalizeOrigin(rawOrigin);
+        return origin != null && allowedOrigins().contains(origin) ? origin : null;
+    }
+
+    /** Danh sách allowlist, luôn gồm cả app.frontend-url để cấu hình cũ vẫn chạy như trước. */
+    private Set<String> allowedOrigins() {
+        Set<String> origins = new HashSet<>();
+        String configured = allowedFrontendOrigins != null ? allowedFrontendOrigins : "";
+        for (String entry : configured.split(",")) {
+            String normalized = normalizeOrigin(entry);
+            if (normalized != null) {
+                origins.add(normalized);
+            }
+        }
+        String fallback = normalizeOrigin(defaultFrontendUrl);
+        if (fallback != null) {
+            origins.add(fallback);
+        }
+        return origins;
+    }
+
+    /** Rút gọn một URL bất kỳ về đúng phần origin; null nếu không phải http(s) URL hợp lệ. */
+    private String normalizeOrigin(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) return null;
+        try {
+            java.net.URI uri = java.net.URI.create(rawUrl.trim());
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (host == null || !("http".equals(scheme) || "https".equals(scheme))) return null;
+            return uri.getPort() > 0
+                    ? scheme + "://" + host + ":" + uri.getPort()
+                    : scheme + "://" + host;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private String trimTrailingSlash(String url) {
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
     /**
@@ -321,9 +410,11 @@ public class PaymentService {
             userRepository.save(user);
         }
 
+        // Phẳng hóa ngay tại đây, khi transaction còn mở: EmailService chạy trên thread
+        // khác nên không đọc được các quan hệ LAZY của booking nữa.
         emailService.sendBookingConfirmation(
                 booking.getUser().getEmail(),
-                booking
+                BookingConfirmationMail.from(booking)
         );
     }
 
