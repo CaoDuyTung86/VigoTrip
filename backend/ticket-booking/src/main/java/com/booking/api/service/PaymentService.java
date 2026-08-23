@@ -8,6 +8,7 @@ import com.booking.api.entity.Booking;
 import com.booking.api.entity.Payment;
 import com.booking.api.entity.Refund;
 import com.booking.api.entity.User;
+import com.booking.api.event.BookingConfirmedEvent;
 import com.booking.api.exception.BookingException;
 import com.booking.api.exception.ResourceNotFoundException;
 import com.booking.api.repository.BookingRepository;
@@ -18,6 +19,7 @@ import com.booking.api.repository.UserRepository;
 import com.booking.api.util.VNPayUtil;
 import com.booking.api.entity.Ticket;
 import com.booking.api.controller.SeatStatusController.SeatStatusUpdate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,7 +66,7 @@ public class PaymentService {
     private final UserRepository userRepository;
     private final PromotionRepository promotionRepository;
     private final VNPayConfig vnPayConfig;
-    private final EmailService emailService;
+    private final ApplicationEventPublisher eventPublisher;
     private final SimpMessagingTemplate messagingTemplate;
     private final VoucherService voucherService;
 
@@ -410,12 +412,13 @@ public class PaymentService {
             userRepository.save(user);
         }
 
-        // Phẳng hóa ngay tại đây, khi transaction còn mở: EmailService chạy trên thread
-        // khác nên không đọc được các quan hệ LAZY của booking nữa.
-        emailService.sendBookingConfirmation(
+        // Phẳng hóa ngay tại đây, khi transaction còn mở: mail được gửi ở thread khác,
+        // sau khi commit, nên lúc đó không đọc được các quan hệ LAZY của booking nữa.
+        // BookingConfirmedListener mới là nơi thực sự gọi EmailService.
+        eventPublisher.publishEvent(new BookingConfirmedEvent(
                 booking.getUser().getEmail(),
                 BookingConfirmationMail.from(booking)
-        );
+        ));
     }
 
     private void cancelBookingAndBroadcast(Booking booking) {

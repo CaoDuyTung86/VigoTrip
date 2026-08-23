@@ -22,7 +22,7 @@ import { getMealImage } from "../utils/mealImages";
 import { useLocation } from "react-router-dom";
 import { TbBus } from "react-icons/tb";
 import { FaRegCalendarAlt, FaChair, FaUser, FaConciergeBell, FaCreditCard, FaTicketAlt, FaShieldAlt, FaTaxi } from "react-icons/fa";
-import { MdOutlineDone } from "react-icons/md";
+import { MdOutlineDone, MdOutlineCreditCard } from "react-icons/md";
 import { FiChevronDown, FiSearch } from "react-icons/fi";
 import { CgSandClock } from "react-icons/cg";
 import { IoMdSearch } from "react-icons/io";

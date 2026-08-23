@@ -28,6 +28,7 @@ import AdminRevenue from "./Page/AdminRevenue";
 import ProviderRefunds from "./Page/ProviderRefunds";
 import ProviderCheckIn from "./Page/ProviderCheckIn";
 import Chatbot from "./components/Chatbot";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 import { ToastProvider, useToast } from "./context/ToastContext";
 import { warmUpBackend } from "./utils/apiClient";
@@ -67,28 +68,30 @@ function AppWrapper() {
   return (
     <>
       {showHeader && <Header />}
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/ve-may-bay" element={<AirlineTickets />} />
-        <Route path="/ve-tau-hoa" element={<TrainTickets />} />
-        <Route path="/xe-khach" element={<BusTickets />} />
-        <Route path="/dat-theo-goi" element={<OrderByPackage />} />
-        <Route path="/uu-dai" element={<VoucherPromotions />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/my-bookings" element={<MyBookings />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
-        <Route path="/admin/trips" element={<AdminTrips />} />
-        <Route path="/admin/routes" element={<AdminRoutes />} />
-        <Route path="/admin/users" element={<AdminUsers />} />
-        <Route path="/admin/vouchers" element={<AdminVouchers />} />
-        <Route path="/admin/reviews" element={<AdminReviews />} />
-        <Route path="/admin/revenue" element={<AdminRevenue />} />
-        <Route path="/account" element={<AccountPage />} />
-        <Route path="/provider/refunds" element={<ProviderRefunds />} />
-        <Route path="/provider/check-in" element={<ProviderCheckIn />} />
-      </Routes>
-      {showFooter && <Footer />} 
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/ve-may-bay" element={<AirlineTickets />} />
+          <Route path="/ve-tau-hoa" element={<TrainTickets />} />
+          <Route path="/xe-khach" element={<BusTickets />} />
+          <Route path="/dat-theo-goi" element={<OrderByPackage />} />
+          <Route path="/uu-dai" element={<VoucherPromotions />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/my-bookings" element={<MyBookings />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/admin/trips" element={<AdminTrips />} />
+          <Route path="/admin/routes" element={<AdminRoutes />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/vouchers" element={<AdminVouchers />} />
+          <Route path="/admin/reviews" element={<AdminReviews />} />
+          <Route path="/admin/revenue" element={<AdminRevenue />} />
+          <Route path="/account" element={<AccountPage />} />
+          <Route path="/provider/refunds" element={<ProviderRefunds />} />
+          <Route path="/provider/check-in" element={<ProviderCheckIn />} />
+        </Routes>
+      </ErrorBoundary>
+      {showFooter && <Footer />}
       <Chatbot />
     </>
   );

@@ -10,6 +10,7 @@ import com.booking.api.entity.Seat;
 import com.booking.api.entity.Ticket;
 import com.booking.api.entity.Trip;
 import com.booking.api.entity.User;
+import com.booking.api.event.BookingConfirmedEvent;
 import com.booking.api.exception.BookingException;
 import com.booking.api.exception.ResourceNotFoundException;
 import com.booking.api.entity.Payment;
@@ -29,6 +30,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.math.BigDecimal;
@@ -73,7 +75,7 @@ class PaymentServiceTest {
     private VNPayConfig vnPayConfig;
 
     @Mock
-    private EmailService emailService;
+    private ApplicationEventPublisher eventPublisher;
 
     @Mock
     private SimpMessagingTemplate messagingTemplate;
@@ -240,8 +242,10 @@ class PaymentServiceTest {
             assertEquals(10, user.getPoints()); // 100,000 / 10,000 = 10 điểm
             verify(bookingRepository, times(1)).save(booking);
             verify(userRepository, times(1)).save(user);
-            verify(emailService, times(1)).sendBookingConfirmation(
-                    eq(user.getEmail()), argThat(mail -> mail.bookingId().equals(123L)));
+            verify(eventPublisher, times(1)).publishEvent(argThat((Object event) ->
+                    event instanceof BookingConfirmedEvent e
+                            && e.toEmail().equals(user.getEmail())
+                            && e.mail().bookingId().equals(123L)));
         }
     }
 
@@ -272,12 +276,13 @@ class PaymentServiceTest {
 
             paymentService.handleVNPayIPN(ipnParams);
 
-            ArgumentCaptor<BookingConfirmationMail> captor =
-                    ArgumentCaptor.forClass(BookingConfirmationMail.class);
-            verify(emailService).sendBookingConfirmation(eq(user.getEmail()), captor.capture());
+            ArgumentCaptor<BookingConfirmedEvent> captor =
+                    ArgumentCaptor.forClass(BookingConfirmedEvent.class);
+            verify(eventPublisher).publishEvent(captor.capture());
 
             // Đọc xong hết ở luồng gọi thì thread gửi mail không còn phải chạm vào Hibernate
-            BookingConfirmationMail mail = captor.getValue();
+            assertEquals(user.getEmail(), captor.getValue().toEmail());
+            BookingConfirmationMail mail = captor.getValue().mail();
             assertEquals(123L, mail.bookingId());
             assertEquals("Hà Nội ➔ Sài Gòn", mail.route());
             assertEquals("08:30 - 02/01/2026", mail.departureTime());
@@ -503,6 +508,6 @@ class PaymentServiceTest {
         assertEquals("00", result.get("RspCode"));
         assertEquals("FAILED", booking.getStatus());
         verify(voucherService).refundVoucherUsage("SALE50");
-        verify(emailService, never()).sendBookingConfirmation(anyString(), any());
+        verify(eventPublisher, never()).publishEvent(any(BookingConfirmedEvent.class));
     }
 }
