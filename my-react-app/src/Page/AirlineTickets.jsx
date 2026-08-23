@@ -1510,8 +1510,8 @@ const AirlineTickets = () => {
 
             {["seatClass", "passenger", "extras", "review"].includes(step) && (
               <div style={{ marginBottom: 20, background: "var(--bg-card)", borderRadius: 12, padding: "16px 24px", boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)" }}>
-                <HoldCountdownBanner seconds={timeLeft} label={t.seatHoldTimeRemaining} dark icon={<FiClock style={{ fontSize: 16 }} />} />
-                <HoldCountdownBanner seconds={paymentTimeLeft} label={t.paymentHoldTimeRemaining} dark icon={<FiClock style={{ fontSize: 16 }} />} />
+                <HoldCountdownBanner seconds={timeLeft} label={t.seatHoldTimeRemaining} icon={<FiClock style={{ fontSize: 16 }} />} />
+                <HoldCountdownBanner seconds={paymentTimeLeft} label={t.paymentHoldTimeRemaining} icon={<FiClock style={{ fontSize: 16 }} />} />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
 
                   <div style={{ position: "absolute", top: 20, left: "12.5%", right: "12.5%", height: 3, background: "var(--border-main)", zIndex: 0 }} />
@@ -1602,13 +1602,13 @@ const AirlineTickets = () => {
                       <RiBuilding4Line style={{ color: "var(--primary)", fontSize: 15, flexShrink: 0 }} />
                       <span style={{ fontWeight: 500 }}>{selectedTrip.providerName}</span>
                     </div>
-                    <div style={{ marginTop: 10, padding: "8px 10px", background: "rgba(20,83,45,0.3)", borderRadius: 8, border: "1px solid rgba(34,197,94,0.4)" }}>
-                      <div style={{ fontSize: 12, color: "#86efac", fontWeight: 600, marginBottom: 4 }}>🟢 {t.economy} (ECO)</div>
-                      <div style={{ fontWeight: 800, color: "#4ade80", fontSize: 15 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
+                    <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--summary-eco-bg)", borderRadius: 8, border: "1px solid var(--summary-eco-border)" }}>
+                      <div style={{ fontSize: 12, color: "var(--summary-eco-title)", fontWeight: 600, marginBottom: 4 }}>🟢 {t.economy} (ECO)</div>
+                      <div style={{ fontWeight: 800, color: "var(--summary-eco-price)", fontSize: 15 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
                     </div>
-                    <div style={{ marginTop: 6, padding: "8px 10px", background: "rgba(30,58,138,0.3)", borderRadius: 8, border: "1px solid rgba(59,130,246,0.4)" }}>
-                      <div style={{ fontSize: 12, color: "#93c5fd", fontWeight: 600, marginBottom: 4 }}>🔵 {t.business} (BUSINESS)</div>
-                      <div style={{ fontWeight: 800, color: "#60a5fa", fontSize: 15 }}>{Number((selectedTrip.price || 0) * 2.5).toLocaleString("vi-VN")} đ</div>
+                    <div style={{ marginTop: 6, padding: "8px 10px", background: "var(--summary-vip-bg)", borderRadius: 8, border: "1px solid var(--summary-vip-border)" }}>
+                      <div style={{ fontSize: 12, color: "var(--summary-vip-title)", fontWeight: 600, marginBottom: 4 }}>🔵 {t.business} (BUSINESS)</div>
+                      <div style={{ fontWeight: 800, color: "var(--summary-vip-price)", fontSize: 15 }}>{Number((selectedTrip.price || 0) * 2.5).toLocaleString("vi-VN")} đ</div>
                     </div>
                     <div style={{ marginTop: 8, color: selectedSeatIds.length >= (passengers || 1) ? "#22c55e" : "var(--text-muted)" }}>{t.seatsSelectedCount.replace('{selected}', selectedSeatIds.length).replace('{total}', passengers || 1)}</div>
                   </div>

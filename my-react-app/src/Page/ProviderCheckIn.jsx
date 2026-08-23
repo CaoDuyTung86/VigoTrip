@@ -47,6 +47,12 @@ const WAKING_HINT_AFTER_MS = 6000;
 const DUPLICATE_WINDOW_MS = 4000;
 /** Sau khi hiện kết quả thì tự mở lại camera để soát người tiếp theo. */
 const AUTO_RESUME_MS = 3000;
+/** Nhịp nghỉ cho driver nhả thiết bị giữa hai lần mở — webcam Windows nhả không tức thì. */
+const RELEASE_SETTLE_MS = 300;
+/** Chờ trước khi thử lại một nguồn camera vừa báo "đang bận". */
+const BUSY_RETRY_MS = 500;
+/** Hạn giờ cho scanner.stop() — xem chú thích ở stopQuietly. */
+const STOP_TIMEOUT_MS = 2500;
 
 /**
  * Ảnh chỉ được giải mã NGAY TRONG TRÌNH DUYỆT (blob URL -> <img> -> <canvas>),
@@ -187,6 +193,156 @@ const pickCameraError = (errors) => {
   return errors[errors.length - 1] ?? new Error("START_FAILED");
 };
 
+/**
+ * Camera ảo và camera hồng ngoại: nằm chung danh sách như camera thật nhưng gần như
+ * không bao giờ là thứ nhân viên muốn soát vé bằng.
+ *
+ * OBS/NVIDIA Broadcast cài đặt xong là để lại một thiết bị ảo thường trú, KHÔNG cần
+ * mở ứng dụng; Windows lại hay đặt nó làm camera mặc định. Nó mở được bình thường —
+ * chỉ có điều khung hình là ảnh chờ (logo OBS) chứ không có gì để quét. Camera hồng
+ * ngoại Windows Hello thì ngược lại: mở ra là NotReadableError.
+ *
+ * Cả hai đều phải bị đẩy xuống cuối hàng chờ, sau mọi camera thật.
+ */
+const VIRTUAL_CAMERA_RE =
+  /obs|virtual|nvidia|broadcast|manycam|xsplit|streamlabs|snap camera|ivcam|droidcam|epoccam|iriun|splitcam|fake|screen capture|infrared|windows hello|\bir\b/i;
+
+const isVirtualCamera = (cam) => VIRTUAL_CAMERA_RE.test(cam?.label || "");
+
+const isPermissionError = (err) =>
+  /NotAllowedError|PermissionDenied|SecurityError|dismissed|disallowed/i.test(errorText(err));
+
+/** Thiết bị mở không được vì đang bị giữ — bởi ứng dụng khác HOẶC bởi chính trang này. */
+const isBusyError = (err) =>
+  /NotReadableError|TrackStartError|AbortError|could not start|in use|failed to allocate/i.test(errorText(err));
+
+const settle = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/* ------------------------------------------------------------------ */
+/* Thu hồi luồng camera bị bỏ rơi                                      */
+/* ------------------------------------------------------------------ */
+/**
+ * Đây là nguyên nhân gốc của triệu chứng "camera đang bị ứng dụng khác chiếm dụng"
+ * trong khi không có Zoom/Meet/Máy ảnh nào đang chạy: kẻ chiếm camera chính là tab này.
+ *
+ * html5-qrcode mở stream trước rồi mới gắn vào thẻ <video>
+ * (camera/core-impl.js: CameraImpl.create -> RenderedCameraImpl.create). Nếu bước gắn
+ * hỏng — applyConstraints bị từ chối, video.onerror/onabort, thẻ bị tháo giữa chừng —
+ * nó reject mà KHÔNG stop() các track đã mở. Stream đó sống tiếp một cách vô hình cho
+ * tới khi tải lại trang, nên từ lần bấm "Bật Cam" thứ hai trở đi thiết bị bận thật và
+ * trình duyệt trả về đúng NotReadableError: Could not start video source. Đặt lại quyền
+ * không cứu được vì quyền không phải thứ đang chặn.
+ *
+ * Stream rò rỉ nằm kín bên trong thư viện, API công khai không chạm tới được. Nên ta
+ * bọc getUserMedia đúng một lần để ghi sổ MỌI stream trang này mở — kể cả stream do
+ * thư viện mở — rồi tự tay tắt sạch trước mỗi lần bật camera.
+ */
+const openStreams = new Set();
+
+const stopStream = (stream) => {
+  try {
+    stream?.getTracks?.().forEach((track) => {
+      try {
+        track.stop();
+      } catch {
+        /* track đã chết */
+      }
+    });
+  } catch {
+    /* bỏ qua */
+  }
+  openStreams.delete(stream);
+};
+
+let streamTrackerInstalled = false;
+
+/**
+ * Ghi đè getUserMedia ngay trên đối tượng mediaDevices (che hàm của prototype).
+ * Chỉ thêm việc ghi sổ, không đổi tham số cũng không đổi kết quả, nên mọi nơi khác
+ * trong ứng dụng vẫn dùng getUserMedia y như cũ.
+ */
+const installStreamTracker = () => {
+  if (streamTrackerInstalled) return;
+  const devices = navigator.mediaDevices;
+  if (!devices?.getUserMedia) return;
+  streamTrackerInstalled = true;
+
+  const original = devices.getUserMedia.bind(devices);
+  devices.getUserMedia = (constraints) => original(constraints).then((stream) => {
+    openStreams.add(stream);
+    // Stream tự kết thúc (thư viện gọi stop, rút USB...) thì xoá khỏi sổ luôn.
+    stream.getTracks().forEach((track) => track.addEventListener("ended", () => {
+      if (stream.getTracks().every((tr) => tr.readyState === "ended")) openStreams.delete(stream);
+    }));
+    return stream;
+  });
+};
+
+/** Tắt mọi luồng camera trang này còn giữ, kể cả stream còn dính trên thẻ <video>. */
+const releaseCameraStreams = () => {
+  [...openStreams].forEach(stopStream);
+  document.querySelectorAll(`#${READER_ID} video`).forEach((video) => {
+    const stream = video.srcObject;
+    if (stream) {
+      stopStream(stream);
+      video.srcObject = null;
+    }
+  });
+};
+
+/**
+ * Camera nhân viên tự chọn được nhớ lại giữa các lần vào trang: quầy soát vé dùng cố
+ * định một chiếc webcam, bắt chọn lại mỗi lần F5 là vô lý. deviceId gắn với từng origin
+ * và từng máy nên id cũ trên máy khác chỉ đơn giản là không khớp thiết bị nào — lúc đó
+ * chương trình tự dò như bình thường.
+ */
+const CAMERA_PREF_KEY = "chk.cameraId";
+
+const readCameraPref = () => {
+  try {
+    return localStorage.getItem(CAMERA_PREF_KEY) || "";
+  } catch {
+    return "";
+  }
+};
+
+const saveCameraPref = (id) => {
+  try {
+    localStorage.setItem(CAMERA_PREF_KEY, id);
+  } catch {
+    /* chế độ ẩn danh chặn localStorage — chỉ mất tính năng nhớ, không sao */
+  }
+};
+
+/** Xin quyền camera bằng đúng MỘT lần mở thiết bị. */
+const requestCameraPermission = async () => {
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false,
+    });
+  } catch (err) {
+    if (isPermissionError(err)) throw err;
+    // facingMode có thể đẩy trình duyệt vào đúng camera đang hỏng/bận; hạ xuống ràng
+    // buộc tối thiểu để nó tự chọn thiết bị khác.
+    return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  }
+};
+
+/**
+ * scanner.stop() có thể treo vĩnh viễn: html5-qrcode resolve promise đóng camera bên
+ * trong vòng lặp duyệt video track, nên stream không còn track nào (thiết bị bị rút,
+ * track đã ended) thì không ai resolve cả. Vì vậy luôn kèm hạn giờ.
+ */
+const stopQuietly = async (scanner) => {
+  try {
+    if (!scanner || scanner.getState() === Html5QrcodeScannerState.NOT_STARTED) return;
+    await Promise.race([scanner.stop(), settle(STOP_TIMEOUT_MS)]);
+  } catch {
+    /* thư viện ném cả chuỗi lẫn Error — dừng được tới đâu hay tới đó */
+  }
+};
+
 const formatMoney = (value) => `${Number(value || 0).toLocaleString("vi-VN")} đ`;
 
 /** "14:30 · 23/08/2026" — bỏ giây cho đỡ rối, giờ đứng trước vì nhân viên soát vé nhìn giờ là chính. */
@@ -295,11 +451,12 @@ const ProviderCheckIn = () => {
 
   const [camState, setCamState] = useState("idle"); // idle | starting | scanning | paused
   const [cameras, setCameras] = useState([]);
-  const [selectedCameraId, setSelectedCameraId] = useState("");
+  const [selectedCameraId, setSelectedCameraId] = useState(readCameraPref);
   const [cameraError, setCameraError] = useState("");
   // Nguyên văn lỗi của trình duyệt/thư viện — hiện dưới dạng dòng nhỏ để khi máy nào
   // đó không bật được camera thì còn có cái mà đọc, khỏi phải mở DevTools.
   const [cameraErrorDetail, setCameraErrorDetail] = useState("");
+  const [usingVirtualCamera, setUsingVirtualCamera] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
 
@@ -314,6 +471,13 @@ const ProviderCheckIn = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
 
   const scannerRef = useRef(null);
+  const startingRef = useRef(false);
+  // Bản sao của selectedCameraId đọc được ngay lập tức: khi nhân viên đổi camera rồi
+  // khởi động lại trong cùng một nhịp, state vẫn đang là giá trị cũ.
+  const selectedCameraIdRef = useRef(readCameraPref());
+  // Nhân viên đã TỰ chọn camera trong danh sách hay chưa. Đã tự chọn thì không được
+  // âm thầm nhảy sang thiết bị khác nữa — xem chú thích ở startScanner.
+  const explicitPickRef = useRef(!!readCameraPref());
   const fileInputRef = useRef(null);
   const processingRef = useRef(false);
   const lastCodeRef = useRef({ code: "", at: 0 });
@@ -370,6 +534,9 @@ const ProviderCheckIn = () => {
    */
   useEffect(() => {
     aliveRef.current = true;
+    // Phải cài TRƯỚC khi thư viện kịp gọi getUserMedia lần nào, nếu không stream đầu
+    // tiên nó mở sẽ nằm ngoài sổ và không thu hồi được.
+    installStreamTracker();
     const resumeTimer = resumeTimerRef;
     const wakingTimer = wakingTimerRef;
     return () => {
@@ -378,16 +545,10 @@ const ProviderCheckIn = () => {
       clearTimeout(wakingTimer.current);
       const scanner = scannerRef.current;
       scannerRef.current = null;
-      if (scanner) {
-        try {
-          const state = scanner.getState();
-          if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
-            scanner.stop().catch(() => {});
-          }
-        } catch {
-          /* thư viện có thể ném chuỗi thay vì Error — nuốt để không chặn unmount */
-        }
-      }
+      stopQuietly(scanner);
+      // Rời trang giữa lúc camera đang chạy là đường rò rỉ dễ gặp nhất: thư viện tháo
+      // thẻ <video> nhưng track vẫn sáng đèn, quay lại trang là gặp "thiết bị bận".
+      releaseCameraStreams();
     };
   }, []);
 
@@ -422,23 +583,14 @@ const ProviderCheckIn = () => {
 
   const stopScanner = useCallback(async () => {
     clearTimeout(resumeTimerRef.current);
-    const scanner = scannerRef.current;
     setTorchOn(false);
     setTorchAvailable(false);
-    if (!scanner) {
-      setCamState("idle");
-      return;
-    }
-    try {
-      const state = scanner.getState();
-      if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
-        await scanner.stop();
-      }
-    } catch (err) {
-      console.error("[CheckIn] Lỗi khi dừng camera:", err);
-    } finally {
-      setCamState("idle");
-    }
+    setUsingVirtualCamera(false);
+    await stopQuietly(scannerRef.current);
+    // Quét nốt phần thư viện bỏ sót: chỉ cần một lần start hỏng giữa chừng là có một
+    // stream vô chủ còn sống, và chính nó khiến lần bật sau báo "camera đang bận".
+    releaseCameraStreams();
+    setCamState("idle");
   }, []);
 
   /** Xoá nội dung thư viện đã vẽ vào khung (ảnh còn sót lại sau khi "Quét ảnh"). */
@@ -483,11 +635,23 @@ const ProviderCheckIn = () => {
     }
   }, []);
 
+  /**
+   * Camera nên chọn sẵn trong ô dropdown, kèm cờ cho biết đó là lựa chọn chắc chắn
+   * (nhân viên tự chọn / nhãn nói rõ là camera sau) hay chỉ là đoán. Phải phân biệt vì
+   * một cú đoán sai không chỉ hiển thị sai: nó còn là thiết bị được thử ĐẦU TIÊN.
+   */
   const pickCameraId = useCallback((list, preferred) => {
-    if (!list.length) return "";
-    if (preferred && list.some((c) => c.id === preferred)) return preferred;
-    const back = list.find((c) => /back|rear|sau|environment|後|后置/i.test(c.label || ""));
-    return back ? back.id : list[list.length - 1].id;
+    if (!list.length) return { id: "", confident: false };
+    if (preferred && list.some((c) => c.id === preferred)) return { id: preferred, confident: true };
+
+    const real = list.filter((c) => !isVirtualCamera(c));
+    const pool = real.length ? real : list;
+    const back = pool.find((c) => /back|rear|sau|environment|後|后置/i.test(c.label || ""));
+    if (back) return { id: back.id, confident: true };
+    // Loại được camera ảo ra rồi thì thiết bị đầu tiên còn lại là camera thật — trên
+    // laptop/máy bàn đó chính là webcam gắn sẵn, đủ chắc để thử ngay đầu tiên.
+    if (real.length) return { id: real[0].id, confident: true };
+    return { id: pool[0].id, confident: false };
   }, []);
 
   const resumeScanning = useCallback(() => {
@@ -517,103 +681,177 @@ const ProviderCheckIn = () => {
    * object { exact }. Bản cũ truyền { ideal: "environment" } nên lượt thử đó ném lỗi
    * ngay lập tức trước khi kịp chạm tới getUserMedia — coi như mất một lượt dự phòng.
    */
-  const buildCameraAttempts = useCallback((preferredIds, allIds) => {
+  const buildCameraAttempts = useCallback((preferredIds, list) => {
     const seen = new Set();
     const attempts = [];
-    for (const id of [...preferredIds, ...allIds]) {
-      if (!id || seen.has(id)) continue;
+    const push = (id) => {
+      if (!id || seen.has(id)) return;
       seen.add(id);
       attempts.push(id);
-    }
+    };
+
+    preferredIds.forEach(push);
+    list.filter((c) => !isVirtualCamera(c)).forEach((c) => push(c.id));
+    // facingMode nằm SAU các camera thật vì trên máy tính nó vô nghĩa: trình duyệt chỉ
+    // trả về thiết bị mặc định của Windows, mà máy có OBS/NVIDIA Broadcast thì mặc định
+    // thường chính là camera ảo. Nó chỉ đáng giá trên điện thoại — nơi danh sách thiết
+    // bị hoặc chưa có nhãn, hoặc mọi deviceId ở trên đều đã thất bại.
     attempts.push({ facingMode: "environment" });
     attempts.push({ facingMode: "user" });
+    // Camera ảo là phương án cuối: có hình còn hơn không có gì.
+    list.filter(isVirtualCamera).forEach((c) => push(c.id));
     return attempts;
   }, []);
 
+  /**
+   * Thử mở MỘT nguồn camera, tối đa hai lượt.
+   *
+   * Lượt đầu dính "thiết bị bận" phần lớn chỉ là driver chưa nhả xong từ lần mở ngay
+   * trước đó (webcam Windows có máy chậm hơn nửa giây), chờ một nhịp rồi thử lại là chạy.
+   */
+  const startWithSource = useCallback(async (scanner, source, errors) => {
+    for (let round = 0; round < 2; round += 1) {
+      try {
+        await scanner.start(source, SCAN_CONFIG, stableOnScan, undefined);
+        return true;
+      } catch (err) {
+        errors.push(err);
+        console.warn("[CheckIn] Không mở được camera với nguồn", source, err);
+        // Bắt buộc dọn ở đây: start() hỏng giữa chừng là thư viện bỏ rơi stream đã mở,
+        // để nguyên thì chính lượt thử kế tiếp sẽ thấy thiết bị bận vì lượt này.
+        await stopQuietly(scanner);
+        releaseCameraStreams();
+        if (!aliveRef.current) return false;
+        if (round === 0 && isBusyError(err)) {
+          await settle(BUSY_RETRY_MS);
+          continue;
+        }
+        return false;
+      }
+    }
+    return false;
+  }, [stableOnScan]);
+
+  /**
+   * Bật camera.
+   *
+   * Nguyên tắc xuyên suốt: mỗi lần mở thiết bị là một lần có thể hỏng, nên mở càng ít
+   * lần càng tốt, và không lần hỏng nào được phép chặn những lần thử còn lại. Bản cũ
+   * làm ngược lại — mở một stream để xin quyền, mở/đóng thêm vài stream nữa để dò xem
+   * thiết bị rảnh chưa, rồi mới để thư viện mở lần cuối — và chỉ cần lượt đầu tiên ném
+   * lỗi là cả quy trình dừng, kể cả khi máy còn camera khác dùng tốt.
+   */
   const startScanner = useCallback(async () => {
-    if (camState === "starting" || camState === "scanning") return;
+    // Chốt bằng ref chứ không bằng camState: state chỉ đổi ở lần render sau, nên hai
+    // cú bấm liền nhau lọt được cả hai vào đây và tự tranh camera của nhau.
+    if (startingRef.current) return;
+    if (scannerState() === Html5QrcodeScannerState.SCANNING) return;
+    startingRef.current = true;
 
     setCameraError("");
     setCameraErrorDetail("");
+    setUsingVirtualCamera(false);
     setCamState("starting");
 
+    const errors = [];
+    let failedCamLabel = "";
     try {
       if (!window.isSecureContext && !isLocalhost()) throw new Error("INSECURE");
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("UNSUPPORTED");
 
-      // (1) Xin quyền NGAY trong cử chỉ bấm nút. Bản cũ gọi Html5Qrcode.getCameras()
-      // lúc trang vừa load — mà hàm đó bên trong gọi getUserMedia({video:true}); yêu cầu
-      // quyền không đi kèm cử chỉ người dùng bị Safari từ chối thẳng và bị Chrome
-      // tự đóng hộp thoại, nên về sau bấm nút cũng không bật được camera nữa.
-      let probe;
-      try {
-        probe = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-          audio: false,
-        });
-      } catch (err) {
-        if (err?.name === "OverconstrainedError" || err?.name === "NotFoundError") {
-          probe = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        } else {
-          throw err;
+      // (0) Đòi lại camera mà chính trang này còn giữ từ những lần thử trước.
+      releaseCameraStreams();
+
+      // (1) Chỉ xin quyền khi thật sự chưa có: enumerateDevices giấu nhãn thiết bị cho
+      // tới khi được cấp quyền, nên danh sách không nhãn = chưa có quyền. Khi đã có
+      // quyền thì bỏ hẳn bước probe — mở thừa một lần là thêm một nhịp đóng/mở thiết bị,
+      // mà chính nhịp đó hay đẻ ra NotReadableError.
+      let list = await listCameras();
+      let probeId = "";
+      if (!list.some((c) => c.label)) {
+        try {
+          // Xin quyền NGAY trong cử chỉ bấm nút: yêu cầu quyền không đi kèm cử chỉ
+          // người dùng bị Safari từ chối thẳng và bị Chrome tự đóng hộp thoại.
+          const probe = await requestCameraPermission();
+          // deviceId của camera VỪA mở được — nguồn chắc chắn dùng được, quý hơn mọi
+          // phép đoán theo nhãn thiết bị.
+          probeId = probe.getVideoTracks()[0]?.getSettings?.()?.deviceId || "";
+          stopStream(probe);
+          await settle(RELEASE_SETTLE_MS);
+        } catch (err) {
+          // Bị chặn quyền thì có cố nữa cũng vô ích. Còn NotReadable/Overconstrained/
+          // NotFound chỉ nói camera MẶC ĐỊNH không mở được — máy vẫn có thể còn camera
+          // khác chạy tốt, nên ghi lỗi lại rồi đi tiếp thay vì bỏ cuộc như bản cũ.
+          if (isPermissionError(err)) throw err;
+          errors.push(err);
+          console.warn("[CheckIn] Camera mặc định không mở được, chuyển sang thử từng thiết bị:", err);
         }
+        if (!aliveRef.current) return;
+        list = await listCameras();
       }
-
-      // deviceId của camera VỪA mở được — nguồn duy nhất chắc chắn dùng được. Bản cũ
-      // vứt thông tin này đi rồi đoán lại bằng nhãn thiết bị, mà khi không nhãn nào
-      // khớp "back/rear" thì nó lấy đại thiết bị CUỐI danh sách: trên máy bàn/laptop
-      // đó thường là camera hồng ngoại Windows Hello hoặc webcam ảo (OBS, iVCam) —
-      // mở ra là OverconstrainedError/NotReadableError.
-      const workingId = probe.getVideoTracks()[0]?.getSettings?.()?.deviceId || "";
-      probe.getTracks().forEach((track) => track.stop());
-      // Webcam trên Windows cần một nhịp để nhả thiết bị; mở lại ngay lập tức rất hay
-      // dính NotReadableError "Could not start video source".
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      if (!aliveRef.current) return;
-
-      // (2) Quyền đã có nên enumerateDevices mới trả về nhãn camera thật.
-      const list = await listCameras();
       if (aliveRef.current) setCameras(list);
-      const targetId = pickCameraId(list, selectedCameraId);
-      if (targetId && targetId !== selectedCameraId && aliveRef.current) {
+
+      // Camera vừa mở ở bước xin quyền chỉ đáng tin khi nó là camera thật: trên máy có
+      // OBS/NVIDIA Broadcast, thiết bị mặc định mà trình duyệt đưa ra chính là camera ảo.
+      if (probeId && isVirtualCamera(list.find((c) => c.id === probeId))) probeId = "";
+
+      const chosenId = selectedCameraIdRef.current;
+      const { id: targetId, confident } = pickCameraId(list, chosenId);
+      if (targetId && targetId !== chosenId && aliveRef.current) {
+        selectedCameraIdRef.current = targetId;
         setSelectedCameraId(targetId);
       }
 
       const scanner = ensureScanner();
       clearReaderSurface();
 
-      // (3) Thử lần lượt cho tới khi có khung hình: camera nhân viên tự chọn ->
-      // camera vừa mở được ở bước probe -> camera đoán là mặt sau -> mọi camera còn
-      // lại -> cuối cùng mới tới facingMode.
-      const attempts = buildCameraAttempts(
-        [selectedCameraId, workingId, targetId],
-        list.map((c) => c.id),
-      );
+      // (2) Nhân viên đã tự chọn camera thì thử ĐÚNG cái đó, hỏng là báo hỏng.
+      //
+      // Rơi tiếp sang thiết bị khác trong tình huống này là có hại: nó lặng lẽ đưa
+      // camera ảo (OBS/NVIDIA Broadcast — thứ luôn mở được và luôn có ảnh chờ) lên màn
+      // hình, ô chọn nhảy về theo, và người dùng tưởng camera đang chạy trong khi thực
+      // ra webcam họ chọn đã hỏng. Thà báo thẳng để còn biết đường xử lý.
+      //
+      // Khi chưa ai chọn gì thì mới tự dò: nguồn chắc chắn trước (camera vừa mở được ở
+      // bước xin quyền, camera có nhãn "mặt sau", webcam thật đầu tiên), rồi tới các
+      // camera thật còn lại, rồi facingMode, cuối cùng mới tới camera ảo.
+      const chosenCam = list.find((c) => c.id === chosenId);
+      const strictPick = explicitPickRef.current && !!chosenCam;
+      if (strictPick) failedCamLabel = chosenCam.label || "";
+
+      const attempts = strictPick
+        ? [chosenId]
+        : buildCameraAttempts([chosenId, probeId, confident ? targetId : ""], list);
 
       let started = false;
-      const errors = [];
       for (const source of attempts) {
-        try {
-          await scanner.start(source, SCAN_CONFIG, stableOnScan, undefined);
-          started = true;
-          break;
-        } catch (err) {
-          errors.push(err);
-          console.warn("[CheckIn] Không mở được camera với nguồn", source, err);
-          try {
-            if (scanner.getState() !== Html5QrcodeScannerState.NOT_STARTED) await scanner.stop();
-          } catch {
-            /* bỏ qua */
-          }
-        }
-        if (!aliveRef.current) return;
+        started = await startWithSource(scanner, source, errors);
+        if (started || !aliveRef.current) break;
+      }
+
+      if (!aliveRef.current) {
+        if (started) await stopQuietly(scanner);
+        releaseCameraStreams();
+        return;
       }
       if (!started) throw pickCameraError(errors);
 
-      if (!aliveRef.current) {
-        await scanner.stop().catch(() => {});
-        return;
+      // Đồng bộ ô chọn với thiết bị THẬT SỰ đang chạy: nguồn thắng cuộc có thể là
+      // facingMode chứ không phải deviceId ta nhắm, để lệch thì ô chọn ghi một đằng
+      // khung hình một nẻo — đúng cảnh dropdown ghi webcam laptop mà màn hình lên logo OBS.
+      try {
+        const runningId = scanner.getRunningTrackSettings?.()?.deviceId;
+        if (runningId) {
+          selectedCameraIdRef.current = runningId;
+          setSelectedCameraId(runningId);
+          // Camera ảo mở được nhưng khung hình chỉ là ảnh chờ của OBS/NVIDIA — quét cả
+          // ngày cũng không ra mã. Phải nói rõ thay vì để nhân viên ngồi soi màn hình.
+          setUsingVirtualCamera(isVirtualCamera(list.find((c) => c.id === runningId)));
+        }
+      } catch {
+        /* không đọc được thì thôi, chỉ là hiển thị */
       }
+
       setCamState("scanning");
       detectTorch();
     } catch (err) {
@@ -622,9 +860,31 @@ const ProviderCheckIn = () => {
       setCamState("idle");
       setCameraError(describeCameraError(err, t));
       const detail = errorText(err);
-      setCameraErrorDetail(/\b(INSECURE|UNSUPPORTED)\b/.test(detail) ? "" : detail.slice(0, 200));
+      const shown = /\b(INSECURE|UNSUPPORTED)\b/.test(detail) ? "" : detail.slice(0, 200);
+      // Ghi kèm tên camera đã chọn: trên máy có nhiều thiết bị, biết "cái nào hỏng"
+      // quan trọng ngang biết "hỏng vì lý do gì".
+      setCameraErrorDetail(failedCamLabel && shown ? `${failedCamLabel} — ${shown}` : shown);
+    } finally {
+      startingRef.current = false;
     }
-  }, [camState, selectedCameraId, listCameras, pickCameraId, buildCameraAttempts, ensureScanner, clearReaderSurface, detectTorch, stableOnScan, t]);
+  }, [listCameras, pickCameraId, buildCameraAttempts, ensureScanner, clearReaderSurface, detectTorch, startWithSource, t]);
+
+  /**
+   * Đổi camera ngay giữa lúc đang quét. Bản cũ khoá ô chọn khi camera đang chạy nên
+   * muốn đổi phải Dừng Cam rồi Bật Cam lại — mà đúng lúc cần đổi nhất là lúc đang thấy
+   * khung hình sai (camera ảo, camera hồng ngoại tối om) thì camera lại đang chạy.
+   */
+  const switchCamera = useCallback(async (id) => {
+    selectedCameraIdRef.current = id;
+    explicitPickRef.current = true;
+    saveCameraPref(id);
+    setSelectedCameraId(id);
+    const state = scannerState();
+    if (state !== Html5QrcodeScannerState.SCANNING && state !== Html5QrcodeScannerState.PAUSED) return;
+    await stopScanner();
+    await settle(RELEASE_SETTLE_MS);
+    if (aliveRef.current) startScanner();
+  }, [stopScanner, startScanner]);
 
   /* ---------------- soát vé ---------------- */
 
@@ -826,7 +1086,6 @@ const ProviderCheckIn = () => {
   const scanning = camState === "scanning";
   const paused = camState === "paused";
   const starting = camState === "starting";
-  const cameraActive = scanning || paused || starting;
 
   return (
     <div className="chk-page">
@@ -921,13 +1180,14 @@ const ProviderCheckIn = () => {
                 <select
                   className="chk-select"
                   value={selectedCameraId}
-                  onChange={(e) => setSelectedCameraId(e.target.value)}
-                  disabled={cameraActive}
+                  onChange={(e) => switchCamera(e.target.value)}
+                  disabled={starting}
                   aria-label={t.chkStartCam}
                 >
                   {cameras.map((cam, idx) => (
                     <option key={cam.id} value={cam.id}>
                       {cam.label || (t.chkCameraLabel || "Camera {id}...").replace("{id}", String(idx + 1))}
+                      {isVirtualCamera(cam) ? ` — ${t.chkVirtualCameraTag || "camera ảo"}` : ""}
                     </option>
                   ))}
                 </select>
@@ -971,6 +1231,13 @@ const ProviderCheckIn = () => {
                   hidden
                 />
               </div>
+
+              {usingVirtualCamera && (
+                <div className="chk-banner warn">
+                  <FaExclamationTriangle />
+                  <span>{t.chkVirtualCameraWarn}</span>
+                </div>
+              )}
 
               {cameraError && (
                 <div className="chk-banner bad">

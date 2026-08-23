@@ -49,6 +49,16 @@ html {
   --success: #00b894;
   --danger: #e53935;
   --warning: #f59e0b;
+
+  --summary-eco-bg: #f0fdf4;
+  --summary-eco-border: #bbf7d0;
+  --summary-eco-title: #15803d;
+  --summary-eco-price: #16a34a;
+
+  --summary-vip-bg: #eff6ff;
+  --summary-vip-border: #bfdbfe;
+  --summary-vip-title: #1d4ed8;
+  --summary-vip-price: #2563eb;
 }
 
 body.dark {
@@ -85,6 +95,16 @@ body.dark {
   --success: #2ea043;
   --danger: #f85149;
   --warning: #d29922;
+
+  --summary-eco-bg: rgba(20, 83, 45, 0.3);
+  --summary-eco-border: rgba(34, 197, 94, 0.4);
+  --summary-eco-title: #86efac;
+  --summary-eco-price: #4ade80;
+
+  --summary-vip-bg: rgba(30, 58, 138, 0.3);
+  --summary-vip-border: rgba(59, 130, 246, 0.4);
+  --summary-vip-title: #93c5fd;
+  --summary-vip-price: #60a5fa;
 }
 
 /* Dual Range Slider Styles */

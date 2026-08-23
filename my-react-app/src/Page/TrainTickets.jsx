@@ -1580,13 +1580,13 @@ const TrainTickets = () => {
                       <TbTrain style={{ color: "var(--primary)", fontSize: 16, flexShrink: 0 }} />
                       <span style={{ fontWeight: 500 }}>{selectedTrip.providerName}</span>
                     </div>
-                    <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(20,83,45,0.3)", borderRadius: 10, border: "1px solid rgba(34,197,94,0.4)" }}>
-                      <div style={{ fontSize: 12, color: "#86efac", fontWeight: 700, marginBottom: 4 }}>🟢 {t.economy} (ECO)</div>
-                      <div style={{ fontWeight: 800, color: "#4ade80", fontSize: 16 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
+                    <div style={{ marginTop: 10, padding: "10px 12px", background: "var(--summary-eco-bg)", borderRadius: 10, border: "1px solid var(--summary-eco-border)" }}>
+                      <div style={{ fontSize: 12, color: "var(--summary-eco-title)", fontWeight: 700, marginBottom: 4 }}>🟢 {t.economy} (ECO)</div>
+                      <div style={{ fontWeight: 800, color: "var(--summary-eco-price)", fontSize: 16 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
                     </div>
-                    <div style={{ marginTop: 8, padding: "10px 12px", background: "rgba(30,58,138,0.3)", borderRadius: 10, border: "1px solid rgba(59,130,246,0.4)" }}>
-                      <div style={{ fontSize: 12, color: "#93c5fd", fontWeight: 700, marginBottom: 4 }}>🔵 {t.business} (BUSINESS)</div>
-                      <div style={{ fontWeight: 800, color: "#60a5fa", fontSize: 16 }}>
+                    <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--summary-vip-bg)", borderRadius: 10, border: "1px solid var(--summary-vip-border)" }}>
+                      <div style={{ fontSize: 12, color: "var(--summary-vip-title)", fontWeight: 700, marginBottom: 4 }}>🔵 {t.business} (BUSINESS)</div>
+                      <div style={{ fontWeight: 800, color: "var(--summary-vip-price)", fontSize: 16 }}>
                         {Number(getSeatPrice(selectedTrip.price, "BUSINESS")).toLocaleString("vi-VN")} đ
                       </div>
                     </div>

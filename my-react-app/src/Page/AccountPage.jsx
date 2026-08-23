@@ -8,10 +8,10 @@ import { User, Lock, Award, Settings } from "lucide-react";
 const API = "";
 
 const MEMBERSHIP_CONFIG = {
-  "Đồng":     { color: "#b45309", bg: "#fef3c7", icon: "🥉", next: "Bạc",      nextPoints: 100 },
-  "Bạc":      { color: "#6b7280", bg: "#f3f4f6", icon: "🥈", next: "Vàng",     nextPoints: 500 },
-  "Vàng":     { color: "#d97706", bg: "#fff7ed", icon: "🥇", next: "Kim Cương", nextPoints: 2000 },
-  "Kim Cương":{ color: "#7c3aed", bg: "#f5f3ff", icon: "💎", next: null,        nextPoints: null },
+  "Đồng":     { color: "#b45309", darkColor: "#fbbf24", bg: "#fef3c7", darkBg: "rgba(180, 83, 9, 0.2)", icon: "🥉", next: "Bạc",      nextPoints: 100 },
+  "Bạc":      { color: "#6b7280", darkColor: "#d1d5db", bg: "#f3f4f6", darkBg: "rgba(156, 163, 175, 0.15)", icon: "🥈", next: "Vàng",     nextPoints: 500 },
+  "Vàng":     { color: "#d97706", darkColor: "#fbbf24", bg: "#fff7ed", darkBg: "rgba(217, 119, 6, 0.2)", icon: "🥇", next: "Kim Cương", nextPoints: 2000 },
+  "Kim Cương":{ color: "#7c3aed", darkColor: "#c084fc", bg: "#f5f3ff", darkBg: "rgba(124, 58, 237, 0.2)", icon: "💎", next: null,        nextPoints: null },
 };
 
 const AccountPage = () => {
@@ -136,58 +136,64 @@ const AccountPage = () => {
     const points = profile.points || 0;
     const level = profile.membershipLevel || "Đồng";
     const cfg = MEMBERSHIP_CONFIG[level] || MEMBERSHIP_CONFIG["Đồng"];
+    const activeColor = isDark ? (cfg.darkColor || cfg.color) : cfg.color;
+    const activeBg = isDark ? (cfg.darkBg || "var(--bg-input)") : cfg.bg;
     const nextPoints = cfg.nextPoints;
     const prevPoints = level === "Đồng" ? 0 : level === "Bạc" ? 100 : level === "Vàng" ? 500 : 2000;
     const progress = nextPoints ? Math.min(100, ((points - prevPoints) / (nextPoints - prevPoints)) * 100) : 100;
 
     const tiers = [
-      { name: "Đồng", icon: "🥉", min: 0, discount: "0%", color: "#b45309" },
-      { name: "Bạc", icon: "🥈", min: 100, discount: "5%", color: "#6b7280" },
-      { name: "Vàng", icon: "🥇", min: 500, discount: "10%", color: "#d97706" },
-      { name: "Kim Cương", icon: "💎", min: 2000, discount: "15%", color: "#7c3aed" },
+      { name: "Đồng", icon: "🥉", min: 0, discount: "0%", color: "#b45309", darkColor: "#fbbf24" },
+      { name: "Bạc", icon: "🥈", min: 100, discount: "5%", color: "#6b7280", darkColor: "#d1d5db" },
+      { name: "Vàng", icon: "🥇", min: 500, discount: "10%", color: "#d97706", darkColor: "#fbbf24" },
+      { name: "Kim Cương", icon: "💎", min: 2000, discount: "15%", color: "#7c3aed", darkColor: "#c084fc" },
     ];
 
     return (
       <div>
         {/* Current Level Card */}
-        <div style={{ background: cfg.bg, border: `2px solid ${cfg.color}30`, borderRadius: 16, padding: 24, marginBottom: 24, textAlign: "center" }}>
+        <div style={{ background: activeBg, border: `2px solid ${activeColor}40`, borderRadius: 16, padding: 24, marginBottom: 24, textAlign: "center" }}>
           <div style={{ fontSize: 56 }}>{cfg.icon}</div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: cfg.color, margin: "8px 0 4px" }}>{t.acctRankLabel.replace('{level}', tierLabel(level))}</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: activeColor, margin: "8px 0 4px" }}>{t.acctRankLabel.replace('{level}', tierLabel(level))}</h2>
           <p style={{ fontSize: 15, color: "var(--text-secondary)", marginBottom: 16 }}>
-            {t.acctYouHave} <strong style={{ color: "#4f46e5", fontSize: 18 }}>{points.toLocaleString()}</strong> {t.acctPointsUnit}
+            {t.acctYouHave} <strong style={{ color: isDark ? "#818cf8" : "#4f46e5", fontSize: 18 }}>{points.toLocaleString()}</strong> {t.acctPointsUnit}
           </p>
           {cfg.next && (
             <>
-              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
-                {t.acctNeedMore} <strong>{(nextPoints - points).toLocaleString()}</strong> {t.acctPointsToNext} <strong>{tierLabel(cfg.next)} {MEMBERSHIP_CONFIG[cfg.next]?.icon}</strong>
+              <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>
+                {t.acctNeedMore} <strong style={{ color: "var(--text-main)" }}>{(nextPoints - points).toLocaleString()}</strong> {t.acctPointsToNext} <strong style={{ color: "var(--text-main)" }}>{tierLabel(cfg.next)} {MEMBERSHIP_CONFIG[cfg.next]?.icon}</strong>
               </div>
-              <div style={{ background: "#e5e7eb", borderRadius: 99, height: 10, overflow: "hidden" }}>
-                <div style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${cfg.color}, ${cfg.color}cc)`, height: "100%", borderRadius: 99, transition: "width 0.5s" }} />
+              <div style={{ background: isDark ? "rgba(255,255,255,0.12)" : "#e5e7eb", borderRadius: 99, height: 10, overflow: "hidden" }}>
+                <div style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${activeColor}, ${activeColor}cc)`, height: "100%", borderRadius: 99, transition: "width 0.5s" }} />
               </div>
             </>
           )}
-          {!cfg.next && <div style={{ color: "#7c3aed", fontWeight: 700, fontSize: 15 }}>{t.acctHighestRank}</div>}
+          {!cfg.next && <div style={{ color: isDark ? "#c084fc" : "#7c3aed", fontWeight: 700, fontSize: 15 }}>{t.acctHighestRank}</div>}
         </div>
 
         {/* Tier Table */}
         <h3 style={{ fontWeight: 700, color: "var(--text-heading)", marginBottom: 12 }}>{t.acctTierTable}</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-          {tiers.map(tier => (
-            <div key={tier.name} style={{
-              padding: "16px 12px", borderRadius: 12, textAlign: "center",
-              background: tier.name === level ? `${tier.color}15` : "#f9fafb",
-              border: tier.name === level ? `2px solid ${tier.color}` : "2px solid #e5e7eb",
-              transition: "0.2s",
-            }}>
-              <div style={{ fontSize: 28 }}>{tier.icon}</div>
-              <div style={{ fontWeight: 700, fontSize: 13, color: tier.color, marginTop: 4 }}>{tierLabel(tier.name)}</div>
-              <div style={{ fontSize: 11, color: "#6b7280" }}>≥ {tier.min.toLocaleString()} {t.acctPointsUnit}</div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: "#16a34a", marginTop: 4 }}>{t.acctDiscount} {tier.discount}</div>
-            </div>
-          ))}
+          {tiers.map(tier => {
+            const isCurrent = tier.name === level;
+            const tColor = isDark ? (tier.darkColor || tier.color) : tier.color;
+            return (
+              <div key={tier.name} style={{
+                padding: "16px 12px", borderRadius: 12, textAlign: "center",
+                background: isCurrent ? (isDark ? `${tColor}25` : `${tier.color}15`) : (isDark ? "var(--bg-input)" : "#f9fafb"),
+                border: isCurrent ? `2px solid ${tColor}` : "1px solid var(--border-main)",
+                transition: "0.2s",
+              }}>
+                <div style={{ fontSize: 28 }}>{tier.icon}</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: tColor, marginTop: 4 }}>{tierLabel(tier.name)}</div>
+                <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>≥ {tier.min.toLocaleString()} {t.acctPointsUnit}</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: isDark ? "#4ade80" : "#16a34a", marginTop: 4 }}>{t.acctDiscount} {tier.discount}</div>
+              </div>
+            );
+          })}
         </div>
 
-        <div style={{ marginTop: 20, padding: 16, background: "var(--bg-accent)", borderRadius: 12, fontSize: 13, color: "#1e40af" }}>
+        <div style={{ marginTop: 20, padding: 16, background: "var(--bg-accent)", borderRadius: 12, fontSize: 13, color: isDark ? "#93c5fd" : "#1e40af", border: "1px solid var(--border-main)" }}>
           💡 <strong>{t.acctHowToEarn}</strong> {t.acctEarnEach} <strong>10,000đ</strong> {t.acctEarnFor} <strong>{t.acctEarnPoint}</strong>. {t.acctEarnSuffix}
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React from "react";
+import { useTheme } from "../context/ThemeContext";
 
 const LIGHT = {
   urgent: { background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b" },
@@ -6,8 +7,8 @@ const LIGHT = {
 };
 
 const DARK = {
-  urgent: { background: "#3f1d1d", border: "1px solid #7f1d1d", color: "#fca5a5" },
-  normal: { background: "#143823", border: "1px solid #15803d", color: "#86efac" },
+  urgent: { background: "rgba(127, 29, 29, 0.35)", border: "1px solid rgba(239, 68, 68, 0.4)", color: "#fca5a5" },
+  normal: { background: "rgba(20, 83, 45, 0.35)", border: "1px solid rgba(34, 197, 94, 0.4)", color: "#86efac" },
 };
 
 /** Dưới ngưỡng này thì đổi sang màu cảnh báo. */
@@ -18,13 +19,15 @@ const URGENT_SECONDS = 120;
  *
  * @param {number|null} seconds số giây còn lại (null = ẩn)
  * @param {string} label nhãn mô tả đang giữ gì
- * @param {boolean} dark dùng bảng màu tối (trang vé máy bay)
+ * @param {boolean} [dark] tùy chọn ghi đè theme tối
  * @param {React.ReactNode} icon biểu tượng đứng trước nhãn
  */
-export default function HoldCountdownBanner({ seconds, label, dark = false, icon = "⏱️" }) {
+export default function HoldCountdownBanner({ seconds, label, dark, icon = "⏱️" }) {
+  const { isDark } = useTheme() || {};
   if (seconds === null || seconds === undefined) return null;
 
-  const palette = dark ? DARK : LIGHT;
+  const effectiveDark = dark !== undefined ? dark : Boolean(isDark);
+  const palette = effectiveDark ? DARK : LIGHT;
   const tone = seconds < URGENT_SECONDS ? palette.urgent : palette.normal;
   const minutes = Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, "0");
   const rest = (Math.max(0, seconds) % 60).toString().padStart(2, "0");
