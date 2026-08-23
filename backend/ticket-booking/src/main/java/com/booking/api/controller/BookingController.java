@@ -82,7 +82,13 @@ public class BookingController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Lịch sử soát vé gần nhất của TOÀN hệ thống (tên hành khách, số ghế, lộ trình, giá).
+     * Cùng phạm vi dữ liệu với màn hình soát vé nên phải cùng mức quyền với check-in ở trên:
+     * trước đây chỉ yêu cầu "đã đăng nhập", tức mọi tài khoản khách đều đọc được.
+     */
     @GetMapping("/recent-checkins")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ADMIN', 'ROLE_PROVIDER', 'PROVIDER')")
     public ResponseEntity<List<BookingResponse>> getRecentCheckIns(
             @AuthenticationPrincipal UserDetails userDetails) {
         List<BookingResponse> responses = bookingService.getRecentCheckIns(userDetails.getUsername());

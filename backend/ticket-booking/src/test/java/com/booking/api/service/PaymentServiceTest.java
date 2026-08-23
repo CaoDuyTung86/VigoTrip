@@ -29,12 +29,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SortedMap;
+import java.util.TimeZone;
 import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -337,6 +341,53 @@ class PaymentServiceTest {
                 .isAfter(before.plusMinutes(PaymentService.PAYMENT_WINDOW_MINUTES - 1)));
         assertTrue(response.getPaymentUrl().contains("vnp_ExpireDate="), "cổng phải biết hạn để tự đóng phiên");
         verify(bookingRepository).save(booking);
+    }
+
+    @Test
+    @DisplayName("Ngày giờ gửi cổng phải theo giờ Việt Nam dù server chạy múi giờ khác")
+    void createVNPayPayment_SendsGatewayDatesInVietnamTime() {
+        PaymentRequest request = new PaymentRequest();
+        request.setBookingId(123L);
+
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+        when(vnPayConfig.getTmnCode()).thenReturn("TMNCODE123");
+        when(vnPayConfig.getReturnUrl()).thenReturn("http://localhost/return");
+        when(vnPayConfig.getPayUrl()).thenReturn("https://sandbox.vnpayment.vn/paymentv2/vpcpay.html");
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+
+        // Giả lập server chạy UTC (container deploy) — trước khi sửa, vnp_CreateDate lấy
+        // theo múi giờ này nên lùi 7 tiếng và cổng coi phiên đã hết hạn ngay khi vừa mở.
+        TimeZone originalZone = TimeZone.getDefault();
+        PaymentResponse response;
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+            response = paymentService.createVNPayPayment("test@example.com", request, "127.0.0.1");
+        } finally {
+            TimeZone.setDefault(originalZone);
+        }
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+        LocalDateTime createDate = LocalDateTime.parse(extractParam(response.getPaymentUrl(), "vnp_CreateDate"), fmt);
+        LocalDateTime expireDate = LocalDateTime.parse(extractParam(response.getPaymentUrl(), "vnp_ExpireDate"), fmt);
+        LocalDateTime vietnamNow = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+
+        assertTrue(Math.abs(Duration.between(vietnamNow, createDate).toMinutes()) < 1,
+                "vnp_CreateDate lệch giờ Việt Nam thì cổng coi phiên đã hết hạn ngay khi mở");
+        assertEquals(PaymentService.PAYMENT_WINDOW_MINUTES,
+                Duration.between(createDate, expireDate).toMinutes(),
+                "hạn của cổng phải đúng bằng cửa sổ thanh toán");
+    }
+
+    /** Đọc giá trị một tham số trong query string của URL thanh toán. */
+    private String extractParam(String url, String name) {
+        for (String pair : url.substring(url.indexOf('?') + 1).split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0 && name.equals(pair.substring(0, eq))) {
+                return pair.substring(eq + 1);
+            }
+        }
+        throw new AssertionError("Không tìm thấy tham số " + name + " trong " + url);
     }
 
     @Test

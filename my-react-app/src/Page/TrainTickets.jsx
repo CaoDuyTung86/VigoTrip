@@ -166,6 +166,10 @@ const TrainTickets = () => {
   const [seats, setSeats] = useState([]);
   const [selectedSeatIds, setSelectedSeatIds] = useState([]);
   const [step, setStep] = useState("search");
+  // Vào luồng đặt vé rồi thì số hành khách phải cố định: ghế đang giữ, tiền tạm tính và
+  // danh sách form thông tin hành khách đều sinh ra từ con số này. Cho sửa giữa chừng sẽ
+  // đẻ thêm/bớt ô điền thông tin trong khi số ghế giữ không đổi, dẫn tới lệch người/ghế.
+  const passengerCountLocked = Boolean(selectedTrip) && ["seatClass", "passenger", "extras", "review"].includes(step);
   const [lockDeadline, setLockDeadline] = useState(null);
   const [paymentDeadline, setPaymentDeadline] = useState(null);
 
@@ -322,6 +326,22 @@ const TrainTickets = () => {
     for (let i = 0; i < passengerCounts.infant; i++) newList.push({ type: "INFANT", data: {} });
     setPassengerInfoList(prev => newList.map((item, idx) => prev[idx] ? { ...item, data: prev[idx].data } : item));
   }, [passengerCounts]);
+
+  // Đổi số hành khách thì nhả hết ghế đang giữ: số ghế cũ không còn khớp số người,
+  // giữ lại sẽ tạo đơn lệch người/ghế. Chỉ xảy ra ở bước tìm/chọn chuyến, từ bước chọn
+  // ghế trở đi bộ đếm đã bị khoá (passengerCountLocked).
+  const changePassengerCount = (type, delta) => {
+    if (selectedSeatIds.length > 0) {
+      unlockSeats({
+        tripId: selectedTrip?.id,
+        seatIds: selectedSeatIds,
+        userId: getSeatUserId(user),
+      });
+      setSelectedSeatIds([]);
+      setLockDeadline(null);
+    }
+    setPassengerCounts(p => ({ ...p, [type]: p[type] + delta }));
+  };
 
   const handlePassengerChange = (index, type, data) => {
     setPassengerInfoList(prev => {
@@ -940,16 +960,17 @@ const TrainTickets = () => {
                   <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaUser /> {t.passengers}</label>
                   <div style={{ position: "relative", marginBottom: 10 }}>
                     <div
-                      onClick={() => setShowPassengersDropdown(!showPassengersDropdown)}
+                      onClick={() => { if (!passengerCountLocked) setShowPassengersDropdown(!showPassengersDropdown); }}
+                      title={passengerCountLocked ? t.passengerCountLockedHint : undefined}
                       style={{
                         width: "100%", padding: "10px 14px", borderRadius: 10, border: "2px solid var(--border-main)",
-                        background: "var(--bg-card)", color: "var(--text-main)", fontSize: 15, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", boxSizing: "border-box"
+                        background: "var(--bg-card)", color: "var(--text-main)", fontSize: 15, cursor: passengerCountLocked ? "not-allowed" : "pointer", opacity: passengerCountLocked ? 0.6 : 1, display: "flex", justifyContent: "space-between", alignItems: "center", boxSizing: "border-box"
                       }}
                     >
                       <span>{passengerCounts.adult} {t.adult || 'Người lớn'}, {passengerCounts.child} {t.child || 'Trẻ em'}, {passengerCounts.infant} {t.infant || 'Em bé'}</span>
                       <FiChevronDown />
                     </div>
-                    {showPassengersDropdown && (
+                    {showPassengersDropdown && !passengerCountLocked && (
                       <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--bg-card)", borderRadius: 12, boxShadow: "var(--shadow-lg)", zIndex: 100, padding: 16, marginTop: 4, border: "1px solid var(--border-main)" }}>
                         {['adult', 'child', 'infant'].map(type => (
                           <div key={type} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -958,12 +979,17 @@ const TrainTickets = () => {
                               <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{type === 'adult' ? (t.ageAdultHint || '>12 tuổi') : type === 'child' ? (t.ageChildHint || '2-11 tuổi') : (t.ageInfantHint || '<2 tuổi')}</div>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                              <button type="button" disabled={passengerCounts[type] <= (type === 'adult' ? 1 : 0)} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] - 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", color: "var(--text-main)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
+                              <button type="button" disabled={passengerCounts[type] <= (type === 'adult' ? 1 : 0)} onClick={() => changePassengerCount(type, -1)} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", color: "var(--text-main)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>-</button>
                               <span style={{ fontWeight: 600, width: 16, textAlign: "center", color: "var(--text-main)" }}>{passengerCounts[type]}</span>
-                              <button type="button" disabled={passengerCounts.adult + passengerCounts.child + passengerCounts.infant >= 5} onClick={() => setPassengerCounts(p => ({ ...p, [type]: p[type] + 1 }))} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", color: "var(--text-main)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                              <button type="button" disabled={passengerCounts.adult + passengerCounts.child + passengerCounts.infant >= 5} onClick={() => changePassengerCount(type, 1)} style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", color: "var(--text-main)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                             </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+                    {passengerCountLocked && (
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.5 }}>
+                        🔒 {t.passengerCountLockedHint}
                       </div>
                     )}
                   </div>

@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,6 +42,14 @@ public class PaymentService {
      * Phải >= hạn của cổng (tham số vnp_ExpireDate gửi kèm bên dưới).
      */
     public static final int PAYMENT_WINDOW_MINUTES = 15;
+
+    /**
+     * Cổng VNPay đối chiếu vnp_CreateDate/vnp_ExpireDate theo giờ Việt Nam (GMT+7), không
+     * theo múi giờ của server. Container deploy chạy UTC nên LocalDateTime.now() lùi 7 tiếng,
+     * cổng đọc vnp_ExpireDate thấy đã qua và trả về "Giao dịch đã quá thời gian chờ thanh toán"
+     * ngay khi vừa mở trang. Vì vậy hai tham số ngày giờ gửi sang cổng luôn lấy theo zone này.
+     */
+    private static final ZoneId VNPAY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     /** Đơn ở các trạng thái này nghĩa là khách KHÔNG nhận được vé. */
     private static final Set<String> UNFULFILLED_STATUSES = Set.of("CANCELLED", "FAILED");
@@ -108,9 +117,12 @@ public class PaymentService {
             cleanIp = "127.0.0.1";
         }
         params.put("vnp_IpAddr", cleanIp);
-        params.put("vnp_CreateDate", VNPayUtil.formatDateTime(now));
+        // Giờ gửi cho cổng lấy theo VNPAY_ZONE, độc lập với múi giờ server; còn now/paymentExpiresAt
+        // ở trên vẫn theo giờ JVM vì chúng được so với LocalDateTime.now() của BookingCleanupService.
+        LocalDateTime gatewayNow = LocalDateTime.now(VNPAY_ZONE);
+        params.put("vnp_CreateDate", VNPayUtil.formatDateTime(gatewayNow));
         // Cổng tự đóng phiên đúng lúc đơn hết hạn giữ chỗ, để hai bên không lệch nhau
-        params.put("vnp_ExpireDate", VNPayUtil.formatDateTime(paymentExpiresAt));
+        params.put("vnp_ExpireDate", VNPayUtil.formatDateTime(gatewayNow.plusMinutes(PAYMENT_WINDOW_MINUTES)));
 
         if (request.getBankCode() != null && !request.getBankCode().isBlank()) {
             params.put("vnp_BankCode", request.getBankCode());
