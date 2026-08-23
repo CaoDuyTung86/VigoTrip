@@ -1,6 +1,0 @@
-projectKey=Ticket-Booking-Frontend
-serverUrl=http://localhost:9000
-serverVersion=26.4.0.121862
-dashboardUrl=http://localhost:9000/dashboard?id=Ticket-Booking-Frontend
-ceTaskId=b1a87d45-4560-44d3-9e33-b542edff1620
-ceTaskUrl=http://localhost:9000/api/ce/task?id=b1a87d45-4560-44d3-9e33-b542edff1620
