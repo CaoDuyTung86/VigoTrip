@@ -49,8 +49,11 @@ public class UserService {
             if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
                 throw new IllegalArgumentException("Mật khẩu cũ không chính xác.");
             }
+            if (passwordEncoder.matches(newPassword, user.getPassword())) {
+                throw new IllegalArgumentException("Mật khẩu mới phải khác mật khẩu hiện tại.");
+            }
         }
-        
+
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
     }

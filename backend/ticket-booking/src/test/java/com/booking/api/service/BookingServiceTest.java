@@ -445,6 +445,31 @@ class BookingServiceTest {
     }
 
     @Test
+    @DisplayName("Hủy vé thất bại khi vé đã check-in, dù còn xa giờ khởi hành")
+    void cancelBooking_Fail_AlreadyCheckedIn() {
+        busTrip.setDepartureTime(LocalDateTime.now().plusHours(48));
+
+        Booking booking = new Booking();
+        booking.setId(100L);
+        booking.setUser(user);
+        booking.setStatus("CONFIRMED");
+        booking.setTotalPrice(java.math.BigDecimal.valueOf(200000));
+        booking.setIsCheckedIn(true);
+        booking.setCheckInDate(LocalDateTime.now().minusMinutes(5));
+
+        Ticket ticket = new Ticket();
+        ticket.setTrip(busTrip);
+        booking.setTickets(Collections.singletonList(ticket));
+
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        when(bookingRepository.findById(100L)).thenReturn(Optional.of(booking));
+
+        BookingException ex = assertThrows(BookingException.class,
+                () -> bookingService.cancelBooking("test@example.com", 100L));
+        assertTrue(ex.getMessage().contains("check-in"));
+    }
+
+    @Test
     @DisplayName("Hủy vé thất bại do Còn dưới 4h trước giờ khởi hành")
     void cancelBooking_Fail_Under4HoursCutoff() {
         busTrip.setDepartureTime(LocalDateTime.now().plusHours(2));
@@ -580,6 +605,73 @@ class BookingServiceTest {
         assertTrue(booking.getIsCheckedIn());
         assertNotNull(booking.getCheckInDate());
         verify(bookingRepository).save(booking);
+    }
+
+    @Test
+    @DisplayName("Check-in thành công khi trong vòng 12h trước giờ khởi hành")
+    void checkIn_Success_Within12HoursBeforeDeparture() {
+        busTrip.setDepartureTime(LocalDateTime.now().plusHours(6));
+
+        Booking booking = new Booking();
+        booking.setId(100L);
+        booking.setStatus("CONFIRMED");
+        booking.setIsCheckedIn(false);
+
+        Ticket ticket = new Ticket();
+        ticket.setTrip(busTrip);
+        booking.setTickets(Collections.singletonList(ticket));
+
+        when(bookingRepository.findById(100L)).thenReturn(Optional.of(booking));
+        when(bookingMapper.toBookingResponse(any(), any())).thenReturn(new BookingResponse());
+
+        bookingService.checkIn(100L, "admin@gmail.com");
+
+        assertTrue(booking.getIsCheckedIn());
+    }
+
+    @Test
+    @DisplayName("Check-in thất bại khi còn quá xa giờ khởi hành (quét nhầm/quá sớm)")
+    void checkIn_Fail_TooEarlyBeforeDeparture() {
+        busTrip.setDepartureTime(LocalDateTime.now().plusHours(48));
+
+        Booking booking = new Booking();
+        booking.setId(100L);
+        booking.setStatus("CONFIRMED");
+        booking.setIsCheckedIn(false);
+
+        Ticket ticket = new Ticket();
+        ticket.setTrip(busTrip);
+        booking.setTickets(Collections.singletonList(ticket));
+
+        when(bookingRepository.findById(100L)).thenReturn(Optional.of(booking));
+
+        BookingException ex = assertThrows(BookingException.class,
+                () -> bookingService.checkIn(100L, "admin@gmail.com"));
+        assertTrue(ex.getMessage().contains("Chưa đến giờ khởi hành"));
+        assertFalse(booking.getIsCheckedIn());
+    }
+
+    @Test
+    @DisplayName("Check-in thất bại khi chuyến đã kết thúc từ lâu (khách bỏ lỡ chuyến)")
+    void checkIn_Fail_TooLateAfterTripEnded() {
+        busTrip.setDepartureTime(LocalDateTime.now().minusDays(2));
+        busTrip.setArrivalTime(LocalDateTime.now().minusDays(2).plusHours(3));
+
+        Booking booking = new Booking();
+        booking.setId(100L);
+        booking.setStatus("CONFIRMED");
+        booking.setIsCheckedIn(false);
+
+        Ticket ticket = new Ticket();
+        ticket.setTrip(busTrip);
+        booking.setTickets(Collections.singletonList(ticket));
+
+        when(bookingRepository.findById(100L)).thenReturn(Optional.of(booking));
+
+        BookingException ex = assertThrows(BookingException.class,
+                () -> bookingService.checkIn(100L, "admin@gmail.com"));
+        assertTrue(ex.getMessage().contains("quá giờ"));
+        assertFalse(booking.getIsCheckedIn());
     }
 
     @Test

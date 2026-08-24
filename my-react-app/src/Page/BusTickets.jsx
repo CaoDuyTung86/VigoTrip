@@ -8,6 +8,7 @@ import BusSeatMap from "../components/BusSeatMap";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import SavedVoucherPicker from "../components/SavedVoucherPicker";
+import { FiLock, FiInfo } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useWebSocket } from "../context/WebSocketContext";
@@ -993,7 +994,7 @@ const BusTickets = () => {
                     )}
                     {passengerCountLocked && (
                       <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.5 }}>
-                        🔒 {t.passengerCountLockedHint}
+                        <FiLock style={{ display: "inline", verticalAlign: "middle", fontSize: 11 }} /> {t.passengerCountLockedHint}
                       </div>
                     )}
                   </div>
@@ -1884,7 +1885,7 @@ const BusTickets = () => {
                                     </tbody>
                                   </table>
                                   <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--bg-input)", borderRadius: 8, color: "var(--text-secondary)", fontSize: 11 }}>
-                                    💡 <b>{t.insuranceTipLabel}</b> {t.shortTripInsuranceTip}
+                                    <FiInfo style={{ display: "inline", verticalAlign: "middle", fontSize: 12, marginRight: 2 }} /> <b>{t.insuranceTipLabel}</b> {t.shortTripInsuranceTip}
                                   </div>
                                 </div>
                               )}

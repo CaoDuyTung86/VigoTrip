@@ -65,12 +65,15 @@ Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây lin
 - [x] **AI Hardening & Cost Control:** Đóng lỗ hổng bypass CAPTCHA, siết rate limit chống giả mạo IP qua `X-Forwarded-For`, timeout HTTP cho mọi lời gọi ra ngoài, và trần ngân sách LLM theo ngày cho toàn hệ thống.
 - [x] **Chat History:** Lưu hội thoại cho người dùng đã đăng nhập, chỉ chính chủ đọc được, tự động xóa sau 30 ngày.
 - [x] **Proxy & API Routing:** Cấu hình `vercel.json` rewrites điều hướng trong suốt toàn bộ request `/api` và `/ws` (WebSocket) từ Vercel sang Render.
+- [x] **Trip Supply Scheduler:** Lịch chuyến luôn phủ đủ 30 ngày tới, thay cho cơ chế seed một lần khiến dữ liệu cạn dần theo thời gian. Danh mục tuyến gom về một nguồn duy nhất (`TripSupplyService`), điều kiện bù xét theo từng `(tuyến, phương tiện, ngày)` nên thiếu chỗ nào bù đúng chỗ đó, và chỉ thêm chứ không xoá — chuyến đã qua giữ lại làm dữ liệu lịch sử cho AI phân tích doanh thu.
 
 ### Hướng phát triển tiếp theo:
 
 - [ ] **Zero-Trust Auth & Security Hardening (HttpOnly Cookie + Refresh Token):** Nâng cấp cơ chế xác thực sang HttpOnly Cookie kết hợp Refresh Token (Token Rotation), lưu Access Token ngắn hạn trong in-memory state (React Context), loại bỏ hoàn toàn việc lưu JWT tại localStorage nhằm triệt tiêu nguy cơ tấn công XSS đánh cắp phiên đăng nhập.
 - [ ] **AI BI 2.0 (Text-to-SQL & Predictive Analytics):** Hỗ trợ Admin truy vấn dữ liệu kinh doanh bằng ngôn ngữ tự nhiên (NL2SQL), dự báo nhu cầu đặt vé theo mùa vụ (Time-series Forecasting) và gợi ý định giá vé động (Dynamic Pricing).
 - [ ] **Map & Realtime Tracking:** Tích hợp bản đồ Leaflet / Mapbox theo dõi lộ trình di chuyển và định vị bến bãi, nhà ga thời gian thực.
+  - *Điều kiện cần:* chuẩn hoá điểm đi/đến trước khi vẽ. Hiện `tuyen_duong.origin/destination` là chuỗi tự do, không toạ độ, và một thành phố mang hai mã tuỳ phương tiện (`HUI`/`HUE`, `CXR`/`NTR`, `DLI`/`DLT`, `VII`/`VIN`) nên sẽ ra hai pin cho cùng một nơi. Cần tách bảng `dia_diem` (thành phố) và `diem_don_tra` (sân bay / nhà ga / bến xe, kèm `latitude`, `longitude`) — xem chi tiết tại mục 5 phần Thiết kế CSDL trong [SRS_FSD_SPECIFICATION.md](./SRS_FSD_SPECIFICATION.md).
+  - *Riêng Realtime Tracking:* cần thêm `tuyen_duong.path_geojson` để nội suy vị trí dọc tuyến. Chặng `AIR` dùng cung vòng lớn giữa hai sân bay nên không cần dữ liệu ngoài; `RAIL`/`ROAD` không có polyline thì chấm vị trí sẽ trôi theo đường thẳng thay vì bám tuyến thật.
 
 ---
 

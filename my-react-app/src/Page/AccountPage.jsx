@@ -3,7 +3,7 @@ import axios from "axios";
 import Sidebar from "../components/Sidebar";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
-import { User, Lock, Award, Settings } from "lucide-react";
+import { User, Lock, Award, Settings, Info, ShieldCheck, AlertTriangle, CheckCircle } from "lucide-react";
 
 const API = "";
 
@@ -81,6 +81,10 @@ const AccountPage = () => {
       setPwdMsg({ type: "error", text: t.acctPwdMinLength });
       return;
     }
+    if (profile?.hasPassword !== false && newPwd === oldPwd) {
+      setPwdMsg({ type: "error", text: t.acctPwdSameAsOld });
+      return;
+    }
     setPwdLoading(true);
     setPwdMsg(null);
     try {
@@ -126,7 +130,7 @@ const AccountPage = () => {
       color: msg.type === "success" ? "#16a34a" : "#dc2626",
       border: `1px solid ${msg.type === "success" ? "#bbf7d0" : "#fecaca"}`,
     }}>
-      {msg.type === "success" ? "✅" : "⚠️ "}{msg.text}
+      <span style={{ display: "inline-flex", alignItems: "center", marginRight: 4 }}>{msg.type === "success" ? <CheckCircle size={15} /> : <AlertTriangle size={15} />}</span>{msg.text}
     </div>
   );
 
@@ -194,7 +198,7 @@ const AccountPage = () => {
         </div>
 
         <div style={{ marginTop: 20, padding: 16, background: "var(--bg-accent)", borderRadius: 12, fontSize: 13, color: isDark ? "#93c5fd" : "#1e40af", border: "1px solid var(--border-main)" }}>
-          💡 <strong>{t.acctHowToEarn}</strong> {t.acctEarnEach} <strong>10,000đ</strong> {t.acctEarnFor} <strong>{t.acctEarnPoint}</strong>. {t.acctEarnSuffix}
+          <Info size={14} style={{ flexShrink: 0, marginRight: 4, display: "inline" }} /> <strong>{t.acctHowToEarn}</strong> {t.acctEarnEach} <strong>10,000đ</strong> {t.acctEarnFor} <strong>{t.acctEarnPoint}</strong>. {t.acctEarnSuffix}
         </div>
       </div>
     );
@@ -279,9 +283,9 @@ const AccountPage = () => {
                     </div>
                   ))}
 
-                  <div style={{ fontSize: 13, color: "#6b7280", background: "#f0f9ff", padding: "10px 14px", borderRadius: 8, marginBottom: 20 }}>
-                    🔒 {t.acctPwdReloginNotice}
-                  </div>
+                    <div style={{ fontSize: 13, color: "#6b7280", background: isDark ? "rgba(30, 58, 138, 0.25)" : "#f0f9ff", padding: "10px 14px", borderRadius: 8, marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
+                     <ShieldCheck size={14} style={{ flexShrink: 0 }} /> {t.acctPwdReloginNotice}
+                    </div>
 
                   <button disabled={pwdLoading} type="submit" style={{
                     width: "100%", padding: "13px", borderRadius: 10, border: "none",
@@ -336,7 +340,7 @@ const AccountPage = () => {
                   </div>
 
                   <div style={{ marginTop: 16, padding: 16, background: "var(--bg-accent)", borderRadius: 12, fontSize: 13, color: "var(--text-secondary)" }}>
-                    💡 {t.acctSettingsAutoSave}
+                    <Info size={14} style={{ flexShrink: 0, marginRight: 4 }} /> {t.acctSettingsAutoSave}
                   </div>
                 </div>
               )}

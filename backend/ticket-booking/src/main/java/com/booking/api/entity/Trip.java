@@ -53,4 +53,17 @@ public class Trip {
 
     @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Ticket> tickets;
+
+    /**
+     * Mốc "chuyến coi như đã kết thúc" — dùng để chặn check-in quá muộn
+     * (BookingService.checkIn) và để NoShowScheduler tự đánh dấu no-show.
+     * Ưu tiên giờ đến thực tế nếu có khai báo; không có thì ước lượng khởi hành + 2 tiếng
+     * — đúng công thức fallback mà MyBookings.jsx đã dùng để tự ẩn nút "Mã vé QR"
+     * (arrTime = bk.arrivalTime ?? depTime + 2h). Cộng thêm 1 tiếng đệm, khớp luôn với
+     * mốc isExpiredAfterArrival bên đó, để "chuyến đã xong" chỉ có một định nghĩa duy nhất.
+     */
+    public LocalDateTime getLateCheckInCutoff() {
+        LocalDateTime estimatedArrival = arrivalTime != null ? arrivalTime : departureTime.plusHours(2);
+        return estimatedArrival.plusHours(1);
+    }
 }

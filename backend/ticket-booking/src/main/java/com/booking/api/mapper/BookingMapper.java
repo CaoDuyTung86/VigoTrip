@@ -32,6 +32,7 @@ public interface BookingMapper {
     @Mapping(target = "refundStatus", source = "booking.refunds", qualifiedByName = "getRefundStatus")
     @Mapping(target = "isCheckedIn", source = "booking.isCheckedIn")
     @Mapping(target = "checkInDate", source = "booking.checkInDate")
+    @Mapping(target = "noShow", source = "booking.noShow")
     BookingResponse toBookingResponse(Booking booking, Trip trip);
 
     @Named("ticketsToSeatNumbers")

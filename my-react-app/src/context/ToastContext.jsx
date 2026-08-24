@@ -28,7 +28,7 @@ export const ToastProvider = ({ children }) => {
           position: 'fixed',
           top: 80,
           right: 20,
-          zIndex: 9999,
+          zIndex: 10001,
           display: 'flex',
           flexDirection: 'column',
           gap: 10,

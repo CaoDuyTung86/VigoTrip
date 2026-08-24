@@ -89,6 +89,7 @@ Hệ thống phân chia 3 nhóm người dùng chính:
 - **FR-08 (QR Check-in)**: Quét mã QR Code bằng thiết bị di động để đối soát thông tin khách hàng và check-in lên xe.
 - **FR-09 (AI Chatbot)**: Chatbot AI tư vấn chuyến đi, tra cứu lịch sử vé cá nhân ép tham số JWT chính chủ, RAG FAQ chính sách.
 - **FR-10 (AI Revenue Analytics)**: Phân tích báo cáo doanh thu hệ thống và nhà xe bằng Google Gemini AI Insights.
+- **FR-11 (Trip Supply Scheduler)**: Lịch chuyến luôn được phủ đủ 30 ngày kể từ ngày hiện tại. Tiến trình ngầm chạy 03:00 hằng ngày (và lặp lại lúc khởi động ứng dụng, phòng trường hợp container Render ngủ đúng giờ cron) rà từng bộ ba `(tuyến, loại phương tiện, ngày)` trong danh mục tuyến và chỉ sinh phần còn thiếu. Tiến trình **chỉ thêm, không xoá**: chuyến đã khởi hành được giữ nguyên trong CSDL làm dữ liệu lịch sử cho FR-10, việc ẩn chúng khỏi giao diện khách do tầng truy vấn đảm nhiệm.
 
 ### 2.2. Yêu cầu Phi chức năng (Non-Functional Requirements)
 - **NFR-01 (Performance)**: Thời gian phản hồi API tra cứu chuyến đi $< 500\text{ms}$. AI Streaming phản hồi ngay câu đầu tiên $< 1.5\text{s}$.
@@ -241,7 +242,7 @@ Hệ thống phân chia 3 nhóm người dùng chính:
 - **Mã chức năng**: `FSD-MGMT-02`
 - **User Story**: Là nhà xe/phụ xe, tôi muốn dùng camera điện thoại quét mã QR từ Email của khách để check-in lên xe.
 - **Luồng xử lý (Flow)**:
-  1. Email xác nhận vé chứa ảnh QR Code (sinh bởi thư viện `ZXing` chứa mã `BOOKING_<ID>`).
+  1. Email xác nhận vé chứa ảnh QR Code (sinh bởi thư viện `ZXing` chứa số `<ID>` của booking).
   2. Nhà xe mở tính năng Scan QR trên ứng dụng Web Provider -> Quét camera vào mã QR.
   3. Modal hiển thị chi tiết: Họ tên hành khách, Tuyến đường, Số ghế, Trạng thái thanh toán.
   4. Bấm "Xác nhận Lên xe" -> Cập nhật `is_checked_in = true` và `check_in_date = NOW()`.
@@ -344,10 +345,20 @@ Các bảng chính trong Cơ sở dữ liệu SQL Server / PostgreSQL:
    
 5. **`tuyen_duong` (Routes)**:
    - `route_id` (PK, BigInt, Auto-Increment)
-   - `provider_id` (FK -> `users`, chỉ áp dụng cho `ROLE_PROVIDER`)
-   - `origin` (NVarChar(255)) — Điểm đi
-   - `destination` (NVarChar(255)) — Điểm đến
-   - `distance_km` (Decimal(10,2))
+   - `origin` (NVarChar(255), Index) — Mã điểm đi
+   - `destination` (NVarChar(255), Index) — Mã điểm đến
+   - *(Index tổ hợp `(origin, destination)` phục vụ FR-02.)*
+
+   > **Ghi chú hiện trạng.** `provider_id` và `distance_km` từng được đặc tả ở đây nhưng **chưa hiện thực hoá**: một hàng `tuyen_duong` đang dùng chung cho cả ba loại phương tiện (nhà cung cấp xác định gián tiếp qua `chuyen_di -> phuong_tien -> nha_cung_cap`), và hệ thống chưa lưu khoảng cách.
+   >
+   > **Hạn chế đã biết — mã điểm phụ thuộc phương tiện.** `origin`/`destination` là chuỗi tự do, không khoá ngoại, và cùng một thành phố đang mang hai mã khác nhau tuỳ phương tiện: `HUI`/`HUE` (Huế), `CXR`/`NTR` (Nha Trang), `DLI`/`DLT` (Đà Lạt), `VII`/`VIN` (Vinh) — hàng không dùng mã IATA, tàu/xe dùng mã ga - bến. Hệ quả: một tuyến logic bị lưu thành hai hàng không liên quan nhau, và không có toạ độ để hiển thị bản đồ.
+   >
+   > **Hướng chuẩn hoá (điều kiện cần cho hạng mục Map & Realtime Tracking).** Tách hai bảng mới rồi trỏ `tuyen_duong` sang chúng:
+   > - `dia_diem` (Locations) — cấp **thành phố**, mỗi thành phố **một mã duy nhất** không phụ thuộc phương tiện: `location_id`, `code`, `name_vi/en/ja/zh`, `region`, `latitude`, `longitude`.
+   > - `diem_don_tra` (Terminals) — **điểm vật lý**, là thứ được cắm pin trên bản đồ: `terminal_id`, `location_id` (FK), `mode` (`AIR`/`RAIL`/`ROAD`), `code`, `iata_code` (nullable), `name`, `address`, `latitude`, `longitude`.
+   > - `tuyen_duong` bổ sung `origin_terminal_id`, `destination_terminal_id` (FK), `mode`, `distance_km`, `typical_duration_min`, `active`, `path_geojson` (đường đi thực tế cho `RAIL`/`ROAD`; `AIR` nội suy cung vòng lớn).
+   >
+   > Hai cột `origin`/`destination` được **giữ lại ở dạng phi chuẩn hoá** (mã thành phố) để các truy vấn và màn quản trị hiện có không phải sửa đồng loạt trong cùng một lần triển khai.
 
 6. **`phuong_tien` (Vehicles)**:
    - `vehicle_id` (PK, BigInt, Auto-Increment)

@@ -61,6 +61,20 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     @Query("SELECT t FROM Trip t WHERE t.departureTime >= :now ORDER BY t.departureTime ASC")
     Page<Trip> findUpcomingTrips(@Param("now") LocalDateTime now, Pageable pageable);
 
+    /**
+     * Ảnh chụp "tồn kho" chuyến trong một cửa sổ thời gian: (route_id, loại phương tiện, giờ chạy).
+     *
+     * TripSupplyService dùng để biết (tuyến, phương tiện, ngày) nào đã có chuyến rồi mà bỏ qua.
+     * Cố tình chỉ chiếu ra 3 cột thay vì SELECT t: cửa sổ 30 ngày đang cỡ hơn chục nghìn hàng,
+     * nạp cả entity kèm route/vehicle sẽ vừa tốn RAM vừa dính N+1 trong khi chỉ cần đúng khoá.
+     * Gom theo ngày làm ở tầng Java, không CAST sang date trong JPQL, để câu này chạy giống nhau
+     * trên cả SQL Server lẫn PostgreSQL (Neon).
+     */
+    @Query("SELECT t.route.id, t.vehicle.vehicleType, t.departureTime FROM Trip t " +
+            "WHERE t.departureTime >= :from AND t.departureTime < :to")
+    List<Object[]> findSupplySlots(@Param("from") LocalDateTime from,
+                                   @Param("to") LocalDateTime to);
+
     @Query("SELECT t FROM Trip t " +
            "WHERE t.departureTime >= :startOfDay " +
            "AND t.departureTime <= :endOfDay " +

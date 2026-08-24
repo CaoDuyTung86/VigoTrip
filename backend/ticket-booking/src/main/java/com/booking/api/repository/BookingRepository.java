@@ -57,6 +57,21 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findExpiredPendingBookings(@Param("cutoffTime") java.time.LocalDateTime cutoffTime,
                                              @Param("now") java.time.LocalDateTime now);
 
+    /**
+     * Ứng viên "có thể là no-show": đã thanh toán, chưa check-in, chưa bị đánh dấu no-show,
+     * và chuyến đã khởi hành. Lọc thô theo departureTime ở đây, mốc chính xác
+     * (Trip.getLateCheckInCutoff — có cộng thêm buffer theo giờ đến) được NoShowScheduler
+     * tính lại ở tầng Java để dùng chung đúng một công thức với BookingService.checkIn().
+     */
+    @Query("SELECT DISTINCT b FROM Booking b " +
+           "JOIN FETCH b.tickets t " +
+           "JOIN FETCH t.trip tr " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID') " +
+           "AND (b.isCheckedIn IS NULL OR b.isCheckedIn = false) " +
+           "AND (b.noShow IS NULL OR b.noShow = false) " +
+           "AND tr.departureTime < :now")
+    List<Booking> findNoShowCandidates(@Param("now") java.time.LocalDateTime now);
+
     @Query("SELECT SUM(b.totalPrice) FROM Booking b JOIN b.tickets t WHERE t.trip.vehicle.provider.id = :providerId AND b.status IN ('CONFIRMED', 'PAID', 'COMPLETED')")
     Double calculateTotalRevenueByProvider(@Param("providerId") Long providerId);
 

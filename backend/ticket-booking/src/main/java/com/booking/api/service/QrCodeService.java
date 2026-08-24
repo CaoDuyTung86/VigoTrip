@@ -24,8 +24,15 @@ public class QrCodeService {
         return pngOutputStream.toByteArray();
     }
 
-    /** Nội dung nhúng trong QR của một booking. Giữ nguyên định dạng cũ để máy soát vé không phải đổi. */
+    /**
+     * Nội dung nhúng trong QR của một booking.
+     *
+     * Chỉ là số bookingId thuần (không tiền tố "BOOKING_"): parseBookingId() bên
+     * ProviderCheckIn.jsx chỉ nhận JSON có field bookingId/id/code, chuỗi "TICKET-<id>-...",
+     * hoặc số thuần — KHÔNG nhận tiền tố "BOOKING_", nên định dạng cũ khiến mọi mã QR
+     * gửi qua mail bị máy soát vé báo "Mã vé phải là số" dù vé hợp lệ.
+     */
     public String bookingPayload(Long bookingId) {
-        return "BOOKING_" + bookingId;
+        return String.valueOf(bookingId);
     }
 }

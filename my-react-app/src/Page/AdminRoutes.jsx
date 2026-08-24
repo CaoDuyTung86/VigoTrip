@@ -15,7 +15,11 @@ const CITY_NAME_MAP = {
   VII: "Vinh",
   VIN: "Vinh",
   SAP: "Sapa",
-  QNH: "Quy Nhơn",
+  // QNH = Quảng Ninh (Ga Hạ Long / BX Bãi Cháy), khớp với TrainTickets.jsx và
+  // BusTickets.jsx. Chỗ này từng ghi nhầm "Quy Nhơn" — lệch gần 900km so với
+  // điểm thật, nên mã trong tuyen_duong và tên hiển thị cho admin nói hai chuyện
+  // khác nhau; càng phải đúng vì đây sẽ là toạ độ cắm lên bản đồ sau này.
+  QNH: "Quảng Ninh",
   CXR: "Nha Trang (Cam Ranh)",
   NTR: "Nha Trang",
   DLI: "Đà Lạt",

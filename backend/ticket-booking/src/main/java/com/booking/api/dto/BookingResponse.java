@@ -43,6 +43,7 @@ public class BookingResponse {
 
     private Boolean isCheckedIn;
     private LocalDateTime checkInDate;
+    private Boolean noShow;
     private Boolean hasReviewed;
 
     @Data

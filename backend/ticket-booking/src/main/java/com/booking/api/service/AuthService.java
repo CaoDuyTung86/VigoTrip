@@ -166,6 +166,11 @@ public class AuthService {
             throw new IllegalArgumentException("Mã OTP đã hết hạn.");
         }
 
+        if (user.getPassword() != null && !user.getPassword().isEmpty()
+                && passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Mật khẩu mới phải khác mật khẩu hiện tại.");
+        }
+
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setResetToken(null);
         user.setResetTokenExpiry(null);

@@ -24,6 +24,14 @@ public class EmailService {
     @org.springframework.beans.factory.annotation.Value("${app.backend-url:http://localhost:8080}")
     private String backendUrl;
 
+    /**
+     * URL gốc của frontend, dùng cho các link trỏ về web trong mail (khảo sát, quản lý vé...).
+     * Trước đây các link này bị hardcode http://localhost:5173, nên trên deploy khách bấm
+     * vào là dính thẳng vào máy dev, không bao giờ tới được domain thật.
+     */
+    @org.springframework.beans.factory.annotation.Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
+
     public void sendResetPasswordEmail(String toEmail, String otpCode) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -175,7 +183,7 @@ public class EmailService {
             helper.setTo(toEmail);
             helper.setSubject("Đánh giá trải nghiệm chuyến đi #" + bookingId + " - VigoTrip");
 
-            String surveyUrl = "http://localhost:5173/quan-ly-ve?reviewBookingId=" + bookingId;
+            String surveyUrl = frontendUrl + "/my-bookings?reviewBookingId=" + bookingId;
 
             String htmlContent = "<div style='font-family: \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 40px 20px; color: #1e293b;'>"
                     + "<div style='max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;'>"
@@ -248,7 +256,7 @@ public class EmailService {
                     + "</div>"
 
                     + "<p style='font-size: 14px; line-height: 1.6; color: #64748b; margin-bottom: 16px;'>Chúng tôi chân thành cáo lỗi cùng quý khách vì sự thay đổi này. Vé của quý khách vẫn giữ nguyên giá trị sử dụng cho giờ khởi hành mới.</p>"
-                    + "<p style='font-size: 14px; line-height: 1.6; color: #64748b; margin-bottom: 28px;'>Nếu thời gian mới không phù hợp, quý khách có thể vào mục <a href='http://localhost:5173/quan-ly-ve' style='color: #2563eb; font-weight: 700;'>Quản lý vé</a> để gửi yêu cầu hoàn hủy miễn phí 100%.</p>"
+                    + "<p style='font-size: 14px; line-height: 1.6; color: #64748b; margin-bottom: 28px;'>Nếu thời gian mới không phù hợp, quý khách có thể vào mục <a href='" + frontendUrl + "/my-bookings' style='color: #2563eb; font-weight: 700;'>Quản lý vé</a> để gửi yêu cầu hoàn hủy miễn phí 100%.</p>"
 
                     // Footer Signature
                     + "<div style='border-top: 1px solid #f1f5f9; padding-top: 20px; font-size: 13px; color: #94a3b8; line-height: 1.6;'>"
@@ -298,7 +306,7 @@ public class EmailService {
                     + "</div>"
 
                     + "<p style='font-size: 14px; line-height: 1.6; color: #64748b; margin-bottom: 16px;'>Số tiền trên sẽ được hệ thống xử lý hoàn trả tự động trong vòng 3 - 5 ngày làm việc.</p>"
-                    + "<p style='font-size: 14px; line-height: 1.6; color: #64748b; margin-bottom: 28px;'>Quý khách có thể truy cập <a href='http://localhost:5173' style='color: #2563eb; font-weight: 700;'>VigoTrip</a> để tìm kiếm và đặt chuyến đi thay thế khác.</p>"
+                    + "<p style='font-size: 14px; line-height: 1.6; color: #64748b; margin-bottom: 28px;'>Quý khách có thể truy cập <a href='" + frontendUrl + "' style='color: #2563eb; font-weight: 700;'>VigoTrip</a> để tìm kiếm và đặt chuyến đi thay thế khác.</p>"
 
                     // Footer Signature
                     + "<div style='border-top: 1px solid #f1f5f9; padding-top: 20px; font-size: 13px; color: #94a3b8; line-height: 1.6;'>"

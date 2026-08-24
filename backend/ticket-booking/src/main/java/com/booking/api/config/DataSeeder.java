@@ -3,22 +3,16 @@ package com.booking.api.config;
 import com.booking.api.entity.Provider;
 import com.booking.api.entity.Route;
 import com.booking.api.entity.Seat;
-import com.booking.api.entity.Trip;
 import com.booking.api.entity.Vehicle;
 import com.booking.api.repository.ProviderRepository;
 import com.booking.api.repository.RouteRepository;
 import com.booking.api.repository.SeatRepository;
-import com.booking.api.repository.TripRepository;
 import com.booking.api.repository.VehicleRepository;
 import lombok.RequiredArgsConstructor;
-import java.math.BigDecimal;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -32,7 +26,6 @@ public class DataSeeder {
     private final RouteRepository routeRepository;
     private final VehicleRepository vehicleRepository;
     private final SeatRepository seatRepository;
-    private final TripRepository tripRepository;
 
     @Bean
     CommandLineRunner seedCoreData() {
@@ -57,129 +50,22 @@ public class DataSeeder {
             ensureSeatsForVehicle(airbusA320);
             ensureSeatsForVehicle(bus40);
             ensureSeatsForVehicle(train120);
-            // Kiểm tra xem có chuyến đi nào từ hôm nay trở đi không
-            LocalDate today = LocalDate.now();
-            LocalDateTime todayStart = today.atStartOfDay();
-            long futureTrips = tripRepository
-                    .findUpcomingTrips(todayStart, org.springframework.data.domain.PageRequest.of(0, 1))
-                    .getTotalElements();
 
-            if (futureTrips == 0) {
-                // Xóa các trip cũ đã hết hạn (nếu có) để tránh rác DB
-                List<Trip> oldTrips = tripRepository.findAll().stream()
-                        .filter(t -> t.getDepartureTime() != null && t.getDepartureTime().isBefore(todayStart))
-                        .toList();
-                if (!oldTrips.isEmpty()) {
-                    tripRepository.deleteAll(oldTrips);
-                }
-
-                List<Trip> trips = new ArrayList<>();
-
-                for (int i = 0; i < 30; i++) {
-                    LocalDate date = today.plusDays(i);
-
-                    // ===== PLANE =====
-                    trips.add(buildTrip(
-                            hanSgn,
-                            airbusA321,
-                            date.atTime(LocalTime.of(6, 0)),
-                            date.atTime(LocalTime.of(8, 10)),
-                            2_100_000.0 + i * 50_000,
-                            "ACTIVE"));
-
-                    trips.add(buildTrip(
-                            hanSgn,
-                            airbusA321,
-                            date.atTime(LocalTime.of(14, 30)),
-                            date.atTime(LocalTime.of(16, 40)),
-                            1_800_000.0 + i * 30_000,
-                            "ACTIVE"));
-
-                    trips.add(buildTrip(
-                            hanSgn,
-                            airbusA320,
-                            date.atTime(LocalTime.of(19, 0)),
-                            date.atTime(LocalTime.of(21, 10)),
-                            1_500_000.0 + i * 30_000,
-                            "ACTIVE"));
-
-                    trips.add(buildTrip(
-                            sgnHan,
-                            airbusA321,
-                            date.atTime(LocalTime.of(7, 0)),
-                            date.atTime(LocalTime.of(9, 10)),
-                            2_000_000.0 + i * 40_000,
-                            "ACTIVE"));
-
-                    trips.add(buildTrip(
-                            sgnHan,
-                            airbusA320,
-                            date.atTime(LocalTime.of(20, 0)),
-                            date.atTime(LocalTime.of(22, 10)),
-                            1_600_000.0 + i * 35_000,
-                            "ACTIVE"));
-
-                    trips.add(buildTrip(
-                            hanDad,
-                            airbusA320,
-                            date.atTime(LocalTime.of(11, 0)),
-                            date.atTime(LocalTime.of(12, 15)),
-                            900_000.0 + i * 20_000,
-                            "ACTIVE"));
-
-                    trips.add(buildTrip(
-                            dadHan,
-                            airbusA320,
-                            date.atTime(LocalTime.of(15, 0)),
-                            date.atTime(LocalTime.of(16, 15)),
-                            950_000.0 + i * 20_000,
-                            "ACTIVE"));
-
-                    // ===== BUS =====
-                    trips.add(buildTrip(
-                            hanDad,
-                            bus40,
-                            date.atTime(LocalTime.of(7, 30)),
-                            date.atTime(LocalTime.of(22, 30)),
-                            420_000.0 + i * 10_000,
-                            "ACTIVE"));
-
-                    trips.add(buildTrip(
-                            dadHan,
-                            bus40,
-                            date.atTime(LocalTime.of(8, 0)),
-                            date.atTime(LocalTime.of(23, 0)),
-                            430_000.0 + i * 10_000,
-                            "ACTIVE"));
-
-                    trips.add(buildTrip(
-                            hanSgn,
-                            bus40,
-                            date.atTime(LocalTime.of(18, 0)),
-                            date.plusDays(1).atTime(LocalTime.of(12, 0)),
-                            550_000.0 + i * 15_000,
-                            "ACTIVE"));
-
-                    // ===== TRAIN =====
-                    trips.add(buildTrip(
-                            hanDad,
-                            train120,
-                            date.atTime(LocalTime.of(6, 0)),
-                            date.plusDays(1).atTime(LocalTime.of(6, 30)),
-                            650_000.0 + i * 15_000,
-                            "ACTIVE"));
-
-                    trips.add(buildTrip(
-                            hanSgn,
-                            train120,
-                            date.atTime(LocalTime.of(19, 30)),
-                            date.plusDays(2).atTime(LocalTime.of(4, 0)),
-                            850_000.0 + i * 20_000,
-                            "ACTIVE"));
-                }
-
-                tripRepository.saveAll(trips);
-            }
+            // Cố tình KHÔNG sinh chuyến ở đây nữa.
+            //
+            // Khối cũ chỉ biết 4 tuyến HAN<->SGN và HAN<->DAD, lại chạy sau TripDataSeeder
+            // (bean này không khai @Order nên xếp cuối), nên trên production tập tuyến nhìn
+            // thấy đúng bằng tập nghèo nàn của nó. Toàn bộ việc sinh chuyến đã dồn về
+            // TripSupplyService — một nguồn duy nhất, biết đủ danh mục tuyến, bù theo
+            // (tuyến, phương tiện, ngày).
+            //
+            // Khối cũ còn kèm một bước 'dọn rác' xoá mọi chuyến đã khởi hành khi lịch cạn.
+            // Bước đó nguy hiểm chứ không vô hại: Trip.tickets khai cascade ALL +
+            // orphanRemoval, xoá chuyến quá khứ là xoá theo cả vé đã bán, trong khi các
+            // truy vấn doanh thu (BookingRepository) đều join Booking -> ve -> chuyen_di
+            // -> tuyen_duong/phuong_tien. Mất chuyến cũ là mất luôn dữ liệu cho AI phân tích,
+            // còn phía khách thì chuyến đã qua vốn đã tự ẩn nhờ bộ lọc thời gian trong
+            // TripService, không cần xoá khỏi DB.
         };
     }
 
@@ -258,21 +144,5 @@ public class DataSeeder {
         if (!seats.isEmpty()) {
             seatRepository.saveAll(seats);
         }
-    }
-
-    private Trip buildTrip(Route route,
-            Vehicle vehicle,
-            LocalDateTime departure,
-            LocalDateTime arrival,
-            double price,
-            String status) {
-        Trip trip = new Trip();
-        trip.setRoute(route);
-        trip.setVehicle(vehicle);
-        trip.setDepartureTime(departure);
-        trip.setArrivalTime(arrival);
-        trip.setPrice(BigDecimal.valueOf(price));
-        trip.setStatus(status);
-        return trip;
     }
 }

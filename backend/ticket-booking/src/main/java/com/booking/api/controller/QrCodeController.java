@@ -19,7 +19,7 @@ import java.time.Duration;
  * Content-ID nên ảnh sẽ vỡ. Client mail cũng chặn `data:` URI, nên cách duy nhất chạy
  * được ở mọi hòm thư là trỏ <img> tới một URL công khai.
  *
- * Endpoint để public có chủ đích: QR chỉ chứa chuỗi "BOOKING_{id}" — đúng bằng thông
+ * Endpoint để public có chủ đích: QR chỉ chứa số bookingId trần — đúng bằng thông
  * tin đã nằm sẵn trong email người nhận, không lộ thêm gì. Nó KHÔNG trả về dữ liệu
  * booking, và bản thân mã QR không phải vé hợp lệ nếu không qua bước soát vé.
  */

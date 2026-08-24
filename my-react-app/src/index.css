@@ -59,6 +59,15 @@ html {
   --summary-vip-border: #bfdbfe;
   --summary-vip-title: #1d4ed8;
   --summary-vip-price: #2563eb;
+
+  --refund-policy-bg: #eff6ff;
+  --refund-policy-border: #bfdbfe;
+  --refund-policy-title: #1d4ed8;
+  --refund-policy-text: #1e40af;
+  --refund-policy-bg-deny: #fef2f2;
+  --refund-policy-border-deny: #fecaca;
+  --refund-policy-title-deny: #b91c1c;
+  --refund-policy-text-deny: #991b1b;
 }
 
 body.dark {
@@ -105,6 +114,15 @@ body.dark {
   --summary-vip-border: rgba(59, 130, 246, 0.4);
   --summary-vip-title: #93c5fd;
   --summary-vip-price: #60a5fa;
+
+  --refund-policy-bg: rgba(30, 58, 138, 0.25);
+  --refund-policy-border: rgba(59, 130, 246, 0.4);
+  --refund-policy-title: #93c5fd;
+  --refund-policy-text: #bfdbfe;
+  --refund-policy-bg-deny: rgba(153, 27, 27, 0.25);
+  --refund-policy-border-deny: rgba(239, 68, 68, 0.4);
+  --refund-policy-title-deny: #fca5a5;
+  --refund-policy-text-deny: #fecaca;
 }
 
 /* Dual Range Slider Styles */

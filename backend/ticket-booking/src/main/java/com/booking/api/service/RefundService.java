@@ -22,6 +22,11 @@ import java.util.stream.Collectors;
 @Slf4j
 public class RefundService {
 
+    // Cùng ngưỡng với BookingService.cancelBooking — hai đường hủy vé phải tuân theo
+    // đúng một chính sách, không thì khách hủy qua đường này né được luật của đường kia.
+    private static final int CANCEL_HOURS_CUTOFF = 4;
+    private static final double REFUND_PERCENTAGE_24H = 0.9;
+
     private final RefundRepository refundRepository;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
@@ -45,6 +50,12 @@ public class RefundService {
             throw new BookingException("Booking này đã bị hủy");
         }
 
+        // Vé đã soát (lên xe/tàu/máy bay) coi như đã sử dụng dịch vụ — không được hoàn
+        // tiền nữa dù còn cách giờ khởi hành bao lâu.
+        if (Boolean.TRUE.equals(booking.getIsCheckedIn())) {
+            throw new BookingException("Vé đã được check-in, không thể yêu cầu hoàn tiền.");
+        }
+
         // Kiểm tra đã có yêu cầu PENDING chưa
         List<Refund> existingPending = refundRepository.findByBookingId(booking.getId())
                 .stream().filter(r -> "PENDING".equals(r.getStatus())).toList();
@@ -52,9 +63,28 @@ public class RefundService {
             throw new BookingException("Đã có yêu cầu hoàn tiền đang chờ duyệt cho booking này");
         }
 
+        java.math.BigDecimal refundAmount = booking.getTotalPrice();
+        Trip trip = booking.getTickets() != null && !booking.getTickets().isEmpty()
+                ? booking.getTickets().get(0).getTrip() : null;
+        if (trip != null) {
+            long hoursUntilDeparture = java.time.temporal.ChronoUnit.HOURS.between(
+                    LocalDateTime.now(), trip.getDepartureTime());
+
+            if (hoursUntilDeparture < CANCEL_HOURS_CUTOFF) {
+                throw new BookingException(
+                        "Không thể hủy/hoàn vé khi chỉ còn dưới 4 tiếng là khởi hành hoặc xe đã chạy");
+            }
+
+            if (hoursUntilDeparture <= 24) {
+                refundAmount = refundAmount
+                        .multiply(java.math.BigDecimal.valueOf(REFUND_PERCENTAGE_24H))
+                        .setScale(2, java.math.RoundingMode.HALF_UP); // Phạt 10%, hoàn 90%
+            }
+        }
+
         Refund refund = new Refund();
         refund.setBooking(booking);
-        refund.setRefundAmount(booking.getTotalPrice());
+        refund.setRefundAmount(refundAmount);
         refund.setStatus("PENDING");
         refund.setReason(request.getReason());
         refund.setRequestedAt(LocalDateTime.now());

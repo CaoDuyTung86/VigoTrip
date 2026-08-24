@@ -293,6 +293,12 @@ public class BookingService {
             throw new BookingException("Booking này đã được hủy trước đó");
         }
 
+        // Vé đã soát (lên xe/tàu/máy bay) coi như đã sử dụng dịch vụ — không được hoàn
+        // tiền nữa dù còn cách giờ khởi hành bao lâu.
+        if (Boolean.TRUE.equals(booking.getIsCheckedIn())) {
+            throw new BookingException("Vé đã được check-in, không thể hủy/hoàn tiền.");
+        }
+
         Trip trip = extractTripFromBooking(booking);
 
         if (trip != null) {
@@ -457,6 +463,31 @@ public class BookingService {
 
         if (Boolean.TRUE.equals(booking.getIsCheckedIn())) {
             throw new BookingException("Vé này đã được check-in vào lúc " + booking.getCheckInDate());
+        }
+
+        // Chặn quét quá sớm: trước đây hàm này không kiểm tra giờ khởi hành nên nhân
+        // viên lỡ quét thử một vé còn nguyên ngày (ví dụ để xem chi tiết) là vé bị khóa
+        // "đã check-in" ngay lập tức — đúng ngày khách quay lại quét thật thì bị từ chối
+        // vì hệ thống tưởng đã soát rồi. Mốc 12 tiếng dùng chung với
+        // TripReminderScheduler (email nhắc lịch cũng gửi trước giờ khởi hành 12 tiếng),
+        // để "sắp khởi hành" chỉ có một định nghĩa duy nhất trong toàn hệ thống.
+        Trip tripForCheckIn = extractTripFromBooking(booking);
+        if (tripForCheckIn != null) {
+            LocalDateTime now = LocalDateTime.now();
+            long hoursUntilDeparture = java.time.temporal.ChronoUnit.HOURS.between(now, tripForCheckIn.getDepartureTime());
+            if (hoursUntilDeparture > 12) {
+                throw new BookingException(
+                        "Chưa đến giờ khởi hành, chỉ có thể check-in trong vòng 12 tiếng trước giờ khởi hành ("
+                                + tripForCheckIn.getDepartureTime() + ").");
+            }
+
+            // Chặn quét quá muộn: chuyến được coi là đã kết thúc (Trip.getLateCheckInCutoff())
+            // thì không cho check-in nữa — tránh vé vẫn "hợp lệ" vô thời hạn sau khi khách
+            // đã bỏ lỡ chuyến. NoShowScheduler dùng đúng mốc này để tự đánh dấu no-show.
+            if (now.isAfter(tripForCheckIn.getLateCheckInCutoff())) {
+                throw new BookingException(
+                        "Đã quá giờ, chuyến đi được xem là đã kết thúc, không thể check-in nữa.");
+            }
         }
 
         booking.setIsCheckedIn(true);

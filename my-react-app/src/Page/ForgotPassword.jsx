@@ -47,6 +47,9 @@ const ForgotPassword = () => {
                 otpCode: otp
             });
             setMessage({ type: "success", text: t.fgpResetSuccess });
+            // Lưu email vào sessionStorage để trang /auth tự điền sẵn, tránh bắt người dùng
+            // gõ lại email họ vừa nhập ở bước trên (Auth.jsx đọc key "tempEmail" lúc mount).
+            sessionStorage.setItem("tempEmail", email);
             setTimeout(() => {
                 navigate("/auth");
             }, 2000);

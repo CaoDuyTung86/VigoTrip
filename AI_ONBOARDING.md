@@ -98,6 +98,8 @@ To keep the project stable, please enforce these rules on the developer:
 2. **UI Patterns:** Use CSS Variables in `index.css` for theme consistency.
 3. **Mappers:** Use MapStruct for Entity-DTO conversion. Avoid manual loops.
 4. **Logic:** Keep controllers thin; put business logic in Service classes.
+5. **Trip data:** `TripSupplyService` is the *only* place allowed to create trips. It owns the catalogue of real routes per mode and tops the schedule up to a 30-day horizon, keyed per `(route, vehicle type, day)`. **Do not add another seeder** — the bug it replaced was exactly that: two seeders with different route coverage, the later one making production look like only `HAN <-> SGN` and `HAN <-> DAD` existed. Never delete past trips either: `Trip.tickets` cascades `ALL` + `orphanRemoval`, so deleting an old trip deletes the sold tickets that every revenue query in `BookingRepository` joins through.
+6. **Place codes:** a city currently has two codes depending on mode (`HUI`/`HUE`, `CXR`/`NTR`, `DLI`/`DLT`, `VII`/`VIN`), and `QNH` means Quảng Ninh — not Quy Nhơn. Keep the four `CITY_NAME_MAP`-style tables in `AdminRoutes.jsx`, `AdminTrips.jsx`, `TrainTickets.jsx` and `BusTickets.jsx` in agreement. See the `tuyen_duong` notes in `SRS_FSD_SPECIFICATION.md` for the normalisation plan that Map Integration depends on.
 
 ### Directory Map
 - `/backend/ticket-booking`: Main Spring Boot application.

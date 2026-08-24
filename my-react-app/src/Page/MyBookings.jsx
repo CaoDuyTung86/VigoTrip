@@ -6,7 +6,8 @@ import Sidebar from "../components/Sidebar";
 import { useLanguage } from "../context/LanguageContext";
 import { TbTrain, TbBus } from "react-icons/tb";
 import { FaPlane, FaQrcode } from "react-icons/fa";
-import { FiLock, FiAlertCircle, FiRefreshCw } from "react-icons/fi";
+import { FiLock, FiAlertCircle, FiRefreshCw, FiAlertTriangle, FiCheckCircle, FiClock, FiXCircle } from "react-icons/fi";
+import { Compass } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import Auth from "./Auth";
 
@@ -216,7 +217,7 @@ const MyBookings = () => {
                 animation: "fadeIn 0.3s ease"
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
-                  <span>{toastMsg.type === "error" ? "⚠️" : "🎉"}</span>
+                  <span style={{ display: "flex", alignItems: "center" }}>{toastMsg.type === "error" ? <FiAlertTriangle /> : <FiCheckCircle />}</span>
                   <span>{toastMsg.text}</span>
                 </div>
                 <button
@@ -397,7 +398,7 @@ const MyBookings = () => {
                   justifyContent: "center",
                   fontSize: 26,
                 }}>
-                  🎫
+                  <Compass size={26} style={{ color: "var(--text-secondary)" }} />
                 </div>
                 <div>
                   <h3 style={{ fontSize: 17, fontWeight: 800, color: "var(--text-heading)", marginBottom: 6 }}>
@@ -421,7 +422,7 @@ const MyBookings = () => {
                     cursor: "pointer",
                   }}
                 >
-                  🚀 {t.exploreTripsBtn || "Khám phá chuyến đi ngay"}
+                  {t.exploreTripsBtn || "Khám phá chuyến đi ngay"}
                 </button>
               </div>
             ) : (
@@ -507,13 +508,13 @@ const MyBookings = () => {
                             </div>
                           )}
                           {hasPendingRefund && (
-                            <div style={{ marginTop: 6, padding: "6px 12px", background: "rgba(234, 179, 8, 0.15)", color: "#eab308", borderRadius: 6, fontSize: 12, fontWeight: 700, display: "inline-block", border: "1px solid #eab308" }}>
-                              {t.pendingRefundBadge || "⏳ Đang chờ admin duyệt yêu cầu hoàn vé"}
+                            <div style={{ marginTop: 6, padding: "6px 12px", background: "rgba(234, 179, 8, 0.15)", color: "#eab308", borderRadius: 6, fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid #eab308" }}>
+                              <FiClock style={{ flexShrink: 0 }} /> {(t.pendingRefundBadge || "Đang chờ admin duyệt yêu cầu hoàn vé").replace(/^⏳\s*/, '')}
                             </div>
                           )}
                           {hasRejectedRefund && bk.status !== "CANCELLED" && (
-                            <div style={{ marginTop: 6, padding: "6px 12px", background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", borderRadius: 6, fontSize: 12, fontWeight: 700, display: "inline-block", border: "1px solid #ef4444" }}>
-                              {t.rejectedRefundBadge || "❌ Yêu cầu hoàn tiền bị từ chối"}
+                            <div style={{ marginTop: 6, padding: "6px 12px", background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", borderRadius: 6, fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid #ef4444" }}>
+                              <FiXCircle style={{ flexShrink: 0 }} /> {(t.rejectedRefundBadge || "Yêu cầu hoàn tiền bị từ chối").replace(/^❌\s*/, '')}
                             </div>
                           )}
                         </div>
@@ -650,14 +651,14 @@ const MyBookings = () => {
               <div style={{
                 padding: 16,
                 borderRadius: 12,
-                background: refundInfo.canRefund ? "rgba(30, 58, 138, 0.3)" : "rgba(153, 27, 27, 0.3)",
-                border: `1px solid ${refundInfo.canRefund ? "rgba(59, 130, 246, 0.4)" : "rgba(239, 68, 68, 0.4)"}`,
+                background: refundInfo.canRefund ? "var(--refund-policy-bg, rgba(239, 246, 255, 0.9))" : "var(--refund-policy-bg-deny, rgba(254, 242, 242, 0.9))",
+                border: `1.5px solid ${refundInfo.canRefund ? "var(--refund-policy-border, rgba(59, 130, 246, 0.3))" : "var(--refund-policy-border-deny, rgba(239, 68, 68, 0.3))"}`,
                 marginBottom: 24
               }}>
-                <div style={{ fontWeight: 700, color: refundInfo.canRefund ? "#60a5fa" : "#fca5a5", marginBottom: 8, fontSize: 15 }}>
+                <div style={{ fontWeight: 700, color: refundInfo.canRefund ? "var(--refund-policy-title, #1d4ed8)" : "var(--refund-policy-title-deny, #dc2626)", marginBottom: 8, fontSize: 15 }}>
                   {t.refundPolicyTitle || "Chính sách áp dụng:"}
                 </div>
-                <div style={{ fontSize: 13.5, color: refundInfo.canRefund ? "#93c5fd" : "#fecaca", lineHeight: 1.5 }}>
+                <div style={{ fontSize: 13.5, color: refundInfo.canRefund ? "var(--refund-policy-text, #1e40af)" : "var(--refund-policy-text-deny, #b91c1c)", lineHeight: 1.5 }}>
                   {refundInfo.text}
                 </div>
 
@@ -694,14 +695,14 @@ const MyBookings = () => {
               )}
 
               {cancelModal.error && (
-                <div style={{ padding: 12, background: "#fee2e2", color: "#dc2626", borderRadius: 8, fontSize: 13, marginBottom: 20, fontWeight: 600 }}>
-                  ⚠️ {cancelModal.error}
+                <div style={{ padding: 12, background: "#fee2e2", color: "#dc2626", borderRadius: 8, fontSize: 13, marginBottom: 20, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                  <FiAlertTriangle style={{ flexShrink: 0 }} /> {cancelModal.error}
                 </div>
               )}
 
               {cancelModal.success && (
                 <div style={{ padding: 16, background: "#dcfce7", color: "#16a34a", borderRadius: 8, fontSize: 14, marginBottom: 20, fontWeight: 700, textAlign: "center", border: "1px solid #bbf7d0" }}>
-                  {t.refundSuccessTitle || "🎉 Yêu cầu hoàn vé đã được gửi thành công!"}<br />
+                  <FiCheckCircle style={{ display: "inline", verticalAlign: "middle", marginRight: 6 }} /> {(t.refundSuccessTitle || "Yêu cầu hoàn vé đã được gửi thành công!").replace(/^🎉\s*/, '')}<br />
                   <span style={{ fontWeight: 400, fontSize: 13 }}>{t.refundSuccessSub || "Vui lòng chờ Admin duyệt. Bạn có thể theo dõi trạng thái tại đây."}</span>
                 </div>
               )}
@@ -736,7 +737,7 @@ const MyBookings = () => {
 
             {reviewModal.success ? (
               <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <div style={{ fontSize: 56, marginBottom: 12 }}>🎉</div>
+                <div style={{ fontSize: 56, marginBottom: 12, color: "#22c55e" }}><FiCheckCircle /></div>
                 <h3 style={{ fontSize: 20, fontWeight: 800, color: "#16a34a", marginBottom: 8 }}>{t.reviewSuccessTitle || "Cảm ơn bạn đã đánh giá!"}</h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: 14 }}>{t.reviewSuccessSub || "Phản hồi của bạn giúp chúng tôi cải thiện dịch vụ mỗi ngày."}</p>
               </div>
@@ -745,7 +746,7 @@ const MyBookings = () => {
                 <h3 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4, color: "var(--text-main)" }}>{t.reviewModalTitle || "Đánh giá chuyến đi"}</h3>
                 <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 20 }}>
                   {reviewModal.booking.origin} → {reviewModal.booking.destination} &nbsp;•&nbsp;
-                  {reviewModal.booking.vehicleType === "PLANE" ? "✈️" : reviewModal.booking.vehicleType === "BUS" ? "🚌" : "🚂"} {reviewModal.booking.providerName}
+                  {reviewModal.booking.vehicleType === "PLANE" ? <FaPlane style={{ fontSize: 14, color: "var(--primary)" }} /> : reviewModal.booking.vehicleType === "BUS" ? <TbBus style={{ fontSize: 16, color: "var(--primary)" }} /> : <TbTrain style={{ fontSize: 16, color: "var(--primary)" }} />} {reviewModal.booking.providerName}
                 </p>
 
                 {/* Star Rating */}
@@ -795,8 +796,8 @@ const MyBookings = () => {
 
                 {/* Error */}
                 {reviewModal.error && (
-                  <div style={{ padding: "10px 14px", background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", borderRadius: 8, fontSize: 13, marginBottom: 16, fontWeight: 600 }}>
-                    ⚠️ {reviewModal.error}
+                  <div style={{ padding: "10px 14px", background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", borderRadius: 8, fontSize: 13, marginBottom: 16, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                    <FiAlertTriangle style={{ flexShrink: 0 }} /> {reviewModal.error}
                   </div>
                 )}
 
