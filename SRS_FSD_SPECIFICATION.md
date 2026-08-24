@@ -60,7 +60,7 @@ Hệ thống phân chia 3 nhóm người dùng chính:
                                    v
 +-----------------------------------------------------------------------+
 |                           BACKEND LAYER                               |
-|   Java 21 | Spring Boot 3 | Spring Security (JWT & OAuth2)            |
+|   Java 17 | Spring Boot 3.4 | Spring Security 6 (JWT & OAuth2)        |
 |   Spring Data JPA | Google Gemini AI (RAG + Function Calling)         |
 |   ZXing QR Code Generator | JavaMailSender | Caffeine Cache         |
 |   Hosted on Render Container (Linux -Xmx256m)                         |
@@ -88,8 +88,13 @@ Hệ thống phân chia 3 nhóm người dùng chính:
 - **FR-07 (Reminder Scheduler)**: Tự động chạy tiến trình ngầm gửi mail nhắc nhở trước 12h cho các đơn vé `CONFIRMED`.
 - **FR-08 (QR Check-in)**: Quét mã QR Code bằng thiết bị di động để đối soát thông tin khách hàng và check-in lên xe.
 - **FR-09 (AI Chatbot)**: Chatbot AI tư vấn chuyến đi, tra cứu lịch sử vé cá nhân ép tham số JWT chính chủ, RAG FAQ chính sách.
-- **FR-10 (AI Revenue Analytics)**: Phân tích báo cáo doanh thu hệ thống và nhà xe bằng Google Gemini AI Insights.
+- **FR-10 (AI Revenue Analytics)**: Phân tích doanh thu bằng Google Gemini AI Insights, theo **kỳ báo cáo** chọn được là Tháng / Quý / Năm.
+  - Mọi chỉ số trong một báo cáo — doanh thu, số đơn, số vé, cơ cấu theo loại phương tiện, doanh thu theo nhà cung cấp, top tuyến — đều cắt theo đúng một khoảng `[đầu kỳ, đầu kỳ kế tiếp)`. Giao diện và phần AI đọc **chung một** đối tượng số liệu, nên con số AI dẫn ra không thể lệch với biểu đồ đang hiển thị.
+  - Có so sánh với **kỳ liền trước** (tăng trưởng doanh thu và số đơn). Kỳ trước bằng 0 thì bỏ trống chỉ số tăng trưởng thay vì quy ra vô cực.
+  - Kỳ được chọn không có giao dịch thì hệ thống **tự chuyển về kỳ gần nhất có dữ liệu** và hiển thị thông báo nêu rõ kỳ đã yêu cầu lẫn kỳ đang xem — không bao giờ trả về màn hình trắng, cũng không gán số liệu kỳ này thành kỳ khác.
+  - Không có dữ liệu thì không gọi LLM, để tiết kiệm trần ngân sách token hằng ngày.
 - **FR-11 (Trip Supply Scheduler)**: Lịch chuyến luôn được phủ đủ 30 ngày kể từ ngày hiện tại. Tiến trình ngầm chạy 03:00 hằng ngày (và lặp lại lúc khởi động ứng dụng, phòng trường hợp container Render ngủ đúng giờ cron) rà từng bộ ba `(tuyến, loại phương tiện, ngày)` trong danh mục tuyến và chỉ sinh phần còn thiếu. Tiến trình **chỉ thêm, không xoá**: chuyến đã khởi hành được giữ nguyên trong CSDL làm dữ liệu lịch sử cho FR-10, việc ẩn chúng khỏi giao diện khách do tầng truy vấn đảm nhiệm.
+- **FR-12 (Provider Data Scoping)**: Tài khoản `ROLE_PROVIDER` chỉ đọc được số liệu của những thương hiệu mình vận hành, xác định qua `nha_cung_cap.owner_user_id`. Yêu cầu phạm vi toàn hệ thống từ tài khoản đối tác bị **từ chối thẳng (403)** chứ không âm thầm hạ xuống phạm vi hẹp — hạ ngầm sẽ khiến đối tác tưởng con số đang xem là của toàn sàn.
 
 ### 2.2. Yêu cầu Phi chức năng (Non-Functional Requirements)
 - **NFR-01 (Performance)**: Thời gian phản hồi API tra cứu chuyến đi $< 500\text{ms}$. AI Streaming phản hồi ngay câu đầu tiên $< 1.5\text{s}$.
@@ -110,7 +115,9 @@ Hệ thống phân chia 3 nhóm người dùng chính:
 | FR-07 | Nhắc lịch tự động | FSD-SCHEDULER-01 |
 | FR-08 | QR Check-in | FSD-MGMT-02 |
 | FR-09 | AI Chatbot | FSD-AI-01 |
-| FR-10 | AI Revenue Analytics | FSD-AI-02 |
+| FR-10 | AI Revenue Analytics (theo kỳ) | FSD-AI-02 |
+| FR-11 | Trip Supply Scheduler | FSD-SCHEDULER-01 |
+| FR-12 | Provider Data Scoping | FSD-AI-02, FSD-MGMT-01 |
 | *(bổ sung)* | Duyệt hoàn tiền | FSD-MGMT-03 |
 | *(bổ sung)* | Đánh giá chuyến đi | FSD-MGMT-04 |
 ---
@@ -360,15 +367,28 @@ Các bảng chính trong Cơ sở dữ liệu SQL Server / PostgreSQL:
    >
    > Hai cột `origin`/`destination` được **giữ lại ở dạng phi chuẩn hoá** (mã thành phố) để các truy vấn và màn quản trị hiện có không phải sửa đồng loạt trong cùng một lần triển khai.
 
-6. **`phuong_tien` (Vehicles)**:
+6. **`nha_cung_cap` (Providers)**:
+   - `provider_id` (PK, BigInt, Auto-Increment)
+   - `provider_name` (NVarChar(255), Not Null)
+   - `provider_type` (VarChar(20)) -- `AIRLINE`, `BUS`, `TRAIN`
+   - `contact_info` (NVarChar(255))
+   - `owner_user_id` (FK -> `users`, **Nullable**) — tài khoản đối tác vận hành thương hiệu này
+
+   > Cột `owner_user_id` là thứ hiện thực hoá FR-12. Trước khi có nó, `ROLE_PROVIDER` thực chất là admin thứ hai vì không tồn tại liên kết nào giữa `nha_cung_cap` và `users`.
+   >
+   > Để **nullable** có chủ đích: `ddl-auto=update` không thể thêm cột `NOT NULL` vào bảng đã có dữ liệu, và một thương hiệu chưa gán chủ sở hữu vẫn phải bán vé được — chỉ là ngoài admin thì không ai xem được báo cáo của nó.
+   >
+   > Hệ thống dựng sẵn **một** tài khoản đối tác duy nhất cho mục đích trình diễn. Danh sách thương hiệu mà tài khoản đó vận hành khai trong `app.provider.owned-providers`, theo mô hình đại lý tổng — một đối tác quản lý nhiều thương hiệu. Cấu hình đúng một tên là quay về mô hình 1 đối tác = 1 hãng mà không phải sửa mã.
+
+7. **`phuong_tien` (Vehicles)**:
    - `vehicle_id` (PK, BigInt, Auto-Increment)
-   - `provider_id` (FK -> `users`)
+   - `provider_id` (FK -> `nha_cung_cap`, Not Null)
    - `vehicle_type` (VarChar(20)) -- `BUS`, `TRAIN`, `PLANE`
    - `vehicle_name` (NVarChar(255))
    - `total_seats` (Int)
    - `seat_map` (JSON/NVarChar(MAX)) — Sơ đồ ghế
 
-7. **`voucher` (Mã giảm giá)**:
+8. **`voucher` (Mã giảm giá)**:
    - `voucher_id` (PK, BigInt, Auto-Increment)
    - `code` (VarChar(50), Unique, Not Null)
    - `discount_type` (VarChar(20)) -- `PERCENT`, `FIXED`
@@ -377,7 +397,7 @@ Các bảng chính trong Cơ sở dữ liệu SQL Server / PostgreSQL:
    - `used_count` (Int, Default `0`)
    - `expiry_date` (DateTime2)
 
-8. **`hoan_tien` (Refunds)**:
+9. **`hoan_tien` (Refunds)**:
    - `refund_id` (PK, BigInt, Auto-Increment)
    - `booking_id` (FK -> `dat_ve`, Unique)
    - `amount` (Decimal(15,2))

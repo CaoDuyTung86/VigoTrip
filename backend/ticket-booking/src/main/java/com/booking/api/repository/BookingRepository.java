@@ -177,4 +177,90 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            "ORDER BY MONTH(b.bookingDate)")
     List<Object[]> getMonthlyRevenueSystemFiltered(@Param("targetYear") Integer targetYear,
                                                     @Param("targetMonth") Integer targetMonth);
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // AI BI — truy vấn theo KỲ.
+    //
+    // Nhóm getMonthly*/getTop*/getRevenueBy* ở trên chỉ lọc được năm + tháng, và phần lớn
+    // còn không lọc gì cả (all-time). Nhóm dưới đây nhận đúng một khoảng nửa mở
+    // [from, to) do ReportPeriod tính ra, nên mọi con số trong một báo cáo chắc chắn cùng kỳ.
+    //
+    // Tất cả đều nhận :providerIds — phạm vi hệ thống thì truyền toàn bộ id nhà cung cấp,
+    // phạm vi đối tác thì truyền đúng những hãng tài khoản đó sở hữu. Một đường code duy
+    // nhất cho cả hai, khỏi phải nhân đôi truy vấn rồi lệch nhau lúc sửa.
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Các đơn đặt vé RIÊNG BIỆT chạm tới phạm vi đang xét, dạng (id, ngày đặt, tiền thực thu).
+     *
+     * Bắt buộc DISTINCT và cộng ở tầng Java thay vì SUM(b.totalPrice) trong câu lệnh:
+     * đã JOIN sang tickets thì một đơn 3 vé sẽ ra 3 dòng, SUM sẽ tính tiền đơn đó 3 lần.
+     * Đây đúng là lỗi đang có ở getMonthlyRevenueByProviderFiltered, khiến doanh thu nhà
+     * cung cấp bị thổi lên theo số vé mỗi đơn.
+     */
+    @Query("SELECT DISTINCT b.id, b.bookingDate, b.totalPrice " +
+           "FROM Booking b JOIN b.tickets t " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "AND b.bookingDate >= :from AND b.bookingDate < :to " +
+           "AND t.trip.vehicle.provider.id IN :providerIds")
+    List<Object[]> findScopedBookingRows(@Param("from") java.time.LocalDateTime from,
+                                         @Param("to") java.time.LocalDateTime to,
+                                         @Param("providerIds") List<Long> providerIds);
+
+    /** Doanh thu vé + số vé theo từng nhà cung cấp trong kỳ. */
+    @Query("SELECT t.trip.vehicle.provider.id, t.trip.vehicle.provider.providerName, " +
+           "t.trip.vehicle.provider.providerType, SUM(t.price), COUNT(t) " +
+           "FROM Booking b JOIN b.tickets t " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "AND b.bookingDate >= :from AND b.bookingDate < :to " +
+           "AND t.trip.vehicle.provider.id IN :providerIds " +
+           "AND (t.status IS NULL OR t.status <> 'CANCELLED') " +
+           "GROUP BY t.trip.vehicle.provider.id, t.trip.vehicle.provider.providerName, " +
+           "t.trip.vehicle.provider.providerType " +
+           "ORDER BY SUM(t.price) DESC")
+    List<Object[]> findRevenueByProviderInPeriod(@Param("from") java.time.LocalDateTime from,
+                                                 @Param("to") java.time.LocalDateTime to,
+                                                 @Param("providerIds") List<Long> providerIds);
+
+    /**
+     * Doanh thu vé theo loại phương tiện trong kỳ.
+     *
+     * Gom theo phuong_tien.vehicle_type chứ không theo nha_cung_cap.provider_type như bản cũ:
+     * loại phương tiện là thứ chuyến đi thực sự chạy, cũng chính là tham số `type` mà màn
+     * tìm kiếm dùng, nên số liệu khớp được với những gì khách nhìn thấy.
+     */
+    @Query("SELECT t.trip.vehicle.vehicleType, SUM(t.price), COUNT(t) " +
+           "FROM Booking b JOIN b.tickets t " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "AND b.bookingDate >= :from AND b.bookingDate < :to " +
+           "AND t.trip.vehicle.provider.id IN :providerIds " +
+           "AND (t.status IS NULL OR t.status <> 'CANCELLED') " +
+           "GROUP BY t.trip.vehicle.vehicleType " +
+           "ORDER BY SUM(t.price) DESC")
+    List<Object[]> findRevenueByVehicleTypeInPeriod(@Param("from") java.time.LocalDateTime from,
+                                                    @Param("to") java.time.LocalDateTime to,
+                                                    @Param("providerIds") List<Long> providerIds);
+
+    /** Doanh thu vé + số vé theo tuyến trong kỳ, tuyến cao nhất đứng trước. */
+    @Query("SELECT t.trip.route.origin, t.trip.route.destination, SUM(t.price), COUNT(t) " +
+           "FROM Booking b JOIN b.tickets t " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "AND b.bookingDate >= :from AND b.bookingDate < :to " +
+           "AND t.trip.vehicle.provider.id IN :providerIds " +
+           "AND (t.status IS NULL OR t.status <> 'CANCELLED') " +
+           "GROUP BY t.trip.route.origin, t.trip.route.destination " +
+           "ORDER BY SUM(t.price) DESC")
+    List<Object[]> findTopRoutesInPeriod(@Param("from") java.time.LocalDateTime from,
+                                         @Param("to") java.time.LocalDateTime to,
+                                         @Param("providerIds") List<Long> providerIds,
+                                         org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * Ngày đặt vé gần nhất trong phạm vi — dùng để tự lùi về kỳ gần nhất CÓ dữ liệu khi kỳ
+     * người dùng chọn còn trống, thay vì trả về một màn hình trắng.
+     */
+    @Query("SELECT MAX(b.bookingDate) FROM Booking b JOIN b.tickets t " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "AND t.trip.vehicle.provider.id IN :providerIds")
+    java.time.LocalDateTime findLatestBookingDate(@Param("providerIds") List<Long> providerIds);
 }

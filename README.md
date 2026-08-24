@@ -36,7 +36,7 @@ Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây lin
 
 | Thành phần               | Công nghệ                                                                                   |
 | :----------------------- | :------------------------------------------------------------------------------------------ |
-| **Backend**              | Java Spring Boot 4, Spring Security 6, JWT, JPA/Hibernate, MapStruct, Caffeine Cache        |
+| **Backend**              | Java 17, Spring Boot 3.4, Spring Security 6, JWT, JPA/Hibernate, MapStruct, Caffeine Cache  |
 | **Frontend**             | React (Vite), CSS Variables, Recharts (Biểu đồ), WebSocket Client, PWA                      |
 | **Database**             | Neon Cloud PostgreSQL (Serverless) / AWS RDS SQL Server / MS SQL Server 2022 (Local Docker) |
 | **Hosting & Cloud**      | Vercel (Frontend Edge), Render (Backend Container), Neon (Database), AWS EC2                |
@@ -66,6 +66,8 @@ Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây lin
 - [x] **Chat History:** Lưu hội thoại cho người dùng đã đăng nhập, chỉ chính chủ đọc được, tự động xóa sau 30 ngày.
 - [x] **Proxy & API Routing:** Cấu hình `vercel.json` rewrites điều hướng trong suốt toàn bộ request `/api` và `/ws` (WebSocket) từ Vercel sang Render.
 - [x] **Trip Supply Scheduler:** Lịch chuyến luôn phủ đủ 30 ngày tới, thay cho cơ chế seed một lần khiến dữ liệu cạn dần theo thời gian. Danh mục tuyến gom về một nguồn duy nhất (`TripSupplyService`), điều kiện bù xét theo từng `(tuyến, phương tiện, ngày)` nên thiếu chỗ nào bù đúng chỗ đó, và chỉ thêm chứ không xoá — chuyến đã qua giữ lại làm dữ liệu lịch sử cho AI phân tích doanh thu.
+- [x] **AI BI theo kỳ báo cáo:** Màn Thống kê doanh thu chọn được kỳ Tháng / Quý / Năm, có so sánh tăng trưởng với kỳ liền trước. Trước đây chỉ biểu đồ doanh thu tháng là có lọc thời gian, còn top tuyến, cơ cấu theo loại phương tiện, top nhà cung cấp và tổng số booking đều lấy all-time — báo cáo ghi tiêu đề một tháng nhưng thân bài là số liệu từ đầu hệ thống. Giao diện và phần AI giờ đọc chung một đối tượng số liệu (`/api/analytics/summary`) nên con số AI dẫn ra không thể lệch với biểu đồ. Kỳ trống thì tự chuyển về kỳ gần nhất có dữ liệu kèm thông báo rõ ràng.
+- [x] **Provider Data Scoping:** Tài khoản đối tác chỉ đọc được số liệu của những thương hiệu mình vận hành (`nha_cung_cap.owner_user_id`), thay vì xem được doanh thu của cả đối thủ như trước. Yêu cầu phạm vi toàn hệ thống từ tài khoản đối tác bị từ chối thẳng.
 
 ### Hướng phát triển tiếp theo:
 
@@ -87,7 +89,8 @@ Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây lin
    ```
 4. **Chi tiết thiết lập:** Xem hướng dẫn chi tiết dành cho AI/Developer tại [AI_ONBOARDING.md](./AI_ONBOARDING.md).
 5. **Tìm hiểu Chatbot AI:** Giải thích toàn diện về kiến trúc RAG, LLM Gateway, cách đo chất lượng (Recall@3, MRR, F1) và các quyết định thiết kế: [docs/CHATBOT_AI.md](./docs/CHATBOT_AI.md).
-6. **Demo & kiểm thử bản deploy:** Kịch bản demo theo từng màn kèm checklist smoke test sau mỗi lần deploy: [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md).
+6. **Tìm hiểu AI Business Intelligence:** Cách phần Thống kê doanh thu + Báo cáo AI hoạt động (SQL tính số → LLM chỉ diễn giải), kỳ báo cáo, phân quyền đối tác và đo chất lượng tới đâu: [docs/AI_BI.md](./docs/AI_BI.md).
+7. **Demo & kiểm thử bản deploy:** Kịch bản demo theo từng màn kèm checklist smoke test sau mỗi lần deploy: [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md).
 
 ---
 

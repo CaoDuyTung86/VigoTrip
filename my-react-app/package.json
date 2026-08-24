@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "start:backend": "cd ../backend/ticket-booking && mvnw clean compile spring-boot:run",
     "start:all": "concurrently \"npm run dev\" \"npm run start:backend\"",
-    "sonar": "bash ../scripts/sonar-frontend.sh"
+    "sonar": "bash ../scripts/sonar-frontend.sh",
+    "dev:local-api": "vite --host --mode localapi"
   },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.6.0",

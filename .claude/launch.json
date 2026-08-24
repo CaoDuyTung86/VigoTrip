@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "my-react-app"],
       "port": 5173
+    },
+    {
+      "name": "vigotrip-frontend-local-api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "my-react-app", "run", "dev:local-api", "--", "--port", "5199"],
+      "port": 5199
     }
   ]
 }

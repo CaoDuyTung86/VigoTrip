@@ -1,9 +1,18 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-export default defineConfig({
+//
+// Đích proxy đọc từ biến VITE_API_TARGET, mặc định vẫn là http://localhost:8081 y như cũ.
+// Lý do: backend lúc chạy bằng Docker Compose (8081), lúc chạy thẳng bằng spring-boot:run ở
+// một cổng khác; trước đây đổi chỗ là phải sửa tay file này. Xem .env.localapi và script
+// `npm run dev:local-api`.
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, '.', '')
+  const apiTarget = env.VITE_API_TARGET || 'http://localhost:8081'
+
+  return {
   plugins: [
     react(),
     VitePWA({
@@ -36,25 +45,26 @@ export default defineConfig({
     })
   ],
   server: {
-    open: true,
+    open: env.VITE_OPEN !== 'false',
     proxy: {
       '/api': {
-        target: 'http://localhost:8081',
+        target: apiTarget,
         changeOrigin: true,
       },
       '/ws': {
-        target: 'http://localhost:8081',
+        target: apiTarget,
         ws: true,
         changeOrigin: true,
       },
       // Dùng cho warm-up ping lúc mở trang (xem utils/apiClient.js).
       // Trên production, vercel.json rewrite đường dẫn này sang backend Render.
       '/actuator/health': {
-        target: 'http://localhost:8081',
+        target: apiTarget,
         changeOrigin: true,
       },
     },
   },
+  }
 })
 
 

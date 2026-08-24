@@ -50,6 +50,29 @@ html {
   --danger: #e53935;
   --warning: #f59e0b;
 
+  /* Bảng màu biểu đồ BI.
+     Trước đây màu và màu chữ tooltip bị cắm cứng ngay trong AdminRevenue.jsx, trong đó
+     tooltip nền xanh navy đậm và các sắc tím nhạt (#a78bfa, #c4b5fd) — đọc được ở nền tối
+     nhưng trôi hẳn trên nền trắng. Đưa ra biến để mỗi tông nền có một giá trị riêng.
+     Sáu màu này đã chọn sao cho tương phản đủ trên CẢ hai nền, không phải bản nhạt đi. */
+  --chart-1: #4f46e5;
+  --chart-2: #0ea5e9;
+  --chart-3: #059669;
+  --chart-4: #d97706;
+  --chart-5: #db2777;
+  --chart-6: #7c3aed;
+  --chart-grid: #e5eaf0;
+  --chart-axis: #5f6b7a;
+  --chart-track: #f1f5f9;
+  --tooltip-bg: #ffffff;
+  --tooltip-border: #d1d9e0;
+  --tooltip-text: #1a1a2e;
+  --tooltip-label: #5f6b7a;
+  --accent-soft: #eef2ff;
+  --accent-strong: #4338ca;
+  --positive: #047857;
+  --negative: #b91c1c;
+
   --summary-eco-bg: #f0fdf4;
   --summary-eco-border: #bbf7d0;
   --summary-eco-title: #15803d;
@@ -104,6 +127,24 @@ body.dark {
   --success: #2ea043;
   --danger: #f85149;
   --warning: #d29922;
+
+  --chart-1: #818cf8;
+  --chart-2: #38bdf8;
+  --chart-3: #34d399;
+  --chart-4: #fbbf24;
+  --chart-5: #f472b6;
+  --chart-6: #a78bfa;
+  --chart-grid: #30363d;
+  --chart-axis: #8b949e;
+  --chart-track: #21262d;
+  --tooltip-bg: #21262d;
+  --tooltip-border: #444c56;
+  --tooltip-text: #f0f6fc;
+  --tooltip-label: #8b949e;
+  --accent-soft: #1c2d4f;
+  --accent-strong: #a5b4fc;
+  --positive: #3fb950;
+  --negative: #f85149;
 
   --summary-eco-bg: rgba(20, 83, 45, 0.3);
   --summary-eco-border: rgba(34, 197, 94, 0.4);

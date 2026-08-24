@@ -62,8 +62,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/refunds/*/reject").hasAuthority("ROLE_ADMIN")
                         .requestMatchers("/api/admin/revenue").hasAnyAuthority("ROLE_PROVIDER", "PROVIDER", "ROLE_ADMIN", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/admin/vouchers/active").hasAnyAuthority("ROLE_PROVIDER", "PROVIDER", "ROLE_ADMIN", "ADMIN")
-                        .requestMatchers("/api/analytics/provider/**").hasAnyAuthority("ROLE_PROVIDER", "PROVIDER", "ROLE_ADMIN", "ADMIN")
-                        .requestMatchers("/api/analytics/system/**").hasAnyAuthority("ROLE_ADMIN", "ADMIN", "ROLE_PROVIDER", "PROVIDER")
+                        // Cả admin lẫn đối tác đều vào được /api/analytics; phạm vi dữ liệu ai
+                        // được xem do AnalyticsController quyết định (scope=SYSTEM chỉ dành cho
+                        // admin, scope=PROVIDER thu hẹp về đúng thương hiệu tài khoản đó sở hữu).
+                        // Đặt luật ở đó thay vì ở đây vì nó phụ thuộc tham số, không phụ thuộc URL.
+                        .requestMatchers("/api/analytics/**").hasAnyAuthority("ROLE_PROVIDER", "PROVIDER", "ROLE_ADMIN", "ADMIN")
                         .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN", "ADMIN")
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session
@@ -104,7 +107,8 @@ public class SecurityConfig {
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder());
         return authProvider;
     }

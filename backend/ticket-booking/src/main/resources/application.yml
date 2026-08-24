@@ -81,6 +81,16 @@ app:
   provider:
     email: ${PROVIDER_EMAIL:provider@gmail.com}
     password: ${PROVIDER_PASSWORD:Abc123456!}
+    # Những thương hiệu mà tài khoản đối tác demo vận hành, khớp nha_cung_cap.provider_name.
+    #
+    # Hệ thống có 8 nhà cung cấp nhưng chỉ dựng MỘT tài khoản đối tác để còn nhớ mật khẩu
+    # lúc demo. Mô hình đại lý tổng (một đối tác quản lý nhiều thương hiệu) là cách cho phép
+    # điều đó mà vẫn giữ đúng luật "đối tác chỉ xem được số liệu của chính mình" — trước đây
+    # ROLE_PROVIDER đọc được doanh thu của cả đối thủ.
+    #
+    # Danh sách nhiều hay ít không ảnh hưởng tới code: để đúng một tên là quay về mô hình
+    # 1 đối tác = 1 hãng, cần đổi thì sửa biến môi trường chứ không phải sửa mã.
+    owned-providers: ${PROVIDER_OWNED:Vietnam Airlines,Vietjet Air,Bamboo Airways}
 
 # Swagger
 springdoc:

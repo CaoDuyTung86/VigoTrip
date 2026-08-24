@@ -1,409 +1,669 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import Sidebar from "../components/Sidebar";
 import Header from "../LayOut/Header";
 import { useLanguage } from "../context/LanguageContext";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from "recharts";
+import {
+  Sparkles, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight,
+  Ticket, Receipt, Wallet, Info, X,
+} from "lucide-react";
 
-import { Sparkles, DollarSign, TrendingUp } from 'lucide-react';
+/**
+ * Màn hình BI doanh thu.
+ *
+ * Bản cũ đọc /api/admin/revenue — doanh thu ALL-TIME theo nhà cung cấp — nhưng nút "Phân
+ * tích AI" lại gọi một endpoint dựng báo cáo từ bộ truy vấn khác, nên con số AI nói ra có
+ * thể chỏi với chính biểu đồ bên cạnh. Giờ cả hai cùng ăn /api/analytics/summary với đúng
+ * một kỳ, nên không còn cửa lệch.
+ */
+
+const PERIOD_OPTIONS = [
+  { id: "MONTH", labelKey: "biPeriodMonth", fallback: "Tháng" },
+  { id: "QUARTER", labelKey: "biPeriodQuarter", fallback: "Quý" },
+  { id: "YEAR", labelKey: "biPeriodYear", fallback: "Năm" },
+];
+
+const VEHICLE_LABELS = {
+  PLANE: "Vé máy bay",
+  BUS: "Xe khách",
+  TRAIN: "Vé tàu hỏa",
+};
+
+const CHART_COLORS = [
+  "var(--chart-1)", "var(--chart-2)", "var(--chart-3)",
+  "var(--chart-4)", "var(--chart-5)", "var(--chart-6)",
+];
+
+const toIsoDate = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+/**
+ * Luôn neo vào ngày 1 trước khi cộng trừ tháng. Nếu giữ nguyên ngày 31 rồi lùi một tháng,
+ * JavaScript sẽ tràn sang tháng kế tiếp (31/03 lùi một tháng ra 03/03), làm nhảy cóc kỳ.
+ */
+const shiftAnchor = (iso, period, direction) => {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(1);
+  if (period === "MONTH") d.setMonth(d.getMonth() + direction);
+  else if (period === "QUARTER") d.setMonth(d.getMonth() + 3 * direction);
+  else d.setFullYear(d.getFullYear() + direction);
+  return toIsoDate(d);
+};
+
+const currentAnchor = () => {
+  const now = new Date();
+  now.setDate(1);
+  return toIsoDate(now);
+};
+
+const formatVnd = (value) => `${Number(value || 0).toLocaleString("vi-VN")} đ`;
+
+/** Rút gọn cho trục biểu đồ: 12.400.000 -> "12,4 tr". Số đầy đủ vẫn có trong tooltip. */
+const formatCompact = (value) => {
+  const n = Number(value || 0);
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1).replace(".", ",")} tỷ`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".", ",")} tr`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)} k`;
+  return String(n);
+};
 
 const AdminRevenue = () => {
   const { token } = useAuth();
-  const [revenues, setRevenues] = useState([]);
+  const { t } = useLanguage();
+  const tr = useCallback((key, fallback) => t?.[key] || fallback, [t]);
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  const [scope, setScope] = useState(null);
+  const [ownedProviders, setOwnedProviders] = useState([]);
+  const [period, setPeriod] = useState("MONTH");
+  const [anchor, setAnchor] = useState(currentAnchor);
+
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { t } = useLanguage();
 
   const [aiInsights, setAiInsights] = useState(null);
-  const [analyzingId, setAnalyzingId] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
 
+  const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+
+  // Hỏi trước xem tài khoản này xem được phạm vi nào, thay vì gọi thử scope=SYSTEM rồi ăn 403.
   useEffect(() => {
-    if (token) {
-      fetchRevenue();
-    }
-  }, [token]);
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/analytics/scope", { headers: authHeaders });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (cancelled) return;
+        setScope(data.canViewSystem ? "SYSTEM" : "PROVIDER");
+        setOwnedProviders(data.ownedProviders || []);
+      } catch {
+        if (!cancelled) setScope("PROVIDER");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token, authHeaders]);
 
-  const fetchRevenue = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/admin/revenue", {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      if (!res.ok) throw new Error("Failed to fetch revenue");
-      const data = await res.json();
-      setRevenues(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!token || !scope) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const params = new URLSearchParams({ scope, period, anchor });
+        const res = await fetch(`/api/analytics/summary?${params}`, { headers: authHeaders });
+        if (!res.ok) throw new Error(tr("biLoadError", "Không tải được số liệu doanh thu"));
+        const data = await res.json();
+        if (!cancelled) setSummary(data);
+      } catch (e) {
+        if (!cancelled) setError(e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token, scope, period, anchor, authHeaders, tr]);
 
-  const fetchAIInsights = async (providerId) => {
+  const fetchInsights = async () => {
     try {
-      setAnalyzingId(providerId);
-      setAiInsights(null);
+      setAiLoading(true);
       setShowAiModal(true);
-      const res = await fetch(`/api/analytics/provider/${providerId}/ai-insights`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      if (!res.ok) throw new Error("Failed to fetch AI insights");
+      setAiInsights(null);
+      const params = new URLSearchParams({ scope, period, anchor });
+      const res = await fetch(`/api/analytics/insights?${params}`, { headers: authHeaders });
+      if (!res.ok) throw new Error(tr("biAiError", "Không lấy được nhận định từ AI"));
       const data = await res.json();
       setAiInsights(data.insights);
-    } catch (err) {
-      setAiInsights(t.admAiLoadError.replace("{msg}", err.message));
+    } catch (e) {
+      setAiInsights(`⚠️ ${e.message}`);
     } finally {
-      setAnalyzingId(null);
+      setAiLoading(false);
     }
   };
 
-  const fetchSystemAIInsights = async () => {
-    try {
-      setAnalyzingId("system");
-      setAiInsights(null);
-      setShowAiModal(true);
-      const res = await fetch(`/api/analytics/system/ai-insights`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      if (!res.ok) throw new Error("Failed to fetch system AI insights");
-      const data = await res.json();
-      setAiInsights(data.insights);
-    } catch (err) {
-      setAiInsights(t.admAiLoadError.replace("{msg}", err.message));
-    } finally {
-      setAnalyzingId(null);
-    }
-  };
+  const typeData = useMemo(() => (summary?.revenueByVehicleType || []).map((item) => ({
+    name: VEHICLE_LABELS[item.name] || item.name,
+    value: Number(item.amount || 0),
+    share: item.sharePct,
+  })), [summary]);
 
-  const renderInsights = (text) => {
-    if (!text) return null;
-    return text.split("\n").map((line, idx) => {
-      let trimmed = line.trim();
-      if (!trimmed) return <div key={idx} style={{ height: 10 }} />;
+  const providerData = useMemo(() => (summary?.revenueByProvider || []).slice(0, 6).map((item) => ({
+    name: item.name,
+    value: Number(item.amount || 0),
+    share: item.sharePct,
+  })), [summary]);
 
-      const parseBold = (str) => {
-        const parts = str.split(/\*\*(.*?)\*\*/g);
-        return parts.map((part, i) =>
-          i % 2 === 1
-            ? <strong key={i} style={{ color: "#a78bfa", fontWeight: 700 }}>{part}</strong>
-            : part
-        );
-      };
-
-      if (trimmed.startsWith("###")) {
-        return <h4 key={idx} style={{ fontSize: 15, fontWeight: 700, color: "#c4b5fd", marginTop: 16, marginBottom: 6, letterSpacing: "0.02em" }}>{parseBold(trimmed.replace(/^###\s*/, ""))}</h4>;
-      }
-      if (trimmed.startsWith("##")) {
-        return <h3 key={idx} style={{ fontSize: 17, fontWeight: 700, color: "var(--text-heading)", marginTop: 20, marginBottom: 8, borderBottom: "1px solid var(--border-light)", paddingBottom: 6 }}>{parseBold(trimmed.replace(/^##\s*/, ""))}</h3>;
-      }
-      if (trimmed.startsWith("#")) {
-        return <h2 key={idx} style={{ fontSize: 18, fontWeight: 800, color: "var(--text-heading)", marginTop: 22, marginBottom: 10 }}>{parseBold(trimmed.replace(/^#\s*/, ""))}</h2>;
-      }
-      if (trimmed.startsWith("-") || trimmed.startsWith("*")) {
-        return (
-          <div key={idx} style={{ display: "flex", gap: 10, margin: "5px 0", paddingLeft: 8 }}>
-            <span style={{ color: "#a78bfa", flexShrink: 0, marginTop: 2 }}>▸</span>
-            <span style={{ flex: 1, color: "var(--text-main)" }}>{parseBold(trimmed.replace(/^[-*]\s*/, ""))}</span>
-          </div>
-        );
-      }
-      if (/^\d+\./.test(trimmed)) {
-        const match = trimmed.match(/^(\d+)\.\s*(.*)/);
-        return (
-          <div key={idx} style={{ display: "flex", gap: 10, margin: "10px 0", background: "rgba(99, 102, 241, 0.08)", padding: "10px 14px", borderRadius: 10, borderLeft: "3px solid #818cf8" }}>
-            <span style={{ fontWeight: 700, color: "#818cf8", flexShrink: 0 }}>{match[1]}.</span>
-            <span style={{ flex: 1, color: "var(--text-main)" }}>{parseBold(match[2])}</span>
-          </div>
-        );
-      }
-      return <p key={idx} style={{ margin: "6px 0", color: "var(--text-main)", lineHeight: 1.75 }}>{parseBold(trimmed)}</p>;
-    });
-  };
-
-
-  const totalRevenue = revenues.reduce((sum, item) => sum + (item.totalRevenue || 0), 0);
-
-  const getMappedType = (type) => {
-    const t_local = (type || "").toLowerCase();
-    if (t_local.includes("flight") || t_local.includes("air") || t_local.includes("máy bay")) return t.flight;
-    if (t_local.includes("bus") || t_local.includes("coach") || t_local.includes("xe khách")) return t.bus;
-    return t.train;
-  };
-
-  const revenueByTypeMap = { [t.flight]: 0, [t.bus]: 0, [t.train]: 0 };
-  revenues.forEach(item => {
-    const t_type = getMappedType(item.providerType);
-    revenueByTypeMap[t_type] += (item.totalRevenue || 0);
-  });
-
-  const pieData = [
-    { name: t.flight, value: revenueByTypeMap[t.flight] },
-    { name: t.bus, value: revenueByTypeMap[t.bus] },
-    { name: t.train, value: revenueByTypeMap[t.train] }
-  ].filter(d => d.value > 0);
-
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b'];
-
-  const topProviders = [...revenues]
-    .sort((a, b) => (b.totalRevenue || 0) - (a.totalRevenue || 0))
-    .slice(0, 5)
-    .map(item => ({
-      name: item.providerName,
-      [t.revenueCol]: item.totalRevenue || 0
-    }));
-
-  const formatCurrency = (val) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+  const trendData = useMemo(() => (summary?.trend || []).map((point) => ({
+    label: point.label,
+    value: Number(point.amount || 0),
+    bookings: point.bookings,
+  })), [summary]);
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "var(--bg-main)", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-main)", display: "flex", flexDirection: "column" }}>
       <Header setIsSidebarOpen={setIsSidebarOpen} />
 
-      {showAiModal && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.65)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(6px)" }}>
-          <div style={{ background: "var(--bg-card)", width: "100%", maxWidth: 820, maxHeight: "90vh", display: "flex", flexDirection: "column", borderRadius: 20, boxShadow: "0 25px 60px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(99,102,241,0.2)", overflow: "hidden", animation: "modalFadeIn 0.3s ease-out" }}>
-            {/* Header */}
-            <div style={{ padding: "20px 28px", background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
-                <Sparkles size={22} /> {t.aiInsights}
-              </h2>
-              <button onClick={() => setShowAiModal(false)} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", width: 34, height: 34, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 18, fontWeight: 700, transition: "0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.35)"} onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.2)"}>×</button>
-            </div>
-            {/* Body - scrollable */}
-            <div style={{ padding: "24px 30px", overflowY: "auto", flex: 1 }}>
-              {analyzingId ? (
-                <div style={{ textAlign: "center", padding: "40px 0" }}>
-                  <div style={{ width: 56, height: 56, border: "4px solid var(--border-light)", borderTopColor: "#818cf8", borderRadius: "50%", margin: "0 auto 20px", animation: "spin 1s linear infinite" }} />
-                  <p style={{ color: "var(--text-secondary)", fontWeight: 600, fontSize: 17 }}>{t.aiAnalyzing}</p>
-                  <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 6 }}>{t.admPleaseWait}</p>
-                </div>
-              ) : (
-                <div style={{ fontSize: 14.5, color: "var(--text-main)", lineHeight: 1.8 }}>
-                  {renderInsights(aiInsights)}
-                </div>
-              )}
-            </div>
-            {/* Footer */}
-            <div style={{ padding: "16px 28px", borderTop: "1px solid var(--border-light)", display: "flex", justifyContent: "flex-end", backgroundColor: "var(--bg-main)", flexShrink: 0 }}>
-              <button onClick={() => setShowAiModal(false)} style={{ padding: "10px 28px", borderRadius: 10, background: "linear-gradient(135deg, #6366f1, #a855f7)", border: "none", fontWeight: 700, color: "white", cursor: "pointer", fontSize: 14, boxShadow: "0 4px 14px rgba(99,102,241,0.35)", transition: "0.2s" }}>{t.admUnderstoodBtn}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <style>{`
-        @keyframes modalFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        @keyframes modalFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .bi-card { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 14px; box-shadow: var(--shadow-sm); }
+        .bi-seg { border: 1px solid var(--border-input); background: var(--bg-card); border-radius: 10px; overflow: hidden; display: flex; }
+        .bi-seg button { border: none; background: transparent; color: var(--text-secondary); font-weight: 600; font-size: 13px; padding: 8px 16px; cursor: pointer; transition: 0.15s; }
+        .bi-seg button:hover { background: var(--bg-hover); }
+        .bi-seg button[data-active="true"] { background: var(--primary); color: var(--text-on-primary); }
+        .bi-nav { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; border: 1px solid var(--border-input); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: 0.15s; }
+        .bi-nav:hover { background: var(--bg-hover); color: var(--text-main); }
+        .bi-nav:disabled { opacity: 0.4; cursor: not-allowed; }
+        .bi-table { width: 100%; border-collapse: collapse; }
+        .bi-table th { text-align: left; font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; padding: 12px 16px; border-bottom: 1px solid var(--border-main); }
+        .bi-table td { padding: 14px 16px; border-bottom: 1px solid var(--border-light); color: var(--text-main); font-size: 14px; }
+        .bi-table tr:last-child td { border-bottom: none; }
+        .bi-table tbody tr:hover { background: var(--bg-hover); }
       `}</style>
 
       <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "70px" }}>
         <Sidebar isOpen={isSidebarOpen} />
-        <div className={`page-main ${isSidebarOpen ? "with-sidebar" : ""}`} style={{ padding: "30px", flex: 1, overflowY: "auto" }}>
-          <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--text-heading)", margin: 0 }}>{t.revenueTitle}</h1>
-              <button
-                onClick={fetchSystemAIInsights}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: "12px",
-                  border: "none",
-                  background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)",
-                  color: "white",
-                  fontSize: "14px",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  boxShadow: "0 4px 15px rgba(99, 102, 241, 0.3)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  transition: "0.2s"
-                }}
-                onMouseEnter={e => e.currentTarget.style.transform = "translateY(-1px)"}
-                onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                <Sparkles size={16} /> {t.admExecutiveAiReport}
-              </button>
-            </div>
+        <div className={`page-main ${isSidebarOpen ? "with-sidebar" : ""}`} style={{ padding: "28px", flex: 1, overflowY: "auto" }}>
+          <div style={{ maxWidth: 1240, margin: "0 auto" }}>
 
-            {error && <div style={{ padding: 16, background: "rgba(220, 38, 38, 0.1)", color: "var(--danger)", borderRadius: 8, marginBottom: 20, border: "1px solid rgba(220, 38, 38, 0.2)" }}>{error}</div>}
-
-            {/* Total Revenue Summary Card */}
-            <div style={{ background: "linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)", padding: 30, borderRadius: 16, boxShadow: "0 10px 25px rgba(59, 130, 246, 0.2)", marginBottom: 30, display: "flex", alignItems: "center", gap: 24, color: "white" }}>
-              <div style={{ width: 70, height: 70, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}><TrendingUp size={36} /></div>
+            {/* ── Đầu trang: tiêu đề + bộ chọn kỳ ── */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between", alignItems: "flex-start", marginBottom: 22 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8, opacity: 0.9 }}>{t.totalRevenue.toUpperCase()}</div>
-                <div style={{ fontSize: 40, fontWeight: 800 }}>{totalRevenue.toLocaleString("vi-VN")} đ</div>
+                <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--text-heading)", margin: 0, letterSpacing: "-0.02em" }}>
+                  {tr("revenueTitle", "Thống kê doanh thu")}
+                </h1>
+                <p style={{ margin: "6px 0 0", color: "var(--text-secondary)", fontSize: 13.5 }}>
+                  {scope === "SYSTEM"
+                    ? tr("biScopeSystem", "Toàn hệ thống VigoTrip")
+                    : ownedProviders.length > 0
+                      ? `${tr("biScopeProvider", "Thương hiệu bạn vận hành")}: ${ownedProviders.join(" · ")}`
+                      : tr("biScopeNone", "Tài khoản chưa được gán thương hiệu nào")}
+                </p>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div className="bi-seg">
+                  {PERIOD_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      data-active={period === opt.id}
+                      onClick={() => setPeriod(opt.id)}
+                    >
+                      {tr(opt.labelKey, opt.fallback)}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button className="bi-nav" onClick={() => setAnchor((a) => shiftAnchor(a, period, -1))} aria-label="Kỳ trước">
+                    <ChevronLeft size={17} />
+                  </button>
+                  <span style={{
+                    minWidth: 118, textAlign: "center", fontWeight: 700, fontSize: 14,
+                    color: "var(--text-heading)",
+                  }}>
+                    {summary?.periodLabel || "…"}
+                  </span>
+                  <button
+                    className="bi-nav"
+                    onClick={() => setAnchor((a) => shiftAnchor(a, period, 1))}
+                    disabled={anchor >= currentAnchor()}
+                    aria-label="Kỳ sau"
+                  >
+                    <ChevronRight size={17} />
+                  </button>
+                </div>
+
+                <button
+                  onClick={fetchInsights}
+                  disabled={!summary?.hasData}
+                  style={{
+                    padding: "9px 18px", borderRadius: 10, border: "none",
+                    background: summary?.hasData
+                      ? "linear-gradient(135deg, var(--chart-1), var(--chart-6))"
+                      : "var(--bg-tag)",
+                    color: summary?.hasData ? "#fff" : "var(--text-muted)",
+                    fontSize: 13.5, fontWeight: 700,
+                    cursor: summary?.hasData ? "pointer" : "not-allowed",
+                    display: "flex", alignItems: "center", gap: 8, transition: "0.2s",
+                  }}
+                >
+                  <Sparkles size={15} /> {tr("admExecutiveAiReport", "Báo cáo AI")}
+                </button>
               </div>
             </div>
 
-            {/* Charts Section */}
-            {!loading && revenues.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px", marginBottom: "30px" }}>
+            {error && (
+              <div style={{
+                padding: "12px 16px", background: "color-mix(in srgb, var(--danger) 10%, transparent)",
+                color: "var(--danger)", borderRadius: 10, marginBottom: 18,
+                border: "1px solid color-mix(in srgb, var(--danger) 30%, transparent)", fontSize: 14,
+              }}>{error}</div>
+            )}
 
-                {/* Pie Chart: Revenue by Service Type */}
-                <div style={{ background: "var(--bg-card)", padding: "24px", borderRadius: "16px", boxShadow: "var(--shadow-md)", border: "1px solid var(--border-light)" }}>
-                  <h3 style={{ fontSize: "17px", fontWeight: "600", marginBottom: "20px", color: "var(--text-heading)", textAlign: "center" }}>{t.revenueByService}</h3>
-                  <div style={{ height: "300px", width: "100%" }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={65}
-                          outerRadius={95}
-                          paddingAngle={4}
-                          dataKey="value"
-                          stroke="none"
-                        >
-                          {pieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={['#818cf8', '#34d399', '#fbbf24'][index % 3]} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value) => formatCurrency(value)}
-                          contentStyle={{ background: "rgba(30, 27, 75, 0.95)", border: "1px solid rgba(129,140,248,0.3)", borderRadius: 10, color: "#e2e8f0", fontSize: 13, backdropFilter: "blur(8px)" }}
-                          itemStyle={{ color: "#c4b5fd" }}
-                          labelStyle={{ color: "#94a3b8", fontWeight: 600 }}
-                        />
-                        <Legend
-                          verticalAlign="bottom"
-                          height={36}
-                          formatter={(value) => <span style={{ color: "var(--text-secondary)", fontSize: 13 }}>{value}</span>}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
+            {/* Kỳ được chọn trống nên hệ thống đã tự lùi — nói thẳng ra, đừng để người xem
+                tưởng số liệu này là của kỳ họ vừa bấm. */}
+            {summary?.fallbackApplied && (
+              <div style={{
+                display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px",
+                background: "var(--accent-soft)", border: "1px solid var(--border-main)",
+                borderRadius: 10, marginBottom: 18, fontSize: 13.5, color: "var(--text-main)",
+              }}>
+                <Info size={17} style={{ color: "var(--accent-strong)", flexShrink: 0, marginTop: 1 }} />
+                <span>
+                  <b>{summary.requestedPeriodLabel}</b> {tr("biFallbackNote", "chưa có giao dịch nào. Đang hiển thị số liệu của")}{" "}
+                  <b>{summary.periodLabel}</b> — {tr("biFallbackHint", "kỳ gần nhất có dữ liệu.")}
+                </span>
+              </div>
+            )}
+
+            {loading && (
+              <div style={{ padding: 60, textAlign: "center", color: "var(--text-secondary)" }}>
+                <div style={{
+                  width: 34, height: 34, border: "3px solid var(--border-main)",
+                  borderTopColor: "var(--primary)", borderRadius: "50%",
+                  animation: "spin 0.8s linear infinite", margin: "0 auto 14px",
+                }} />
+                {tr("loading", "Đang tải…")}
+              </div>
+            )}
+
+            {!loading && summary && !summary.hasData && (
+              <div className="bi-card" style={{ padding: 56, textAlign: "center" }}>
+                <Receipt size={38} style={{ color: "var(--text-muted)", marginBottom: 12 }} />
+                <h3 style={{ margin: "0 0 6px", color: "var(--text-heading)", fontSize: 17 }}>
+                  {tr("biNoDataTitle", "Chưa có giao dịch trong kỳ này")}
+                </h3>
+                <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: 14 }}>
+                  {ownedProviders.length === 0 && scope === "PROVIDER"
+                    ? tr("biNoProviderHint", "Tài khoản chưa được gán thương hiệu nào để thống kê.")
+                    : tr("biNoDataHint", "Hãy chọn kỳ khác bằng mũi tên phía trên.")}
+                </p>
+              </div>
+            )}
+
+            {!loading && summary?.hasData && (
+              <>
+                {/* ── Bốn chỉ số chính ── */}
+                <div style={{
+                  display: "grid", gap: 16, marginBottom: 22,
+                  gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+                }}>
+                  <KpiCard
+                    icon={<Wallet size={18} />}
+                    label={tr("biKpiRevenue", "Doanh thu thực thu")}
+                    value={formatVnd(summary.totalRevenue)}
+                    growth={summary.revenueGrowthPct}
+                    comparison={`${tr("biVsPrev", "so với")} ${summary.previousPeriodLabel}`}
+                    accent="var(--chart-1)"
+                    highlight
+                  />
+                  <KpiCard
+                    icon={<Receipt size={18} />}
+                    label={tr("biKpiBookings", "Số đơn đặt vé")}
+                    value={summary.totalBookings.toLocaleString("vi-VN")}
+                    growth={summary.bookingGrowthPct}
+                    comparison={`${tr("biVsPrev", "so với")} ${summary.previousPeriodLabel}`}
+                    accent="var(--chart-2)"
+                  />
+                  <KpiCard
+                    icon={<Ticket size={18} />}
+                    label={tr("biKpiTickets", "Số vé bán ra")}
+                    value={summary.totalTickets.toLocaleString("vi-VN")}
+                    comparison={tr("biTicketsHint", "Vé đã xuất trong kỳ")}
+                    accent="var(--chart-3)"
+                  />
+                  <KpiCard
+                    icon={<TrendingUp size={18} />}
+                    label={tr("biKpiTicketRevenue", "Doanh thu vé")}
+                    value={formatVnd(summary.ticketRevenue)}
+                    comparison={tr("biTicketRevenueHint", "Phần quy được về từng hãng & tuyến")}
+                    accent="var(--chart-6)"
+                  />
                 </div>
 
-                {/* Bar Chart: Top Providers */}
-                <div style={{ background: "var(--bg-card)", padding: "24px", borderRadius: "16px", boxShadow: "var(--shadow-md)", border: "1px solid var(--border-light)" }}>
-                  <h3 style={{ fontSize: "17px", fontWeight: "600", marginBottom: "20px", color: "var(--text-heading)" }}>{t.admTopProvidersTitle}</h3>
-                  <div style={{ height: "300px", width: "100%" }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={topProviders}
-                        layout="vertical"
-                        margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-                      >
-                        <defs>
-                          <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="0">
-                            <stop offset="0%" stopColor="#6366f1" />
-                            <stop offset="100%" stopColor="#818cf8" />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgba(148,163,184,0.1)" />
-                        <XAxis type="number" tickFormatter={(val) => `${(val / 1000000).toFixed(1)}M`} stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: 'rgba(148,163,184,0.15)' }} />
-                        <YAxis dataKey="name" type="category" width={100} tick={{ fill: '#cbd5e1', fontSize: 12 }} axisLine={false} tickLine={false} />
-                        <Tooltip
-                          formatter={(value) => formatCurrency(value)}
-                          cursor={{ fill: 'rgba(99,102,241,0.08)' }}
-                          contentStyle={{ background: "rgba(30, 27, 75, 0.95)", border: "1px solid rgba(129,140,248,0.3)", borderRadius: 10, color: "#e2e8f0", fontSize: 13, backdropFilter: "blur(8px)" }}
-                          itemStyle={{ color: "#a78bfa" }}
-                          labelStyle={{ color: "#cbd5e1", fontWeight: 600 }}
-                        />
-                        <Bar dataKey={t.revenueCol} fill="url(#barGradient)" radius={[0, 6, 6, 0]} barSize={28} />
+                {/* ── Xu hướng trong kỳ ── */}
+                <div className="bi-card" style={{ padding: "20px 22px 12px", marginBottom: 22 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-heading)" }}>
+                      {tr("biTrendTitle", "Diễn biến doanh thu")}
+                    </h3>
+                    <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+                      {summary.periodStart} → {summary.periodEnd}
+                    </span>
+                  </div>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={trendData} margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="biTrendFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fill: "var(--chart-axis)", fontSize: 11.5 }}
+                        axisLine={{ stroke: "var(--chart-grid)" }} tickLine={false} interval="preserveStartEnd" />
+                      <YAxis tickFormatter={formatCompact} tick={{ fill: "var(--chart-axis)", fontSize: 11.5 }}
+                        axisLine={false} tickLine={false} width={58} />
+                      <Tooltip
+                        cursor={{ stroke: "var(--chart-1)", strokeWidth: 1, strokeDasharray: "4 4" }}
+                        contentStyle={tooltipStyle}
+                        labelStyle={{ color: "var(--tooltip-label)", fontWeight: 600, marginBottom: 4 }}
+                        formatter={(value, _name, item) => [
+                          `${formatVnd(value)} · ${item?.payload?.bookings ?? 0} đơn`,
+                          tr("biKpiRevenue", "Doanh thu"),
+                        ]}
+                      />
+                      <Area type="monotone" dataKey="value" stroke="var(--chart-1)" strokeWidth={2.2}
+                        fill="url(#biTrendFill)" dot={false} activeDot={{ r: 4 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* ── Cơ cấu ── */}
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1fr) minmax(320px, 1.6fr)", gap: 20, marginBottom: 22 }}>
+                  <div className="bi-card" style={{ padding: "20px 22px" }}>
+                    <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700, color: "var(--text-heading)" }}>
+                      {tr("revenueByService", "Cơ cấu theo dịch vụ")}
+                    </h3>
+                    <p style={{ margin: "0 0 8px", fontSize: 12, color: "var(--text-muted)" }}>
+                      {tr("biShareNote", "Tỷ trọng tính trên doanh thu vé")}
+                    </p>
+                    <ResponsiveContainer width="100%" height={210}>
+                      <PieChart>
+                        <Pie data={typeData} dataKey="value" nameKey="name" innerRadius={54} outerRadius={82}
+                          paddingAngle={2} stroke="var(--bg-card)" strokeWidth={2}>
+                          {typeData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatVnd(v)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+                      {typeData.map((item, i) => (
+                        <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13 }}>
+                          <span style={{
+                            width: 10, height: 10, borderRadius: 3, flexShrink: 0,
+                            background: CHART_COLORS[i % CHART_COLORS.length],
+                          }} />
+                          <span style={{ color: "var(--text-main)", flex: 1 }}>{item.name}</span>
+                          <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>
+                            {item.share?.toFixed(1)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bi-card" style={{ padding: "20px 22px" }}>
+                    <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: "var(--text-heading)" }}>
+                      {scope === "SYSTEM"
+                        ? tr("admTopProvidersTitle", "Doanh thu theo nhà cung cấp")
+                        : tr("biMyBrands", "Doanh thu theo thương hiệu")}
+                    </h3>
+                    <ResponsiveContainer width="100%" height={Math.max(210, providerData.length * 46)}>
+                      <BarChart data={providerData} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
+                        <XAxis type="number" tickFormatter={formatCompact}
+                          tick={{ fill: "var(--chart-axis)", fontSize: 11.5 }} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="name" width={132}
+                          tick={{ fill: "var(--text-secondary)", fontSize: 12 }} axisLine={false} tickLine={false} />
+                        <Tooltip cursor={{ fill: "var(--chart-track)" }} contentStyle={tooltipStyle}
+                          formatter={(v) => [formatVnd(v), tr("biKpiRevenue", "Doanh thu")]} />
+                        <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={20}>
+                          {providerData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* Data Table */}
-            <div style={{ background: "var(--bg-card)", borderRadius: 16, boxShadow: "var(--shadow-md)", overflow: "hidden", border: "1px solid var(--border-light)" }}>
-              <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border-light)", display: "flex", alignItems: "center", gap: 10 }}>
-                <DollarSign size={20} style={{ color: "#818cf8" }} />
-                <h3 style={{ fontSize: "17px", fontWeight: "600", color: "var(--text-heading)", margin: 0 }}>{t.revenueByService}</h3>
-              </div>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ background: "rgba(99,102,241,0.06)", textAlign: "left" }}>
-                    <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{t.admProviderIdCol}</th>
-                    <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{t.providerCol}</th>
-                    <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{t.admServiceTypeCol}</th>
-                    <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "right" }}>{t.totalRevenue}</th>
-                    <th style={{ padding: "14px 24px", fontWeight: 600, color: "#94a3b8", fontSize: 13, borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "center" }}>{t.admActionCol}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr><td colSpan="5" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>{t.admLoadingData}</td></tr>
-                  ) : revenues.length === 0 ? (
-                    <tr><td colSpan="5" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>{t.admNoData}</td></tr>
-                  ) : (
-                    [...revenues]
-                      .sort((a, b) => (b.totalRevenue || 0) - (a.totalRevenue || 0))
-                      .map((item) => {
-                        const serviceType = getMappedType(item.providerType);
-                        const isPlane = serviceType === t.flight;
-                        const isBus = serviceType === t.bus;
-                        const badgeBg = isPlane ? "rgba(99,102,241,0.15)" : isBus ? "rgba(52,211,153,0.15)" : "rgba(251,191,36,0.15)";
-                        const badgeColor = isPlane ? "#a5b4fc" : isBus ? "#6ee7b7" : "#fcd34d";
-                        return (
-                          <tr key={item.providerId} style={{ borderBottom: "1px solid var(--border-light)", transition: "0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(99,102,241,0.04)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                            <td style={{ padding: "14px 24px", color: "#64748b", fontSize: "13px", fontWeight: "500", fontFamily: "monospace" }}>#{item.providerId}</td>
-                            <td style={{ padding: "14px 24px", fontWeight: 600, color: "var(--text-heading)", fontSize: 14 }}>{item.providerName}</td>
-                            <td style={{ padding: "14px 24px" }}>
-                              <span style={{
-                                padding: "4px 12px",
-                                borderRadius: "20px",
-                                fontSize: "12px",
-                                fontWeight: "600",
-                                backgroundColor: badgeBg,
-                                color: badgeColor,
-                                border: `1px solid ${badgeColor}33`
-                              }}>
-                                {serviceType}
-                              </span>
+                {/* ── Top tuyến ── */}
+                <div className="bi-card" style={{ overflow: "hidden" }}>
+                  <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid var(--border-main)" }}>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text-heading)" }}>
+                      {tr("biTopRoutes", "Tuyến hiệu quả nhất trong kỳ")}
+                    </h3>
+                  </div>
+                  <div style={{ overflowX: "auto" }}>
+                    <table className="bi-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: 56 }}>#</th>
+                          <th>{tr("biRoute", "Tuyến")}</th>
+                          <th style={{ textAlign: "right" }}>{tr("biTickets", "Số vé")}</th>
+                          <th style={{ textAlign: "right" }}>{tr("biRevenue", "Doanh thu vé")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {summary.topRoutes.length === 0 ? (
+                          <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)", padding: 28 }}>
+                            {tr("biNoRoutes", "Chưa có vé nào được bán trong kỳ.")}
+                          </td></tr>
+                        ) : summary.topRoutes.map((route, i) => (
+                          <tr key={`${route.origin}-${route.destination}`}>
+                            <td style={{ color: "var(--text-muted)", fontWeight: 700 }}>{i + 1}</td>
+                            <td style={{ fontWeight: 600 }}>
+                              {route.origin} <span style={{ color: "var(--text-muted)" }}>→</span> {route.destination}
                             </td>
-                            <td style={{ padding: "14px 24px", fontWeight: 700, color: "#a5b4fc", textAlign: "right", fontSize: 14, fontFamily: "monospace" }}>
-                              {formatCurrency(item.totalRevenue || 0)}
-                            </td>
-                            <td style={{ padding: "14px 24px", textAlign: "center" }}>
-                              <button
-                                onClick={() => fetchAIInsights(item.providerId)}
-                                style={{
-                                  padding: "6px 14px",
-                                  borderRadius: "8px",
-                                  border: "1px solid rgba(129,140,248,0.3)",
-                                  background: "rgba(99,102,241,0.1)",
-                                  color: "#a5b4fc",
-                                  fontSize: "12px",
-                                  fontWeight: "600",
-                                  cursor: "pointer",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "5px",
-                                  transition: "0.2s"
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.background = "rgba(99,102,241,0.2)"; e.currentTarget.style.borderColor = "rgba(129,140,248,0.5)"; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = "rgba(99,102,241,0.1)"; e.currentTarget.style.borderColor = "rgba(129,140,248,0.3)"; }}
-                              >
-                                <Sparkles size={13} /> {t.getAIInsights}
-                              </button>
+                            <td style={{ textAlign: "right", color: "var(--text-secondary)" }}>{route.tickets}</td>
+                            <td style={{ textAlign: "right", fontWeight: 700, color: "var(--accent-strong)" }}>
+                              {formatVnd(route.amount)}
                             </td>
                           </tr>
-                        );
-                      })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
 
+                <p style={{ margin: "16px 2px 0", fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.6 }}>
+                  {tr("biFootnote",
+                    "Doanh thu thực thu tính trên đơn đặt vé (đã gồm dịch vụ cộng thêm, đã trừ voucher) nên luôn lệch so với doanh thu vé — phần duy nhất quy được về từng hãng và từng tuyến.")}
+                </p>
+              </>
+            )}
           </div>
         </div>
+      </div>
+
+      {showAiModal && (
+        <AiModal
+          loading={aiLoading}
+          content={aiInsights}
+          periodLabel={summary?.periodLabel}
+          onClose={() => setShowAiModal(false)}
+          tr={tr}
+        />
+      )}
+    </div>
+  );
+};
+
+const tooltipStyle = {
+  background: "var(--tooltip-bg)",
+  border: "1px solid var(--tooltip-border)",
+  borderRadius: 10,
+  color: "var(--tooltip-text)",
+  fontSize: 13,
+  boxShadow: "var(--shadow-md)",
+  padding: "8px 12px",
+};
+
+/** Một ô chỉ số, kèm mũi tên tăng/giảm so với kỳ liền trước. */
+const KpiCard = ({ icon, label, value, growth, comparison, accent, highlight }) => {
+  const hasGrowth = growth !== null && growth !== undefined;
+  const up = hasGrowth && growth > 0;
+  const flat = hasGrowth && growth === 0;
+  const color = !hasGrowth ? "var(--text-muted)" : up ? "var(--positive)" : flat ? "var(--text-muted)" : "var(--negative)";
+  const GrowthIcon = !hasGrowth || flat ? Minus : up ? TrendingUp : TrendingDown;
+
+  return (
+    <div className="bi-card" style={{ padding: "18px 20px", position: "relative", overflow: "hidden" }}>
+      <span style={{ position: "absolute", inset: "0 auto 0 0", width: 3, background: accent }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+        <span style={{
+          width: 32, height: 32, borderRadius: 9, display: "inline-flex",
+          alignItems: "center", justifyContent: "center",
+          background: "var(--accent-soft)", color: accent,
+        }}>{icon}</span>
+        <span style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>{label}</span>
+      </div>
+      <div style={{
+        fontSize: highlight ? 25 : 22, fontWeight: 800, color: "var(--text-heading)",
+        letterSpacing: "-0.02em", lineHeight: 1.15,
+      }}>{value}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 9, fontSize: 12.5 }}>
+        <GrowthIcon size={14} style={{ color }} />
+        <span style={{ color, fontWeight: 700 }}>
+          {hasGrowth ? `${growth > 0 ? "+" : ""}${growth.toFixed(1)}%` : "—"}
+        </span>
+        <span style={{ color: "var(--text-muted)" }}>{comparison}</span>
       </div>
     </div>
   );
 };
+
+/**
+ * Nhận định AI. Bản cũ tô các sắc tím nhạt (#a78bfa, #c4b5fd) cắm cứng — đọc được trên nền
+ * tối nhưng gần như chìm hẳn khi giao diện ở tông sáng. Giờ mọi màu đều lấy từ biến chủ đề.
+ */
+const AiModal = ({ loading, content, periodLabel, onClose, tr }) => (
+  <div
+    onClick={onClose}
+    style={{
+      position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.55)",
+      backdropFilter: "blur(3px)", zIndex: 3000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+    }}
+  >
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        width: 720, maxWidth: "100%", maxHeight: "86vh", background: "var(--bg-modal)",
+        borderRadius: 16, border: "1px solid var(--border-main)", boxShadow: "var(--shadow-lg)",
+        display: "flex", flexDirection: "column", animation: "modalFadeIn 0.22s ease",
+      }}
+    >
+      <div style={{
+        padding: "18px 22px", display: "flex", justifyContent: "space-between", alignItems: "center",
+        background: "linear-gradient(135deg, var(--chart-1), var(--chart-6))", color: "#fff",
+        borderRadius: "15px 15px 0 0",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Sparkles size={19} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>{tr("admExecutiveAiReport", "Báo cáo AI")}</div>
+            {periodLabel && <div style={{ fontSize: 12.5, opacity: 0.85 }}>{periodLabel}</div>}
+          </div>
+        </div>
+        <button onClick={onClose} aria-label="Đóng" style={{
+          background: "rgba(255,255,255,0.18)", border: "none", color: "#fff",
+          width: 32, height: 32, borderRadius: "50%", cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}><X size={17} /></button>
+      </div>
+
+      <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
+        {loading ? (
+          <div style={{ padding: "48px 0", textAlign: "center" }}>
+            <div style={{
+              width: 34, height: 34, border: "3px solid var(--border-main)",
+              borderTopColor: "var(--chart-1)", borderRadius: "50%",
+              animation: "spin 0.8s linear infinite", margin: "0 auto 14px",
+            }} />
+            <p style={{ color: "var(--text-secondary)", fontWeight: 600, fontSize: 15, margin: 0 }}>
+              {tr("aiAnalyzing", "AI đang phân tích…")}
+            </p>
+          </div>
+        ) : (
+          <div style={{ fontSize: 14.5, color: "var(--text-main)", lineHeight: 1.8 }}>
+            {renderMarkdown(content)}
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: "14px 22px", borderTop: "1px solid var(--border-main)", textAlign: "right" }}>
+        <button onClick={onClose} style={{
+          padding: "9px 24px", borderRadius: 10, border: "none", cursor: "pointer",
+          background: "var(--primary)", color: "var(--text-on-primary)", fontWeight: 700, fontSize: 13.5,
+        }}>{tr("admUnderstoodBtn", "Đã hiểu")}</button>
+      </div>
+    </div>
+  </div>
+);
+
+const renderBold = (str) => str.split(/\*\*(.*?)\*\*/g).map((part, i) =>
+  i % 2 === 1
+    ? <strong key={i} style={{ color: "var(--accent-strong)", fontWeight: 700 }}>{part}</strong>
+    : <React.Fragment key={i}>{part}</React.Fragment>);
+
+const renderMarkdown = (text) => (text || "").split("\n").map((line, idx) => {
+  const trimmed = line.trim();
+  if (!trimmed) return <div key={idx} style={{ height: 8 }} />;
+
+  if (trimmed.startsWith("###")) {
+    return <h4 key={idx} style={{ fontSize: 14.5, fontWeight: 700, color: "var(--accent-strong)", margin: "16px 0 6px" }}>
+      {renderBold(trimmed.replace(/^#+\s*/, ""))}
+    </h4>;
+  }
+  if (trimmed.startsWith("##")) {
+    return <h3 key={idx} style={{
+      fontSize: 16, fontWeight: 700, color: "var(--text-heading)", margin: "20px 0 8px",
+      borderBottom: "1px solid var(--border-light)", paddingBottom: 6,
+    }}>{renderBold(trimmed.replace(/^#+\s*/, ""))}</h3>;
+  }
+  if (trimmed.startsWith("#")) {
+    return <h2 key={idx} style={{ fontSize: 17.5, fontWeight: 800, color: "var(--text-heading)", margin: "20px 0 10px" }}>
+      {renderBold(trimmed.replace(/^#+\s*/, ""))}
+    </h2>;
+  }
+  if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+    return <div key={idx} style={{ display: "flex", gap: 9, margin: "5px 0" }}>
+      <span style={{ color: "var(--chart-1)", flexShrink: 0 }}>▸</span>
+      <span style={{ flex: 1 }}>{renderBold(trimmed.slice(2))}</span>
+    </div>;
+  }
+  const numbered = trimmed.match(/^(\d+)\.\s*(.*)/);
+  if (numbered) {
+    return <div key={idx} style={{ display: "flex", gap: 9, margin: "5px 0" }}>
+      <span style={{ fontWeight: 700, color: "var(--chart-1)", flexShrink: 0 }}>{numbered[1]}.</span>
+      <span style={{ flex: 1 }}>{renderBold(numbered[2])}</span>
+    </div>;
+  }
+  return <p key={idx} style={{ margin: "6px 0" }}>{renderBold(trimmed)}</p>;
+});
 
 export default AdminRevenue;

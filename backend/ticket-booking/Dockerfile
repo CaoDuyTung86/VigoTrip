@@ -2,12 +2,23 @@
 FROM maven:3.9.6-eclipse-temurin-17 AS builder
 WORKDIR /app
 
-# Copy the pom.xml and source code
+# Tải phụ thuộc TRƯỚC khi copy mã nguồn.
+#
+# Bản cũ copy luôn cả src rồi mới `mvn clean package`, nên mỗi lần sửa một dòng Java là
+# Docker mất cache ở đúng bước đó và Maven tải lại toàn bộ dependency từ Maven Central.
+# Đó chính là thứ sinh ra lỗi deploy `status code: 429, reason phrase: Too Many Requests`:
+# Central chặn theo IP, mà IP build của Render thì dùng chung cho rất nhiều người.
+# Tách riêng bước này thì layer chỉ vỡ khi pom.xml đổi — deploy thường lệ không còn gọi
+# ra mạng nữa, vừa nhanh vừa hết bị chặn.
 COPY pom.xml .
-COPY src ./src
+RUN mvn -B -q dependency:go-offline
 
-# Build the application
-RUN mvn clean package -DskipTests
+# Kèm thêm lưới an toàn cho lần thực sự phải tải: tự thử lại khi Central trả 429/5xx,
+# thay vì đổ nguyên bản build. -B tắt output kiểu progress bar cho log Render dễ đọc.
+ENV MAVEN_OPTS="-Dmaven.wagon.http.retryHandler.count=5 -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 -Dmaven.wagon.http.pool=false"
+
+COPY src ./src
+RUN mvn -B clean package -DskipTests
 
 # Run stage
 FROM eclipse-temurin:17-jre-alpine

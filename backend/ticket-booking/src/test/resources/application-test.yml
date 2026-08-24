@@ -41,6 +41,7 @@ app:
   provider:
     email: provider@gmail.com
     password: Abc123456!
+    owned-providers: Vietnam Airlines,Vietjet Air,Bamboo Airways
 
 gemini:
   api-key: test-dummy-gemini-api-key-1234567890
