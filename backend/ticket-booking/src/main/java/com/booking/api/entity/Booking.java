@@ -49,7 +49,17 @@ public class Booking {
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Refund> refunds;
 
-    @ManyToMany(cascade = { CascadeType.PERSIST, CascadeType.MERGE })
+    /**
+     * KHÔNG cascade: dich_vu_bo_sung là bảng danh mục dùng chung, chỉ do
+     * AdditionalServiceSeeder tạo ra. Lưu một đơn hàng không được phép chèn thêm dòng
+     * danh mục — ở đây chỉ ghi dòng join-table theo service_id có sẵn.
+     *
+     * Trước đây có cascade = { PERSIST, MERGE }. Luồng đặt vé thật không lộ vấn đề vì
+     * BookingService chạy trong @Transactional nên dịch vụ nạp ra đang managed; nhưng khi
+     * dịch vụ được nạp ngoài transaction (entity detached) thì cascade PERSIST ném
+     * "detached entity passed to persist" và làm chết cả tiến trình khởi động.
+     */
+    @ManyToMany
     @JoinTable(name = "dat_ve_dich_vu", joinColumns = @JoinColumn(name = "booking_id"), inverseJoinColumns = @JoinColumn(name = "service_id"))
     private List<AdditionalService> additionalServices;
 
