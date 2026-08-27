@@ -11,6 +11,9 @@ import {
   Sparkles, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight,
   Ticket, Receipt, Wallet, Info, X,
 } from "lucide-react";
+import {
+  shiftAnchor, currentAnchor, isAtEarliestPeriod, isAtLatestPeriod,
+} from "../utils/reportPeriod";
 
 /**
  * Màn hình BI doanh thu.
@@ -38,32 +41,6 @@ const CHART_COLORS = [
   "var(--chart-4)", "var(--chart-5)", "var(--chart-6)",
 ];
 
-const toIsoDate = (date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
-/**
- * Luôn neo vào ngày 1 trước khi cộng trừ tháng. Nếu giữ nguyên ngày 31 rồi lùi một tháng,
- * JavaScript sẽ tràn sang tháng kế tiếp (31/03 lùi một tháng ra 03/03), làm nhảy cóc kỳ.
- */
-const shiftAnchor = (iso, period, direction) => {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(1);
-  if (period === "MONTH") d.setMonth(d.getMonth() + direction);
-  else if (period === "QUARTER") d.setMonth(d.getMonth() + 3 * direction);
-  else d.setFullYear(d.getFullYear() + direction);
-  return toIsoDate(d);
-};
-
-const currentAnchor = () => {
-  const now = new Date();
-  now.setDate(1);
-  return toIsoDate(now);
-};
-
 const formatVnd = (value) => `${Number(value || 0).toLocaleString("vi-VN")} đ`;
 
 /** Rút gọn cho trục biểu đồ: 12.400.000 -> "12,4 tr". Số đầy đủ vẫn có trong tooltip. */
@@ -88,6 +65,17 @@ const AdminRevenue = () => {
   const [anchor, setAnchor] = useState(currentAnchor);
 
   const [summary, setSummary] = useState(null);
+
+  /**
+   * Thông báo "kỳ bạn chọn trống, đang hiện kỳ khác" — giữ riêng chứ không đọc thẳng
+   * `summary.fallbackApplied`.
+   *
+   * Vì mốc neo đã được đồng bộ theo kỳ backend chốt, lần gọi ngay sau đó hỏi đúng kỳ CÓ
+   * dữ liệu nên cờ fallback tắt, và banner sẽ chớp lên rồi tắt ngóm — người xem chỉ kịp
+   * thấy số liệu của một kỳ khác kỳ mình vừa bấm mà không có lời giải thích nào. Thông
+   * báo chỉ mất khi chính người dùng chuyển kỳ.
+   */
+  const [fallbackNotice, setFallbackNotice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -96,6 +84,22 @@ const AdminRevenue = () => {
   const [showAiModal, setShowAiModal] = useState(false);
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+
+  // Dải kỳ đi lại được, chặn ở cả hai đầu: dưới là kỳ chứa giao dịch xa nhất, trên là kỳ
+  // hiện tại. Trước đây chỉ có chặn trên, nên nút lùi đi được vô hạn vào quá khứ rỗng.
+  const atEarliest = isAtEarliestPeriod(anchor, period, summary?.earliestDataDate);
+  const atLatest = isAtLatestPeriod(anchor, period);
+
+  // Mọi thao tác chuyển kỳ do người dùng chủ động đều xoá thông báo fallback cũ: nó nói về
+  // kỳ vừa rời đi, để lại là chú thích sai cho màn hình mới.
+  const goPeriod = (direction) => {
+    setFallbackNotice(null);
+    setAnchor((a) => shiftAnchor(a, period, direction));
+  };
+  const choosePeriod = (id) => {
+    setFallbackNotice(null);
+    setPeriod(id);
+  };
 
   // Hỏi trước xem tài khoản này xem được phạm vi nào, thay vì gọi thử scope=SYSTEM rồi ăn 403.
   useEffect(() => {
@@ -127,7 +131,23 @@ const AdminRevenue = () => {
         const res = await fetch(`/api/analytics/summary?${params}`, { headers: authHeaders });
         if (!res.ok) throw new Error(tr("biLoadError", "Không tải được số liệu doanh thu"));
         const data = await res.json();
-        if (!cancelled) setSummary(data);
+        if (cancelled) return;
+        setSummary(data);
+
+        // Backend đã lùi về kỳ khác thì kéo con trỏ kỳ theo nó. Không đồng bộ thì `anchor`
+        // cứ trôi tiếp mỗi lần bấm trong khi màn hình đứng yên ở kỳ fallback, và để quay
+        // lại người dùng phải bấm ngược đúng bằng số lần đã bấm xuôi mới thấy giao diện
+        // nhúc nhích. Vòng lặp tự dừng: kỳ fallback theo định nghĩa là kỳ CÓ dữ liệu, nên
+        // lần gọi lại sẽ không bật cờ này nữa.
+        if (data.fallbackApplied) {
+          setFallbackNotice({
+            requested: data.requestedPeriodLabel,
+            shown: data.periodLabel,
+          });
+          if (data.periodStart && data.periodStart !== anchor) {
+            setAnchor(data.periodStart);
+          }
+        }
       } catch (e) {
         if (!cancelled) setError(e.message);
       } finally {
@@ -220,7 +240,7 @@ const AdminRevenue = () => {
                     <button
                       key={opt.id}
                       data-active={period === opt.id}
-                      onClick={() => setPeriod(opt.id)}
+                      onClick={() => choosePeriod(opt.id)}
                     >
                       {tr(opt.labelKey, opt.fallback)}
                     </button>
@@ -228,7 +248,12 @@ const AdminRevenue = () => {
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <button className="bi-nav" onClick={() => setAnchor((a) => shiftAnchor(a, period, -1))} aria-label="Kỳ trước">
+                  <button
+                    className="bi-nav"
+                    onClick={() => goPeriod(-1)}
+                    disabled={atEarliest}
+                    aria-label="Kỳ trước"
+                  >
                     <ChevronLeft size={17} />
                   </button>
                   <span style={{
@@ -239,8 +264,8 @@ const AdminRevenue = () => {
                   </span>
                   <button
                     className="bi-nav"
-                    onClick={() => setAnchor((a) => shiftAnchor(a, period, 1))}
-                    disabled={anchor >= currentAnchor()}
+                    onClick={() => goPeriod(1)}
+                    disabled={atLatest}
                     aria-label="Kỳ sau"
                   >
                     <ChevronRight size={17} />
@@ -276,7 +301,7 @@ const AdminRevenue = () => {
 
             {/* Kỳ được chọn trống nên hệ thống đã tự lùi — nói thẳng ra, đừng để người xem
                 tưởng số liệu này là của kỳ họ vừa bấm. */}
-            {summary?.fallbackApplied && (
+            {fallbackNotice && (
               <div style={{
                 display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px",
                 background: "var(--accent-soft)", border: "1px solid var(--border-main)",
@@ -284,8 +309,8 @@ const AdminRevenue = () => {
               }}>
                 <Info size={17} style={{ color: "var(--accent-strong)", flexShrink: 0, marginTop: 1 }} />
                 <span>
-                  <b>{summary.requestedPeriodLabel}</b> {tr("biFallbackNote", "chưa có giao dịch nào. Đang hiển thị số liệu của")}{" "}
-                  <b>{summary.periodLabel}</b> — {tr("biFallbackHint", "kỳ gần nhất có dữ liệu.")}
+                  <b>{fallbackNotice.requested}</b> {tr("biFallbackNote", "chưa có giao dịch nào. Đang hiển thị số liệu của")}{" "}
+                  <b>{fallbackNotice.shown}</b> — {tr("biFallbackHint", "kỳ gần nhất có dữ liệu.")}
                 </span>
               </div>
             )}

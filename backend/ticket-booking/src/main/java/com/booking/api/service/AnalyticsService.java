@@ -92,6 +92,12 @@ public class AnalyticsService {
         LocalDate periodStart = period.startOf(effectiveAnchor);
         LocalDate periodEnd = period.lastDayOf(effectiveAnchor);
 
+        // Cận dưới của dải kỳ xem được. Trả kèm ở mọi phản hồi chứ không chỉ khi fallback:
+        // giao diện cần biết đáy dải để khoá nút "kỳ trước" TRƯỚC khi người dùng bấm xuống
+        // vùng rỗng, chứ không phải sửa sai sau khi đã trôi xuống đó.
+        LocalDateTime earliest = bookingRepository.findEarliestBookingDate(providerIds);
+        LocalDate earliestDataDate = earliest != null ? earliest.toLocalDate() : null;
+
         BigDecimal totalRevenue = sumAmount(rows, 2);
         long totalBookings = rows.size();
 
@@ -123,6 +129,7 @@ public class AnalyticsService {
                 fallbackApplied,
                 requestedLabel,
                 totalBookings > 0,
+                earliestDataDate,
                 totalRevenue,
                 ticketRevenue,
                 serviceRevenue,
@@ -440,7 +447,7 @@ public class AnalyticsService {
         return new AnalyticsSummaryResponse(
                 scope.name(), period.name(),
                 period.startOf(anchor), period.lastDayOf(anchor),
-                requestedLabel, false, requestedLabel, false,
+                requestedLabel, false, requestedLabel, false, null,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0L, 0L,
                 BigDecimal.ZERO, null, 0L, null, period.label(period.previousAnchor(anchor)),
                 List.of(), List.of(), List.of(), List.of());

@@ -96,7 +96,7 @@ app:
     #
     # MẶC ĐỊNH TẮT và phải giữ nguyên như vậy: đây là dữ liệu bịa, bật nhầm trên môi trường
     # thật là doanh thu báo cáo sai. Chỉ đặt DEMO_SEED_BOOKINGS=true trên bản demo, và cũng
-    # chỉ cần bật đúng một lần — seeder tự bỏ qua khi tháng liền trước đã có đơn.
+    # chỉ cần bật đúng một lần — seeder tự bỏ qua khi tháng liền trước đã đủ số đơn.
     seed-bookings: ${DEMO_SEED_BOOKINGS:false}
 
 # Swagger

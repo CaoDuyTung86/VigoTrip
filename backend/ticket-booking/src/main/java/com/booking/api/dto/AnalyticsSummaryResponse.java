@@ -17,6 +17,10 @@ import java.util.List;
  * @param serviceRevenue  tổng tiền DỊCH VỤ BỔ SUNG của các đơn trong kỳ
  * @param discountTotal   phần chênh còn lại: giảm giá hạng thành viên + voucher
  * @param fallbackApplied kỳ được yêu cầu không có giao dịch nên đã tự lùi về kỳ gần nhất có dữ liệu
+ * @param earliestDataDate ngày đặt vé xa nhất còn đọc được trong phạm vi này, {@code null} khi
+ *                         chưa có giao dịch nào. Giao diện dùng nó làm chặn dưới cho nút "kỳ
+ *                         trước", đối xứng với việc nút "kỳ sau" bị chặn ở kỳ hiện tại — không
+ *                         có nó thì bấm lùi được vô hạn vào vùng rỗng.
  *
  * <p>{@code totalRevenue} và {@code ticketRevenue} lệch nhau là bình thường, không phải lỗi
  * làm tròn: tiền thực thu còn gồm dịch vụ cộng thêm và đã trừ voucher, trong khi các phần
@@ -44,6 +48,7 @@ public record AnalyticsSummaryResponse(
         boolean fallbackApplied,
         String requestedPeriodLabel,
         boolean hasData,
+        LocalDate earliestDataDate,
 
         BigDecimal totalRevenue,
         BigDecimal ticketRevenue,

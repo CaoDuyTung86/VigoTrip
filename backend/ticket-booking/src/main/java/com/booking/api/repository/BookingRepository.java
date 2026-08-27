@@ -289,4 +289,21 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
            "AND t.trip.vehicle.provider.id IN :providerIds")
     java.time.LocalDateTime findLatestBookingDate(@Param("providerIds") List<Long> providerIds);
+
+    /**
+     * Ngày đặt vé xa nhất trong phạm vi — cận dưới của dải kỳ có thể xem được.
+     *
+     * Đối xứng với {@link #findLatestBookingDate}, và cùng nhau chúng khoanh đúng đoạn thời
+     * gian mà nút lùi/tiến kỳ được phép đi qua. Thiếu cận dưới thì nút "kỳ trước" đi lùi vô
+     * hạn vào vùng rỗng: mỗi lần bấm là một lần backend lùi về kỳ gần nhất có dữ liệu, màn
+     * hình đứng yên, còn con trỏ kỳ ở phía giao diện thì cứ trôi tiếp — bấm lùi năm lần rồi
+     * phải bấm tiến đủ năm lần mới thấy màn hình nhúc nhích.
+     *
+     * <p>Cùng bộ lọc trạng thái với truy vấn ngày gần nhất: hai đầu của dải phải được đo
+     * bằng cùng một thước, nếu không sẽ có kỳ nằm trong dải mà lại không có số liệu nào.
+     */
+    @Query("SELECT MIN(b.bookingDate) FROM Booking b JOIN b.tickets t " +
+           "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
+           "AND t.trip.vehicle.provider.id IN :providerIds")
+    java.time.LocalDateTime findEarliestBookingDate(@Param("providerIds") List<Long> providerIds);
 }

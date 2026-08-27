@@ -60,10 +60,16 @@ import java.util.UUID;
  * <p><b>Mặc định TẮT.</b> Bật bằng {@code DEMO_SEED_BOOKINGS=true}. Đây là dữ liệu bịa,
  * không được để nó tự chạy trên môi trường thật chỉ vì ai đó quên một biến môi trường.
  *
- * <p><b>Chạy đúng một lần.</b> Chốt chặn là "tháng liền trước đã có đơn nào chưa" chứ không
- * phải một cờ lưu riêng: seeder tồn tại để lấp đúng khoảng trống đó, nên khoảng trống được
- * lấp rồi cũng chính là dấu hiệu nó đã chạy. Container khởi động lại bao nhiêu lần cũng
- * không sinh chồng.
+ * <p><b>Chạy đúng một lần.</b> Chốt chặn là "tháng liền trước đã đủ dày chưa" — đủ dày
+ * nghĩa là đã có ít nhất {@link #BOOKINGS_PREVIOUS_MONTH} đơn — chứ không phải một cờ lưu
+ * riêng: seeder tồn tại để lấp đúng khoảng trống đó, nên khoảng trống được lấp rồi cũng
+ * chính là dấu hiệu nó đã chạy. Lần sinh đầu tiên đẩy số đơn vượt ngưỡng nên container
+ * khởi động lại bao nhiêu lần cũng không sinh chồng.
+ *
+ * <p>Ngưỡng, chứ không phải "đã có đơn nào chưa": vài đơn lẻ còn sót lại từ lúc phát triển
+ * cũng đủ để một điều kiện {@code > 0} coi như tháng đó xong việc, và seeder im lặng bỏ qua
+ * đúng cái tháng nó được gọi tới để chữa. Hai đơn nằm trên hai ngày rời rạc vẫn là biểu đồ
+ * hỏng, vẫn là donut một màu — tức là vẫn nguyên cả ba khuyết tật liệt kê bên trên.
  *
  * <p>Mọi con số đều đi qua đúng công thức mà {@link com.booking.api.service.BookingService}
  * dùng cho đơn thật — tiền vé, tiền dịch vụ, giảm giá theo điểm tích luỹ — nên tập dữ liệu
@@ -138,9 +144,9 @@ public class DemoBookingSeeder {
 
             long alreadyThere = bookingRepository.countByBookingDateInRange(
                     previous.atDay(1).atStartOfDay(), current.atDay(1).atStartOfDay());
-            if (alreadyThere > 0) {
-                log.info("[DemoBookingSeeder] {} đã có {} đơn, bỏ qua để không sinh chồng.",
-                        previous, alreadyThere);
+            if (alreadyThere >= BOOKINGS_PREVIOUS_MONTH) {
+                log.info("[DemoBookingSeeder] {} đã có {} đơn (>= {}), bỏ qua để không sinh chồng.",
+                        previous, alreadyThere, BOOKINGS_PREVIOUS_MONTH);
                 return;
             }
 

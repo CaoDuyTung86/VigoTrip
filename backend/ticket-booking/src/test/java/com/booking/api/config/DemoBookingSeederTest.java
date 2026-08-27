@@ -136,17 +136,42 @@ class DemoBookingSeederTest {
     }
 
     @Test
-    @DisplayName("Tháng liền trước đã có đơn thì bỏ qua, khởi động lại bao nhiêu lần cũng không sinh chồng")
+    @DisplayName("Tháng liền trước đã đủ dày thì bỏ qua, khởi động lại bao nhiêu lần cũng không sinh chồng")
     void khongSinhChongLenDuLieuCoSan() throws Exception {
         enable();
         YearMonth current = YearMonth.from(LocalDate.now());
         when(bookingRepository.countByBookingDateInRange(
                 eq(current.minusMonths(1).atDay(1).atStartOfDay()),
-                eq(current.atDay(1).atStartOfDay()))).thenReturn(4L);
+                eq(current.atDay(1).atStartOfDay()))).thenReturn(40L);
 
         runSeeder();
 
         verify(bookingRepository, never()).save(any());
+    }
+
+    /**
+     * Đây là tình huống đã xảy ra thật trên bản deploy: tháng liền trước còn đúng 2 đơn sót
+     * lại từ lúc phát triển, chốt chặn cũ ({@code > 0}) coi thế là xong việc và bỏ qua, nên
+     * màn Thống kê doanh thu vẫn giữ nguyên biểu đồ hai cột dựng đứng và donut một màu —
+     * đúng những khuyết tật seeder được viết ra để chữa.
+     */
+    @Test
+    @DisplayName("Vài đơn lẻ sót lại KHÔNG chặn seeder: vẫn bù cho đủ dày")
+    void vaiDonLeVanBuTiep() throws Exception {
+        enable();
+        YearMonth current = YearMonth.from(LocalDate.now());
+        when(bookingRepository.countByBookingDateInRange(
+                eq(current.minusMonths(1).atDay(1).atStartOfDay()),
+                eq(current.atDay(1).atStartOfDay()))).thenReturn(2L);
+
+        runSeeder();
+
+        YearMonth previous = current.minusMonths(1);
+        long sinhChoKyTruoc = savedBookings().stream()
+                .filter(b -> YearMonth.from(b.getBookingDate()).equals(previous))
+                .count();
+        assertTrue(sinhChoKyTruoc > 0,
+                "2 đơn sót lại không được phép làm seeder im lặng bỏ qua cả tháng");
     }
 
     @Test
