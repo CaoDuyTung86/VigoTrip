@@ -91,6 +91,13 @@ app:
     # Danh sách nhiều hay ít không ảnh hưởng tới code: để đúng một tên là quay về mô hình
     # 1 đối tác = 1 hãng, cần đổi thì sửa biến môi trường chứ không phải sửa mã.
     owned-providers: ${PROVIDER_OWNED:Vietnam Airlines,Vietjet Air,Bamboo Airways}
+  demo:
+    # Sinh lịch sử đặt vé cho tháng này và tháng trước, phục vụ demo màn Thống kê doanh thu.
+    #
+    # MẶC ĐỊNH TẮT và phải giữ nguyên như vậy: đây là dữ liệu bịa, bật nhầm trên môi trường
+    # thật là doanh thu báo cáo sai. Chỉ đặt DEMO_SEED_BOOKINGS=true trên bản demo, và cũng
+    # chỉ cần bật đúng một lần — seeder tự bỏ qua khi tháng liền trước đã có đơn.
+    seed-bookings: ${DEMO_SEED_BOOKINGS:false}
 
 # Swagger
 springdoc:

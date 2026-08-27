@@ -58,6 +58,13 @@ jobs:
         npm install
         npm run build
 
+    # Test đơn vị frontend (Vitest). Chạy sau build để lỗi build lộ ra trước,
+    # nhưng vẫn chặn được job nếu logic vé/ghế/đếm ngược bị sửa hỏng.
+    - name: Run Frontend Unit Tests
+      run: |
+        cd my-react-app
+        npm run test:run
+
   # 3. Docker Build Test (Ensures Dockerfiles are correct)
   docker-test:
     needs: [build-backend, build-frontend, gitleaks]

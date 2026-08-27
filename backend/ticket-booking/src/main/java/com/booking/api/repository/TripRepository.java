@@ -62,6 +62,17 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     Page<Trip> findUpcomingTrips(@Param("now") LocalDateTime now, Pageable pageable);
 
     /**
+     * Một nhúm chuyến của đúng một loại phương tiện, để seeder dữ liệu demo có chỗ gắn vé vào.
+     *
+     * Bắt buộc có Pageable: cửa sổ tồn kho 30 ngày đang cỡ hơn chục nghìn chuyến, kéo hết về
+     * chỉ để bốc ra vài chục cái là phí RAM. JOIN FETCH sẵn vehicle/provider vì seeder cần đọc
+     * loại phương tiện và giá của từng chuyến — không fetch thì mỗi chuyến một truy vấn con.
+     */
+    @Query("SELECT t FROM Trip t JOIN FETCH t.vehicle v JOIN FETCH v.provider "
+         + "WHERE v.vehicleType = :vehicleType ORDER BY t.departureTime ASC")
+    List<Trip> findByVehicleTypeForSeeding(@Param("vehicleType") String vehicleType, Pageable pageable);
+
+    /**
      * Ảnh chụp "tồn kho" chuyến trong một cửa sổ thời gian: (route_id, loại phương tiện, giờ chạy).
      *
      * TripSupplyService dùng để biết (tuyến, phương tiện, ngày) nào đã có chuyến rồi mà bỏ qua.

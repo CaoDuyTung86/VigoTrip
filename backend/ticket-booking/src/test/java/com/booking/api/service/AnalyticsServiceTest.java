@@ -67,6 +67,9 @@ class AnalyticsServiceTest {
     @Captor
     private ArgumentCaptor<String> promptCaptor;
 
+    @Captor
+    private ArgumentCaptor<List<Long>> idsCaptor;
+
     private void givenNoBreakdowns() {
         when(bookingRepository.findRevenueByProviderInPeriod(any(), any(), anyList())).thenReturn(List.of());
         when(bookingRepository.findRevenueByVehicleTypeInPeriod(any(), any(), anyList())).thenReturn(List.of());
@@ -275,5 +278,86 @@ class AnalyticsServiceTest {
         assertTrue(prompt.contains("1.500.000"), "Doanh thu kỳ này");
         assertTrue(prompt.contains("1.000.000"), "Doanh thu kỳ trước để đối chiếu");
         assertTrue(prompt.contains("+50.0%"), "Tăng trưởng phải tính sẵn, không để AI tự nhẩm");
+    }
+
+    @Test
+    @DisplayName("Khoản lệch giữa thực thu và tiền vé được bóc thành dịch vụ + giảm giá, khép kín đẳng thức")
+    void getSummary_docSoatDichVuVaGiamGia() {
+        when(providerRepository.findAllIds()).thenReturn(ALL_PROVIDERS);
+        when(bookingRepository.findRevenueByVehicleTypeInPeriod(any(), any(), anyList())).thenReturn(List.of());
+        when(bookingRepository.findTopRoutesInPeriod(any(), any(), anyList(), any())).thenReturn(List.of());
+
+        LocalDateTime augustStart = LocalDate.of(2026, 8, 1).atStartOfDay();
+        when(bookingRepository.findScopedBookingRows(any(), any(), anyList())).thenAnswer(inv -> {
+            LocalDateTime from = inv.getArgument(0);
+            return from.equals(augustStart)
+                    ? List.<Object[]>of(
+                            bookingRow(17L, LocalDateTime.of(2026, 8, 24, 9, 0), 7_359_650),
+                            bookingRow(23L, LocalDateTime.of(2026, 8, 24, 10, 0), 5_944_300))
+                    : List.of();
+        });
+        when(bookingRepository.findRevenueByProviderInPeriod(any(), any(), anyList()))
+                .thenReturn(List.<Object[]>of(
+                        new Object[] { 1L, "Vietnam Airlines", "AIRLINE", BigDecimal.valueOf(13_250_000), 2L }));
+        when(bookingRepository.sumServiceRevenueForBookings(anyList()))
+                .thenReturn(BigDecimal.valueOf(1_324_000));
+
+        AnalyticsSummaryResponse s = analyticsService.getSummary(ReportScope.SYSTEM, "admin@gmail.com",
+                ReportPeriod.MONTH, LocalDate.of(2026, 8, 27));
+
+        // Chỉ hỏi tiền dịch vụ của đúng những đơn đã lọt vào kỳ. Lọc lại theo ngày bằng một
+        // mệnh đề WHERE riêng là mở đường cho hai con số lệch nhau khi sửa điều kiện một chỗ.
+        verify(bookingRepository).sumServiceRevenueForBookings(idsCaptor.capture());
+        assertEquals(List.of(17L, 23L), idsCaptor.getValue());
+
+        assertEquals(0, BigDecimal.valueOf(1_324_000).compareTo(s.serviceRevenue()));
+        // 13.250.000 vé + 1.324.000 dịch vụ - 1.270.050 giảm giá = 13.303.950 thực thu
+        assertEquals(0, BigDecimal.valueOf(1_270_050).compareTo(s.discountTotal()));
+        assertEquals(0, s.ticketRevenue().add(s.serviceRevenue()).subtract(s.discountTotal())
+                .compareTo(s.totalRevenue()), "Đẳng thức đối soát phải khép kín");
+    }
+
+    @Test
+    @DisplayName("Kỳ không có đơn nào thì không hỏi tiền dịch vụ — IN () là cú pháp không hợp lệ")
+    void getSummary_khongHoiDichVuKhiKyRong() {
+        when(providerRepository.findAllIds()).thenReturn(ALL_PROVIDERS);
+        givenNoBreakdowns();
+        when(bookingRepository.findScopedBookingRows(any(), any(), anyList())).thenReturn(List.of());
+        when(bookingRepository.findLatestBookingDate(anyList())).thenReturn(null);
+
+        AnalyticsSummaryResponse s = analyticsService.getSummary(ReportScope.SYSTEM, "admin@gmail.com",
+                ReportPeriod.MONTH, LocalDate.of(2026, 9, 5));
+
+        verify(bookingRepository, never()).sumServiceRevenueForBookings(anyList());
+        assertEquals(0, BigDecimal.ZERO.compareTo(s.serviceRevenue()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(s.discountTotal()));
+    }
+
+    @Test
+    @DisplayName("Prompt gửi AI mang sẵn đẳng thức đối soát, khỏi để AI tự nhẩm phần lệch")
+    void getInsights_promptCoDangThucDoiSoat() {
+        when(providerRepository.findAllIds()).thenReturn(ALL_PROVIDERS);
+        when(bookingRepository.findRevenueByVehicleTypeInPeriod(any(), any(), anyList())).thenReturn(List.of());
+        when(bookingRepository.findTopRoutesInPeriod(any(), any(), anyList(), any())).thenReturn(List.of());
+        LocalDateTime augustStart = LocalDate.of(2026, 8, 1).atStartOfDay();
+        when(bookingRepository.findScopedBookingRows(any(), any(), anyList())).thenAnswer(inv -> {
+            LocalDateTime from = inv.getArgument(0);
+            return from.equals(augustStart)
+                    ? List.<Object[]>of(bookingRow(3L, LocalDateTime.of(2026, 8, 2, 9, 0), 2_980_000))
+                    : List.of();
+        });
+        when(bookingRepository.findRevenueByProviderInPeriod(any(), any(), anyList()))
+                .thenReturn(List.<Object[]>of(
+                        new Object[] { 1L, "Phương Trang (FUTA)", "BUS", BigDecimal.valueOf(2_800_000), 1L }));
+        when(bookingRepository.sumServiceRevenueForBookings(anyList()))
+                .thenReturn(BigDecimal.valueOf(180_000));
+
+        analyticsService.getInsights(ReportScope.SYSTEM, "admin@gmail.com",
+                ReportPeriod.MONTH, LocalDate.of(2026, 8, 27));
+
+        verify(aiService).getAIAnalysis(any(), promptCaptor.capture());
+        String prompt = promptCaptor.getValue();
+        assertTrue(prompt.contains("2.800.000 + 180.000 - 0 = 2.980.000"), prompt);
+        assertTrue(prompt.contains("Tiền dịch vụ bổ sung: 180.000"), prompt);
     }
 }

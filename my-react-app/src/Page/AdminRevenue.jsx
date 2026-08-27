@@ -355,6 +355,8 @@ const AdminRevenue = () => {
                   />
                 </div>
 
+                <ReconciliationBar summary={summary} tr={tr} />
+
                 {/* ── Xu hướng trong kỳ ── */}
                 <div className="bi-card" style={{ padding: "20px 22px 12px", marginBottom: 22 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
@@ -523,6 +525,64 @@ const tooltipStyle = {
 };
 
 /** Một ô chỉ số, kèm mũi tên tăng/giảm so với kỳ liền trước. */
+/**
+ * Đẳng thức nối "Doanh thu thực thu" với "Doanh thu vé".
+ *
+ * Hai thẻ KPI đó chênh nhau vài trăm nghìn tới vài triệu và trước đây nằm cạnh nhau không
+ * một lời giải thích — người xem chỉ có thể đoán là sai số. Bày thẳng đẳng thức ra thì
+ * không còn gì để đoán, và cũng chặn trước đúng câu hỏi đầu tiên mà người đọc báo cáo sẽ hỏi.
+ *
+ * discountTotal âm nghĩa là đơn có vé huỷ lẻ đã hoàn tiền: tiền vé còn hiệu lực tụt xuống
+ * trong khi tổng tiền đã thu của đơn giữ nguyên. Đảo dấu và đổi nhãn chứ không hiện
+ * "giảm giá -2.000đ", vì dấu trừ của một khoản vốn đã mang nghĩa trừ thì đọc thành cộng.
+ */
+const ReconciliationBar = ({ summary, tr }) => {
+  const discount = Number(summary.discountTotal || 0);
+  const refundLike = discount < 0;
+
+  const parts = [
+    { label: tr("biKpiTicketRevenue", "Doanh thu vé"), value: summary.ticketRevenue, op: null },
+    { label: tr("biServiceRevenue", "Dịch vụ bổ sung"), value: summary.serviceRevenue, op: "+" },
+    {
+      label: refundLike
+        ? tr("biRefundAdjust", "Điều chỉnh vé huỷ")
+        : tr("biDiscountTotal", "Giảm giá & voucher"),
+      value: Math.abs(discount),
+      op: refundLike ? "+" : "−",
+    },
+  ];
+
+  return (
+    <div className="bi-card" style={{
+      padding: "13px 18px", marginBottom: 22, display: "flex", alignItems: "center",
+      gap: 12, flexWrap: "wrap", rowGap: 8,
+    }}>
+      <Info size={15} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+      <span style={{ fontSize: 12.5, color: "var(--text-muted)", fontWeight: 600 }}>
+        {tr("biReconTitle", "Đối soát")}
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", rowGap: 6 }}>
+        {parts.map((part) => (
+          <React.Fragment key={part.label}>
+            {part.op && (
+              <span style={{ color: "var(--text-muted)", fontSize: 15, fontWeight: 700 }}>{part.op}</span>
+            )}
+            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+              {part.label}{" "}
+              <b style={{ color: "var(--text-main)", fontWeight: 700 }}>{formatVnd(part.value)}</b>
+            </span>
+          </React.Fragment>
+        ))}
+        <span style={{ color: "var(--text-muted)", fontSize: 15, fontWeight: 700 }}>=</span>
+        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+          {tr("biKpiRevenue", "Doanh thu thực thu")}{" "}
+          <b style={{ color: "var(--chart-1)", fontWeight: 800 }}>{formatVnd(summary.totalRevenue)}</b>
+        </span>
+      </div>
+    </div>
+  );
+};
+
 const KpiCard = ({ icon, label, value, growth, comparison, accent, highlight }) => {
   const hasGrowth = growth !== null && growth !== undefined;
   const up = hasGrowth && growth > 0;

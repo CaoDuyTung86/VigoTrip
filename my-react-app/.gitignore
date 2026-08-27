@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Vitest coverage output (sinh ra bởi npm run test:cov, Sonar đọc từ đây)
+coverage

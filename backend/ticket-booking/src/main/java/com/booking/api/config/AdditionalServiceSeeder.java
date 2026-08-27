@@ -5,6 +5,7 @@ import com.booking.api.repository.AdditionalServiceRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -62,7 +63,13 @@ public class AdditionalServiceSeeder {
         BASE_SERVICES.put("Taxi đưa đón sân bay (Xanh SM)", BigDecimal.valueOf(199000));
     }
 
+    /**
+     * Thứ tự khai tường minh vì DemoBookingSeeder (@Order 4) cần danh mục dịch vụ có sẵn.
+     * Bean CommandLineRunner không gắn @Order rơi vào LOWEST_PRECEDENCE, tức là chạy sau
+     * cùng — trên cơ sở dữ liệu mới thì seeder demo sẽ không thấy dịch vụ nào để gắn vào đơn.
+     */
     @Bean
+    @Order(3)
     public CommandLineRunner initAdditionalServices(AdditionalServiceRepository additionalServiceRepository) {
         return args -> {
             List<AdditionalService> existing = additionalServiceRepository.findAll();

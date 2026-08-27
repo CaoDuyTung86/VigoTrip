@@ -64,6 +64,22 @@ export default defineConfig(({ mode }) => {
       },
     },
   },
+  // Vitest dùng lại đúng config này (plugin React, alias, env) nên test chạy
+  // cùng pipeline transform với dev/build — không có chuyện chạy được ở dev
+  // mà vỡ ở test. Chỉ ảnh hưởng `vitest`, không đụng tới `vite build`.
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+    css: false,
+    coverage: {
+      provider: 'v8',
+      // lcov là định dạng SonarQube đọc (xem sonar-project.properties)
+      reporter: ['text', 'lcov'],
+      include: ['src/**/*.{js,jsx}'],
+      exclude: ['src/main.jsx', 'src/test/**', 'src/**/*.test.{js,jsx}'],
+    },
+  },
   }
 })
 

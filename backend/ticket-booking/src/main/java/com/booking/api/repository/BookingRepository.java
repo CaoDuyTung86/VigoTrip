@@ -207,6 +207,32 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                                          @Param("to") java.time.LocalDateTime to,
                                          @Param("providerIds") List<Long> providerIds);
 
+    /**
+     * Tổng tiền dịch vụ bổ sung của một danh sách đơn.
+     *
+     * Nhận sẵn id đơn thay vì tự lọc lại theo kỳ và theo nhà cung cấp: danh sách đó đã do
+     * {@link #findScopedBookingRows} chốt, hỏi lại lần nữa bằng một mệnh đề WHERE khác là
+     * mở đường cho hai con số lệch nhau khi sau này ai đó sửa điều kiện ở một chỗ.
+     *
+     * Cũng vì thế mà câu lệnh này KHÔNG join sang tickets: đơn 3 vé mà join cả vé lẫn dịch
+     * vụ sẽ ra 3xN dòng và tiền dịch vụ nở ra theo số vé — đúng lỗi mà findScopedBookingRows
+     * đang phải dùng DISTINCT để tránh.
+     */
+    @Query("SELECT COALESCE(SUM(s.price), 0) FROM Booking b JOIN b.additionalServices s "
+         + "WHERE b.id IN :bookingIds")
+    java.math.BigDecimal sumServiceRevenueForBookings(@Param("bookingIds") List<Long> bookingIds);
+
+    /**
+     * Đếm đơn đặt trong một khoảng, không phân biệt trạng thái hay nhà cung cấp.
+     *
+     * Dùng làm chốt chặn chạy trùng cho seeder dữ liệu demo: tháng đó đã có đơn thì thôi,
+     * khỏi sinh chồng lên. Cố tình KHÔNG lọc trạng thái — đơn PENDING hay CANCELLED cũng là
+     * dấu hiệu tháng đó đã được đụng vào rồi.
+     */
+    @Query("SELECT COUNT(b) FROM Booking b WHERE b.bookingDate >= :from AND b.bookingDate < :to")
+    long countByBookingDateInRange(@Param("from") java.time.LocalDateTime from,
+                                   @Param("to") java.time.LocalDateTime to);
+
     /** Doanh thu vé + số vé theo từng nhà cung cấp trong kỳ. */
     @Query("SELECT t.trip.vehicle.provider.id, t.trip.vehicle.provider.providerName, " +
            "t.trip.vehicle.provider.providerType, SUM(t.price), COUNT(t) " +

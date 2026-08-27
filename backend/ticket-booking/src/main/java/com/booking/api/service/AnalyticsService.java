@@ -111,6 +111,9 @@ public class AnalyticsService {
         BigDecimal ticketRevenue = sumAmount(providerRows, 3);
         long totalTickets = sumCount(providerRows, 4);
 
+        BigDecimal serviceRevenue = sumServiceRevenue(rows);
+        BigDecimal discountTotal = ticketRevenue.add(serviceRevenue).subtract(totalRevenue);
+
         return new AnalyticsSummaryResponse(
                 scope.name(),
                 period.name(),
@@ -122,6 +125,8 @@ public class AnalyticsService {
                 totalBookings > 0,
                 totalRevenue,
                 ticketRevenue,
+                serviceRevenue,
+                discountTotal,
                 totalBookings,
                 totalTickets,
                 previousRevenue,
@@ -207,6 +212,16 @@ public class AnalyticsService {
         r.append("- Doanh thu thực thu: ").append(df.format(s.totalRevenue())).append(" VND\n");
         r.append("- Doanh thu vé (dùng để bóc tách bên dưới): ")
                 .append(df.format(s.ticketRevenue())).append(" VND\n");
+        r.append("- Tiền dịch vụ bổ sung: ").append(df.format(s.serviceRevenue())).append(" VND\n");
+        r.append(s.discountTotal().signum() >= 0
+                        ? "- Giảm giá hạng thành viên & voucher: -"
+                        : "- Điều chỉnh (vé huỷ lẻ đã hoàn): +")
+                .append(df.format(s.discountTotal().abs())).append(" VND\n");
+        r.append("- Đẳng thức đối soát: ").append(df.format(s.ticketRevenue()))
+                .append(" + ").append(df.format(s.serviceRevenue()))
+                .append(s.discountTotal().signum() >= 0 ? " - " : " + ")
+                .append(df.format(s.discountTotal().abs()))
+                .append(" = ").append(df.format(s.totalRevenue())).append(" VND\n");
         r.append("- Số đơn đặt vé: ").append(s.totalBookings())
                 .append(" đơn / ").append(s.totalTickets()).append(" vé\n");
         r.append("- Kỳ liền trước (").append(s.previousPeriodLabel()).append("): ")
@@ -231,7 +246,10 @@ public class AnalyticsService {
         }
 
         r.append("GHI CHÚ ĐỌC SỐ: doanh thu thực thu gồm cả dịch vụ cộng thêm và đã trừ voucher, ")
-                .append("nên luôn lệch so với doanh thu vé. Mọi tỷ trọng đã tính trên doanh thu vé.\n");
+                .append("nên luôn lệch so với doanh thu vé — phần lệch đã được bóc rõ ở đẳng thức đối ")
+                .append("soát bên trên, KHÔNG được gọi đó là sai số hay lỗi làm tròn. Mọi tỷ trọng đã ")
+                .append("tính trên doanh thu vé, vì dịch vụ bổ sung không quy được về từng hãng hay ")
+                .append("từng tuyến.\n");
         return r.toString();
     }
 
@@ -349,6 +367,26 @@ public class AnalyticsService {
         return result;
     }
 
+    /**
+     * Tiền dịch vụ bổ sung của đúng những đơn đã lọt vào kỳ.
+     *
+     * Danh sách rỗng thì trả 0 mà không hỏi cơ sở dữ liệu: {@code IN ()} là cú pháp không
+     * hợp lệ ở PostgreSQL, để rơi xuống truy vấn sẽ nổ ngay ở kỳ chưa có đơn nào.
+     */
+    private BigDecimal sumServiceRevenue(List<Object[]> bookingRows) {
+        List<Long> ids = new ArrayList<>(bookingRows.size());
+        for (Object[] row : bookingRows) {
+            if (row[0] != null) {
+                ids.add(((Number) row[0]).longValue());
+            }
+        }
+        if (ids.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal total = bookingRepository.sumServiceRevenueForBookings(ids);
+        return total != null ? total : BigDecimal.ZERO;
+    }
+
     private static BigDecimal sumAmount(List<Object[]> rows, int idx) {
         BigDecimal total = BigDecimal.ZERO;
         for (Object[] row : rows) {
@@ -403,7 +441,7 @@ public class AnalyticsService {
                 scope.name(), period.name(),
                 period.startOf(anchor), period.lastDayOf(anchor),
                 requestedLabel, false, requestedLabel, false,
-                BigDecimal.ZERO, BigDecimal.ZERO, 0L, 0L,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0L, 0L,
                 BigDecimal.ZERO, null, 0L, null, period.label(period.previousAnchor(anchor)),
                 List.of(), List.of(), List.of(), List.of());
     }
