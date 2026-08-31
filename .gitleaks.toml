@@ -1,0 +1,20 @@
+# Cấu hình Gitleaks cho CI (.github/workflows/main.yml -> job "gitleaks")
+# Giữ nguyên toàn bộ rule mặc định, chỉ thêm allowlist cho dữ liệu giả trong test.
+title = "WebProject gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Bỏ qua khoá thiết bị/phiên giả lập dùng trong unit test (không phải secret thật)"
+
+# Các file test chứa fixture giả cho cơ chế khoá ghế (seat lock rekey)
+paths = [
+  '''backend/ticket-booking/src/test/java/com/booking/api/service/SeatLockServiceTest\.java''',
+  '''my-react-app/src/hooks/useSeatLockRekey\.test\.jsx''',
+]
+
+# Chuỗi device/session key giả: sess_<timestamp>_<random>
+regexes = [
+  '''sess_[0-9]{10,}_[A-Za-z0-9]+''',
+]

@@ -64,7 +64,7 @@ class SeatLockServiceTest {
     @Test
     @DisplayName("Đổi danh tính giữa chừng: nhả bằng khoá cũ rồi giữ lại bằng email")
     void rekeyLock_Success_WhenGuestLogsIn() {
-        String deviceKey = "sess_1786867631410_1hhgv221d13leu";
+        String deviceKey = "sess_1700000000_fake_device";
         assertTrue(seatLockService.lockSeat(TRIP_ID, 15L, deviceKey));
 
         // Đúng thứ tự mà useSeatLockRekey ở frontend thực hiện sau khi người dùng đăng nhập

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import useSeatLockRekey from './useSeatLockRekey';
 
-const DEVICE_KEY = 'sess_1786867631410_1hhgv221d13leu';
+const DEVICE_KEY = 'sess_1700000000_fake_device';
 const EMAIL = 'nguoi.dung@gmail.com';
 
 const setup = (overrides = {}) => {
