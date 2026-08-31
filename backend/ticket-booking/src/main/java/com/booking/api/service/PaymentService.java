@@ -236,6 +236,7 @@ public class PaymentService {
      */
     @Transactional
     public String handleVNPayReturn(Map<String, String> params) {
+        logCallbackReceived("Return", params);
         if (!VNPayUtil.validateHash(params, vnPayConfig.getHashSecret())) {
             logInvalidSignature("Return", params);
             return "INVALID_SIGNATURE";
@@ -266,6 +267,7 @@ public class PaymentService {
     @Transactional
     public Map<String, String> handleVNPayIPN(Map<String, String> params) {
         try {
+            logCallbackReceived("IPN", params);
             if (!VNPayUtil.validateHash(params, vnPayConfig.getHashSecret())) {
                 logInvalidSignature("IPN", params);
                 return ipnResponse("97", "Invalid Signature");
@@ -413,6 +415,29 @@ public class PaymentService {
 
     private boolean isSuccessResponse(Map<String, String> params) {
         return "00".equals(params.get("vnp_ResponseCode"));
+    }
+
+    /**
+     * Một dòng cho MỌI callback đi vào, in TRƯỚC cả bước đối chiếu chữ ký.
+     *
+     * Đường thành công của cả Return lẫn IPN đều đang im lặng, nên một đơn được xác nhận
+     * không để lại dấu vết nào về việc nó đã được xác nhận bằng kênh nào. Hệ quả: khi đơn
+     * không được xác nhận, log không phân biệt nổi "cổng chưa từng gọi IPN" với "cổng có gọi
+     * nhưng ta từ chối" — hai nguyên nhân đòi hai cách sửa hoàn toàn khác nhau.
+     *
+     * In trước khi kiểm tra chữ ký là cố ý: một callback chữ ký sai vẫn là một callback ĐÃ
+     * tới, và chính sự phân biệt đó là toàn bộ giá trị của dòng log này.
+     *
+     * Callback VNPay không chứa dữ liệu thẻ; bốn trường dưới đây là mã giao dịch, mã kết quả,
+     * nội dung đơn và số tiền — đủ để lần dấu, không có gì nhạy cảm.
+     */
+    private void logCallbackReceived(String channel, Map<String, String> params) {
+        log.info("[VNPay {}] Nhận callback: vnp_TxnRef={}, vnp_ResponseCode={}, vnp_OrderInfo={}, vnp_Amount={}",
+                channel,
+                params.get("vnp_TxnRef"),
+                params.get("vnp_ResponseCode"),
+                params.get("vnp_OrderInfo"),
+                params.get("vnp_Amount"));
     }
 
     /**

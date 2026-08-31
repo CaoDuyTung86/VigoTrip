@@ -249,7 +249,34 @@ public class VNPayQueryService {
             log.warn("Chữ ký phản hồi querydr của giao dịch {} không khớp. Kết luận vẫn dựa trên nội dung "
                     + "phản hồi (TLS đã bảo đảm nguồn gốc); nếu cảnh báo này xuất hiện ở MỌI giao dịch "
                     + "thì hãy kiểm tra lại thứ tự trường trong chuỗi nối.", txnRef);
+            logChecksumEvidence(body, hashData, expected, provided);
         }
+    }
+
+    /**
+     * Dữ liệu thô để dò ra công thức nối đúng, in kèm mỗi lần checksum lệch.
+     *
+     * Công thức nối chuỗi của phản hồi querydr là thứ duy nhất trong lớp này không hồi quy
+     * được bằng unit test: phải có một phản hồi thật từ cổng mới biết đúng sai. Không in ba
+     * thứ dưới đây thì mỗi lần dò lại tốn một vòng deploy cộng một giao dịch thật, mà vẫn
+     * chỉ biết "sai" chứ không biết sai ở đâu.
+     *
+     * - {@code hashData}: chuỗi CHÍNH TA đã nối. So nó với thứ tự trường trong body là thấy
+     *   ngay lệch ở vị trí nào, hoặc trường nào cổng trả về mà ta bỏ sót.
+     * - body: nguồn sự thật để thử lại các thứ tự khác OFFLINE, không cần giao dịch mới.
+     * - hai chữ ký: xác nhận đúng là lệch nội dung chứ không phải lệch hoa/thường hay rỗng.
+     *
+     * KHÔNG lộ bí mật: hash-secret là KHOÁ của HMAC, không nằm trong chuỗi bị băm. Phản hồi
+     * querydr cũng không chứa số thẻ — chỉ mã giao dịch, số tiền, mã ngân hàng, thời gian.
+     *
+     * Đọc kỹ {@code vnp_ResponseCode} trong body trước khi kết luận thứ tự trường sai: khi mã
+     * này khác "00" (94 trùng yêu cầu, 02 sai TmnCode...) thì phản hồi vốn đã thiếu trường,
+     * và checksum lệch chỉ là HỆ QUẢ. Chỉ thứ tự trường mới làm nó lệch ở cả phản hồi mã 00.
+     */
+    private void logChecksumEvidence(JsonNode body, String hashData, String expected, String provided) {
+        log.warn("Chuỗi ký querydr ta dựng: [{}]", hashData);
+        log.warn("Phản hồi querydr thô: {}", body);
+        log.warn("Chữ ký ta tính={}, cổng gửi={}", expected, provided);
     }
 
     private static String text(JsonNode body, String field) {
