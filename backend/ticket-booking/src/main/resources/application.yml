@@ -5,7 +5,7 @@ spring:
     # Cấu hình MS SQL Server 
     url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=ticket_booking_db;encrypt=true;trustServerCertificate=true;}
     username: ${SPRING_DATASOURCE_USERNAME:sa}
-    password: ${SPRING_DATASOURCE_PASSWORD:Toibingu1234}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
     hikari:
       connection-timeout: 60000
@@ -23,7 +23,7 @@ spring:
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
-    username: ${SPRING_MAIL_USERNAME:tunggaming9874123@gmail.com}
+    username: ${SPRING_MAIL_USERNAME:}
     password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
@@ -46,17 +46,28 @@ brevo:
 server:
   port: ${PORT:8080}
 
+# Các biến BẮT BUỘC bên dưới cố tình không có giá trị mặc định. Repo này công khai, nên
+# một giá trị mặc định hợp lệ nằm trong mã nguồn đồng nghĩa với việc công bố bí mật đang
+# chạy thật. Thiếu biến thì StartupSecretsValidator chặn ngay lúc khởi động — hỏng lúc
+# deploy dễ chịu hơn nhiều so với âm thầm chạy bằng khoá ai cũng đọc được.
+# Danh sách đầy đủ và cách lấy từng giá trị: xem .env.example.
 jwt:
-  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  secret: ${JWT_SECRET:}
   expiration: 86400000
 
-# VNPay Sandbox Configuration (Demo credentials từ sandbox.vnpayment.vn)
+# VNPay Sandbox. tmn-code/hash-secret lấy ở sandbox.vnpayment.vn, KHÔNG hardcode:
+# hash-secret là thứ duy nhất chứng minh một callback thật sự đến từ cổng thanh toán.
 vnpay:
-  tmn-code: ${VNP_TMN_CODE:2N4UDJHA}
-  hash-secret: ${VNP_HASH_SECRET:AGZ0GSAWUPR788U3WZ2B1BG3AGVTBUQY}
+  tmn-code: ${VNP_TMN_CODE:}
+  hash-secret: ${VNP_HASH_SECRET:}
   pay-url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
   return-url: ${VNP_RETURN_URL:http://localhost:8081/api/payment/vnpay-return}
   api-url: https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
+  # Sau khi một callback (Return/IPN) khai là thanh toán thành công, gọi lệnh querydr sang
+  # api-url để hỏi lại chính cổng xem giao dịch đó có thật không. Chữ ký HMAC chỉ chứng minh
+  # người gửi biết hash-secret; lớp này chặn cả trường hợp hash-secret bị lộ.
+  # Chỉ tắt khi môi trường không có đường ra Internet (dev offline, CI).
+  verify-callback: ${VNP_VERIFY_CALLBACK:true}
 
 # Frontend URL (dùng cho redirect sau thanh toán VNPay)
 app:
@@ -75,12 +86,19 @@ app:
   # Đặt CAO hơn thực tế sẽ cho phép client giả mạo IP để né rate limit — khi không
   # chắc, cứ để 0 (nhiều client dùng chung hạn mức, phiền nhưng an toàn).
   trusted-proxy-count: ${APP_TRUSTED_PROXY_COUNT:0}
+  # Cho phép khởi động dù một bí mật đang dùng nằm trong danh sách đã lộ (xem
+  # StartupSecretsValidator). Chỉ đặt true khi CHƯA xoay được khoá và chấp nhận rủi ro —
+  # mỗi lần khởi động sẽ in một khối cảnh báo. Xoay khoá xong thì bỏ biến này.
+  allow-known-leaked-secrets: ${ALLOW_KNOWN_LEAKED_SECRETS:false}
+  # AdminSeeder ĐỒNG BỘ mật khẩu về đúng giá trị hai biến này ở MỖI lần khởi động, nên
+  # đổi mật khẩu trong ứng dụng sẽ bị ghi đè ở lần restart kế tiếp. Muốn đổi thật thì sửa
+  # biến môi trường rồi restart.
   admin:
     email: ${ADMIN_EMAIL:admin@gmail.com}
-    password: ${ADMIN_PASSWORD:Abc123456!}
+    password: ${ADMIN_PASSWORD:}
   provider:
     email: ${PROVIDER_EMAIL:provider@gmail.com}
-    password: ${PROVIDER_PASSWORD:Abc123456!}
+    password: ${PROVIDER_PASSWORD:}
     # Những thương hiệu mà tài khoản đối tác demo vận hành, khớp nha_cung_cap.provider_name.
     #
     # Hệ thống có 8 nhà cung cấp nhưng chỉ dựng MỘT tài khoản đối tác để còn nhớ mật khẩu

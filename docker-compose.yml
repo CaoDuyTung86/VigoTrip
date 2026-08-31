@@ -46,6 +46,15 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      # StartupSecretsValidator BẮT BUỘC hai biến này. Thiếu là container thoát ngay lúc
+      # khởi động rồi bị restart lại — trông y hệt "backend tự ngắt" mà không rõ vì sao.
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - PROVIDER_PASSWORD=${PROVIDER_PASSWORD}
+      # Tạm chạy tiếp khi khoá đã lộ nhưng chưa xoay kịp. Bỏ trống = false = chặn khởi động.
+      - ALLOW_KNOWN_LEAKED_SECRETS=${ALLOW_KNOWN_LEAKED_SECRETS:-false}
+      # Đối chiếu callback với cổng bằng querydr. Để true trừ khi máy không ra được Internet.
+      - VNP_VERIFY_CALLBACK=${VNP_VERIFY_CALLBACK:-true}
+      - VNP_RETURN_URL=${VNP_RETURN_URL:-http://localhost:8081/api/payment/vnpay-return}
     depends_on:
       sqlserver-init:
         condition: service_completed_successfully

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
+    "build:docker": "vite build --mode docker",
     "lint": "eslint .",
     "preview": "vite preview",
     "start:backend": "cd ../backend/ticket-booking && mvnw clean compile spring-boot:run",

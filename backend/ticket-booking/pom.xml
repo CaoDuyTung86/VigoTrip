@@ -72,10 +72,19 @@
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+		<!--
+			provided chứ không phải test: profile "local" chạy cả ứng dụng trên H2 in-memory
+			để khỏi phải dựng SQL Server trong Docker chỉ để bấm thử giao diện, nên driver
+			phải có mặt ở classpath của spring-boot:run chứ không riêng lúc chạy test.
+
+			Lưu ý: scope provided KHÔNG tự loại H2 khỏi jar — repackage của Spring Boot vẫn
+			nhét dependency provided vào BOOT-INF/lib. Việc loại ra khỏi bản deploy do
+			<excludes> của spring-boot-maven-plugin bên dưới đảm nhiệm.
+		-->
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
-			<scope>test</scope>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -204,6 +213,36 @@
 						</exclude>
 					</excludes>
 				</configuration>
+				<executions>
+					<execution>
+						<!--
+							Loại H2 khỏi BẢN ĐÓNG GÓI, và chỉ bản đóng gói.
+							Môi trường thật chạy SQL Server/Postgres nên không có lý do mang
+							theo một engine CSDL nữa (kèm H2 console và lịch sử CVE của nó).
+
+							Phải đặt ở execution "repackage" chứ KHÔNG phải ở <configuration>
+							cấp plugin: cấu hình cấp plugin áp cho mọi goal, kể cả
+							spring-boot:run — khi đó profile "local" mất driver H2 và chết
+							ngay lúc dựng DataSource với "Cannot load driver class".
+						-->
+						<id>repackage</id>
+						<goals>
+							<goal>repackage</goal>
+						</goals>
+						<configuration>
+							<excludes>
+								<exclude>
+									<groupId>org.projectlombok</groupId>
+									<artifactId>lombok</artifactId>
+								</exclude>
+								<exclude>
+									<groupId>com.h2database</groupId>
+									<artifactId>h2</artifactId>
+								</exclude>
+							</excludes>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 			<plugin>
 				<groupId>org.jacoco</groupId>

@@ -1,20 +1,126 @@
 # Cấu hình Gitleaks cho CI (.github/workflows/main.yml -> job "gitleaks")
-# Giữ nguyên toàn bộ rule mặc định, chỉ thêm allowlist cho dữ liệu giả trong test.
+#
+# Giữ nguyên toàn bộ rule mặc định và bổ sung rule riêng cho những loại khoá mà bộ mặc
+# định KHÔNG bắt. Đây không phải giả định: mọi rule dưới đây được viết từ những giá trị
+# đã thật sự lọt vào lịch sử repo này trong khi job gitleaks vẫn báo xanh — app password
+# của Gmail, JWT secret dạng hex/base64, hash-secret của VNPay. Một lần quét sạch không
+# có nghĩa là repo sạch nếu bộ rule không biết cần tìm gì.
+#
+# LƯU Ý KHI SỬA FILE NÀY: gitleaks dùng RE2 (thư viện regexp của Go), KHÔNG hỗ trợ
+# lookahead/lookbehind (?!...) (?<=...) hay backreference. Viết những cấu trúc đó vào đây
+# sẽ làm gitleaks không compile được config và job CI hỏng. Muốn loại trừ trường hợp nào
+# thì dùng [rules.allowlist] thay vì lookahead.
 title = "WebProject gitleaks config"
 
 [extend]
 useDefault = true
 
-[allowlist]
-description = "Bỏ qua khoá thiết bị/phiên giả lập dùng trong unit test (không phải secret thật)"
+# --- Khoá của nhà cung cấp bên ngoài -------------------------------------------------
+# Nhóm này nhận diện được bằng tiền tố cố định nên regex đơn giản và gần như không dương
+# tính giả.
 
-# Các file test chứa fixture giả cho cơ chế khoá ghế (seat lock rekey)
+[[rules]]
+id = "groq-api-key"
+description = "Groq API key"
+regex = '''gsk_[A-Za-z0-9]{40,}'''
+keywords = ["gsk_"]
+
+[[rules]]
+id = "brevo-api-key"
+description = "Brevo (Sendinblue) API key"
+regex = '''xkeysib-[a-f0-9]{64}-[A-Za-z0-9]{16}'''
+keywords = ["xkeysib-"]
+
+[[rules]]
+id = "neon-db-password"
+description = "Neon Postgres role password"
+regex = '''npg_[A-Za-z0-9]{10,}'''
+keywords = ["npg_"]
+
+[[rules]]
+id = "google-ai-studio-key"
+description = "Google AI Studio / Gemini API key (dạng AIza cũ và AQ. mới)"
+regex = '''(?:AIza[0-9A-Za-z_-]{35}|AQ\.[A-Za-z0-9_-]{45,})'''
+keywords = ["AIza", "AQ."]
+
+# --- Bí mật của chính ứng dụng -------------------------------------------------------
+# Nhóm này KHÔNG có tiền tố nào để nhận diện: giá trị của jwt.secret hay hash-secret chỉ
+# là chuỗi ngẫu nhiên, nhìn không khác gì một chuỗi base64 bình thường. Cách duy nhất bắt
+# được là bám vào TÊN KHOÁ cấu hình nơi nó được gán.
+#
+# Cách khai báo đúng là placeholder — secret: ${JWT_SECRET:} — và mọi regex dưới đây đều
+# loại trừ ký tự '$' trong phần giá trị, nên placeholder tự động không khớp.
+
+[[rules]]
+id = "app-jwt-secret-literal"
+description = "jwt.secret gán bằng giá trị literal thay vì placeholder"
+# Cố tình KHÔNG neo word boundary trước 'secret': trong JWT_SECRET=... ký tự đứng
+# ngay trước là '_' nên word boundary không thành lập, và dạng khai báo kiểu .env
+# sẽ lọt lưới.
+# word boundary, và dạng khai báo kiểu .env sẽ lọt lưới.
+regex = '''(?i)secret\s*[:=]\s*["']?[A-Za-z0-9+/=_-]{32,}'''
+keywords = ["secret"]
+
+[[rules]]
+id = "vnpay-hash-secret-literal"
+description = "vnpay.hash-secret gán bằng giá trị literal"
+regex = '''(?i)hash[-_]?secret\s*[:=]\s*["']?[A-Za-z0-9]{16,}'''
+keywords = ["hash-secret", "hash_secret", "hashsecret"]
+
+[[rules]]
+id = "gmail-app-password"
+description = "App password của Google (16 chữ thường, liền hoặc chia 4 nhóm 4)"
+# Bộ rule mặc định của gitleaks không có rule nào cho dạng này — đó là lý do hai app
+# password đã nằm trong lịch sử repo mà CI vẫn xanh.
+regex = '''(?i)(?:password|passwd|pwd)\s*[:=]\s*["']?(?:[a-z]{16}|[a-z]{4} [a-z]{4} [a-z]{4} [a-z]{4})["']?'''
+keywords = ["password", "passwd", "pwd"]
+
+[[rules]]
+id = "spring-inline-password"
+description = "password gán literal trong file cấu hình Spring"
+regex = '''(?im)^\s*password\s*[:=]\s*["']?[^\s"'#$]{6,}'''
+path = '''.*application.*\.(ya?ml|properties)$'''
+keywords = ["password"]
+
+# --- Allowlist -----------------------------------------------------------------------
+
+[allowlist]
+description = "Dữ liệu giả trong test và file mẫu — không phải secret thật"
+
 paths = [
+  # Fixture giả cho cơ chế khoá ghế (seat lock rekey)
   '''backend/ticket-booking/src/test/java/com/booking/api/service/SeatLockServiceTest\.java''',
   '''my-react-app/src/hooks/useSeatLockRekey\.test\.jsx''',
+  # Cấu hình test: H2 trong bộ nhớ, toàn khoá giả, không chạm môi trường thật.
+  '''backend/ticket-booking/src/test/resources/application-test\.yml''',
+  # Profile "local": cũng chỉ H2 trong bộ nhớ và toàn giá trị trám, cùng hạng với
+  # application-test.yml ở trên. jwt.secret ở đó buộc phải dài >= 32 ký tự (jjwt từ chối
+  # khoá ngắn hơn) nên luôn trông giống một secret thật với bộ rule — đó là lý do phải
+  # liệt kê ở đây thay vì đặt một giá trị "nhìn là biết giả".
+  '''backend/ticket-booking/src/main/resources/application-local\.yml''',
+  # Test hồi quy của StartupSecretsValidator: cố tình nhúng đúng giá trị JWT đã lộ để
+  # chứng minh danh sách chặn hoạt động. Khoá này đã cháy và vốn đã công khai trong
+  # lịch sử repo — nếu không loại trừ, chính rule vừa viết sẽ báo động lên nó.
+  '''StartupSecretsValidatorTest\.java''',
+  # File mẫu: chỉ chứa placeholder mô tả.
+  '''\.env\.example$''',
+  # Chính file này chứa các mẫu regex, rất dễ tự khớp với rule của nó.
+  '''\.gitleaks\.toml$''',
+  # Thư viện bên thứ ba và kết quả build: không bao giờ được commit (xem .gitignore) nên
+  # CI không đụng tới, nhưng chạy `gitleaks dir .` ở máy local thì có — và fixture trong
+  # các package npm tạo ra hơn 100 báo động giả, đủ để che mất phát hiện thật.
+  '''node_modules''',
+  '''[/\\](dist|build|target)[/\\]''',
 ]
 
-# Chuỗi device/session key giả: sess_<timestamp>_<random>
+# Neo hai đầu (^...$) là có chủ ý: nếu không neo, một secret thật chỉ cần CHỨA chuỗi
+# "test" ở đâu đó cũng bị bỏ qua, và allowlist quay ra vô hiệu hoá chính bộ rule.
 regexes = [
-  '''sess_[0-9]{10,}_[A-Za-z0-9]+''',
+  # Chuỗi device/session key giả: sess_<timestamp>_<random>
+  '''^sess_[0-9]{10,}_[A-Za-z0-9]+$''',
+  # Placeholder biến môi trường, kể cả dạng có giá trị mặc định.
+  '''^\$\{[A-Za-z_][A-Za-z0-9_]*(:[^}]*)?\}$''',
+  # Giá trị mẫu hiển nhiên trong tài liệu.
+  '''^your_[a-z_]+_here$''',
+  '''(?i)^(test|dummy|example|changeme|placeholder)[-_a-zA-Z0-9]*$''',
 ]

@@ -1,0 +1,84 @@
+# Profile chạy local KHÔNG cần Docker.
+#
+#   ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+#
+# Toàn bộ dữ liệu nằm trong H2 in-memory: tắt ứng dụng là mất sạch, mỗi lần khởi động là
+# một CSDL trắng do các seeder dựng lại. Đổi lại, không phải nuôi container SQL Server
+# (~2GB RAM) chỉ để bấm thử giao diện.
+#
+# KHI NÀO KHÔNG DÙNG PROFILE NÀY: bất cứ thứ gì phụ thuộc vào phương ngữ SQL Server
+# (native query, kiểu NVARCHAR, hàm riêng của T-SQL) đều có thể chạy đúng ở đây mà hỏng
+# trên môi trường thật. Trước khi deploy vẫn phải chạy lại bằng docker compose.
+
+# Cổng 8099 KHÔNG tuỳ tiện: đây là cổng mà frontend đã quy ước sẵn cho trường hợp backend
+# chạy thẳng bằng spring-boot:run (xem my-react-app/.env.localapi -> VITE_API_TARGET, dùng
+# bởi `npm run dev:local-api`). Proxy /api và /ws của Vite trỏ vào đây. Để mặc định 8080 thì
+# proxy gõ vào chỗ không có ai nghe và SockJS chết ngay ở /ws/info với lỗi 500.
+#
+# Ba cổng đang cùng tồn tại, đừng lẫn:
+#   8081 - backend khi chạy bằng docker compose (map 8081:8080), là target mặc định của Vite
+#   8099 - backend khi chạy bằng spring-boot:run, dùng với `npm run dev:local-api`
+#   5173 - Vite dev server
+server:
+  port: ${PORT:8099}
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:ticket_booking_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    # Không phải bí mật: đây là mật khẩu của một CSDL in-memory chỉ sống trong tiến trình
+    # này và không mở cổng ra ngoài. Để trống thì StartupSecretsValidator chặn khởi động,
+    # nên đặt một giá trị hiển nhiên là đồ chơi.
+    password: ${LOCAL_H2_PASSWORD:h2local}
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+  h2:
+    console:
+      # Xem dữ liệu tại http://localhost:8099/h2-console (JDBC URL điền đúng chuỗi ở trên).
+      # Chỉ bật trong profile này; profile mặc định không có H2 trên classpath.
+      enabled: true
+
+# CHATBOT TẮT SẴN Ở PROFILE NÀY. Hai thứ độc lập nhau, muốn thử chatbot local phải có cả hai:
+#
+#   1. GEMINI_API_KEY (hoặc GROQ_API_KEY) — thiếu thì /api/chat/status trả OFFLINE và log
+#      báo "Task 'chat' KHÔNG có nhà cung cấp nào khả dụng". Không khai ở đây vì đó là khoá
+#      thật, phải nằm ở biến môi trường.
+#   2. RAG_SEED_ON_STARTUP=true — seed tri thức đọc file YAML rồi gọi API embedding, chậm và
+#      tốn quota. Để false thì chatbot vẫn trả lời được nhưng RAG nạp 0 chunk, tức là mất
+#      phần trả lời dựa trên tài liệu của hệ thống.
+#
+# Mặc định tắt vì phần lớn việc sửa local không đụng tới chatbot, và nó là thứ làm khởi động
+# chậm nhất. Không ảnh hưởng gì tới profile mặc định/deploy.
+rag:
+  seed-on-startup: ${RAG_SEED_ON_STARTUP:false}
+
+# Các giá trị dưới đây là CHỖ TRÁM để ứng dụng khởi động được, không phải khoá thật.
+# Muốn bấm thử luồng thanh toán VNPay thật thì khai biến môi trường tương ứng trước khi
+# chạy (VNP_TMN_CODE, VNP_HASH_SECRET) — biến môi trường luôn thắng giá trị mặc định ở đây.
+jwt:
+  secret: ${JWT_SECRET:bG9jYWwtZGV2LW9ubHktand0LXNlY3JldC1raG9uZy1kdW5nLXRoYXQtMTIzNDU2}
+
+vnpay:
+  tmn-code: ${VNP_TMN_CODE:LOCAL_DEV_TMN}
+  hash-secret: ${VNP_HASH_SECRET:local-dev-vnpay-key}
+  return-url: ${VNP_RETURN_URL:http://localhost:8099/api/payment/vnpay-return}
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  backend-url: ${BACKEND_URL:http://localhost:8099}
+  # Chạy thẳng trên máy, không có proxy nào phía trước.
+  trusted-proxy-count: 0
+  admin:
+    email: ${ADMIN_EMAIL:admin@gmail.com}
+    password: ${ADMIN_PASSWORD:Local123456!}
+  provider:
+    email: ${PROVIDER_EMAIL:provider@gmail.com}
+    password: ${PROVIDER_PASSWORD:Local123456!}

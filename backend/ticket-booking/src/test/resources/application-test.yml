@@ -32,6 +32,8 @@ vnpay:
   pay-url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
   return-url: http://localhost:8081/api/payment/vnpay-return
   api-url: https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
+  # Test không gọi ra Internet; phần logic querydr được phủ riêng bởi VNPayQueryServiceTest.
+  verify-callback: false
 
 app:
   frontend-url: http://localhost:5173

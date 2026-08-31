@@ -57,6 +57,12 @@ class RateLimitingFilterTest {
         return request;
     }
 
+    private MockHttpServletRequest callbackRequest(String path, String remoteAddr) {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+        request.setRemoteAddr(remoteAddr);
+        return request;
+    }
+
     /** Trả về status code của request thứ n khi bắn liên tiếp n request giống nhau. */
     private int statusAfter(int attempts, java.util.function.Supplier<MockHttpServletRequest> requestSupplier)
             throws Exception {
@@ -126,6 +132,47 @@ class RateLimitingFilterTest {
         // Bắn tiếp cho tới khi vượt hạn mức thành viên.
         int overLimit = statusAfter(USER_LIMIT, () -> chatRequest("203.0.113.30", null, "Bearer valid"));
         assertThat(overLimit).isEqualTo(429);
+    }
+
+    @Test
+    @DisplayName("Callback Return của VNPay bị chặn sau 20 lượt/phút từ cùng một IP")
+    void vnPayReturnIsRateLimited() throws Exception {
+        setTrustedProxyCount(0);
+
+        // 20 lượt đầu vẫn đi tiếp: một lần trả tiền chỉ sinh đúng một lượt Return, số này
+        // đã tính dư cho việc khách bấm F5 hoặc mở lại tab.
+        assertThat(statusAfter(20, () -> callbackRequest("/api/payment/vnpay-return", "203.0.113.50")))
+                .isEqualTo(200);
+        assertThat(statusAfter(1, () -> callbackRequest("/api/payment/vnpay-return", "203.0.113.50")))
+                .as("endpoint public, mỗi lượt tốn một HMAC + vài truy vấn DB nên phải có trần")
+                .isEqualTo(429);
+    }
+
+    @Test
+    @DisplayName("Trần của IPN cao hơn hẳn Return vì mọi giao dịch dùng chung IP của cổng")
+    void vnPayIpnHasHigherCeilingThanReturn() throws Exception {
+        setTrustedProxyCount(0);
+
+        // Ở mức làm nghẹt Return (21 lượt), IPN vẫn phải thông: chặn nhầm một IPN thật là
+        // khách đã bị trừ tiền mà đơn không bao giờ được xác nhận.
+        assertThat(statusAfter(21, () -> callbackRequest("/api/payment/vnpay-ipn", "203.0.113.60")))
+                .isEqualTo(200);
+
+        assertThat(statusAfter(100, () -> callbackRequest("/api/payment/vnpay-ipn", "203.0.113.60")))
+                .as("vẫn phải có trần để một flood không rút cạn connection pool")
+                .isEqualTo(429);
+    }
+
+    @Test
+    @DisplayName("Hai IP khác nhau có bộ đếm callback riêng")
+    void callbackLimitIsPerIp() throws Exception {
+        setTrustedProxyCount(0);
+
+        assertThat(statusAfter(21, () -> callbackRequest("/api/payment/vnpay-return", "203.0.113.70")))
+                .isEqualTo(429);
+        assertThat(statusAfter(1, () -> callbackRequest("/api/payment/vnpay-return", "203.0.113.71")))
+                .as("IP khác không được thừa hưởng bộ đếm của IP đã vượt trần")
+                .isEqualTo(200);
     }
 
     @Test

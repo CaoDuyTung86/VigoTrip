@@ -58,7 +58,7 @@ public class PaymentService {
     private static final Set<String> UNFULFILLED_STATUSES = Set.of("CANCELLED", "FAILED");
 
     /** Kết quả của một lần cổng báo về, dùng chung cho cả Return lẫn IPN. */
-    private enum PaymentOutcome { SUCCESS, FAILED, ALREADY_PROCESSED, LATE_NEEDS_REFUND }
+    private enum PaymentOutcome { SUCCESS, FAILED, ALREADY_PROCESSED, LATE_NEEDS_REFUND, INVALID_AMOUNT, UNVERIFIED }
 
     private final BookingRepository bookingRepository;
     private final PaymentRepository paymentRepository;
@@ -69,6 +69,7 @@ public class PaymentService {
     private final ApplicationEventPublisher eventPublisher;
     private final SimpMessagingTemplate messagingTemplate;
     private final VoucherService voucherService;
+    private final VNPayQueryService vnPayQueryService;
 
     /** Tên miền frontend mặc định, dùng khi không xác định được nơi khách bắt đầu trả tiền. */
     @org.springframework.beans.factory.annotation.Value("${app.frontend-url:http://localhost:5173}")
@@ -236,6 +237,7 @@ public class PaymentService {
     @Transactional
     public String handleVNPayReturn(Map<String, String> params) {
         if (!VNPayUtil.validateHash(params, vnPayConfig.getHashSecret())) {
+            logInvalidSignature("Return", params);
             return "INVALID_SIGNATURE";
         }
 
@@ -252,6 +254,8 @@ public class PaymentService {
                     ? "SUCCESS" : "FAILED_" + params.get("vnp_ResponseCode");
             case LATE_NEEDS_REFUND -> "LATE_REFUND";
             case FAILED -> "FAILED_" + params.get("vnp_ResponseCode");
+            case INVALID_AMOUNT -> "INVALID_AMOUNT";
+            case UNVERIFIED -> "UNVERIFIED";
         };
     }
 
@@ -263,6 +267,7 @@ public class PaymentService {
     public Map<String, String> handleVNPayIPN(Map<String, String> params) {
         try {
             if (!VNPayUtil.validateHash(params, vnPayConfig.getHashSecret())) {
+                logInvalidSignature("IPN", params);
                 return ipnResponse("97", "Invalid Signature");
             }
 
@@ -276,13 +281,13 @@ public class PaymentService {
                 return ipnResponse("01", "Order not found");
             }
 
-            long vnpAmount = Long.parseLong(params.get("vnp_Amount"));
-            if (vnpAmount != booking.getTotalPrice().multiply(BigDecimal.valueOf(100)).longValue()) {
-                return ipnResponse("04", "Invalid Amount");
-            }
-
             return switch (applyPaymentResult(booking, params)) {
+                case INVALID_AMOUNT -> ipnResponse("04", "Invalid Amount");
                 case ALREADY_PROCESSED -> ipnResponse("02", "Order already confirmed");
+                // Không báo "00": cổng sẽ gửi lại IPN, và nếu lần truy vấn vừa rồi trượt vì
+                // lý do nhất thời thì lần sau còn cơ hội xác nhận đúng. Báo "00" ở đây là
+                // đóng sổ vĩnh viễn một giao dịch mà ta chưa kiểm chứng được.
+                case UNVERIFIED -> ipnResponse("99", "Transaction not verified at gateway");
                 // LATE_NEEDS_REFUND cũng là đã ghi nhận xong, báo "00" để cổng ngừng gọi lại
                 default -> ipnResponse("00", "Confirm Success");
             };
@@ -297,6 +302,16 @@ public class PaymentService {
      * một chỗ duy nhất quyết định trạng thái, hai luồng không thể xử lý lệch nhau.
      */
     private PaymentOutcome applyPaymentResult(Booking booking, Map<String, String> params) {
+        if (!isAmountMatching(booking, params)) {
+            // In cả hai về cùng đơn vị vnp_Amount (VND x100), nếu không hai số lệch đơn vị
+            // sẽ trông như nhau và người đọc log tưởng hệ thống từ chối nhầm.
+            log.error("Callback thanh toán cho booking {} khai vnp_Amount={} nhưng đơn trị giá {} "
+                            + "(tương đương vnp_Amount={}) — từ chối",
+                    booking.getId(), params.get("vnp_Amount"), booking.getTotalPrice(),
+                    expectedGatewayAmount(booking));
+            return PaymentOutcome.INVALID_AMOUNT;
+        }
+
         String txnRef = params.get("vnp_TxnRef");
         if (txnRef != null && paymentRepository.existsByTransactionRef(txnRef)) {
             return PaymentOutcome.ALREADY_PROCESSED;
@@ -308,6 +323,18 @@ public class PaymentService {
                 cancelBookingAndBroadcast(booking);
             }
             return PaymentOutcome.FAILED;
+        }
+
+        // Tới đây callback tự khai là đã thu tiền, và chữ ký của nó hợp lệ. Nhưng chữ ký chỉ
+        // chứng minh người gửi biết hash-secret — mà hash-secret thì có thể lộ (và ĐÃ từng lộ
+        // trong lịch sử Git của repo này). Nên trước khi giao vé hoặc mở yêu cầu hoàn tiền,
+        // hỏi thẳng cổng bằng lệnh querydr. Chỉ dừng lại khi cổng PHỦ NHẬN; hỏi không được
+        // thì đi tiếp như cũ (xem VNPayQueryService để biết vì sao fail-open).
+        if (vnPayQueryService.verifySuccessfulCallback(params, expectedGatewayAmount(booking))
+                == VNPayQueryService.Verdict.CONTRADICTED) {
+            log.error("Từ chối callback thanh toán cho booking {} (txnRef={}): cổng VNPay không xác nhận "
+                    + "giao dịch này", booking.getId(), txnRef);
+            return PaymentOutcome.UNVERIFIED;
         }
 
         if ("PENDING".equals(booking.getStatus())) {
@@ -350,8 +377,71 @@ public class PaymentService {
                 booking.getId(), payment.getAmount(), previousStatus);
     }
 
+    /**
+     * Đối chiếu số tiền cổng khai báo với giá trị thật của đơn (VNPay nhân 100).
+     *
+     * Kiểm tra này trước đây chỉ có ở nhánh IPN, nên nhánh Return — vẫn xác nhận được đơn —
+     * chấp nhận mọi số tiền miễn là chữ ký hợp lệ. Ai có hash-secret thì tự ký được một URL
+     * Return và mua vé với giá tự đặt. Đặt ở đây để cả hai luồng dùng chung một luật.
+     *
+     * Thiếu hoặc sai định dạng vnp_Amount cũng coi là không khớp: một callback không nói rõ
+     * đã thu bao nhiêu thì không đủ căn cứ để giao vé.
+     */
+    private boolean isAmountMatching(Booking booking, Map<String, String> params) {
+        String amountStr = params.get("vnp_Amount");
+        if (amountStr == null || amountStr.isBlank()) {
+            return false;
+        }
+        try {
+            long declared = Long.parseLong(amountStr.trim());
+            return declared == expectedGatewayAmount(booking);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Giá trị đơn hàng quy về đơn vị của {@code vnp_Amount} (VND x100).
+     *
+     * Phải tính y hệt lúc dựng URL thanh toán (xem createVNPayPayment), kể cả việc
+     * longValue() cắt phần thập phân. Lệch công thức là đơn hợp lệ bị từ chối, nên chỉ để
+     * đúng một chỗ tính ra con số này.
+     */
+    private static long expectedGatewayAmount(Booking booking) {
+        return booking.getTotalPrice().multiply(BigDecimal.valueOf(100)).longValue();
+    }
+
     private boolean isSuccessResponse(Map<String, String> params) {
         return "00".equals(params.get("vnp_ResponseCode"));
+    }
+
+    /**
+     * Chữ ký sai là lỗi câm nhất của tích hợp cổng: mã 97 trả về không nói được nguyên nhân,
+     * mà nguyên nhân thì gần như luôn nằm ở cấu hình chứ không ở thuật toán. Ba thứ dưới đây
+     * đủ để phân biệt hầu hết các trường hợp mà KHÔNG in bí mật ra log:
+     *
+     * - TmnCode nhận được khác TmnCode đang cấu hình -> đang nghe callback của terminal khác,
+     *   hoặc biến VNP_TMN_CODE trên môi trường deploy chưa được cập nhật.
+     * - TmnCode khớp nhưng chữ ký sai -> hash-secret không phải của terminal đó.
+     * - Độ dài secret lệch, hoặc có khoảng trắng thừa ở đầu/cuối -> lỗi lúc dán giá trị vào
+     *   biến môi trường (rất hay gặp: dán kèm một dấu xuống dòng). Chỉ in độ dài và cờ
+     *   khoảng trắng, không bao giờ in giá trị.
+     */
+    private void logInvalidSignature(String channel, Map<String, String> params) {
+        String secret = vnPayConfig.getHashSecret();
+        String configuredTmn = vnPayConfig.getTmnCode();
+        String receivedTmn = params.get("vnp_TmnCode");
+
+        log.warn("[VNPay {}] Chữ ký KHÔNG hợp lệ. vnp_TmnCode nhận được={}, đang cấu hình={}, khớp={}. "
+                        + "hash-secret: {} ký tự{}. vnp_TxnRef={}, số tham số={}.",
+                channel,
+                receivedTmn,
+                configuredTmn,
+                configuredTmn != null && configuredTmn.equals(receivedTmn),
+                secret == null ? 0 : secret.length(),
+                secret != null && !secret.equals(secret.trim()) ? " (CÓ KHOẢNG TRẮNG THỪA ĐẦU/CUỐI)" : "",
+                params.get("vnp_TxnRef"),
+                params.size());
     }
 
     private Map<String, String> ipnResponse(String code, String message) {

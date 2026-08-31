@@ -80,6 +80,9 @@ class PaymentServiceTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private VNPayQueryService vnPayQueryService;
+
     @InjectMocks
     private PaymentService paymentService;
 
@@ -94,6 +97,12 @@ class PaymentServiceTest {
         ipnParams.put("vnp_ResponseCode", "00");
         ipnParams.put("vnp_Amount", "10000000"); // 100,000 VND * 100
         ipnParams.put("vnp_SecureHash", "dummyHash");
+
+        // Mặc định: không hỏi được cổng. Đây đúng là hành vi cũ (trước khi có querydr), nên
+        // mọi test sẵn có vẫn kiểm tra đúng thứ chúng vốn kiểm tra. Test nào cần cổng lên
+        // tiếng thì tự stub lại.
+        lenient().when(vnPayQueryService.verifySuccessfulCallback(any(), anyLong()))
+                .thenReturn(VNPayQueryService.Verdict.UNAVAILABLE);
 
         user = new User();
         user.setId(1L);
@@ -184,6 +193,61 @@ class PaymentServiceTest {
             assertEquals("SUCCESS", result);
             assertEquals("CONFIRMED", booking.getStatus());
             verify(bookingRepository).save(booking);
+        }
+    }
+
+    @Test
+    @DisplayName("Return: chữ ký hợp lệ nhưng số tiền không khớp thì KHÔNG xác nhận đơn")
+    void handleVNPayReturn_AmountMismatch_DoesNotConfirmBooking() {
+        // Kịch bản có thật khi hash-secret bị lộ: kẻ tấn công tự ký một URL Return hợp lệ
+        // và khai số tiền tuỳ ý. Trước đây nhánh Return không đối chiếu vnp_Amount nên
+        // đơn 100.000đ được xác nhận với 1.000đ khai khống.
+        ipnParams.put("vnp_Amount", "100000"); // 1.000đ thay vì 100.000đ
+
+        try (MockedStatic<VNPayUtil> mockedVNPayUtil = mockStatic(VNPayUtil.class)) {
+            mockedVNPayUtil.when(() -> VNPayUtil.validateHash(any(), anyString())).thenReturn(true);
+            when(vnPayConfig.getHashSecret()).thenReturn("secret");
+            when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+
+            String result = paymentService.handleVNPayReturn(ipnParams);
+
+            assertEquals("INVALID_AMOUNT", result);
+            assertEquals("PENDING", booking.getStatus());
+            verify(bookingRepository, never()).save(booking);
+        }
+    }
+
+    @Test
+    @DisplayName("Return: thiếu hẳn vnp_Amount cũng bị từ chối, không văng lỗi 500")
+    void handleVNPayReturn_MissingAmount_IsRejected() {
+        ipnParams.remove("vnp_Amount");
+
+        try (MockedStatic<VNPayUtil> mockedVNPayUtil = mockStatic(VNPayUtil.class)) {
+            mockedVNPayUtil.when(() -> VNPayUtil.validateHash(any(), anyString())).thenReturn(true);
+            when(vnPayConfig.getHashSecret()).thenReturn("secret");
+            when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+
+            String result = paymentService.handleVNPayReturn(ipnParams);
+
+            assertEquals("INVALID_AMOUNT", result);
+            assertEquals("PENDING", booking.getStatus());
+        }
+    }
+
+    @Test
+    @DisplayName("IPN: số tiền không khớp vẫn trả mã 04 như trước")
+    void handleVNPayIPN_AmountMismatch_StillReturns04() {
+        ipnParams.put("vnp_Amount", "100000");
+
+        try (MockedStatic<VNPayUtil> mockedVNPayUtil = mockStatic(VNPayUtil.class)) {
+            mockedVNPayUtil.when(() -> VNPayUtil.validateHash(any(), anyString())).thenReturn(true);
+            when(vnPayConfig.getHashSecret()).thenReturn("secret");
+            when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+
+            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams);
+
+            assertEquals("04", result.get("RspCode"));
+            assertEquals("PENDING", booking.getStatus());
         }
     }
 
@@ -352,6 +416,71 @@ class PaymentServiceTest {
             assertEquals("02", result.get("RspCode"));
             assertEquals("Order already confirmed", result.get("Message"));
         }
+    }
+
+    // ==================== Đối chiếu lại với cổng (querydr) ====================
+
+    @Test
+    @DisplayName("Return: cổng phủ nhận giao dịch thì KHÔNG giao vé, dù chữ ký hợp lệ")
+    void handleVNPayReturn_GatewayContradicts_DoesNotConfirmBooking() {
+        // Đây là lớp phòng thủ cho đúng tình huống hash-secret bị lộ: kẻ tấn công ký được
+        // URL Return, nhưng không làm cho máy chủ VNPay khai ra một giao dịch không có thật.
+        when(vnPayQueryService.verifySuccessfulCallback(any(), anyLong()))
+                .thenReturn(VNPayQueryService.Verdict.CONTRADICTED);
+
+        try (MockedStatic<VNPayUtil> mockedVNPayUtil = mockStatic(VNPayUtil.class)) {
+            mockedVNPayUtil.when(() -> VNPayUtil.validateHash(any(), anyString())).thenReturn(true);
+            when(vnPayConfig.getHashSecret()).thenReturn("secret");
+            when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+
+            String result = paymentService.handleVNPayReturn(ipnParams);
+
+            assertEquals("UNVERIFIED", result);
+            assertEquals("PENDING", booking.getStatus(), "đơn phải giữ nguyên, không được xác nhận");
+            verify(paymentRepository, never()).save(any());
+            verify(refundRepository, never()).save(any());
+            verify(eventPublisher, never()).publishEvent(any(BookingConfirmedEvent.class));
+        }
+    }
+
+    @Test
+    @DisplayName("IPN: cổng phủ nhận thì trả 99 để cổng gửi lại, không đóng sổ bằng mã 00")
+    void handleVNPayIPN_GatewayContradicts_AsksForRetry() {
+        when(vnPayQueryService.verifySuccessfulCallback(any(), anyLong()))
+                .thenReturn(VNPayQueryService.Verdict.CONTRADICTED);
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_FAKE"));
+
+        assertEquals("99", result.get("RspCode"));
+        assertEquals("PENDING", booking.getStatus());
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Cổng xác nhận thì luồng giao vé chạy bình thường")
+    void handleVNPayIPN_GatewayConfirms_ProceedsAsUsual() {
+        when(vnPayQueryService.verifySuccessfulCallback(any(), anyLong()))
+                .thenReturn(VNPayQueryService.Verdict.CONFIRMED);
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_REAL"));
+
+        assertEquals("00", result.get("RspCode"));
+        assertEquals("CONFIRMED", booking.getStatus());
+    }
+
+    @Test
+    @DisplayName("Callback báo THẤT BẠI thì không tốn một lời gọi querydr nào")
+    void failedCallbackSkipsGatewayQuery() {
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+
+        paymentService.handleVNPayIPN(signedCallback("24", "TXN_CANCELLED"));
+
+        verify(vnPayQueryService, never()).verifySuccessfulCallback(any(), anyLong());
     }
 
     // ==================== Cửa sổ thanh toán & tiền về muộn ====================
