@@ -552,9 +552,18 @@ class PaymentServiceTest {
 
         assertTrue(Math.abs(Duration.between(vietnamNow, createDate).toMinutes()) < 1,
                 "vnp_CreateDate lệch giờ Việt Nam thì cổng coi phiên đã hết hạn ngay khi mở");
-        assertEquals(PaymentService.PAYMENT_WINDOW_MINUTES,
+        assertEquals(PaymentService.GATEWAY_WINDOW_MINUTES,
                 Duration.between(createDate, expireDate).toMinutes(),
-                "hạn của cổng phải đúng bằng cửa sổ thanh toán");
+                "hạn gửi cổng phải đúng bằng cửa sổ của cổng");
+    }
+
+    @Test
+    @DisplayName("Cửa sổ phía ta phải DÀI HƠN hạn của cổng, để callback phút chót kịp về")
+    void localPaymentWindowOutlivesGatewayWindow() {
+        // Bất biến này từng bị vi phạm bằng cách vô hình: cả hai vai trò dùng chung một hằng
+        // số nên luôn bằng nhau, và giao dịch trả ở phút chót về tới nơi thì đơn đã bị hủy.
+        assertTrue(PaymentService.PAYMENT_WINDOW_MINUTES > PaymentService.GATEWAY_WINDOW_MINUTES,
+                "hai mốc bằng nhau thì không còn chỗ nào cho quãng ngân hàng xử lý");
     }
 
     /** Đọc giá trị một tham số trong query string của URL thanh toán. */
@@ -615,7 +624,8 @@ class PaymentServiceTest {
     void handleVNPayIPN_DuplicateTransaction_IsIgnored() {
         when(vnPayConfig.getHashSecret()).thenReturn("secret");
         when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
-        when(paymentRepository.existsByTransactionRef("TXN_DUP")).thenReturn(true);
+        when(paymentRepository.existsByTransactionRefAndPaymentStatusNot(
+                "TXN_DUP", PaymentService.PAYMENT_INITIATED)).thenReturn(true);
 
         Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_DUP"));
 
@@ -638,5 +648,112 @@ class PaymentServiceTest {
         assertEquals("FAILED", booking.getStatus());
         verify(voucherService).refundVoucherUsage("SALE50");
         verify(eventPublisher, never()).publishEvent(any(BookingConfirmedEvent.class));
+    }
+
+    @Test
+    @DisplayName("Dòng INITIATED của chính lần mở cổng KHÔNG được coi là đã xử lý")
+    void handleVNPayIPN_InitiatedRowIsNotADuplicate() {
+        // Đây là cái bẫy của việc ghi trước một dòng payment lúc mở cổng: dòng đó mang đúng
+        // vnp_TxnRef mà callback sắp gửi về. Nếu chốt chống trùng đếm cả nó thì MỌI callback
+        // đều bị coi là "đã xử lý" và không đơn nào còn được xác nhận nữa.
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+        when(paymentRepository.existsByTransactionRefAndPaymentStatusNot(
+                "TXN_NEW", PaymentService.PAYMENT_INITIATED)).thenReturn(false);
+
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_NEW"));
+
+        assertEquals("00", result.get("RspCode"));
+        assertEquals("CONFIRMED", booking.getStatus(), "callback đầu tiên phải xác nhận được đơn");
+    }
+
+    @Test
+    @DisplayName("Callback ghi đè dòng INITIATED sẵn có, không đẻ thêm dòng thanh toán thứ hai")
+    void handleVNPayIPN_ReusesInitiatedRow() {
+        Payment initiated = new Payment();
+        initiated.setTransactionRef("TXN_NEW");
+        initiated.setPaymentStatus(PaymentService.PAYMENT_INITIATED);
+
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
+        when(paymentRepository.findByTransactionRef("TXN_NEW")).thenReturn(Optional.of(initiated));
+
+        paymentService.handleVNPayIPN(signedCallback("00", "TXN_NEW"));
+
+        ArgumentCaptor<Payment> saved = ArgumentCaptor.forClass(Payment.class);
+        verify(paymentRepository).save(saved.capture());
+        assertSame(initiated, saved.getValue(), "phải cập nhật lại đúng dòng cũ");
+        assertEquals("SUCCESS", saved.getValue().getPaymentStatus());
+    }
+
+    @Test
+    @DisplayName("Đơn quá hạn mà cổng xác nhận đã thu tiền thì được cứu, không bị hủy")
+    void sweepExpiredBooking_GatewayConfirms_Recovers() {
+        Payment attempt = initiatedAttempt();
+
+        when(vnPayQueryService.isEnabled()).thenReturn(true);
+        when(paymentRepository.findByBooking_IdAndPaymentStatus(123L, PaymentService.PAYMENT_INITIATED))
+                .thenReturn(java.util.List.of(attempt));
+        when(vnPayQueryService.verifyTransaction(eq("TXN_LOST"), anyString(), eq(10000000L)))
+                .thenReturn(VNPayQueryService.Verdict.CONFIRMED);
+        when(paymentRepository.findByTransactionRef("TXN_LOST")).thenReturn(Optional.of(attempt));
+
+        PaymentService.SweepResult result = paymentService.sweepExpiredBooking(booking);
+
+        assertEquals(PaymentService.SweepResult.RECOVERED, result);
+        assertEquals("CONFIRMED", booking.getStatus(), "khoản tiền đã thu phải thành vé, không bị hủy");
+        assertEquals("SUCCESS", attempt.getPaymentStatus());
+        verify(eventPublisher).publishEvent(any(BookingConfirmedEvent.class));
+    }
+
+    @Test
+    @DisplayName("Cổng khẳng định không có giao dịch thì cho phép hủy đơn")
+    void sweepExpiredBooking_GatewayDenies_SafeToCancel() {
+        Payment attempt = initiatedAttempt();
+
+        when(vnPayQueryService.isEnabled()).thenReturn(true);
+        when(paymentRepository.findByBooking_IdAndPaymentStatus(123L, PaymentService.PAYMENT_INITIATED))
+                .thenReturn(java.util.List.of(attempt));
+        when(vnPayQueryService.verifyTransaction(eq("TXN_LOST"), anyString(), eq(10000000L)))
+                .thenReturn(VNPayQueryService.Verdict.CONTRADICTED);
+
+        PaymentService.SweepResult result = paymentService.sweepExpiredBooking(booking);
+
+        assertEquals(PaymentService.SweepResult.SAFE_TO_CANCEL, result);
+        assertEquals("ABANDONED", attempt.getPaymentStatus(), "đã có câu trả lời dứt khoát, thôi hỏi lại");
+    }
+
+    @Test
+    @DisplayName("Không hỏi được cổng thì GIỮ đơn lại, không hủy")
+    void sweepExpiredBooking_GatewayUnreachable_Holds() {
+        // Điểm mấu chốt của cả thay đổi này: "không hỏi được" khác "khách chưa trả tiền".
+        when(vnPayQueryService.isEnabled()).thenReturn(true);
+        when(paymentRepository.findByBooking_IdAndPaymentStatus(123L, PaymentService.PAYMENT_INITIATED))
+                .thenReturn(java.util.List.of(initiatedAttempt()));
+        when(vnPayQueryService.verifyTransaction(eq("TXN_LOST"), anyString(), eq(10000000L)))
+                .thenReturn(VNPayQueryService.Verdict.UNAVAILABLE);
+
+        assertEquals(PaymentService.SweepResult.HOLD, paymentService.sweepExpiredBooking(booking));
+        assertEquals("PENDING", booking.getStatus());
+    }
+
+    @Test
+    @DisplayName("Tắt kiểm chứng thì cleanup chạy y như cũ, không giữ đơn lại")
+    void sweepExpiredBooking_VerificationDisabled_SafeToCancel() {
+        when(vnPayQueryService.isEnabled()).thenReturn(false);
+
+        assertEquals(PaymentService.SweepResult.SAFE_TO_CANCEL, paymentService.sweepExpiredBooking(booking));
+        verify(paymentRepository, never()).findByBooking_IdAndPaymentStatus(anyLong(), anyString());
+    }
+
+    /** Một lần mở cổng đã ghi lại nhưng chưa có kết quả — đúng hình dạng của khoản tiền mất dấu. */
+    private Payment initiatedAttempt() {
+        Payment attempt = new Payment();
+        attempt.setBooking(booking);
+        attempt.setTransactionRef("TXN_LOST");
+        attempt.setPaymentStatus(PaymentService.PAYMENT_INITIATED);
+        attempt.setPaymentDate(LocalDateTime.now().minusMinutes(20));
+        attempt.setAmount(BigDecimal.valueOf(100000));
+        return attempt;
     }
 }

@@ -108,6 +108,45 @@ public class VNPayQueryService {
     }
 
     /**
+     * Vì sao hỏi cổng — quyết định cách DIỄN GIẢI câu trả lời, không đổi câu hỏi.
+     *
+     * Cùng một mã 91 ("không tìm thấy giao dịch") mang hai ý nghĩa trái ngược: sau một
+     * callback tự khai thành công, nó tố cáo callback giả; còn khi ta chủ động rà một đơn
+     * quá hạn, nó chỉ nói khách chưa từng trả tiền — chuyện thường ngày. Không phân biệt thì
+     * log sẽ hét "callback giả mạo" vào mặt mọi đơn khách bỏ dở.
+     */
+    public enum Purpose {
+        /** Có callback tự khai đã thu tiền. Cổng phủ nhận = dấu hiệu giả mạo. */
+        CALLBACK,
+        /** Không có callback nào; ta tự đi hỏi. Cổng phủ nhận = khách không trả tiền. */
+        SWEEP
+    }
+
+    /** Lớp kiểm chứng có đang bật không. Tắt thì mọi luồng phải chạy y như trước khi có nó. */
+    public boolean isEnabled() {
+        return verifyCallback;
+    }
+
+    /**
+     * Hỏi cổng về một giao dịch mà ta chỉ biết mã và thời điểm tạo — KHÔNG cần callback nào.
+     *
+     * Đây là đường dùng cho việc rà đơn quá hạn: một giao dịch bị trừ tiền nhưng cổng không
+     * gọi được callback nào về thì không để lại dấu vết gì trong hệ thống, và cách duy nhất
+     * biết nó tồn tại là hỏi thẳng.
+     *
+     * @param transactionDate {@code vnp_CreateDate} đã gửi cho cổng lúc mở phiên, yyyyMMddHHmmss giờ VN
+     */
+    public Verdict verifyTransaction(String txnRef, String transactionDate, long expectedAmount) {
+        if (!verifyCallback) {
+            return Verdict.UNAVAILABLE;
+        }
+        if (trimToNull(txnRef) == null || trimToNull(transactionDate) == null) {
+            return Verdict.UNAVAILABLE;
+        }
+        return query(txnRef.trim(), transactionDate.trim(), expectedAmount, Purpose.SWEEP);
+    }
+
+    /**
      * Đối chiếu một callback TỰ KHAI LÀ THÀNH CÔNG với dữ liệu bên cổng.
      *
      * @param callbackParams tham số nhận từ Return/IPN (đã qua kiểm tra chữ ký)
@@ -131,7 +170,12 @@ public class VNPayQueryService {
             return Verdict.CONTRADICTED;
         }
 
-        Map<String, String> payload = buildQueryPayload(txnRef, payDate);
+        return query(txnRef, payDate, expectedAmount, Purpose.CALLBACK);
+    }
+
+    /** Một vòng gọi querydr: dựng payload, gửi, đọc kết luận. Dùng chung cho cả hai Purpose. */
+    private Verdict query(String txnRef, String transactionDate, long expectedAmount, Purpose purpose) {
+        Map<String, String> payload = buildQueryPayload(txnRef, transactionDate);
         JsonNode body;
         try {
             String raw = restClient.post()
@@ -151,7 +195,7 @@ public class VNPayQueryService {
             log.warn("Cổng VNPay trả về phản hồi rỗng cho giao dịch {}", txnRef);
             return Verdict.UNAVAILABLE;
         }
-        return interpret(body, txnRef, expectedAmount);
+        return interpret(body, txnRef, expectedAmount, purpose);
     }
 
     /**
@@ -186,12 +230,20 @@ public class VNPayQueryService {
 
     /** Đọc phản hồi querydr thành một kết luận. Tách riêng để test được mà không cần mạng. */
     Verdict interpret(JsonNode body, String txnRef, long expectedAmount) {
+        return interpret(body, txnRef, expectedAmount, Purpose.CALLBACK);
+    }
+
+    Verdict interpret(JsonNode body, String txnRef, long expectedAmount, Purpose purpose) {
         logChecksumMismatch(body, txnRef);
 
         String responseCode = text(body, "vnp_ResponseCode");
         if (RSP_NOT_FOUND.equals(responseCode)) {
-            log.error("Cổng VNPay KHÔNG tìm thấy giao dịch {} nhưng callback lại báo thành công — "
-                    + "gần như chắc chắn là callback giả mạo", txnRef);
+            if (purpose == Purpose.CALLBACK) {
+                log.error("Cổng VNPay KHÔNG tìm thấy giao dịch {} nhưng callback lại báo thành công — "
+                        + "gần như chắc chắn là callback giả mạo", txnRef);
+            } else {
+                log.info("Cổng VNPay không có giao dịch {} — đơn này thật sự chưa được thanh toán", txnRef);
+            }
             return Verdict.CONTRADICTED;
         }
         if (!RSP_OK.equals(responseCode)) {
@@ -204,8 +256,13 @@ public class VNPayQueryService {
 
         String transactionStatus = text(body, "vnp_TransactionStatus");
         if (!TXN_SUCCESS.equals(transactionStatus)) {
-            log.error("Cổng VNPay báo giao dịch {} ở trạng thái {} (không phải thành công) "
-                    + "trong khi callback khai là đã thanh toán", txnRef, transactionStatus);
+            if (purpose == Purpose.CALLBACK) {
+                log.error("Cổng VNPay báo giao dịch {} ở trạng thái {} (không phải thành công) "
+                        + "trong khi callback khai là đã thanh toán", txnRef, transactionStatus);
+            } else {
+                log.info("Giao dịch {} ở trạng thái {} tại cổng — không phải một khoản đã thu",
+                        txnRef, transactionStatus);
+            }
             return Verdict.CONTRADICTED;
         }
 

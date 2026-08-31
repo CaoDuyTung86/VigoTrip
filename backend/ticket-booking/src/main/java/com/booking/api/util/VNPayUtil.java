@@ -5,6 +5,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.SortedMap;
@@ -67,10 +68,31 @@ public class VNPayUtil {
     }
 
     /**
+     * Cổng đối chiếu mọi mốc thời gian theo giờ Việt Nam, không theo múi giờ của server.
+     */
+    public static final ZoneId VNPAY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    /**
      * Format ngày giờ theo định dạng VNPay yêu cầu: yyyyMMddHHmmss
      */
     public static String formatDateTime(LocalDateTime dateTime) {
         return dateTime.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+    }
+
+    /**
+     * Đổi một mốc thời gian ĐANG LƯU THEO GIỜ SERVER về đúng chuỗi ngày giờ đã gửi cho cổng.
+     *
+     * Cần thiết vì hai thứ ghi lại cùng một khoảnh khắc lại nằm ở hai múi giờ: cột
+     * {@code payment.payment_date} theo giờ JVM (container deploy chạy UTC), còn
+     * {@code vnp_CreateDate} đã gửi sang cổng thì theo giờ Việt Nam. Muốn hỏi lại cổng về
+     * một giao dịch cũ thì phải dựng lại đúng chuỗi đã gửi — lệch 7 tiếng là cổng không
+     * tìm thấy giao dịch, và ta sẽ kết luận nhầm rằng khách chưa trả tiền.
+     */
+    public static String toGatewayDate(LocalDateTime serverLocalTime) {
+        return formatDateTime(serverLocalTime
+                .atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(VNPAY_ZONE)
+                .toLocalDateTime());
     }
 
     /**

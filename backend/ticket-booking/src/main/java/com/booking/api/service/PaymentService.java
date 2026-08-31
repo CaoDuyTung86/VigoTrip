@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -39,12 +40,24 @@ import java.util.stream.Collectors;
 public class PaymentService {
 
     /**
-     * Thời gian một phiên thanh toán ở cổng được coi là còn sống. Trong khoảng này
-     * BookingCleanupService không đụng vào đơn, nếu không sẽ có cảnh cổng trừ tiền
-     * xong mới thấy đơn đã bị hủy vì hết hạn giữ chỗ.
-     * Phải >= hạn của cổng (tham số vnp_ExpireDate gửi kèm bên dưới).
+     * Hạn phiên thanh toán báo cho cổng ({@code vnp_ExpireDate}). Khách nhìn thấy đúng con số
+     * này đếm ngược trên trang của VNPay, nên đổi nó là đổi thứ khách đang nhìn.
      */
-    public static final int PAYMENT_WINDOW_MINUTES = 15;
+    public static final int GATEWAY_WINDOW_MINUTES = 15;
+
+    /**
+     * Cửa sổ mà BookingCleanupService không được đụng vào đơn.
+     *
+     * PHẢI LỚN HƠN {@link #GATEWAY_WINDOW_MINUTES}, không được bằng. Trước đây hai vai trò
+     * này dùng chung một hằng số, nghĩa là cổng và ta đóng cửa đúng cùng một giây — trong khi
+     * giữa lúc khách bấm trả tiền và lúc callback về còn cả quãng ngân hàng xử lý, 60–90 giây
+     * là chuyện bình thường. Khách bấm ở phút 14:30 thì cổng vẫn nhận, nhưng callback về ở
+     * phút ~16 đã thấy đơn bị hủy: tiền trừ rồi mà không có vé, phải đi đường hoàn tiền tay.
+     *
+     * Phần dôi ra chỉ là thời gian CHỜ CALLBACK chứ không phải thời gian trả tiền: cổng đã tự
+     * đóng phiên ở phút 15 nên trong quãng đệm này không ai mở được giao dịch mới nữa.
+     */
+    public static final int PAYMENT_WINDOW_MINUTES = GATEWAY_WINDOW_MINUTES + 5;
 
     /**
      * Cổng VNPay đối chiếu vnp_CreateDate/vnp_ExpireDate theo giờ Việt Nam (GMT+7), không
@@ -56,6 +69,26 @@ public class PaymentService {
 
     /** Đơn ở các trạng thái này nghĩa là khách KHÔNG nhận được vé. */
     private static final Set<String> UNFULFILLED_STATUSES = Set.of("CANCELLED", "FAILED");
+
+    /**
+     * Đã dựng URL sang cổng, chưa biết kết quả. KHÔNG phải một khoản tiền đã thu — dòng này
+     * tồn tại chỉ để giữ lại vnp_TxnRef và thời điểm mở phiên, hai thứ bắt buộc phải có mới
+     * hỏi lại cổng được về sau.
+     */
+    static final String PAYMENT_INITIATED = "INITIATED";
+
+    /** Cổng đã khẳng định lần thử này không thành công — thôi hỏi lại về nó. */
+    private static final String PAYMENT_ABANDONED = "ABANDONED";
+
+    /** Kết quả rà một đơn PENDING quá hạn với cổng, trước khi cho phép hủy nó. */
+    public enum SweepResult {
+        /** Không có lần mở cổng nào, hoặc cổng khẳng định không khoản nào được thu. */
+        SAFE_TO_CANCEL,
+        /** Cổng xác nhận đã thu tiền — đơn vừa được xác nhận, TUYỆT ĐỐI không hủy. */
+        RECOVERED,
+        /** Chưa hỏi được cổng. Chưa đủ căn cứ để hủy; thử lại lượt sau. */
+        HOLD
+    }
 
     /** Kết quả của một lần cổng báo về, dùng chung cho cả Return lẫn IPN. */
     private enum PaymentOutcome { SUCCESS, FAILED, ALREADY_PROCESSED, LATE_NEEDS_REFUND, INVALID_AMOUNT, UNVERIFIED }
@@ -103,8 +136,14 @@ public class PaymentService {
             throw new BookingException("Booking đã được thanh toán hoặc hủy");
         }
 
-        // Mở cửa sổ thanh toán: từ đây tới paymentExpiresAt, cleanup không được hủy đơn
-        LocalDateTime now = LocalDateTime.now();
+        // Mở cửa sổ thanh toán: từ đây tới paymentExpiresAt, cleanup không được hủy đơn.
+        //
+        // Cả hai mốc thời gian bên dưới phải sinh ra từ CÙNG một khoảnh khắc: dòng payment
+        // lưu theo giờ server, còn vnp_CreateDate gửi sang cổng theo giờ VN. Gọi now() hai
+        // lần thì hai giá trị có thể lệch nhau một giây, và lúc rà lại đơn quá hạn ta dựng
+        // ra một vnp_TransactionDate mà cổng không nhận ra.
+        Instant startedAt = Instant.now();
+        LocalDateTime now = LocalDateTime.ofInstant(startedAt, ZoneId.systemDefault());
         LocalDateTime paymentExpiresAt = now.plusMinutes(PAYMENT_WINDOW_MINUTES);
         booking.setPaymentExpiresAt(paymentExpiresAt);
         // Ghi lại nơi khách bấm thanh toán để lát nữa trả họ về đúng tên miền đó
@@ -116,6 +155,25 @@ public class PaymentService {
 
         // Tạo mã giao dịch nội bộ
         String txnRef = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+
+        // Ghi lại lần mở cổng này TRƯỚC khi khách rời đi.
+        //
+        // Trước đây dòng payment chỉ ra đời khi CÓ callback. Nghĩa là một giao dịch bị trừ
+        // tiền mà cổng không gọi được callback nào về sẽ không để lại dấu vết nào: không có
+        // vnp_TxnRef thì không thể hỏi cổng, và khoản tiền mất dấu vĩnh viễn. Đã xảy ra thật
+        // với booking 48 (680.000đ).
+        //
+        // Mỗi lần bấm thanh toán một dòng, không phải mỗi đơn một dòng: một đơn có thể được
+        // thử nhiều lần, và lần bị trừ tiền không nhất thiết là lần cuối — cũng chính booking
+        // 48, nơi lần thử ĐẦU mới là lần mất tiền.
+        Payment attempt = new Payment();
+        attempt.setBooking(booking);
+        attempt.setPaymentMethod("VNPAY");
+        attempt.setPaymentDate(now);
+        attempt.setAmount(booking.getTotalPrice());
+        attempt.setPaymentStatus(PAYMENT_INITIATED);
+        attempt.setTransactionRef(txnRef);
+        paymentRepository.save(attempt);
 
         // Tính tiền (VNPay yêu cầu nhân 100 vì không dùng dấu thập phân)
         long amount = booking.getTotalPrice().multiply(java.math.BigDecimal.valueOf(100)).longValue();
@@ -139,10 +197,11 @@ public class PaymentService {
         params.put("vnp_IpAddr", cleanIp);
         // Giờ gửi cho cổng lấy theo VNPAY_ZONE, độc lập với múi giờ server; còn now/paymentExpiresAt
         // ở trên vẫn theo giờ JVM vì chúng được so với LocalDateTime.now() của BookingCleanupService.
-        LocalDateTime gatewayNow = LocalDateTime.now(VNPAY_ZONE);
+        LocalDateTime gatewayNow = LocalDateTime.ofInstant(startedAt, VNPAY_ZONE);
         params.put("vnp_CreateDate", VNPayUtil.formatDateTime(gatewayNow));
         // Cổng tự đóng phiên đúng lúc đơn hết hạn giữ chỗ, để hai bên không lệch nhau
-        params.put("vnp_ExpireDate", VNPayUtil.formatDateTime(gatewayNow.plusMinutes(PAYMENT_WINDOW_MINUTES)));
+        params.put("vnp_ExpireDate",
+                VNPayUtil.formatDateTime(gatewayNow.plusMinutes(GATEWAY_WINDOW_MINUTES)));
 
         if (request.getBankCode() != null && !request.getBankCode().isBlank()) {
             params.put("vnp_BankCode", request.getBankCode());
@@ -315,7 +374,8 @@ public class PaymentService {
         }
 
         String txnRef = params.get("vnp_TxnRef");
-        if (txnRef != null && paymentRepository.existsByTransactionRef(txnRef)) {
+        if (txnRef != null
+                && paymentRepository.existsByTransactionRefAndPaymentStatusNot(txnRef, PAYMENT_INITIATED)) {
             return PaymentOutcome.ALREADY_PROCESSED;
         }
 
@@ -480,10 +540,19 @@ public class PaymentService {
         return response;
     }
 
-    /** Lưu lịch sử giao dịch. transactionRef là khóa chống xử lý trùng Return/IPN. */
+    /**
+     * Lưu lịch sử giao dịch. transactionRef là khóa chống xử lý trùng Return/IPN.
+     *
+     * Lần mở cổng đã ghi sẵn một dòng INITIATED mang chính mã giao dịch này, nên ở đây phải
+     * CẬP NHẬT lại nó chứ không chèn dòng mới: chèn thêm thì mỗi giao dịch để lại hai dòng
+     * và lịch sử thanh toán đọc thành khách bị thu tiền hai lần.
+     */
     private Payment savePayment(Booking booking, Map<String, String> params, String status) {
         String amountStr = params.get("vnp_Amount");
-        Payment payment = new Payment();
+        String txnRef = params.get("vnp_TxnRef");
+        Payment payment = txnRef == null
+                ? new Payment()
+                : paymentRepository.findByTransactionRef(txnRef).orElseGet(Payment::new);
         payment.setBooking(booking);
         payment.setPaymentMethod("VNPAY");
         payment.setPaymentDate(LocalDateTime.now());
@@ -491,9 +560,76 @@ public class PaymentService {
                 ? new BigDecimal(amountStr).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP)
                 : booking.getTotalPrice());
         payment.setPaymentStatus(status);
-        payment.setTransactionRef(params.get("vnp_TxnRef"));
+        payment.setTransactionRef(txnRef);
         paymentRepository.save(payment);
         return payment;
+    }
+
+    /**
+     * Hỏi cổng xem một đơn sắp bị hủy vì quá hạn có thật sự đã bị trừ tiền hay chưa.
+     *
+     * Đây là chỗ 680.000đ của booking 48 đã bốc hơi: cleanup hủy đơn PENDING quá hạn mà
+     * không hỏi cổng câu nào, nên một khoản đã thu nhưng không có callback về thì vừa không
+     * thành vé, vừa không thành yêu cầu hoàn tiền.
+     *
+     * Nguyên tắc: chỉ trả SAFE_TO_CANCEL khi cổng nói rõ là không có khoản nào. "Không hỏi
+     * được" KHÔNG phải là "chưa trả tiền" — nó là HOLD, và bên gọi quyết định chờ tới bao giờ.
+     */
+    @Transactional
+    public SweepResult sweepExpiredBooking(Booking booking) {
+        // Tắt kiểm chứng thì mọi thứ chạy y như trước khi có lớp này, không giữ đơn lại.
+        if (!vnPayQueryService.isEnabled()) {
+            return SweepResult.SAFE_TO_CANCEL;
+        }
+
+        List<Payment> attempts = paymentRepository
+                .findByBooking_IdAndPaymentStatus(booking.getId(), PAYMENT_INITIATED);
+        if (attempts.isEmpty()) {
+            // Khách chưa từng bấm sang cổng (hoặc đơn có từ trước bản sửa này) — không có gì để hỏi.
+            return SweepResult.SAFE_TO_CANCEL;
+        }
+
+        long expectedAmount = expectedGatewayAmount(booking);
+        boolean anyUnavailable = false;
+        for (Payment attempt : attempts) {
+            String transactionDate = attempt.getPaymentDate() == null
+                    ? null
+                    : VNPayUtil.toGatewayDate(attempt.getPaymentDate());
+
+            switch (vnPayQueryService.verifyTransaction(
+                    attempt.getTransactionRef(), transactionDate, expectedAmount)) {
+                case CONFIRMED -> {
+                    log.error("Đơn {} sắp bị hủy vì quá hạn, nhưng cổng VNPay xác nhận giao dịch {} "
+                                    + "ĐÃ THU {} — xác nhận đơn thay vì hủy. Đây là một callback mà cổng "
+                                    + "chưa bao giờ gửi tới được.",
+                            booking.getId(), attempt.getTransactionRef(), booking.getTotalPrice());
+                    processSuccessfulPayment(booking, recoveredParams(attempt, expectedAmount));
+                    return SweepResult.RECOVERED;
+                }
+                case CONTRADICTED -> {
+                    // Cổng đã trả lời dứt khoát; đánh dấu để những lượt sau thôi hỏi lại.
+                    attempt.setPaymentStatus(PAYMENT_ABANDONED);
+                    paymentRepository.save(attempt);
+                }
+                case UNAVAILABLE -> anyUnavailable = true;
+            }
+        }
+        return anyUnavailable ? SweepResult.HOLD : SweepResult.SAFE_TO_CANCEL;
+    }
+
+    /**
+     * Bộ tham số tương đương một callback thành công, dựng lại từ điều cổng vừa xác nhận.
+     *
+     * Không phải dữ liệu bịa: chỉ tới được đây khi querydr đã trả CONFIRMED, mà kết luận đó
+     * đòi đúng mã giao dịch này, trạng thái thành công VÀ số tiền khớp với giá trị đơn. Ba
+     * trường dưới đây là toàn bộ những gì processSuccessfulPayment thật sự đọc.
+     */
+    private static Map<String, String> recoveredParams(Payment attempt, long expectedAmount) {
+        Map<String, String> params = new HashMap<>();
+        params.put("vnp_TxnRef", attempt.getTransactionRef());
+        params.put("vnp_Amount", String.valueOf(expectedAmount));
+        params.put("vnp_ResponseCode", "00");
+        return params;
     }
 
     private Long parseBookingId(String orderInfo) {

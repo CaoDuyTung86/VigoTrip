@@ -214,8 +214,12 @@ class DemoBookingSeederTest {
                 .filter(d -> YearMonth.from(d).equals(current))
                 .collect(Collectors.toSet());
 
-        assertTrue(daysThisMonth.size() >= 5,
-                "Phải rơi vào ít nhất 5 ngày khác nhau, đang là " + daysThisMonth.size());
+        // Tháng đang chạy dở thì không thể rơi vào nhiều ngày hơn số ngày đã trôi qua —
+        // seeder cố ý không đặt đơn vào ngày chưa xảy ra. Ngưỡng cứng ở 5 làm test đỏ vào
+        // mùng 1 tới mùng 4 hàng tháng dù seeder không sai gì cả.
+        int expected = Math.min(5, LocalDate.now().getDayOfMonth());
+        assertTrue(daysThisMonth.size() >= expected,
+                "Phải rơi vào ít nhất " + expected + " ngày khác nhau, đang là " + daysThisMonth.size());
     }
 
     @Test
