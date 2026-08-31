@@ -26,6 +26,11 @@ public class BookingResponse {
     private String vehicleType;
     private String providerName;
 
+    // Người liên hệ của đơn — nơi vé và thông báo chuyến đi được gửi tới
+    private String contactName;
+    private String contactEmail;
+    private String contactPhone;
+
     // Seats
     private List<String> seatNumbers;
 

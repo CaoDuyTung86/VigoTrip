@@ -143,6 +143,8 @@ public class RefundService {
         Refund saved = refundRepository.save(refund);
         log.info("Refund {} approved for booking {}", refundId, booking.getId());
         
+        // Cố ý gửi về email TÀI KHOẢN, không phải người liên hệ của đơn: đây là chuyện
+        // tiền nong với người đã trả tiền, còn người liên hệ chỉ là người cầm vé đi.
         emailService.sendRefundApprovedEmail(booking.getUser().getEmail(), saved.getId(), booking.getId(), saved.getRefundAmount());
         
         return toResponse(saved);
@@ -165,6 +167,8 @@ public class RefundService {
         Refund saved = refundRepository.save(refund);
         log.info("Refund {} rejected for booking {}", refundId, refund.getBooking().getId());
         
+        // Cố ý gửi về email TÀI KHOẢN, không phải người liên hệ của đơn: đây là chuyện
+        // tiền nong với người đã trả tiền, còn người liên hệ chỉ là người cầm vé đi.
         emailService.sendRefundRejectedEmail(refund.getBooking().getUser().getEmail(), saved.getId(), refund.getBooking().getId(), note);
         
         return toResponse(saved);

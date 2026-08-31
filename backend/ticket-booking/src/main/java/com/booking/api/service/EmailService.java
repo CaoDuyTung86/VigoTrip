@@ -122,10 +122,6 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             Long bookingId = data.bookingId();
-            java.math.BigDecimal totalPrice = data.totalPrice();
-            String seats = data.seats();
-            String route = data.route();
-            String departureTime = data.departureTime();
 
             helper.setTo(toEmail);
             helper.setSubject("Xác nhận đặt vé thành công #" + bookingId + " - VigoTrip");
@@ -134,26 +130,29 @@ public class EmailService {
 
             String htmlContent = "<div style='font-family: \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 40px 20px; color: #1e293b;'>"
                     + "<div style='max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;'>"
-                    + "<div style='background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 28px 32px; text-align: left;'>"
+
+                    // background-color đứng trước gradient làm màu dự phòng: Outlook bỏ qua
+                    // linear-gradient, không có nó thì header ra nền trắng chữ trắng.
+                    + "<div style='background-color: #2563eb; background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 28px 32px; text-align: left;'>"
                     + "<h1 style='color: #ffffff; margin: 0; font-size: 24px; font-weight: 800;'>VigoTrip</h1>"
                     + "<p style='color: #93c5fd; margin: 4px 0 0 0; font-size: 13px; font-weight: 500;'>Xác nhận Đặt vé Thành công</p>"
                     + "</div>"
+
                     + "<div style='padding: 32px;'>"
                     + "<h2 style='color: #0f172a; font-size: 20px; font-weight: 700; margin-top: 0; margin-bottom: 16px;'>Cảm ơn quý khách đã chọn VigoTrip</h2>"
                     + "<p style='font-size: 14.5px; line-height: 1.6; color: #475569; margin-bottom: 20px;'>Yêu cầu đặt vé của quý khách đã được thanh toán thành công. Dưới đây là thông tin chi tiết chuyến đi:</p>"
-                    
-                    + "<div style='background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;'>"
-                    + "<div style='display: flex; justify-content: space-between; margin-bottom: 12px;'><span style='color: #64748b; font-size: 13.5px;'>Mã đơn vé:</span><strong style='color: #2563eb; font-size: 15px;'>#" + bookingId + "</strong></div>"
-                    + "<div style='display: flex; justify-content: space-between; margin-bottom: 12px;'><span style='color: #64748b; font-size: 13.5px;'>Tuyến đường:</span><strong style='color: #0f172a; font-size: 15px;'>" + route + "</strong></div>"
-                    + "<div style='display: flex; justify-content: space-between; margin-bottom: 12px;'><span style='color: #64748b; font-size: 13.5px;'>Khởi hành:</span><strong style='color: #dc2626; font-size: 15px;'>" + departureTime + "</strong></div>"
-                    + "<div style='display: flex; justify-content: space-between; margin-bottom: 12px;'><span style='color: #64748b; font-size: 13.5px;'>Ghế đã chọn:</span><strong style='color: #0f172a; font-size: 15px;'>" + seats + "</strong></div>"
-                    + "<div style='display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; padding-top: 12px; margin-top: 12px;'><span style='color: #0f172a; font-weight: 700; font-size: 14.5px;'>Tổng thanh toán:</span><strong style='color: #f97316; font-size: 18px;'>" + String.format("%,.0f đ", totalPrice) + "</strong></div>"
-                    + "</div>"
+
+                    + tripSummaryBlock(data)
+                    + bookingDetailBlock(data)
+                    + passengerBlock(data)
+                    + contactBlock(data)
 
                     + "<div style='text-align: center; margin-bottom: 28px; padding: 20px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;'>"
-                    + "<p style='margin: 0 0 12px 0; font-size: 13.5px; color: #64748b; font-weight: 600;'>MÃ CHECK-IN ĐIỆN TỬ</p>"
-                    + "<img src='" + qrUrl + "' alt='Mã vé QR' style='width: 180px; height: 180px;' />"
-                    + "<p style='margin: 12px 0 0 0; font-size: 12.5px; color: #94a3b8;'>Vui lòng xuất trình mã QR này cho nhân viên soát vé</p>"
+                    + "<p style='margin: 0 0 12px 0; font-size: 13.5px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;'>MÃ CHECK-IN ĐIỆN TỬ</p>"
+                    // width/height đặt cả ở attribute lẫn style: Outlook đọc attribute, các
+                    // client khác đọc style. Thiếu attribute thì Outlook giãn ảnh ra 660px thật.
+                    + "<img src='" + qrUrl + "' alt='Mã QR check-in đơn vé #" + bookingId + "' width='220' height='220' style='width: 220px; height: 220px; display: block; margin: 0 auto; border: 0;' />"
+                    + "<p style='margin: 12px 0 0 0; font-size: 12.5px; color: #94a3b8;'>Một mã QR dùng chung cho cả đơn. Nhân viên soát vé quét một lần là check-in toàn bộ hành khách phía trên.</p>"
                     + "</div>"
 
                     + "<div style='border-top: 1px solid #f1f5f9; padding-top: 20px; font-size: 13px; color: #94a3b8; line-height: 1.6;'>"
@@ -173,6 +172,131 @@ public class EmailService {
             log.error("Failed to send booking confirmation email with QR code to {}: {}",
                     toEmail, e.toString(), e);
         }
+    }
+
+    /** Dải hành trình nổi bật ở đầu vé: điểm đi ➔ điểm đến, nhà xe/hãng, giờ đi - giờ đến. */
+    private String tripSummaryBlock(BookingConfirmationMail data) {
+        return "<div style='background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 20px 24px; margin-bottom: 16px;'>"
+                + "<div style='font-size: 20px; font-weight: 800; color: #1d4ed8; margin-bottom: 6px;'>" + esc(data.route()) + "</div>"
+                + "<div style='font-size: 13px; color: #1e40af;'>" + esc(data.carrier()) + "</div>"
+                + "<div style='font-size: 13.5px; color: #1e3a8a; margin-top: 10px;'>"
+                + "Khởi hành: <strong>" + esc(data.departureTime()) + "</strong>"
+                + "<br/>Dự kiến đến: <strong>" + esc(data.arrivalTime()) + "</strong>"
+                + "</div>"
+                + "</div>";
+    }
+
+    /**
+     * Khối thông tin đơn, dựng bằng &lt;table&gt; chứ không phải flexbox.
+     *
+     * Bản cũ dùng display:flex + justify-content:space-between cho từng dòng nhãn/giá trị.
+     * Gmail và Outlook lọc bỏ thuộc tính flex, nên hai vế dính liền nhau thành
+     * "Mã đơn vé:#48" lệch hết về trái. Table hai cột là cách duy nhất canh phải chạy
+     * được ở mọi hòm thư.
+     */
+    private String bookingDetailBlock(BookingConfirmationMail data) {
+        return "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; border-collapse: separate; margin-bottom: 16px;'>"
+                + "<tr><td style='padding: 20px 24px;'>"
+                + "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse: collapse;'>"
+                + detailRow("Mã đơn vé", "#" + data.bookingId(), "#2563eb")
+                + detailRow("Tuyến đường", esc(data.route()), "#0f172a")
+                + detailRow("Khởi hành", esc(data.departureTime()), "#dc2626")
+                + detailRow("Ghế đã chọn", esc(data.seats()), "#0f172a")
+                + "<tr>"
+                + "<td style='padding: 12px 0 0 0; border-top: 1px dashed #cbd5e1; color: #0f172a; font-size: 14.5px; font-weight: 700;'>Tổng thanh toán</td>"
+                + "<td align='right' style='padding: 12px 0 0 0; border-top: 1px dashed #cbd5e1; text-align: right; color: #f97316; font-size: 18px; font-weight: 800; white-space: nowrap;'>"
+                + String.format("%,.0f đ", data.totalPrice()) + "</td>"
+                + "</tr>"
+                + "</table>"
+                + "</td></tr></table>";
+    }
+
+    private String detailRow(String label, String value, String valueColor) {
+        return "<tr>"
+                + "<td style='padding: 0 0 12px 0; color: #64748b; font-size: 13.5px; vertical-align: top;'>" + label + "</td>"
+                + "<td align='right' style='padding: 0 0 12px 0; text-align: right; color: " + valueColor + "; font-size: 15px; font-weight: 700; vertical-align: top;'>" + value + "</td>"
+                + "</tr>";
+    }
+
+    /**
+     * Bảng hành khách: mỗi ghế một dòng tên + số ghế.
+     *
+     * Tên đã được in hoa sẵn ở BookingConfirmationMail. Đơn nhiều người vẫn chỉ có một
+     * mã QR ở cuối mail — check-in là thuộc tính của cả đơn (Booking.isCheckedIn), không
+     * phải của từng vé, nên gửi 5 mã cho 5 khách sẽ là 5 mã trỏ về đúng một trạng thái.
+     */
+    private String passengerBlock(BookingConfirmationMail data) {
+        if (data.passengers() == null || data.passengers().isEmpty()) {
+            return "";
+        }
+
+        StringBuilder rows = new StringBuilder();
+        int index = 1;
+        for (BookingConfirmationMail.Passenger p : data.passengers()) {
+            String name = p.name() == null || p.name().isBlank() ? "(CHƯA CÓ TÊN)" : esc(p.name());
+            rows.append("<tr>")
+                    .append("<td style='padding: 10px 12px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 13px; width: 32px;'>").append(index++).append("</td>")
+                    .append("<td style='padding: 10px 12px; border-top: 1px solid #e2e8f0; color: #0f172a; font-size: 14px; font-weight: 700; letter-spacing: 0.3px;'>").append(name).append("</td>")
+                    .append("<td align='right' style='padding: 10px 12px; border-top: 1px solid #e2e8f0; text-align: right; color: #2563eb; font-size: 14px; font-weight: 700; white-space: nowrap;'>").append(esc(p.seat())).append("</td>")
+                    .append("</tr>");
+        }
+
+        return "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border: 1px solid #e2e8f0; border-radius: 12px; border-collapse: collapse; margin-bottom: 24px;'>"
+                + "<tr>"
+                + "<td colspan='2' style='padding: 12px 12px 10px 12px; background-color: #f8fafc; color: #64748b; font-size: 12.5px; font-weight: 700; letter-spacing: 0.5px;'>DANH SÁCH HÀNH KHÁCH (" + data.passengers().size() + ")</td>"
+                + "<td align='right' style='padding: 12px 12px 10px 12px; background-color: #f8fafc; text-align: right; color: #64748b; font-size: 12.5px; font-weight: 700; letter-spacing: 0.5px;'>GHẾ</td>"
+                + "</tr>"
+                + rows
+                + "</table>";
+    }
+
+    /**
+     * Khối người liên hệ của đơn.
+     *
+     * Có mặt trong mail để khách tự đối chiếu: vé và mọi thông báo về chuyến đi (đổi giờ,
+     * huỷ chuyến, nhắc khởi hành) đều đi tới đúng địa chỉ in ở đây. Nhìn thấy sai thì còn
+     * kịp sửa trước ngày đi, thay vì phát hiện lúc không nhận được mail nào.
+     */
+    private String contactBlock(BookingConfirmationMail data) {
+        boolean hasEmail = data.contactEmail() != null && !data.contactEmail().isBlank();
+        boolean hasPhone = data.contactPhone() != null && !data.contactPhone().isBlank();
+        if (!hasEmail && !hasPhone) {
+            return "";
+        }
+
+        StringBuilder lines = new StringBuilder();
+        if (data.contactName() != null && !data.contactName().isBlank()) {
+            lines.append("<div style='font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 4px;'>")
+                    .append(esc(data.contactName())).append("</div>");
+        }
+        if (hasEmail) {
+            lines.append("<div style='font-size: 13.5px; color: #475569;'>").append(esc(data.contactEmail())).append("</div>");
+        }
+        if (hasPhone) {
+            lines.append("<div style='font-size: 13.5px; color: #475569;'>").append(esc(data.contactPhone())).append("</div>");
+        }
+
+        return "<div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;'>"
+                + "<p style='margin: 0 0 8px 0; font-size: 12.5px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;'>NGƯỜI LIÊN HỆ</p>"
+                + lines
+                + "<p style='margin: 8px 0 0 0; font-size: 12.5px; color: #94a3b8;'>Mọi thông báo về chuyến đi sẽ được gửi tới địa chỉ này.</p>"
+                + "</div>";
+    }
+
+    /**
+     * Tên hành khách là dữ liệu người dùng tự nhập, đi thẳng vào chuỗi HTML của mail.
+     * Không escape thì một cái tên chứa dấu ngoặc nhọn đủ để bẻ gãy layout mail, và tệ
+     * hơn là nhét được thẻ tuỳ ý vào thư gửi từ tên miền của chính mình.
+     */
+    private String esc(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        return raw.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     public void sendSurveyEmail(String toEmail, Long bookingId) {

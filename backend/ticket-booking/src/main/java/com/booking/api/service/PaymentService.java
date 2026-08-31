@@ -509,8 +509,10 @@ public class PaymentService {
         // Phẳng hóa ngay tại đây, khi transaction còn mở: mail được gửi ở thread khác,
         // sau khi commit, nên lúc đó không đọc được các quan hệ LAZY của booking nữa.
         // BookingConfirmedListener mới là nơi thực sự gọi EmailService.
+        // Vé đi tới người liên hệ của đơn, không mặc định là chủ tài khoản: một người có
+        // thể đặt hộ cả đoàn và người cầm vé mới là người cần nhận mã check-in.
         eventPublisher.publishEvent(new BookingConfirmedEvent(
-                booking.getUser().getEmail(),
+                booking.resolveNotificationEmail(),
                 BookingConfirmationMail.from(booking)
         ));
     }

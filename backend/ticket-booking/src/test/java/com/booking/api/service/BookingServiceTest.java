@@ -260,6 +260,69 @@ class BookingServiceTest {
     }
 
     @Test
+    @DisplayName("Lưu người liên hệ của đơn đúng như client gửi lên, có chuẩn hoá")
+    void createBooking_StoresContactInfo() {
+        request.setContactName("  Nguyễn Văn An  ");
+        request.setContactEmail("An.Nguyen@Example.COM");
+        request.setContactPhone("090 123 4567");
+
+        Booking saved = captureSavedBooking();
+
+        assertEquals("Nguyễn Văn An", saved.getContactName());
+        // Email hạ về chữ thường: hòm thư không phân biệt hoa thường nhưng chuỗi thì có,
+        // để nguyên là mọi so sánh/đối soát sau này đều lệch.
+        assertEquals("an.nguyen@example.com", saved.getContactEmail());
+        assertEquals("0901234567", saved.getContactPhone());
+    }
+
+    @Test
+    @DisplayName("Client không gửi người liên hệ thì lấy của tài khoản, không để trống")
+    void createBooking_FallsBackToAccountContact() {
+        user.setPhone("0987654321");
+
+        Booking saved = captureSavedBooking();
+
+        assertEquals("Test User", saved.getContactName());
+        assertEquals("test@example.com", saved.getContactEmail());
+        assertEquals("0987654321", saved.getContactPhone());
+    }
+
+    @Test
+    @DisplayName("Mail của đơn đi tới người liên hệ, không mặc định về email tài khoản")
+    void resolveNotificationEmail_prefersContact() {
+        request.setContactEmail("nguoi.di@example.com");
+
+        Booking saved = captureSavedBooking();
+
+        assertEquals("nguoi.di@example.com", saved.resolveNotificationEmail());
+    }
+
+    @Test
+    @DisplayName("Không có email liên hệ thì mail rơi về email tài khoản")
+    void resolveNotificationEmail_fallsBackToAccount() {
+        Booking saved = captureSavedBooking();
+        saved.setContactEmail(null);
+
+        assertEquals("test@example.com", saved.resolveNotificationEmail());
+    }
+
+    /** Chạy createBooking với fixture mặc định rồi lấy ra entity Booking đã được lưu. */
+    private Booking captureSavedBooking() {
+        when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
+        when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
+        when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
+        when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
+        when(seatLockService.getLockedBy(1L)).thenReturn(null);
+        when(bookingMapper.toBookingResponse(any(), any())).thenReturn(new BookingResponse());
+
+        bookingService.createBooking("test@example.com", request);
+
+        org.mockito.ArgumentCaptor<Booking> captor = org.mockito.ArgumentCaptor.forClass(Booking.class);
+        verify(bookingRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
     @DisplayName("Tạo đơn thất bại do Ghế đang bị giữ bởi người khác")
     void createBooking_Fail_SeatLockedByOtherUser() {
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));

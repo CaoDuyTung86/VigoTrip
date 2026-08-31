@@ -219,7 +219,7 @@ public class AdminService {
         List<Booking> bookings = bookingRepository.findActiveBookingsByTripId(tripId);
         for (Booking booking : bookings) {
             try {
-                emailService.sendTripDelayEmail(booking.getUser().getEmail(), route, oldDeparture, newDeparture, reason);
+                emailService.sendTripDelayEmail(booking.resolveNotificationEmail(), route, oldDeparture, newDeparture, reason);
             } catch (Exception e) {
                 log.error("Failed to send delay email to {}", booking.getUser().getEmail(), e);
             }
@@ -258,7 +258,7 @@ public class AdminService {
             booking.setStatus("CANCELLED");
 
             try {
-                emailService.sendTripCancelledEmail(booking.getUser().getEmail(), booking.getId(), route, refundAmount.doubleValue());
+                emailService.sendTripCancelledEmail(booking.resolveNotificationEmail(), booking.getId(), route, refundAmount.doubleValue());
             } catch (Exception e) {
                 log.error("Failed to send cancel email to {}", booking.getUser().getEmail(), e);
             }

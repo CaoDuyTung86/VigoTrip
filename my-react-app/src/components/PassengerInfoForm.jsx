@@ -176,54 +176,25 @@ const PassengerInfoForm = ({
               </select>
             </div>
 
-            {/* Thông tin thêm chỉ cần cho người lớn / người đại diện */}
+            {/* Giấy tờ tuỳ thân — chỉ người lớn mới bắt buộc xuất trình khi soát vé.
+                Email/SĐT KHÔNG hỏi ở đây nữa: vé và mọi thông báo về chuyến đi đi tới một
+                người liên hệ duy nhất của cả đơn (ContactInfoForm). Trước đây form bắt
+                nhập email/SĐT cho từng người lớn rồi không dùng đến — mail vẫn bắn về
+                email tài khoản, nên khách nhập xong không hiểu vì sao vé không về đúng
+                hòm thư mình vừa điền. */}
             {type === 'ADULT' && (
-              <>
-                {/* SĐT */}
-                <div>
-                  <label style={labelStyle}>{t.phoneNumber}</label>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <input readOnly value="+84" style={{ width: "64px", padding: "10px 8px", borderRadius: "8px", border: "1px solid var(--border-input)", background: "var(--bg-hover)", textAlign: "center", color: "var(--text-secondary)" }} />
-                    <input
-                      type="text"
-                      name="phone"
-                      maxLength={10}
-                      value={data.phone || data.phoneDigits || ''}
-                      onChange={e => onChange(index, type, { ...data, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                      placeholder="0901234567"
-                      style={{ ...inputStyle, flex: 1 }}
-                    />
-                  </div>
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label style={labelStyle}>{t.emailField}</label>
-                  <input
-                    type="email"
-                    name="email"
-                    maxLength={60}
-                    value={data.email || ''}
-                    onChange={handleChange}
-                    placeholder="email@example.com"
-                    style={inputStyle}
-                  />
-                </div>
-
-                {/* CCCD / Hộ chiếu */}
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={labelStyle}>{t.idNumber || "CCCD / Hộ chiếu"} *</label>
-                  <input
-                    type="text"
-                    name="idNumber"
-                    maxLength={12}
-                    value={data.idNumber || ''}
-                    onChange={e => onChange(index, type, { ...data, idNumber: e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12) })}
-                    placeholder={t.pifIdNumberPlaceholder || "Nhập số CCCD hoặc Mã Hộ chiếu (Tối đa 12 ký tự)"}
-                    style={inputStyle}
-                  />
-                </div>
-              </>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>{t.idNumber || "CCCD / Hộ chiếu"} *</label>
+                <input
+                  type="text"
+                  name="idNumber"
+                  maxLength={12}
+                  value={data.idNumber || ''}
+                  onChange={e => onChange(index, type, { ...data, idNumber: e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12) })}
+                  placeholder={t.pifIdNumberPlaceholder || "Nhập số CCCD hoặc Mã Hộ chiếu (Tối đa 12 ký tự)"}
+                  style={inputStyle}
+                />
+              </div>
             )}
 
           </div>

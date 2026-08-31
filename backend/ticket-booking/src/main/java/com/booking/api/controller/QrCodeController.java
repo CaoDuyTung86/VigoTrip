@@ -19,8 +19,8 @@ import java.time.Duration;
  * Content-ID nên ảnh sẽ vỡ. Client mail cũng chặn `data:` URI, nên cách duy nhất chạy
  * được ở mọi hòm thư là trỏ <img> tới một URL công khai.
  *
- * Endpoint để public có chủ đích: QR chỉ chứa số bookingId trần — đúng bằng thông
- * tin đã nằm sẵn trong email người nhận, không lộ thêm gì. Nó KHÔNG trả về dữ liệu
+ * Endpoint để public có chủ đích: QR chỉ chứa chuỗi "TICKET-<bookingId>" — đúng bằng
+ * thông tin đã nằm sẵn trong email người nhận, không lộ thêm gì. Nó KHÔNG trả về dữ liệu
  * booking, và bản thân mã QR không phải vé hợp lệ nếu không qua bước soát vé.
  */
 @RestController
@@ -30,9 +30,20 @@ public class QrCodeController {
 
     private final QrCodeService qrCodeService;
 
+    /**
+     * Ảnh sinh ở 660px nhưng mail hiển thị ở 220px.
+     *
+     * Cố tình render gấp 3 lần kích thước hiển thị. Bản cũ sinh 250px rồi ép xuống 180px:
+     * tỉ lệ lẻ khiến mỗi module QR rơi vào 5,8 pixel, client mail nội suy làm nhoè viền
+     * module và camera quét từ màn hình rất hay trượt. Nguồn 3x cho ảnh nét cả trên màn
+     * hình thường lẫn màn Retina.
+     */
+    private static final int QR_RENDER_PX = 660;
+
     @GetMapping(value = "/booking/{bookingId}", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> bookingQr(@PathVariable Long bookingId) throws Exception {
-        byte[] png = qrCodeService.generatePng(qrCodeService.bookingPayload(bookingId), 250, 250);
+        byte[] png = qrCodeService.generatePng(
+                qrCodeService.bookingPayload(bookingId), QR_RENDER_PX, QR_RENDER_PX);
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_PNG)
                 // Ảnh sinh từ id nên bất biến; cache để không phải render lại mỗi lần mở mail.

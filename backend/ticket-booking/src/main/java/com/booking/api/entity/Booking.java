@@ -66,6 +66,26 @@ public class Booking {
     @Column(name = "voucher_code")
     private String voucherCode;
 
+    /**
+     * Người liên hệ của đơn — nơi nhận vé và mọi thông báo về chuyến đi.
+     *
+     * Tách khỏi User vì một tài khoản có thể đặt hộ cả đoàn, và người cầm vé chưa chắc là
+     * chủ tài khoản. Trước đây mọi mail đều bắn về booking.user.email, trong khi form đặt
+     * vé lại bắt nhập email/SĐT cho từng người lớn rồi không dùng đến — khách nhập xong
+     * không hiểu vì sao vé không về đúng hòm thư mình vừa điền.
+     *
+     * Để trống thì rơi về email/SĐT của tài khoản (xem resolveNotificationEmail): đơn nào
+     * cũng phải có một địa chỉ gửi được, không được phép rơi vào khoảng không.
+     */
+    @Column(name = "contact_name", length = 120)
+    private String contactName;
+
+    @Column(name = "contact_email", length = 120)
+    private String contactEmail;
+
+    @Column(name = "contact_phone", length = 20)
+    private String contactPhone;
+
     @Column(name = "is_checked_in")
     private Boolean isCheckedIn = false;
 
@@ -95,4 +115,20 @@ public class Booking {
      */
     @Column(name = "payment_return_origin", length = 255)
     private String paymentReturnOrigin;
+
+    /**
+     * Địa chỉ nhận mọi thông báo về chuyến đi của đơn này.
+     *
+     * Cố tình KHÔNG đặt tên là getNotificationEmail(): Jackson coi mọi getX() là một
+     * thuộc tính để serialize, và ở đây chạm vào user (LAZY) sẽ nổ ngay khi entity bị
+     * đem đi serialize ngoài transaction.
+     *
+     * Chỉ gọi được khi user còn nạp được (trong transaction).
+     */
+    public String resolveNotificationEmail() {
+        if (contactEmail != null && !contactEmail.isBlank()) {
+            return contactEmail;
+        }
+        return user == null ? null : user.getEmail();
+    }
 }

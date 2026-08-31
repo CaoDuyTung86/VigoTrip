@@ -3,6 +3,7 @@ import axios from "axios";
 import { useLanguage } from "../context/LanguageContext";
 import { useSavedPassengers } from "../context/SavedPassengersContext";
 import PassengerInfoForm from "../components/PassengerInfoForm";
+import ContactInfoForm from "../components/ContactInfoForm";
 import { validatePassengerDob } from "../utils/passengerValidation";
 import BusSeatMap from "../components/BusSeatMap";
 import Header from "../LayOut/Header";
@@ -253,6 +254,23 @@ const BusTickets = () => {
   const [passengerInfoList, setPassengerInfoList] = useState([]);
   const [globalContact, setGlobalContact] = useState({ promoOptIn: true, remember: false });
   const { savedPassengers, addPassenger } = useSavedPassengers();
+
+  // Người liên hệ của cả đơn: nơi nhận vé và mọi thông báo chuyến đi.
+  const [contactInfo, setContactInfo] = useState({ name: "", email: "", phone: "" });
+
+  // Điền sẵn từ hồ sơ tài khoản, nhưng CHỈ vào những ô còn trống.
+  //
+  // user được useAuth trộn thêm dữ liệu từ /api/users/me, nên nó đổi tham chiếu một lúc
+  // sau khi trang đã mở. Ghi đè vô điều kiện ở đây thì thứ khách vừa gõ vào ô liên hệ sẽ
+  // bị nuốt mất ngay giữa chừng, không hiểu vì sao.
+  useEffect(() => {
+    if (!user) return;
+    setContactInfo((prev) => ({
+      name: prev.name || user.fullName || "",
+      email: prev.email || user.email || "",
+      phone: prev.phone || String(user.phone || "").replace(/\D/g, "").slice(0, 10),
+    }));
+  }, [user]);
 
   useEffect(() => {
     if (selectedTrip && isConnected) {
@@ -661,7 +679,26 @@ const BusTickets = () => {
 
 
 
+  /**
+   * Người liên hệ phải hợp lệ trước khi đi tiếp: đây là địa chỉ DUY NHẤT nhận vé điện tử
+   * và các thông báo đổi giờ / huỷ chuyến. Sai ở đây thì khách không nhận được gì cả,
+   * mà lại không có dấu hiệu nào cho thấy đã sai.
+   *
+   * Ràng buộc SĐT khớp đúng với @Pattern bên BookingRequest (10 số, bắt đầu bằng 0) —
+   * lỏng hơn ở web thì backend chặn và khách nhận về một lỗi khó hiểu ở bước cuối.
+   */
+  const validateContact = () => {
+    const name = (contactInfo.name || "").trim();
+    if (name.length < 2) return t.errContactNameRequired;
+    if (!/^\S+@\S+\.\S+$/.test((contactInfo.email || "").trim())) return t.errEmailInvalid;
+    if (!/^0\d{9}$/.test((contactInfo.phone || "").replace(/\D/g, ""))) return t.errPhoneInvalid;
+    return null;
+  };
+
   const validatePassenger = () => {
+    const contactError = validateContact();
+    if (contactError) return contactError;
+
     for (const [idx, pi] of passengerInfoList.entries()) {
       const d = pi.data || {};
       const isAdult = pi.type === 'ADULT';
@@ -672,11 +709,10 @@ const BusTickets = () => {
       if (dobError) return t.errDobInvalid.replace('{index}', idx + 1);
       if (!d.gender) return t.errGenderRequired.replace('{index}', idx + 1);
 
-      if (isAdult) {
-        if (!d.email || !/^\S+@\S+\.\S+$/.test(d.email)) return t.errEmailInvalid;
-        if (!d.phone || !/^\d{9,10}$/.test(d.phone.replace(/\D/g, ''))) return t.errPhoneInvalid;
-        if (!d.idNumber) return t.errIdNumberRequired;
-      }
+      // Email/SĐT không còn hỏi theo từng hành khách — chúng thuộc về người liên hệ
+      // của cả đơn và được kiểm ở validateContact(). Ở đây chỉ còn giấy tờ tuỳ thân,
+      // thứ thực sự gắn với từng người khi soát vé.
+      if (isAdult && !d.idNumber) return t.errIdNumberRequired;
     }
     return null;
   };
@@ -818,6 +854,9 @@ const BusTickets = () => {
           tripId: selectedTrip.id,
           seatIds: selectedSeatIds,
           passengerNames: names,
+          contactName: contactInfo.name.trim(),
+          contactEmail: contactInfo.email.trim(),
+          contactPhone: contactInfo.phone.trim(),
           additionalServiceIds: selectedServiceIds,
           voucherCode: appliedVoucher,
         }),
@@ -1628,6 +1667,12 @@ const BusTickets = () => {
                   <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{t.step2}</h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{t.passengerInstruction}</p>
 
+                  <ContactInfoForm
+                    data={contactInfo}
+                    onChange={setContactInfo}
+                    accountEmail={user?.email}
+                  />
+
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {passengerInfoList.map((pi, idx) => (
                       <PassengerInfoForm
@@ -2029,11 +2074,16 @@ const BusTickets = () => {
 
 
                   <div style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, marginBottom: 14, background: "var(--bg-input)" }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}><FaUser /> {t.contactReviewTitle || "Người liên hệ"}</div>
+                    <div style={{ fontSize: 14, color: "var(--text-main)", lineHeight: 1.6, marginBottom: 14, paddingBottom: 12, borderBottom: "1px dashed var(--border-main)" }}>
+                      <b style={{ fontSize: 15, textTransform: "uppercase" }}>{contactInfo.name}</b>
+                      <div>{contactInfo.email} · {contactInfo.phone}</div>
+                    </div>
+
                     <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)", display: "flex", alignItems: "center", gap: 6 }}><FaUser /> {t.passengerNameText}</div>
                     {passengerInfoList.map((pi, idx) => (
                       <div key={idx} style={{ fontSize: 14, marginBottom: 8, paddingBottom: 8, borderBottom: idx < passengerInfoList.length - 1 ? "1px dashed var(--border-main)" : "none", color: "var(--text-main)", lineHeight: 1.6 }}>
                         <b style={{ fontSize: 15 }}>{pi.data.fullName || `${t.passengerNameText} ${idx + 1}`}</b> <span style={{ color: "var(--text-secondary)" }}>({pi.type === 'ADULT' ? t.adult : pi.type === 'CHILD' ? t.child : t.infant})</span>
-                        {pi.type === 'ADULT' && <div style={{ color: "var(--text-main)", marginTop: 2 }}>{pi.data.email} · {pi.data.phone ? `${pi.data.phone}` : ''}</div>}
                         <div style={{ marginTop: 2, color: "var(--text-main)" }}>{t.dobPrefix} <b>{pi.data.dateOfBirth}</b> | {t.genderPrefix} <b>{pi.data.gender === 'Male' ? t.genderMale : pi.data.gender === 'Female' ? t.genderFemale : t.genderOther}</b></div>
                       </div>
                     ))}

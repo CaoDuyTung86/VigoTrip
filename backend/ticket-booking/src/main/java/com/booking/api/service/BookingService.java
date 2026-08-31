@@ -120,9 +120,9 @@ public class BookingService {
 
             // Set tên hành khách
             if (request.getPassengerNames() != null && i < request.getPassengerNames().size()) {
-                ticket.setPassengerName(request.getPassengerNames().get(i));
+                ticket.setPassengerName(normalizePassengerName(request.getPassengerNames().get(i)));
             } else {
-                ticket.setPassengerName(user.getFullName());
+                ticket.setPassengerName(normalizePassengerName(user.getFullName()));
             }
 
             tickets.add(ticket);
@@ -135,6 +135,7 @@ public class BookingService {
         booking.setBookingDate(LocalDateTime.now());
         booking.setTotalPrice(totalPrice);
         booking.setStatus("PENDING");
+        applyContactInfo(booking, request, user);
 
         if (request.getAdditionalServiceIds() != null && !request.getAdditionalServiceIds().isEmpty()) {
             List<Long> requestedServiceIds = request.getAdditionalServiceIds().stream().distinct().toList();
@@ -228,6 +229,52 @@ public class BookingService {
         }
 
         return bookingMapper.toBookingResponse(booking, trip);
+    }
+
+    /**
+     * Ghi thông tin người liên hệ của đơn, điền vào chỗ trống bằng hồ sơ tài khoản.
+     *
+     * Vé điện tử và mọi thông báo về chuyến đi đều đi tới địa chỉ này, nên nó không được
+     * phép rỗng: client không gửi lên thì lấy của tài khoản đang đặt. Chuẩn hoá luôn tại
+     * đây — email hạ về chữ thường (hòm thư không phân biệt hoa thường, nhưng chuỗi thì
+     * có, và so sánh/đối soát sau này sẽ lệch), SĐT bỏ hết ký tự không phải số.
+     */
+    private void applyContactInfo(Booking booking, BookingRequest request, User user) {
+        String name = blankToNull(request.getContactName());
+        String email = blankToNull(request.getContactEmail());
+        String phone = digitsOnly(request.getContactPhone());
+
+        booking.setContactName(name != null ? name : user.getFullName());
+        booking.setContactEmail(email != null ? email.toLowerCase(java.util.Locale.ROOT) : user.getEmail());
+        booking.setContactPhone(phone != null ? phone : digitsOnly(user.getPhone()));
+    }
+
+    private String blankToNull(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String digitsOnly(String raw) {
+        return blankToNull(raw == null ? null : raw.replaceAll("\\D", ""));
+    }
+
+    /**
+     * Chuẩn hoá tên hành khách về CHỮ HOA ngay khi lưu.
+     *
+     * Ô nhập bên web mới chỉ có textTransform: uppercase — đó là CSS, chỉ đổi cách hiển
+     * thị, giá trị gửi lên server vẫn đúng như người dùng gõ. Kết quả là cùng một đơn mà
+     * danh sách vé, mail xác nhận và màn hình soát vé mỗi nơi hiện một kiểu hoa/thường.
+     * Hoa hoá tại đây thì mọi nơi đọc từ DB đều thấy cùng một dạng, đúng quy ước tên trên
+     * vé phải khớp giấy tờ.
+     *
+     * Locale.ROOT chứ không phải locale mặc định của máy chủ: chỉ cần server chạy dưới
+     * locale Thổ Nhĩ Kỳ là "i" hoá hoa thành "İ" và tên khách sai chính tả.
+     */
+    private String normalizePassengerName(String name) {
+        return name == null ? null : name.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     /**
@@ -386,7 +433,7 @@ public class BookingService {
         // KHÔNG tích điểm ở đây để tránh tích 2 lần cho cùng 1 booking.
 
         try {
-            emailService.sendSurveyEmail(user.getEmail(), booking.getId());
+            emailService.sendSurveyEmail(booking.resolveNotificationEmail(), booking.getId());
         } catch (Exception e) {
             log.error("Failed to send survey email for booking: {}", booking.getId(), e);
         }

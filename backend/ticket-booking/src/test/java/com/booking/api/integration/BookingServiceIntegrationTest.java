@@ -133,7 +133,8 @@ class BookingServiceIntegrationTest {
         assertNotNull(entityInDb);
         assertEquals(savedUser.getId(), entityInDb.getUser().getId());
         assertEquals(1, entityInDb.getTickets().size());
-        assertEquals("Nguyen Van A", entityInDb.getTickets().get(0).getPassengerName());
+        // Tên hành khách được chuẩn hoá về chữ hoa khi lưu, đúng quy ước tên trên vé.
+        assertEquals("NGUYEN VAN A", entityInDb.getTickets().get(0).getPassengerName());
 
         // Verify booking detail retrieval
         BookingResponse fetchedDetail = bookingService.getBookingDetail(savedUser.getEmail(), bookingResponse.getId());

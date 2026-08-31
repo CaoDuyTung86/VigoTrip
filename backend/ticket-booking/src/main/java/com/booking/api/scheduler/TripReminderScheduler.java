@@ -49,7 +49,8 @@ public class TripReminderScheduler {
             String route = firstTicket.getTrip().getRoute().getOrigin() + " → "
                     + firstTicket.getTrip().getRoute().getDestination();
             String departureStr = firstTicket.getTrip().getDepartureTime().format(fmt);
-            String email = booking.getUser().getEmail();
+            // Nhắc chuyến là thông báo về chuyến đi -> gửi cho người liên hệ của đơn.
+            String email = booking.resolveNotificationEmail();
 
             try {
                 emailService.sendTripReminderEmail(email, booking.getId(), route, departureStr);

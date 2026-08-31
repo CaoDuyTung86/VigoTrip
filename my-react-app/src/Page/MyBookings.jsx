@@ -9,6 +9,7 @@ import { FaPlane, FaQrcode } from "react-icons/fa";
 import { FiLock, FiAlertCircle, FiRefreshCw, FiAlertTriangle, FiCheckCircle, FiClock, FiXCircle } from "react-icons/fi";
 import { Compass } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
+import { ticketQrPayload } from "../utils/ticketQr";
 import Auth from "./Auth";
 
 const MyBookings = () => {
@@ -840,15 +841,12 @@ const MyBookings = () => {
             </p>
             
             <div style={{ background: "#fff", padding: 20, borderRadius: 16, display: "inline-block", boxShadow: "0 4px 12px rgba(0,0,0,0.05)", marginBottom: 24 }}>
-              <QRCodeCanvas 
-                value={JSON.stringify({
-                  bookingId: qrModal.booking.id,
-                  type: qrModal.booking.vehicleType,
-                  user: qrModal.booking.userEmail,
-                  code: `TICKET-${qrModal.booking.id}-${qrModal.booking.bookingDate}`
-                })}
+              <QRCodeCanvas
+                value={ticketQrPayload(qrModal.booking.id)}
                 size={220}
-                level="H"
+                /* level="M" để khớp ECC bên QrCodeService: cùng payload + cùng ECC thì
+                   ảnh trên web và ảnh trong mail xác nhận mới ra đúng một mã. */
+                level="M"
                 includeMargin={true}
               />
             </div>
@@ -859,6 +857,24 @@ const MyBookings = () => {
               
               <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 4 }}>{t.qrRoute || "Hành trình:"}</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>{qrModal.booking.origin} → {qrModal.booking.destination}</div>
+
+              {/* Nhân viên soát vé đối chiếu tên trên giấy tờ với danh sách này, nên phải
+                  liệt kê đủ từng hành khách của đơn chứ không chỉ mã đơn — một mã QR
+                  check-in cho cả đoàn thì màn hình phải cho biết "cả đoàn" gồm những ai.
+                  In hoa cho khớp vé và mail xác nhận. */}
+              {qrModal.booking.ticketDetails?.length > 0 && (
+                <>
+                  <div style={{ fontSize: 13, color: "var(--text-muted)", margin: "12px 0 4px" }}>
+                    {t.qrPassengers || "Hành khách:"} ({qrModal.booking.ticketDetails.length})
+                  </div>
+                  {qrModal.booking.ticketDetails.map((td) => (
+                    <div key={td.ticketId} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 14, fontWeight: 700, color: "var(--text-primary)", padding: "4px 0" }}>
+                      <span style={{ textTransform: "uppercase" }}>{td.passengerName || "—"}</span>
+                      <span style={{ color: "var(--primary)", whiteSpace: "nowrap" }}>{td.seatNumber}</span>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
 
             <button

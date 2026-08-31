@@ -5,6 +5,7 @@ import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
+import { parseBookingId } from "../utils/ticketQr";
 import {
   FaSearch, FaHistory, FaCheckCircle, FaImage, FaCamera, FaSync, FaBolt,
   FaExclamationTriangle, FaInfoCircle, FaTimes, FaQrcode, FaUserAlt, FaChair,
@@ -18,8 +19,10 @@ import {
  * Hợp đồng với backend giữ nguyên như trước — chỉ hai endpoint:
  *   POST /api/bookings/{id}/check-in   -> trả về BookingResponse của vé vừa soát
  *   GET  /api/bookings/recent-checkins -> 10 lượt soát gần nhất
- * và định dạng QR do MyBookings sinh ra ({"bookingId":..,"type":..,"user":..,"code":..})
- * cũng không đổi. Toàn bộ thay đổi ở đây nằm ở phía trình duyệt: cách xin quyền camera,
+ * Việc nhận dạng nội dung QR nằm ở parseBookingId() trong utils/ticketQr.js — dùng chung
+ * với MyBookings (nơi sinh mã) để hai bên không lệch định dạng. Hàm đó vẫn nhận cả các
+ * dạng QR cũ đang lưu hành: JSON, số trần, "TICKET-<id>-<ngày>".
+ * Toàn bộ phần còn lại ở đây nằm ở phía trình duyệt: cách xin quyền camera,
  * cách chống quét trùng, cách báo lỗi và giao diện.
  */
 
@@ -102,44 +105,6 @@ const feedback = (ok) => {
   } catch {
     /* bỏ qua */
   }
-};
-
-/**
- * Rút mã đặt chỗ ra khỏi nội dung QR.
- * Chấp nhận: JSON của MyBookings, chuỗi "TICKET-12-...", "#12", hoặc "12".
- * Mọi thứ khác bị coi là không hợp lệ — cố tình chặt chẽ để không lỡ gửi
- * một con số bất kỳ đọc được từ mã QR lạ lên endpoint check-in.
- */
-const parseBookingId = (raw) => {
-  if (raw === null || raw === undefined) return null;
-
-  let value = raw;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-      try {
-        value = JSON.parse(trimmed);
-      } catch {
-        value = trimmed;
-      }
-    } else {
-      value = trimmed;
-    }
-  }
-
-  if (Array.isArray(value)) value = value[0];
-  if (value && typeof value === "object") {
-    value = value.bookingId ?? value.id ?? value.code ?? "";
-  }
-
-  const text = String(value ?? "").replace(/[#\s]/g, "");
-  if (!text) return null;
-  if (/^\d+$/.test(text)) return text;
-
-  const ticketForm = text.match(/^TICKET-(\d+)(?:-.*)?$/i);
-  if (ticketForm) return ticketForm[1];
-
-  return null;
 };
 
 /**
