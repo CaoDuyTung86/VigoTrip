@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import Header from "./LayOut/Header";
@@ -30,13 +30,11 @@ import ProviderCheckIn from "./Page/ProviderCheckIn";
 import Chatbot from "./components/Chatbot";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-import { ToastProvider, useToast } from "./context/ToastContext";
+import { ToastProvider } from "./context/ToastContext";
 import { warmUpBackend } from "./utils/apiClient";
 
 function AppWrapper() {
   const location = useLocation();
-  const toast = useToast();
-  const toastShown = useRef(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
@@ -50,17 +48,8 @@ function AppWrapper() {
     warmUpBackend();
   }, []);
 
-  // Hiển thị toast khi bị force-logout (tài khoản bị khóa)
-  useEffect(() => {
-    if (toastShown.current) return;
-    const msg = sessionStorage.getItem("forceLogoutMessage");
-    if (msg) {
-      sessionStorage.removeItem("forceLogoutMessage");
-      toastShown.current = true;
-      setTimeout(() => toast.showToast(msg, "error"), 300);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Toast báo hết phiên đăng nhập nay do AuthContext.forceLogout bắn thẳng, không còn phải
+  // gửi qua sessionStorage vì đã bỏ việc tải lại trang khi bị đăng xuất.
 
   const showHeader = location.pathname !== "/auth" && location.pathname !== "/my-bookings" && location.pathname !== "/forgot-password" && location.pathname !== "/verify-email";
   const showFooter = location.pathname !== "/auth" && location.pathname !== "/my-bookings" && location.pathname !== "/forgot-password" && location.pathname !== "/verify-email";

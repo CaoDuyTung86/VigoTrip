@@ -274,6 +274,21 @@ class BookingServiceTest {
     }
 
     @Test
+    @DisplayName("Ghế do chính mình giữ nhưng email lệch hoa thường thì vẫn tạo đơn được")
+    void createBooking_Success_WhenLockOwnerEmailDiffersOnlyByCase() {
+        when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
+        when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
+        when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
+        when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
+        // Khoá lock do trình duyệt gửi lên, email trong DB là "test@example.com"
+        when(seatLockService.getLockedBy(1L)).thenReturn("Test@Example.COM");
+        when(bookingMapper.toBookingResponse(any(), any())).thenReturn(new BookingResponse());
+
+        assertNotNull(bookingService.createBooking("test@example.com", request));
+        verify(bookingRepository, times(1)).save(any(Booking.class));
+    }
+
+    @Test
     @DisplayName("Tạo đơn thất bại do Số ghế ít hơn số hành khách")
     void createBooking_Fail_FewerSeatsThanPassengers() {
         request.setSeatIds(Collections.singletonList(1L));

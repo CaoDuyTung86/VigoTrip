@@ -24,6 +24,9 @@ const Auth = ({ isOpen, onClose }) => {
   // Hai request google-login song song từng tạo ra hai tài khoản trùng email.
   const googleInFlight = useRef(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  // Mã 6 số của bước xác thực email (step 3)
+  const [verifyCode, setVerifyCode] = useState("");
+  const [isResending, setIsResending] = useState(false);
   const { t } = useLanguage();
   const { loginSuccess } = useAuth();
   const navigate = useNavigate();
@@ -147,18 +150,14 @@ const Auth = ({ isOpen, onClose }) => {
         return;
       }
 
-      if (data?.token) {
-        loginSuccess(data);
-      }
-
+      // /register luôn trả token = null (AuthService bắt buộc xác thực email trước), nên
+      // nhập mã ngay tại đây rồi mới có phiên đăng nhập. Trước đây chỗ này điều hướng sang
+      // /verify-email — rời trang là BusTickets/TrainTickets/AirlineTickets bị unmount và
+      // toàn bộ form đặt vé đang dở (chuyến, ghế, hành khách, dịch vụ, mã giảm giá) mất sạch.
       showToast(t.authXRegisterSuccessVerify, "success");
-
-      clearTempData();
-
-      setTimeout(() => {
-        if (onClose) onClose();
-        navigate(`/verify-email?email=${email}`);
-      }, 1500);
+      setVerifyCode("");
+      setApiError("");
+      setStep(3);
     } catch (error) {
       console.error("Register error:", error);
       const errMsg = "Không thể kết nối đến máy chủ backend (hãy kiểm tra backend đã chạy chưa)";
@@ -166,6 +165,74 @@ const Auth = ({ isOpen, onClose }) => {
       setApiError(errMsg);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  /**
+   * Kết thúc một lần xác thực thành công. Ở dạng modal thì chỉ đóng lại để trang bên dưới
+   * (đang dở form đặt vé) còn nguyên; ở dạng trang /auth thì mới về trang chủ.
+   */
+  const finishAuth = () => {
+    if (onClose) {
+      onClose();
+    } else {
+      navigate("/");
+    }
+  };
+
+  const handleVerifyEmail = async (code) => {
+    const trimmed = (code || "").trim();
+    if (trimmed.length !== 6) {
+      setApiError(t.vfyInvalidCode);
+      return;
+    }
+
+    setApiError("");
+    setIsSubmitting(true);
+
+    try {
+      const { ok, data } = await apiFetch(
+        `/api/auth/verify-email?email=${encodeURIComponent(email.trim())}&code=${encodeURIComponent(trimmed)}`,
+        { method: "POST" },
+        { onRetry: () => showToast(WAKING_UP_MESSAGE, "info") },
+      );
+
+      if (!ok || !data?.token) {
+        const message = data?.message || t.vfyInvalidCode;
+        setApiError(message);
+        showToast(message, "error");
+        return;
+      }
+
+      loginSuccess(data);
+      clearTempData();
+      showToast(t.vfySuccessInline, "success");
+      setStep(1);
+      setVerifyCode("");
+      finishAuth();
+    } catch (error) {
+      console.error("Verify email error:", error);
+      const errMsg = error?.isColdStart ? WAKING_UP_MESSAGE : t.vfyInvalidCode;
+      setApiError(errMsg);
+      showToast(errMsg, "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setIsResending(true);
+    try {
+      await apiFetch(
+        `/api/auth/resend-verification?email=${encodeURIComponent(email.trim())}`,
+        { method: "POST" },
+      );
+      // Backend luôn trả 204 kể cả khi email không tồn tại, nên thông báo cũng phải trung tính
+      showToast(t.vfyResendSent, "info");
+    } catch {
+      showToast(t.vfyResendFailed, "error");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -590,7 +657,9 @@ const Auth = ({ isOpen, onClose }) => {
 
             <form onSubmit={(e) => {
               e.preventDefault();
-              const password = e.target.password.value;
+              // elements.password thay vì e.target.password: named access trên form là API
+              // của trình duyệt, jsdom không có -> viết kiểu này thì test chạy được luôn.
+              const password = e.target.elements.password.value;
               if (mode === "register") {
                 handleRegister(password);
               } else {
@@ -821,6 +890,125 @@ const Auth = ({ isOpen, onClose }) => {
               marginTop: "10px",
             }}>
               {t.termsPrefix} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.termsAndConditions}</a> {t.authXAnd} <a href="#" style={{ color: "var(--primary)", fontWeight: "500", textDecoration: "underline", }}>{t.privacyPolicy}</a> {t.of} VigoTrip.
+            </p>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div style={{ flex: 1, padding: "50px 40px" }}>
+            <div style={{ fontSize: "44px", textAlign: "center", marginBottom: "12px" }}>📧</div>
+            <h2 style={{
+              marginBottom: "12px",
+              fontSize: "26px",
+              color: "var(--text-main)",
+              textAlign: "center",
+              fontWeight: "700"
+            }}>
+              {t.vfyTitle}
+            </h2>
+
+            <p style={{
+              marginBottom: "24px",
+              color: "var(--text-secondary)",
+              textAlign: "center",
+              fontSize: "14px",
+              lineHeight: "1.6"
+            }}>
+              {t.vfySentTo}<br />
+              <strong style={{ color: "var(--primary)", wordBreak: "break-all" }}>{email}</strong>
+            </p>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleVerifyEmail(verifyCode); }}>
+              <label htmlFor="verifyCode" style={{
+                display: "block",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "var(--text-main)",
+                marginBottom: "8px"
+              }}>
+                {t.vfyCodeLabel}
+              </label>
+              <input
+                id="verifyCode"
+                name="verifyCode"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={verifyCode}
+                onChange={(e) => {
+                  setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  setApiError("");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "16px",
+                  fontSize: "24px",
+                  letterSpacing: "10px",
+                  textAlign: "center",
+                  fontWeight: "700",
+                  borderRadius: "10px",
+                  border: "1px solid var(--border-main)",
+                  background: "var(--bg-input)",
+                  color: "var(--text-main)",
+                  marginBottom: "16px",
+                  boxSizing: "border-box",
+                }}
+              />
+
+              {apiError && (
+                <p style={{
+                  color: "#ff4444",
+                  fontSize: "13px",
+                  marginBottom: "12px",
+                  marginTop: "-8px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px"
+                }}>
+                  <span><IoIosWarning /></span> {apiError}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting || verifyCode.length !== 6}
+                style={{
+                  width: "100%",
+                  padding: "16px",
+                  backgroundColor: verifyCode.length === 6 ? "var(--primary)" : "var(--border-main)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "10px",
+                  fontSize: "16px",
+                  fontWeight: "600",
+                  cursor: verifyCode.length === 6 ? "pointer" : "not-allowed",
+                  marginBottom: "20px",
+                  transition: "background-color 0.2s",
+                }}
+              >
+                {isSubmitting ? t.vfyVerifying : t.vfyActivate}
+              </button>
+            </form>
+
+            <p style={{ textAlign: "center", fontSize: "13px", color: "var(--text-secondary)" }}>
+              {t.vfyNotReceived}{" "}
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={isResending}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--primary)",
+                  cursor: isResending ? "wait" : "pointer",
+                  fontWeight: "600",
+                  fontSize: "13px",
+                  textDecoration: "underline",
+                  padding: 0,
+                }}
+              >
+                {t.vfyResend}
+              </button>
             </p>
           </div>
         )}

@@ -28,7 +28,7 @@ public class SeatLockService {
             userId = "anonymous";
         }
         SeatLock existingLock = locks.get(seatId);
-        if (existingLock != null && existingLock.getExpiresAt().isAfter(LocalDateTime.now()) && !existingLock.getUserId().equals(userId)) {
+        if (existingLock != null && existingLock.getExpiresAt().isAfter(LocalDateTime.now()) && !existingLock.getUserId().equalsIgnoreCase(userId)) {
             // Already locked by someone else
             return false;
         }
@@ -44,7 +44,7 @@ public class SeatLockService {
             userId = "anonymous";
         }
         SeatLock existingLock = locks.get(seatId);
-        if (existingLock != null && existingLock.getUserId().equals(userId)) {
+        if (existingLock != null && existingLock.getUserId().equalsIgnoreCase(userId)) {
             locks.remove(seatId);
             return true;
         }

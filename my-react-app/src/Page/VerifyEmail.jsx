@@ -2,9 +2,15 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
+import { useAuth } from "../context/AuthContext";
 
+/**
+ * Trang xác thực email độc lập. Luồng đăng ký bình thường nay xác thực ngay trong modal
+ * Auth (không rời trang, xem Auth.jsx step 3); trang này giữ lại cho các đường dẫn cũ.
+ */
 const VerifyEmail = () => {
     const { t } = useLanguage();
+    const { loginSuccess } = useAuth();
     const [otp, setOtp] = useState("");
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: "", text: "" });
@@ -28,14 +34,15 @@ const VerifyEmail = () => {
             setMessage({ type: "success", text: t.vfySuccess });
             
   
+            // Phải đi qua loginSuccess: AuthContext đọc localStorage theo khoá
+            // "authToken"/"authUser", ghi tay vào "token"/"user" như trước là xác thực
+            // xong vẫn ở trạng thái chưa đăng nhập.
             if (response.data.token) {
-                localStorage.setItem("token", response.data.token);
-                localStorage.setItem("user", JSON.stringify(response.data));
+                loginSuccess(response.data);
             }
 
             setTimeout(() => {
                 navigate("/");
-                window.location.reload(); 
             }, 2000);
         } catch (err) {
             setMessage({ type: "error", text: err.response?.data?.message || t.vfyInvalidCode });

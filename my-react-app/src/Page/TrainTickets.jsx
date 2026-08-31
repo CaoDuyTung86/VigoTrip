@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useLanguage } from "../context/LanguageContext";
 import { useSavedPassengers } from "../context/SavedPassengersContext";
@@ -13,6 +13,7 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useWebSocket } from "../context/WebSocketContext";
 import useCountdown from "../hooks/useCountdown";
+import useSeatLockRekey from "../hooks/useSeatLockRekey";
 import HoldCountdownBanner from "../components/HoldCountdownBanner";
 import {
   canSelectSeats,
@@ -320,6 +321,24 @@ const TrainTickets = () => {
     setStep("seatClass");
   });
 
+  // Đăng nhập / đăng xuất giữa chừng làm đổi danh tính giữ ghế (khoá thiết bị <-> email).
+  // Không chuyển lock theo thì bước tạo đơn sẽ báo "ghế đang được giữ bởi người khác",
+  // mà người khác đó chính là phiên khách vãng lai của chính họ vài phút trước.
+  useSeatLockRekey({
+    ownerId: getSeatUserId(user),
+    tripId: selectedTrip?.id,
+    seatIds: selectedSeatIds,
+    active: !!lockDeadline,
+    lockSeats,
+    unlockSeats,
+    onFailure: () => {
+      setSelectedSeatIds([]);
+      setLockDeadline(null);
+      setError(t.seatRekeyFailed);
+      setStep("seatClass");
+    },
+  });
+
   useEffect(() => {
     const newList = [];
     for (let i = 0; i < passengerCounts.adult; i++) newList.push({ type: "ADULT", data: {} });
@@ -355,7 +374,13 @@ const TrainTickets = () => {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [bookingResult, setBookingResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  // Lỗi thao tác hiển thị bằng toast trượt từ bên phải thay vì một dòng chữ đỏ chèn giữa
+  // form: ở các bước dài, dòng đó thường nằm ngoài tầm nhìn nên người dùng bấm tiếp mà
+  // không hề biết vừa có lỗi. Giữ nguyên tên setError để 35 chỗ gọi không phải sửa —
+  // setError("") lúc dọn dẹp trở thành lệnh rỗng.
+  const setError = useCallback((message) => {
+    if (message) showToast(message, "error");
+  }, [showToast]);
   const [formErrors, setFormErrors] = useState({});
   const [promoCode, setPromoCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState("");
@@ -678,8 +703,13 @@ const TrainTickets = () => {
     });
 
     if (!success) {
-      if (error === "NOT_CONNECTED") {
+      // TIMEOUT/DISCONNECTED là lỗi hạ tầng, không phải tranh chấp ghế: giữ nguyên ghế
+      // đang chọn để người dùng bấm lại thay vì xoá đi kèm thông báo "ghế đã có người khác
+      // chọn". Xem chú thích cùng chỗ trong BusTickets.jsx.
+      if (error === "NOT_CONNECTED" || error === "DISCONNECTED") {
         setError(t.wsNotConnected);
+      } else if (error === "TIMEOUT") {
+        setError(t.seatHoldTimeout);
       } else if (failed?.length) {
         setSelectedSeatIds((prev) => prev.filter((id) => !failed.includes(id)));
         setError(t.seatConflict);
@@ -1066,11 +1096,6 @@ const TrainTickets = () => {
                 </div>
               )}
 
-              {error && (
-                <p style={{ marginTop: 16, color: "red" }}>
-                  {error}
-                </p>
-              )}
             </div>
 
             {step === "chooseTrip" && trips.length > 0 && (() => {
@@ -1552,7 +1577,6 @@ const TrainTickets = () => {
 
                   {!loading && seats.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 14 }}>{t.noSeatData}</p>}
 
-                  {error && <p style={{ color: "#ef4444", marginTop: 12, fontSize: 14 }}>{error}</p>}
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
                     <button type="button" onClick={() => setStep("chooseTrip")} style={{
                       padding: "12px 26px", borderRadius: 10, border: "1px solid var(--border-main)",
@@ -1634,7 +1658,6 @@ const TrainTickets = () => {
                     </label>
                   </div>
 
-                  {error && <p style={{ color: "#ef4444", marginTop: 12, fontSize: 14 }}>{error}</p>}
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
                     <button type="button" onClick={() => {
                       const seatsToUnlock = [...selectedSeatIds];
@@ -1934,7 +1957,6 @@ const TrainTickets = () => {
                     </div>
                   )}
 
-                  {error && <p style={{ color: "#ef4444", marginTop: 12 }}>{error}</p>}
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
                     <button type="button" onClick={() => setStep("passenger")} style={{ padding: "10px 24px", borderRadius: 8, border: "1px solid var(--border-input)", background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer" }}>← {t.goBack}</button>
                     <button type="button" onClick={goToReview} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t.reviewAndPay} →</button>
@@ -2046,7 +2068,6 @@ const TrainTickets = () => {
                     </div>
                   </div>
 
-                  {error && <p style={{ color: "#ef4444", marginTop: 4 }}>{error}</p>}
 
                   {bookingResult ? (
                     <div style={{ padding: 20, borderRadius: 12, background: "rgba(34, 197, 94, 0.1)", border: "1px solid #22c55e", marginTop: 8 }}>

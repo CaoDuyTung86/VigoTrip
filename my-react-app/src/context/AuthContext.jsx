@@ -1,10 +1,21 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/apiClient";
+import { useToast } from "./ToastContext";
 
 const AuthContext = createContext(null);
 
+/**
+ * Những khu vực chỉ xem được khi đã đăng nhập — mất phiên ở đây thì buộc phải rời trang.
+ * Mọi nơi khác (nhất là luồng đặt vé) phải ở nguyên chỗ cũ.
+ */
+const AUTH_ONLY_PREFIXES = ["/admin", "/account", "/my-bookings", "/provider"];
+
 export const AuthProvider = ({ children }) => {
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+
   const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem("authUser");
     if (storedUser) {
@@ -104,8 +115,13 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   /**
-   * Bắt buộc logout khi server trả 401/403 cho tài khoản bị khóa/hết hạn.
-   * Lưu thông báo vào sessionStorage để Header/Toast đọc sau khi redirect.
+   * Bắt buộc logout khi server trả 401 cho tài khoản bị khóa/hết hạn.
+   *
+   * Trước đây hàm này làm `window.location.href = "/"`: tải lại cả trang, cuốn theo toàn bộ
+   * form đặt vé đang dở (chuyến, ghế đã giữ, thông tin hành khách, dịch vụ, mã giảm giá) —
+   * chỉ vì một request nền hết hạn phiên. Giờ chỉ xoá phiên tại chỗ và báo bằng toast;
+   * điều hướng chỉ xảy ra khi đang đứng trong khu vực bắt buộc đăng nhập, và bằng router
+   * chứ không tải lại trang.
    */
   const forceLogout = useCallback((reason = "Phiên đăng nhập đã hết hạn hoặc tài khoản bị khóa. Vui lòng đăng nhập lại.") => {
     if (!tokenRef.current) return; // chỉ xử lý nếu đang đăng nhập
@@ -114,10 +130,12 @@ export const AuthProvider = ({ children }) => {
     setProfile(null);
     localStorage.removeItem("authToken");
     localStorage.removeItem("authUser");
-    sessionStorage.setItem("forceLogoutMessage", reason);
-    // Redirect về trang chủ — App sẽ xử lý hiển thị toast từ sessionStorage
-    window.location.href = "/";
-  }, []);
+    showToast(reason, "error", 6000);
+
+    if (AUTH_ONLY_PREFIXES.some((prefix) => window.location.pathname.startsWith(prefix))) {
+      navigate("/", { replace: true });
+    }
+  }, [navigate, showToast]);
 
   /**
    * Patch global fetch — chỉ đăng xuất khi API nội bộ trả về 401.

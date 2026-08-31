@@ -86,8 +86,11 @@ public class BookingService {
                 throw new BookingException("Ghế " + seat.getSeatNumber() + " đã được đặt cho chuyến này");
             }
 
+            // equalsIgnoreCase: khoá lock do trình duyệt gửi qua WebSocket, còn vế phải là
+            // email lấy từ DB. Tài khoản Google có thể lệch hoa/thường giữa hai nguồn, so
+            // sánh phân biệt hoa thường sẽ chặn nhầm chính người đang giữ ghế.
             String lockedBy = seatLockService.getLockedBy(seatId);
-            if (lockedBy != null && !lockedBy.equals(user.getEmail())) {
+            if (lockedBy != null && !lockedBy.equalsIgnoreCase(user.getEmail())) {
                 throw new BookingException(
                         "Ghế " + seat.getSeatNumber() + " đang được giữ bởi người khác. Vui lòng chọn ghế khác.");
             }
