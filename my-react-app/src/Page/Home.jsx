@@ -10,10 +10,10 @@ const Home = () => {
   const navigate = useNavigate();
 
   const trustItems = [
-    { icon: <ShieldCheck size={16} />, text: t.safePayment },
-    { icon: <Zap size={16} />, text: t.instantConfirmation },
-    { icon: <Headphones size={16} />, text: t.support247 },
-    { icon: <RefreshCw size={16} />, text: t.easyRefund },
+    { icon: <ShieldCheck size={20} />, text: t.safePayment },
+    { icon: <Zap size={20} />, text: t.instantConfirmation },
+    { icon: <Headphones size={20} />, text: t.support247 },
+    { icon: <RefreshCw size={20} />, text: t.easyRefund },
   ];
 
   const promoItems = [

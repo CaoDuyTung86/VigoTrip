@@ -290,13 +290,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .header-nav-tab {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 18px;
+  gap: 8px;
+  padding: 9px 20px;
   border-radius: 8px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 15.5px;
+  font-size: 17px;
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
@@ -752,7 +752,7 @@ body.dark .home-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(24px, 5vw, 64px);
+  gap: clamp(28px, 6vw, 72px);
   flex-wrap: wrap;
 }
 .trust-item {
@@ -760,10 +760,11 @@ body.dark .home-wrap {
   align-items: center;
   gap: 10px;
   color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
 }
-.trust-icon { font-size: 22px; color: var(--primary); }
+.trust-icon { font-size: 24px; color: var(--primary); display: flex; align-items: center; }
 
 /* ===== SUB-PAGES (airline, bus, train...) ===== */
 .page-with-sidebar {

@@ -122,7 +122,7 @@ const Header = () => {
               className={`header-nav-tab${location.pathname === tab.path ? " active" : ""}`}
               onClick={() => navigate(tab.path)}
             >
-              <span style={{ fontSize: 16 }}>{tab.icon}</span>
+              <span style={{ fontSize: 18, display: "flex", alignItems: "center" }}>{tab.icon}</span>
               {tab.label}
             </button>
           ))}

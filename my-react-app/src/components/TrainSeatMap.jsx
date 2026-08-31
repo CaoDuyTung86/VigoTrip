@@ -341,7 +341,18 @@ const TrainSeatMap = ({
         const available = list.filter(s => !s.booked && !isSeatLockedByOthers(s, user)).length;
         const types = [...new Set(list.map(s => s.seatType || 'ECONOMY'))];
         const isBiz = types.length > 0 && types.every(t => ['BUSINESS', 'VIP', 'SLEEPER'].includes(t));
-        return { idx, seats: list, total: list.length, available, isBiz, hasSleeper: types.includes('SLEEPER') };
+        const isMixed = types.length > 1;
+        const hasSleeper = types.includes('SLEEPER');
+        return { 
+          idx, 
+          seats: list, 
+          total: list.length, 
+          available, 
+          types,
+          isBiz, 
+          isMixed,
+          hasSleeper 
+        };
       })
       .filter(t => t.total > 0);
 
@@ -366,7 +377,7 @@ const TrainSeatMap = ({
   const openToa = (idx) => {
     setActiveToa(idx);
     setPhase('zooming');
-    setTimeout(() => setPhase('interior'), 450);
+    setTimeout(() => setPhase('interior'), 520);
   };
 
   const handleSeatClick = (seat) => {
@@ -507,8 +518,15 @@ const TrainSeatMap = ({
       {/* Keyframes injection */}
       <style>{`
         @keyframes rippleSeat { to { transform: scale(3.5); opacity: 0; } }
-        @keyframes fadeZoom { 0%{opacity:0; transform:scale(1)} 50%{opacity:1; transform:scale(1.08)} 100%{opacity:1; transform:scale(1.15)} }
-        @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes fadeZoom { 
+          0% { opacity: 0; backdrop-filter: blur(0px); } 
+          40% { opacity: 0.6; backdrop-filter: blur(2px); }
+          100% { opacity: 1; backdrop-filter: blur(6px); } 
+        }
+        @keyframes slideUp { 
+          0% { opacity: 0; transform: translateY(22px) scale(0.98); } 
+          100% { opacity: 1; transform: translateY(0) scale(1); } 
+        }
         @keyframes trainRock { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-2px) rotate(0.3deg); } }
         @keyframes wheelSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes headPulse { 0%,100% { opacity: 0.7; box-shadow: 0 0 8px 2px rgba(253,224,71,0.7); } 50% { opacity: 1; box-shadow: 0 0 16px 5px rgba(253,224,71,0.95); } }
@@ -601,15 +619,15 @@ const TrainSeatMap = ({
                     <div style={{ position: 'absolute', left: 0, right: 0, top: 46, height: 9, background: 'linear-gradient(90deg, #3730a3, #4f46e5 55%, #3730a3)' }} />
                     <div style={{ position: 'absolute', left: 0, right: 0, top: 57, height: 3, background: '#dc2626' }} />
 
-                    {/* Cửa hành khách 2 đầu (lõm nhẹ vào thân) */}
-                    {[8, 147].map(dx => (
-                      <div key={dx} style={{
-                        position: 'absolute', left: dx, top: 26, width: 13, height: 38,
-                        background: 'linear-gradient(180deg, #e8edf4, #c3cedb)',
-                        borderRadius: '6px 6px 2px 2px',
-                        boxShadow: 'inset 0 0 0 1.5px rgba(100,116,139,0.4)',
+                    {/* Cửa 2 đầu toa */}
+                    {[8, 146].map((x, ci) => (
+                      <div key={ci} style={{
+                        position: 'absolute', left: x, top: 24, width: 14, height: 42,
+                        background: 'linear-gradient(180deg, #e2e8f0, #cbd5e1)',
+                        borderRadius: '4px 4px 2px 2px',
+                        boxShadow: 'inset 0 0 0 1px rgba(100,116,139,0.4)',
                       }}>
-                        <span style={{ display: 'block', width: 5, height: 22, background: '#1e3a8a', borderRadius: 2, margin: '7px auto 0' }} />
+                        <span style={{ display: 'block', width: 6, height: 18, background: '#1e3a8a', borderRadius: 2, margin: '6px auto 0' }} />
                       </div>
                     ))}
 
@@ -714,8 +732,8 @@ const TrainSeatMap = ({
               position: 'absolute',
               inset: 0,
               zIndex: 10,
-              background: 'radial-gradient(circle at center, rgba(99,102,241,0.45) 0%, rgba(2,6,23,0.95) 80%)',
-              animation: 'fadeZoom 0.45s cubic-bezier(0.4,0,0.2,1) forwards',
+              background: 'radial-gradient(circle at center, rgba(99,102,241,0.4) 0%, rgba(2,6,23,0.96) 75%)',
+              animation: 'fadeZoom 0.52s cubic-bezier(0.22, 1, 0.36, 1) forwards',
               pointerEvents: 'none',
             }} />
           )}
@@ -724,24 +742,39 @@ const TrainSeatMap = ({
       {/* Hint — đặt DƯỚI canvas để không che đoàn tàu */}
       {phase === 'train' && (
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
-          <div style={{
-            background: 'rgba(15,23,42,0.85)',
-            backdropFilter: 'blur(10px)',
-            color: '#f8fafc',
-            fontSize: 12,
-            fontWeight: 700,
-            padding: '7px 22px',
-            borderRadius: 24,
-            border: '1px solid rgba(99,102,241,0.35)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-            pointerEvents: 'none',
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}>
+          <button
+            type="button"
+            onClick={() => openToa(0)}
+            style={{
+              background: 'rgba(15,23,42,0.85)',
+              backdropFilter: 'blur(10px)',
+              color: '#f8fafc',
+              fontSize: 12,
+              fontWeight: 700,
+              padding: '8px 24px',
+              borderRadius: 24,
+              border: '1px solid rgba(99,102,241,0.35)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = '#818cf8';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(99,102,241,0.4)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'rgba(99,102,241,0.35)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.4)';
+            }}
+          >
             <span style={{ color: '#818cf8' }}>🚄</span> {t.smTrainHint}
-          </div>
+          </button>
         </div>
       )}
 
@@ -750,6 +783,14 @@ const TrainSeatMap = ({
       {hoveredToa !== null && tooltipPos && (() => {
         const toa = toas.find(x => x.idx === hoveredToa);
         if (!toa) return null;
+        const classLabel = toa.isMixed 
+          ? (t.smMixedClass || 'Nhiều hạng')
+          : toa.hasSleeper 
+            ? t.smSleeper 
+            : toa.isBiz 
+              ? t.smBizClass 
+              : t.smEcoClass;
+
         return createPortal(
           <div style={{
             position: 'fixed',
@@ -758,20 +799,34 @@ const TrainSeatMap = ({
             transform: 'translate(-50%, -100%)',
             background: '#0f172a',
             color: '#fff',
-            padding: '6px 12px',
+            padding: '8px 14px',
             borderRadius: 8,
             fontSize: 11,
             whiteSpace: 'nowrap',
             zIndex: 9999,
-            boxShadow: '0 6px 16px rgba(0,0,0,0.55)',
+            boxShadow: '0 6px 20px rgba(0,0,0,0.65)',
             border: '1px solid #334155',
             pointerEvents: 'none',
             lineHeight: 1.7,
           }}>
-            <div style={{ fontWeight: 800 }}>{t.smCarriage.replace('{index}', toa.idx + 1)} • {toa.hasSleeper ? t.smSleeper : toa.isBiz ? t.seatClassBiz : t.seatClassEco}</div>
-            <div style={{ opacity: 0.8 }}>
+            <div style={{ fontWeight: 800 }}>{t.smCarriage.replace('{index}', toa.idx + 1)} • {classLabel}</div>
+            <div style={{ opacity: 0.85 }}>
               {t.smRemaining} <b style={{ color: toa.available > 0 ? '#34d399' : '#f87171' }}>{toa.available}</b>/{toa.total} {t.smVacantSeats}
             </div>
+            {toa.isMixed && (
+              <div style={{ opacity: 0.75, fontSize: 10, marginTop: 2, display: 'flex', gap: 6 }}>
+                {toa.types.map(tp => (
+                  <span key={tp} style={{ 
+                    background: 'rgba(255,255,255,0.1)', 
+                    padding: '1px 6px', 
+                    borderRadius: 4,
+                    color: tp === 'BUSINESS' ? '#818cf8' : tp === 'SLEEPER' ? '#a78bfa' : '#34d399'
+                  }}>
+                    {tp === 'BUSINESS' ? t.smBizClass : tp === 'SLEEPER' ? t.smSleeper : t.smEcoClass}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>,
           document.body
         );
@@ -779,7 +834,7 @@ const TrainSeatMap = ({
 
       {/* ── Sơ đồ ghế trong toa (Interior) ── */}
       {phase === 'interior' && active && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'slideUp 0.35s ease-out' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'slideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1)' }}>
 
           {/* Header: quay lại + filter + counter */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>

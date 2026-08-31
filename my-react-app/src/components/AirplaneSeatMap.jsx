@@ -25,9 +25,12 @@ const GEO = {
   fin: { topY: 70, midX: 8, midY: 130, tipY: 148 },
 };
 
-function drawTopDownAirplane(ctx, cx, cy, hover, t, tr) {
+function drawTopDownAirplane(ctx, cx, cy, hover, t, tr, scale = 1) {
   ctx.save();
   ctx.translate(cx, cy);
+  if (scale !== 1) {
+    ctx.scale(scale, scale);
+  }
 
   // Nghiêng nhẹ qua trái/phải tạo cảm giác đang bay sống động
   const wobble = Math.sin(t * 0.0012) * 0.012;
@@ -348,30 +351,44 @@ function drawTopDownAirplane(ctx, cx, cy, hover, t, tr) {
   if (hover) {
     ctx.rotate(-wobble);
 
+    const labelText = `✈  ${tr.smOpenSeatMapHint}`;
+    ctx.font = 'bold 12px Inter, sans-serif';
+    const textMetrics = ctx.measureText(labelText);
+    const tw = Math.max(210, Math.ceil(textMetrics.width + 32));
+    const th = 36;
+    const tooltipY = -206;
+
     ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 1.5;
-    const tw = 195;
-    const th = 36;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-tw / 2, -206, tw, th, 10);
-    else ctx.rect(-tw / 2, -206, tw, th);
+    if (ctx.roundRect) ctx.roundRect(-tw / 2, tooltipY, tw, th, 10);
+    else ctx.rect(-tw / 2, tooltipY, tw, th);
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 12px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`✈  ${tr.smOpenSeatMapHint}`, 0, -183);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(labelText, 0, tooltipY + th / 2);
 
     // Mũi tên trỏ xuống
     ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
     ctx.beginPath();
-    ctx.moveTo(-8, -170);
-    ctx.lineTo(8, -170);
-    ctx.lineTo(0, -161);
+    ctx.moveTo(-8, tooltipY + th);
+    ctx.lineTo(8, tooltipY + th);
+    ctx.lineTo(0, tooltipY + th + 8);
     ctx.closePath();
     ctx.fill();
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-8, tooltipY + th);
+    ctx.lineTo(0, tooltipY + th + 8);
+    ctx.lineTo(8, tooltipY + th);
+    ctx.stroke();
   }
 
   ctx.restore();
@@ -408,11 +425,20 @@ const AirplaneSeatMap = ({
   const [phase, setPhaseRaw] = useState('exterior'); // 'exterior' | 'zooming' | 'interior'
   const [hoveredSeat, setHoveredSeat] = useState(null);
   const [rippleSeatId, setRippleSeatId] = useState(null);
+  const zoomStartRef = useRef(0);
 
   const setPhase = useCallback((p) => {
     phaseRef.current = p;
     setPhaseRaw(p);
   }, []);
+
+  const triggerZoom = useCallback(() => {
+    zoomStartRef.current = performance.now();
+    setPhase('zooming');
+    setTimeout(() => {
+      setPhase('interior');
+    }, 550);
+  }, [setPhase]);
 
   const CANVAS_H = 480; // Canvas cao rộng rãi: máy bay hùng vĩ giữa trời, contrail tuôn hết chiều dài xuống dưới
 
@@ -530,8 +556,7 @@ const AirplaneSeatMap = ({
       const cy = CANVAS_H / 2;
 
       if (mx >= cx - 160 && mx <= cx + 160 && my >= cy - 160 && my <= cy + 160) {
-        setPhase('zooming');
-        setTimeout(() => setPhase('interior'), 450);
+        triggerZoom();
       }
     };
 
@@ -642,7 +667,18 @@ const AirplaneSeatMap = ({
         const centerX = W / 2;
         // Bồng bềnh nhẹ nhàng theo hàm sin tạo cảm giác đang bay mượt
         const centerY = (H / 2) + Math.sin(t * 0.0018) * 4.5;
-        drawTopDownAirplane(ctx, centerX, centerY, hoverRef.current, t, tRef.current);
+        
+        let planeScale = 1;
+        let isZoom = phaseRef.current === 'zooming';
+        if (isZoom && zoomStartRef.current > 0) {
+          const elapsed = performance.now() - zoomStartRef.current;
+          const progress = Math.min(1, Math.max(0, elapsed / 550));
+          // Cubic ease-in zoom in sâu vào thân máy bay
+          const ease = progress * progress * (3 - 2 * progress);
+          planeScale = 1 + ease * 1.65;
+        }
+
+        drawTopDownAirplane(ctx, centerX, centerY, isZoom ? false : hoverRef.current, t, tRef.current, planeScale);
       }
 
       // Vẽ lớp mây gần nhất (Trôi qua phía trước / trên đầu cánh tạo chiều sâu 3D)
@@ -799,8 +835,15 @@ const AirplaneSeatMap = ({
       {/* Keyframes injection */}
       <style>{`
         @keyframes rippleSeat { to { transform: scale(3.5); opacity: 0; } }
-        @keyframes fadeZoom { 0%{opacity:0; transform:scale(1)} 50%{opacity:1; transform:scale(1.08)} 100%{opacity:1; transform:scale(1.15)} }
-        @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes fadeZoom { 
+          0% { opacity: 0; backdrop-filter: blur(0px); } 
+          40% { opacity: 0.6; backdrop-filter: blur(2px); }
+          100% { opacity: 1; backdrop-filter: blur(6px); } 
+        }
+        @keyframes slideUp { 
+          0% { opacity: 0; transform: translateY(22px) scale(0.98); } 
+          100% { opacity: 1; transform: translateY(0) scale(1); } 
+        }
       `}</style>
 
       {/* ── Canvas section (luôn giữ canvas trong DOM, ẩn bằng CSS để không hủy loop vẽ) ── */}
@@ -820,8 +863,8 @@ const AirplaneSeatMap = ({
             position: 'absolute',
             inset: 0,
             zIndex: 10,
-            background: 'radial-gradient(circle at center, rgba(14, 165, 233, 0.45) 0%, rgba(2, 6, 23, 0.95) 80%)',
-            animation: 'fadeZoom 0.45s cubic-bezier(0.4,0,0.2,1) forwards',
+            background: 'radial-gradient(circle at center, rgba(14, 165, 233, 0.4) 0%, rgba(2, 6, 23, 0.96) 75%)',
+            animation: 'fadeZoom 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards',
             pointerEvents: 'none',
           }} />
         )}
@@ -830,30 +873,45 @@ const AirplaneSeatMap = ({
       {/* Hint — đặt DƯỚI canvas, đồng bộ với tàu / xe khách */}
       {phase === 'exterior' && (
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
-          <div style={{
-            background: 'rgba(15,23,42,0.85)',
-            backdropFilter: 'blur(10px)',
-            color: '#f8fafc',
-            fontSize: 12,
-            fontWeight: 700,
-            padding: '7px 22px',
-            borderRadius: 24,
-            border: '1px solid rgba(56,189,248,0.35)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-            pointerEvents: 'none',
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}>
+          <button
+            type="button"
+            onClick={triggerZoom}
+            style={{
+              background: 'rgba(15,23,42,0.85)',
+              backdropFilter: 'blur(10px)',
+              color: '#f8fafc',
+              fontSize: 12,
+              fontWeight: 700,
+              padding: '8px 24px',
+              borderRadius: 24,
+              border: '1px solid rgba(56,189,248,0.35)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = '#38bdf8';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(56,189,248,0.35)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'rgba(56,189,248,0.35)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.4)';
+            }}
+          >
             <span style={{ color: '#38bdf8' }}>✈</span> {t.smPlaneHint}
-          </div>
+          </button>
         </div>
       )}
 
       {/* ── Sơ đồ ghế ngồi (Interior mode: chỉ hiển thị sơ đồ ghế + nút quay lại) ── */}
       {phase === 'interior' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'slideUp 0.35s ease-out' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'slideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1)' }}>
 
           {/* Header bar: Nút quay lại + Filter khoang + Bộ đếm ghế */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>

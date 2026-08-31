@@ -377,7 +377,7 @@ const BusSeatMap = ({
 
   const openBus = () => {
     setPhase('zooming');
-    setTimeout(() => setPhase('interior'), 450);
+    setTimeout(() => setPhase('interior'), 520);
   };
 
   const handleSeatClick = (seat) => {
@@ -503,8 +503,15 @@ const BusSeatMap = ({
       {/* Keyframes injection */}
       <style>{`
         @keyframes rippleSeat { to { transform: scale(3.5); opacity: 0; } }
-        @keyframes fadeZoom { 0%{opacity:0; transform:scale(1)} 50%{opacity:1; transform:scale(1.08)} 100%{opacity:1; transform:scale(1.15)} }
-        @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes fadeZoom { 
+          0% { opacity: 0; backdrop-filter: blur(0px); } 
+          40% { opacity: 0.6; backdrop-filter: blur(2px); }
+          100% { opacity: 1; backdrop-filter: blur(6px); } 
+        }
+        @keyframes slideUp { 
+          0% { opacity: 0; transform: translateY(22px) scale(0.98); } 
+          100% { opacity: 1; transform: translateY(0) scale(1); } 
+        }
         @keyframes busRock { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-1.5px) rotate(0.2deg); } }
         @keyframes wheelSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes slideFloorIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
@@ -643,8 +650,8 @@ const BusSeatMap = ({
             position: 'absolute',
             inset: 0,
             zIndex: 10,
-            background: 'radial-gradient(circle at center, rgba(239,68,68,0.4) 0%, rgba(2,6,23,0.95) 80%)',
-            animation: 'fadeZoom 0.45s cubic-bezier(0.4,0,0.2,1) forwards',
+            background: 'radial-gradient(circle at center, rgba(239,68,68,0.4) 0%, rgba(2,6,23,0.96) 75%)',
+            animation: 'fadeZoom 0.52s cubic-bezier(0.22, 1, 0.36, 1) forwards',
             pointerEvents: 'none',
           }} />
         )}
@@ -653,24 +660,39 @@ const BusSeatMap = ({
       {/* Hint — dưới canvas */}
       {phase === 'bus' && (
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
-          <div style={{
-            background: 'rgba(15,23,42,0.85)',
-            backdropFilter: 'blur(10px)',
-            color: '#f8fafc',
-            fontSize: 12,
-            fontWeight: 700,
-            padding: '7px 22px',
-            borderRadius: 24,
-            border: '1px solid rgba(239,68,68,0.35)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-            pointerEvents: 'none',
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}>
+          <button
+            type="button"
+            onClick={openBus}
+            style={{
+              background: 'rgba(15,23,42,0.85)',
+              backdropFilter: 'blur(10px)',
+              color: '#f8fafc',
+              fontSize: 12,
+              fontWeight: 700,
+              padding: '8px 24px',
+              borderRadius: 24,
+              border: '1px solid rgba(239,68,68,0.35)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = '#f87171';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(239,68,68,0.4)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'rgba(239,68,68,0.35)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.4)';
+            }}
+          >
             <span style={{ color: '#f87171' }}>🚌</span> {t.smBusHint}
-          </div>
+          </button>
         </div>
       )}
 
@@ -683,21 +705,21 @@ const BusSeatMap = ({
           transform: 'translate(-50%, -100%)',
           background: '#0f172a',
           color: '#fff',
-          padding: '6px 12px',
+          padding: '8px 14px',
           borderRadius: 8,
           fontSize: 11,
           whiteSpace: 'nowrap',
           zIndex: 9999,
-          boxShadow: '0 6px 16px rgba(0,0,0,0.55)',
+          boxShadow: '0 6px 20px rgba(0,0,0,0.65)',
           border: '1px solid #334155',
           pointerEvents: 'none',
           lineHeight: 1.7,
         }}>
           <div style={{ fontWeight: 800 }}>🚌 {t.smBusBrand}</div>
-          <div style={{ opacity: 0.8 }}>
+          <div style={{ opacity: 0.85 }}>
             {t.smRemaining} <b style={{ color: busStats.available > 0 ? '#34d399' : '#f87171' }}>{busStats.available}</b>/{busStats.total} {t.smVacantSeats}
           </div>
-          <div style={{ opacity: 0.7, fontSize: 10 }}>
+          <div style={{ opacity: 0.75, fontSize: 10, marginTop: 2 }}>
             🛏 {t.smFloorN.replace('{index}', 1)}: {busStats.bedAvail}/{busStats.bedTotal} • 💺 {t.smFloorN.replace('{index}', 2)}: {busStats.chairAvail}/{busStats.chairTotal}
           </div>
         </div>,
@@ -706,7 +728,7 @@ const BusSeatMap = ({
 
       {/* ── Sơ đồ chỗ trong xe (Interior) ── */}
       {phase === 'interior' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'slideUp 0.35s ease-out' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'slideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1)' }}>
 
           {/* Header: quay lại + tab tầng + class filter + counter */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
