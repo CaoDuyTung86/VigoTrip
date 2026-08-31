@@ -442,6 +442,10 @@ public class PaymentService {
                 secret != null && !secret.equals(secret.trim()) ? " (CÓ KHOẢNG TRẮNG THỪA ĐẦU/CUỐI)" : "",
                 params.get("vnp_TxnRef"),
                 params.size());
+        // Tên tham số (KHÔNG kèm giá trị) là thứ thiếu nhất khi truy một lỗi 97: nó cho biết
+        // cổng gửi sang đúng bộ trường nào, và một trường lạ/thiếu lộ ra ngay. Callback VNPay
+        // không chứa số thẻ hay dữ liệu nhạy cảm, nhưng vẫn chỉ in tên cho chắc.
+        log.warn("[VNPay {}] Các tham số nhận được: {}", channel, new TreeSet<>(params.keySet()));
     }
 
     private Map<String, String> ipnResponse(String code, String message) {
