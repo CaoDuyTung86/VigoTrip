@@ -1,9 +1,13 @@
 package com.booking.api.repository;
 
 import com.booking.api.entity.Booking;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -306,4 +310,36 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            "WHERE b.status IN ('CONFIRMED', 'PAID', 'COMPLETED') " +
            "AND t.trip.vehicle.provider.id IN :providerIds")
     java.time.LocalDateTime findEarliestBookingDate(@Param("providerIds") List<Long> providerIds);
+
+    /**
+     * Nạp đơn kèm khóa ghi trên dòng (SELECT ... FOR UPDATE).
+     *
+     * Dùng cho hai callback thanh toán của VNPay. Return (trình duyệt quay về) và IPN
+     * (server-to-server) thường tới gần như cùng lúc cho cùng một giao dịch, mỗi cái một
+     * transaction riêng. Chốt chống trùng hiện tại là một phép đọc rồi mới ghi
+     * (existsByTransactionRef... rồi processSuccessfulPayment), nên nếu cả hai cùng đọc
+     * TRƯỚC khi bên nào kịp commit thì cả hai đều thấy "chưa xử lý" và cùng xác nhận đơn:
+     * khách nhận hai mail xác nhận giống hệt nhau và được tích điểm hai lần.
+     *
+     * Khóa dòng đơn hàng bắt lượt sau phải xếp hàng, tới lượt nó thì bản ghi thanh toán
+     * của lượt trước đã commit, chốt chống trùng đọc ra đúng và trả ALREADY_PROCESSED.
+     * Khóa nằm ở tầng CSDL nên vẫn đúng cả khi backend chạy nhiều instance.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM Booking b WHERE b.id = :id")
+    java.util.Optional<Booking> findByIdForUpdate(@Param("id") Long id);
+
+    /**
+     * Giành quyền gửi mail nhắc chuyến cho một đơn: trả về 1 nếu lượt gọi này là lượt đầu
+     * tiên bật cờ, 0 nếu đơn đã được đánh dấu từ trước.
+     *
+     * Đặt cờ bằng một câu UPDATE có điều kiện thay vì "đọc rồi ghi" để hai tiến trình cùng
+     * quét (hai instance backend, hoặc một lượt chạy chồng lên lượt trước sau khi deploy)
+     * không thể cùng thấy cờ đang false và cùng gửi mail. Ai UPDATE được mới gửi.
+     */
+    @Modifying
+    @Transactional
+    @Query("UPDATE Booking b SET b.reminderSent = true " +
+           "WHERE b.id = :id AND (b.reminderSent IS NULL OR b.reminderSent = false)")
+    int claimReminder(@Param("id") Long id);
 }

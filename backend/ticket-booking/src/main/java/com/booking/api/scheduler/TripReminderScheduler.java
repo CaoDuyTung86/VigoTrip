@@ -52,13 +52,23 @@ public class TripReminderScheduler {
             // Nhắc chuyến là thông báo về chuyến đi -> gửi cho người liên hệ của đơn.
             String email = booking.resolveNotificationEmail();
 
+            // Đánh dấu TRƯỚC khi gửi, bằng một câu UPDATE có điều kiện.
+            // sendTripReminderEmail chạy @Async nên nó trả về ngay lập tức, mail còn nằm
+            // trong hàng đợi; gửi xong mới ghi cờ thì giữa hai bước luôn có một khe mà lượt
+            // quét khác (instance thứ hai, hoặc lượt chạy ngay sau khi deploy lại) chen vào
+            // được và gửi thêm một mail nhắc nữa cho cùng một đơn.
+            if (bookingRepository.claimReminder(booking.getId()) == 0) {
+                continue; // đơn này đã có nơi khác nhận gửi
+            }
+
             try {
                 emailService.sendTripReminderEmail(email, booking.getId(), route, departureStr);
-                booking.setReminderSent(true);
-                bookingRepository.save(booking);
                 sent++;
             } catch (Exception e) {
                 log.error("[Scheduler] Error sending reminder email for booking ID: {}", booking.getId(), e);
+                // Chưa xếp được vào hàng đợi mail thì trả cờ lại, để lượt quét sau còn thử tiếp.
+                booking.setReminderSent(false);
+                bookingRepository.save(booking);
             }
         }
 

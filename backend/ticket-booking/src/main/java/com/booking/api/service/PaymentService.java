@@ -304,7 +304,9 @@ public class PaymentService {
         Long bookingId = parseBookingId(params.get("vnp_OrderInfo"));
         if (bookingId == null) return "INVALID_ORDER_INFO";
 
-        Booking booking = bookingRepository.findById(bookingId).orElse(null);
+        // Khóa dòng đơn: Return và IPN của cùng một giao dịch thường về gần như cùng lúc,
+        // không xếp hàng thì cả hai cùng xác nhận đơn và khách nhận hai mail giống hệt nhau.
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId).orElse(null);
         if (booking == null) return "BOOKING_NOT_FOUND";
 
         return switch (applyPaymentResult(booking, params)) {
@@ -337,7 +339,9 @@ public class PaymentService {
                 return ipnResponse("01", "Order not found");
             }
 
-            Booking booking = bookingRepository.findById(bookingId).orElse(null);
+            // Cùng lý do như ở handleVNPayReturn: khóa dòng để hai luồng callback nối đuôi
+            // nhau, lượt sau nhìn thấy kết quả đã commit của lượt trước.
+            Booking booking = bookingRepository.findByIdForUpdate(bookingId).orElse(null);
             if (booking == null) {
                 return ipnResponse("01", "Order not found");
             }
