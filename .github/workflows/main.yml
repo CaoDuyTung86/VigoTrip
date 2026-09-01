@@ -39,6 +39,15 @@ jobs:
         cd backend/ticket-booking
         mvn clean package -DskipTests
 
+    # Cong chat luong truy hoi RAG. Chay offline hoan toan: JUnit thuan, khong can
+    # Spring context, khong can DB, khong can API key -- chi do nhanh BM25 tren bo
+    # 57 cau hoi vang. Test tu fail neu recall@3 < 0.85 hoac MRR < 0.70, nen sua
+    # knowledge base hay TextNormalizer ma lam tut chat luong thi build do ngay.
+    - name: RAG Retrieval Quality Gate
+      run: |
+        cd backend/ticket-booking
+        mvn test -Dtest=RagRetrievalQualityTest -DfailIfNoTests=false
+
   # 2. Build & Test Frontend
   build-frontend:
     runs-on: ubuntu-latest
