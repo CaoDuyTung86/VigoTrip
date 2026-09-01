@@ -101,9 +101,9 @@ Thay vào đó, cái đo được chia làm ba tầng:
 
 | Tầng | Đo bằng gì | Trạng thái |
 | --- | --- | --- |
-| **Số liệu đúng không** | 9 test trong `AnalyticsServiceTest` — kỳ, tăng trưởng, phạm vi đối tác, fallback, biểu đồ xu hướng | ✅ Đã có, tất định 100% |
+| **Số liệu đúng không** | 12 test trong `AnalyticsServiceTest` — kỳ, tăng trưởng, phạm vi đối tác, fallback, biểu đồ xu hướng | ✅ Đã có, tất định 100% |
 | **Prompt có đúng số không** | 1 test bắt lấy prompt gửi cho LLM, đối chiếu từng con số với bản tóm tắt | ✅ Đã có |
-| **Lời văn AI có bịa số không** | *Groundedness*: bóc mọi con số trong output của LLM, đếm tỷ lệ số đó có mặt trong bản tóm tắt đầu vào | ⏳ Chưa làm — xem dưới |
+| **Lời văn AI có bịa số không** | *Groundedness*: bóc mọi con số trong output của LLM, đếm tỷ lệ số đó có mặt trong bản tóm tắt đầu vào | ✅ Đã có — `AiBiGroundednessTest`, đo được **0.951** |
 
 Chỉ số **groundedness** là thứ tương đương recall@3 của bên RAG:
 
@@ -112,9 +112,49 @@ groundedness = (số con số trong câu trả lời AI có mặt trong bản t�
 mục tiêu: 1.00 — mọi con số AI nói ra đều truy ngược được về SQL
 ```
 
-Chưa hiện thực hoá vì phải gọi LLM thật mới có output để chấm, mà bộ test hiện tại **không được
-phép gọi mạng** (xem ghi chú trong `application-test.yml`). Muốn làm thì tách thành một job riêng
-chạy tay như bộ đo RAG.
+Đã hiện thực hoá trong `AiBiGroundednessTest`, theo đúng khuôn của bộ đo RAG: mặc định chạy
+offline trong CI, còn phần gọi LLM thật là một job riêng chạy tay.
+
+```bash
+# offline — khoá lại chính bộ đo, không cần mạng
+./mvnw test -Dtest=AiBiGroundednessTest
+
+# live — gọi model thật rồi chấm câu trả lời thật
+BI_EVAL_LIVE=1 GEMINI_API_KEY=... ./mvnw test -Dtest=AiBiGroundednessTest
+```
+
+**Vì sao groundedness rẻ hơn faithfulness rất nhiều.** Bên chatbot RAG, câu hỏi *"có bịa
+không"* phải chấm trên các mệnh đề ngôn ngữ tự nhiên — cần LLM-as-a-judge hoặc chấm tay. Bên
+AI BI thì rủi ro tụ vào đúng một thứ **đếm được**: con số. Nên phép đo này **tất định 100%** —
+bóc số bằng biểu thức chính quy rồi kiểm tra thuộc tập hợp, không có model nào chấm điểm model
+nào.
+
+Chỗ khó duy nhất là chuẩn hoá: dấu chấm mang hai nghĩa (`1.500.000` là phân cách nghìn,
+`50.0` là thập phân). Phân biệt bằng hình dạng rồi bỏ số 0 thừa ở đuôi, nếu không thì AI viết
+`50%` trong khi báo cáo ghi `+50.0%` sẽ bị chấm oan là bịa.
+
+#### Kết quả đo ngày 01/09/2026
+
+| | |
+|---|---|
+| Số con số trong câu trả lời của AI | 41 |
+| Truy ngược được về bản tóm tắt SQL | 39 |
+| **Groundedness** | **0.951** |
+
+Hai con số không truy ngược được là `100` và `4`:
+
+- `100` đến từ câu *"chưa đủ để phủ kín 100% doanh thu vé"* — một cách nói, không phải một
+  thống kê.
+- `4` là **số thứ tự mục** `## 4. 3 hành động cụ thể`, do chính khung báo cáo trong system
+  prompt sinh ra.
+
+**Số lời văn bịa thật sự: 0.** Đây đúng là lý do bộ đo in ra danh sách số không truy được
+thay vì chỉ in một con số tổng — 0.951 nhìn như có 2 lỗi, đọc danh sách mới biết là 0. Cùng
+một bài học với *"luôn đọc danh sách câu trượt"* ở bộ đo RAG.
+
+> **Giới hạn cần nói thẳng:** groundedness chỉ soi **con số**. Nó không bắt được lỗi *diễn
+> giải* — ví dụ AI trích đúng số nhưng kết luận sai chiều tăng giảm, hoặc gán đúng số cho sai
+> nhà cung cấp. Muốn bắt loại đó vẫn phải đọc tay hoặc dùng LLM-as-a-judge.
 
 Ngoài ra phần vận hành đã có sẵn metric Prometheus dùng chung với chatbot:
 `llm_requests_total`, `llm_fallback_total`, `llm_latency_seconds`.

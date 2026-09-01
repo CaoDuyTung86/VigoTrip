@@ -101,7 +101,7 @@ Vài khái niệm cần nhớ:
 | Thuật ngữ | Nghĩa | Trong dự án này |
 |---|---|---|
 | **Token** | Đơn vị văn bản mô hình xử lý; ~1 token ≈ 0.75 từ tiếng Anh, tiếng Việt tốn nhiều token hơn | Giới hạn 800 token cho câu trả lời chat, 4000 cho báo cáo BI |
-| **Context window** | Tổng số token tối đa (đầu vào + đầu ra) trong một lượt | Ta chủ động cắt lịch sử còn 3 cặp hỏi–đáp để tiết kiệm |
+| **Context window** | Tổng số token tối đa (đầu vào + đầu ra) trong một lượt | Ta chủ động cắt lịch sử còn 10 cặp hỏi–đáp gần nhất để tiết kiệm (`ChatService.MAX_HISTORY_PAIRS_FRONTEND`) |
 | **Prompt** | Toàn bộ văn bản gửi cho model | Gồm system prompt + tri thức RAG + lịch sử + câu hỏi |
 | **System prompt** | Chỉ dẫn đặt ở đầu, định nghĩa vai trò và luật | Xem `ChatService.buildSystemInstruction()` |
 | **Temperature** | Độ "ngẫu nhiên". 0 = luôn chọn từ khả dĩ nhất, cao = sáng tạo/lung tung hơn | Chat 0.7, phân tích BI 0.3 (cần ổn định hơn) |
@@ -586,7 +586,7 @@ $\sum w_i / (k + \text{rank}_i)$ với $w_{\text{vector}} = 2$), hoặc dùng ve
 chính và BM25 chỉ làm lưới an toàn cho recall. Đây là việc tiếp theo đáng làm nhất với tầng
 truy hồi, và bộ đo đã sẵn sàng để kiểm chứng.
 
-### 6.6 Cạm bẫy đo lường: hai lần suýt công bố số sai
+### 6.6 Cạm bẫy đo lường: ba lần suýt công bố số sai
 
 Phần này giữ lại vì nó dạy nhiều hơn cả bảng số ở trên.
 
@@ -624,6 +624,43 @@ Số sai lệch tới **24 điểm phần trăm**. Nếu công bố số đầu,
 >    mất lỗi trong lúc đo. Khi đo một thành phần, phải chắc chắn nó thực sự đang chạy.
 > 3. **Luôn đọc danh sách câu trượt**, đừng chỉ nhìn con số tổng. Cả hai lỗi trên đều lộ ra
 >    từ việc xem *câu nào trượt*.
+
+**Lần 3 — chính cái bẫy đó, một lần nữa, sau khi báo cáo đã nộp.** Ngày 01/09/2026 ta chạy
+lại bộ đo hai lần để kiểm chứng. Nhánh Hybrid ra kết quả **giống hệt nhau**, nhưng nhánh
+Vector thì không:
+
+| Nhánh Vector | P@1 | R@3 | MRR | Số lần 429 |
+|---|---|---|---|---|
+| Chạy lần 1 | 94.7% | 96.5% | 0.960 | 4 |
+| Chạy lần 2 | 96.5% | 98.2% | 0.977 | 2 |
+
+Nguyên nhân: throttle 800ms tính theo hạn mức *"100 request/phút của dự án ta"* đã hết đúng.
+Google đổi sang hạn mức **dùng chung theo base model**
+(`global_embed_content_requests_per_minute_per_base_model`), nên nhịp gọi an toàn không còn
+do một mình ta quyết định. Một lời gọi hỏng hẳn → `HybridRetriever` nuốt ngoại lệ → nhánh
+Vector lại bị chấm bằng điểm BM25, **và bảng kết quả trông vẫn hoàn toàn bình thường.**
+
+Bản vá không phải chỉ là tăng thời gian chờ:
+
+1. `MIN_INTERVAL_MS` 800 → **1500**, thử lại tối đa **3 lần** với thời gian chờ tăng dần
+   (30s / 60s / 90s).
+2. Đếm số lời gọi **hỏng hẳn** vào `hardFailures`, ghi nhận **trước khi** ném ngoại lệ — vì
+   nếu không tự đếm thì `HybridRetriever` sẽ nuốt mất dấu vết.
+3. Test **fail** nếu `hardFailures != 0`. Thà không có số còn hơn có số không biết là của cái gì.
+
+Sau khi vá, hai lần chạy cho kết quả **trùng khít ở cả ba cấu hình**, 0 lời gọi hỏng.
+
+> **Bài học thứ tư, và là bài học đắt nhất:** bài học số 2 ở trên nói *"fallback làm phép đo
+> nói dối"*. Nhưng ta chỉ **sửa triệu chứng** (thêm throttle) chứ không **sửa phép đo** — nên
+> ba tháng sau, khi nhà cung cấp đổi hạn mức, đúng cái bẫy đó quay lại y nguyên. Cách sửa
+> thật sự không phải là làm cho lỗi khó xảy ra hơn, mà là làm cho phép đo **không thể im lặng
+> khi lỗi xảy ra**.
+
+**Một quan sát phụ, và nó lại là điểm mạnh:** ở lần chạy 1, nhánh Vector trượt hẳn câu
+*"mang meo len may bay duoc khong"* (trả về danh sách rỗng vì lời gọi embedding chết), nhưng
+**cấu hình Hybrid vẫn ra đúng kết quả như lần chạy 2**. BM25 bịt đúng chỗ hổng. Đây là suy
+giảm êm tự chứng minh ngay bên trong phép đo — và là lý do vững chắc nhất để chọn Hybrid làm
+mặc định.
 
 ### 6.7 Còn chất lượng câu trả lời cuối thì sao?
 
@@ -929,7 +966,8 @@ model "mạnh hơn" mà hay quá tải thì tệ hơn model "yếu hơn" mà lu�
 | Heap tối đa (Render) | 256 MB |
 | Thời gian khởi động | ~13 giây |
 | Lời gọi embedding lúc boot | **0** (nhờ `content_hash`) |
-| Số test tự động | 98 |
+| Số test tự động (backend) | 28 lớp / 225 phương thức |
+| Số test tự động (frontend) | 9 file / 72 ca kiểm thử |
 
 ### 9.2 Kiến trúc này gãy ở đâu
 

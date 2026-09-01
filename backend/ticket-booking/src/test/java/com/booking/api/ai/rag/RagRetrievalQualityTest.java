@@ -212,26 +212,44 @@ class RagRetrievalQualityTest {
      *
      * Bộ đo chạy cùng một câu hỏi qua hai cấu hình (Vector và Hybrid). Không cache thì
      * mỗi câu hỏi bị embed hai lần, và với 57 câu là 114 request — vượt hạn mức free
-     * tier của Gemini (100 request embedding mỗi phút), khiến kết quả đo sai lệch vì
+     * tier của Gemini, khiến kết quả đo sai lệch vì
      * hệ thống rơi về BM25 giữa chừng. Cache đưa về đúng 57 request.
      */
     private static class CachingEmbeddingClient implements EmbeddingClient {
 
         /**
-         * Giãn cách tối thiểu giữa hai lời gọi API. Free tier Gemini cho 100 request
-         * embedding mỗi phút; 800ms giữ nhịp ở khoảng 75/phút, đủ biên an toàn.
+         * Giãn cách tối thiểu giữa hai lời gọi API. Ban đầu đặt 800ms theo hạn mức
+         * "100 request/phút" của free tier Gemini. Lần đo ngày 01/09/2026 vẫn dính 429
+         * ở cả hai lần chạy: Google đã đổi sang hạn mức DÙNG CHUNG theo base model
+         * (`global_embed_content_requests_per_minute_per_base_model`), tức là nhịp gọi
+         * an toàn không còn do một mình ta quyết định. Nâng lên 1500ms và thêm vòng
+         * thử lại có chờ tăng dần.
          *
          * Có throttle là BẮT BUỘC chứ không phải cho lịch sự: khi bị 429, HybridRetriever
          * lặng lẽ lùi về BM25, nên nhánh Vector bị chấm điểm bằng kết quả BM25 và số đo
          * ra sai — lần chạy đầu tiên đã dính đúng lỗi này.
          */
-        private static final long MIN_INTERVAL_MS = 800;
+        private static final long MIN_INTERVAL_MS = 1_500;
         private static final long RETRY_AFTER_429_MS = 30_000;
+
+        /** Số lần thử lại tối đa cho một lời gọi dính 429, với thời gian chờ tăng dần. */
+        private static final int MAX_RETRIES = 3;
 
         private final EmbeddingClient delegate;
         private final Map<String, float[]> cache = new java.util.concurrent.ConcurrentHashMap<>();
         private int apiCalls = 0;
         private int rateLimitRetries = 0;
+
+        /**
+         * Số lời gọi embedding hỏng hẳn sau khi đã thử lại hết lượt.
+         *
+         * Đây là chỉ số quan trọng nhất của cả bộ đo live. Khi một lời gọi hỏng,
+         * HybridRetriever bắt EmbeddingException rồi trả về danh sách rỗng — đúng
+         * thiết kế cho production, nhưng nó khiến nhánh "Vector" bị chấm điểm bằng
+         * kết quả của BM25. Nếu biến này khác 0 thì mọi con số của nhánh Vector và
+         * Hybrid trong lần chạy đó đều KHÔNG dùng được, và test sẽ fail.
+         */
+        private int hardFailures = 0;
         private long lastCallAt = 0;
 
         CachingEmbeddingClient(EmbeddingClient delegate) {
@@ -255,21 +273,40 @@ class RagRetrievalQualityTest {
             }
         }
 
-        /** Gọi API có throttle, và thử lại đúng một lần nếu dính 429. */
+        /**
+         * Gọi API có throttle, thử lại tối đa {@link #MAX_RETRIES} lần khi dính 429,
+         * thời gian chờ tăng dần 30s / 60s / 90s.
+         *
+         * Hết lượt thử mà vẫn hỏng thì ghi nhận vào {@link #hardFailures} rồi ném tiếp —
+         * ghi nhận TRƯỚC khi ném là bắt buộc, vì HybridRetriever sẽ nuốt ngoại lệ này
+         * và lần chạy sẽ trông như bình thường nếu ta không tự đếm.
+         */
         private List<float[]> callWithRetry(List<String> texts) {
-            throttle();
-            try {
-                return delegate.embedAll(texts);
-            } catch (RuntimeException e) {
-                if (e.getMessage() == null || !e.getMessage().contains("429")) {
-                    throw e;
+            RuntimeException last = null;
+            for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                throttle();
+                try {
+                    return delegate.embedAll(texts);
+                } catch (RuntimeException e) {
+                    if (e.getMessage() == null || !e.getMessage().contains("429")) {
+                        throw e;
+                    }
+                    last = e;
+                    if (attempt == MAX_RETRIES) {
+                        break;
+                    }
+                    rateLimitRetries++;
+                    long waitMs = RETRY_AFTER_429_MS * (attempt + 1L);
+                    System.out.printf("[Live] Dính 429 (lần %d/%d), chờ %ds rồi thử lại...%n",
+                            attempt + 1, MAX_RETRIES, waitMs / 1000);
+                    sleep(waitMs);
+                    lastCallAt = System.currentTimeMillis();
                 }
-                rateLimitRetries++;
-                System.out.printf("[Live] Dính 429, chờ %ds rồi thử lại...%n", RETRY_AFTER_429_MS / 1000);
-                sleep(RETRY_AFTER_429_MS);
-                lastCallAt = System.currentTimeMillis();
-                return delegate.embedAll(texts);
             }
+            hardFailures++;
+            System.out.printf("[Live] ✗ Lời gọi embedding hỏng hẳn sau %d lần thử — "
+                    + "số đo của nhánh Vector/Hybrid lần này KHÔNG dùng được.%n", MAX_RETRIES + 1);
+            throw last;
         }
 
         @Override
@@ -380,9 +417,20 @@ class RagRetrievalQualityTest {
                             .map(KnowledgeChunk::getDocId).toList()));
 
             System.out.printf("[Live] Lời gọi API embedding: %d (không cache sẽ là %d), "
-                    + "số lần phải thử lại vì 429: %d%n",
+                    + "số lần phải thử lại vì 429: %d, số lời gọi hỏng hẳn: %d%n",
                     embeddingClient.apiCalls, 1 + cases.size() * 2,
-                    embeddingClient.rateLimitRetries);
+                    embeddingClient.rateLimitRetries, embeddingClient.hardFailures);
+
+            // Chốt chặn quan trọng nhất của chế độ live. Suy giảm êm về BM25 là hành vi
+            // ĐÚNG khi chạy thật, nhưng khi đang ĐO thì nó biến nhánh Vector thành nhánh
+            // BM25 trá hình mà không có dấu hiệu nào trên bảng kết quả. Thà fail còn hơn
+            // in ra một con số không biết là của cái gì.
+            assertThat(embeddingClient.hardFailures)
+                    .as("có %d lời gọi embedding hỏng hẳn vì rate limit — nhánh Vector đã "
+                            + "âm thầm rơi về BM25 nên số đo KHÔNG dùng được. Chờ vài phút "
+                            + "rồi chạy lại, hoặc tăng MIN_INTERVAL_MS.",
+                            embeddingClient.hardFailures)
+                    .isZero();
         } else {
             System.out.println();
             System.out.println("[Bỏ qua nhánh ngữ nghĩa] Đặt RAG_EVAL_LIVE=1 và GEMINI_API_KEY "
