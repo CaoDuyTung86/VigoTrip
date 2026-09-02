@@ -1,7 +1,7 @@
 import { useLanguage } from "../context/LanguageContext";
 import { useNavigate } from "react-router-dom";
 import BookingTabs from "../components/BookingTabs";
-import { ShieldCheck, Zap, Headphones, RefreshCw, Plane, TrainTrack, Bus, Package, Sparkles, MapPin } from "lucide-react";
+import { ShieldCheck, Zap, Headphones, RefreshCw, Plane, TrainTrack, Bus, Sparkles, MapPin } from "lucide-react";
 
 
 
@@ -20,7 +20,6 @@ const Home = () => {
     { icon: <Plane size={24} style={{ color: "var(--primary)" }} />, label: t.flight, desc: t.bestPriceAllAirlines, path: "/ve-may-bay" },
     { icon: <TrainTrack size={24} style={{ color: "var(--primary)" }} />, label: t.train, desc: t.easyBookingSeat, path: "/ve-tau-hoa" },
     { icon: <Bus size={24} style={{ color: "var(--primary)" }} />, label: t.bus, desc: t.hundredsBusOperators, path: "/xe-khach" },
-    { icon: <Package size={24} style={{ color: "var(--primary)" }} />, label: t.package, desc: t.comboMoreSavings, path: "/dat-theo-goi" },
   ];
 
   const destinations = [

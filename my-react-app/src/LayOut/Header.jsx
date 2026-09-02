@@ -9,7 +9,7 @@ import { useToast } from "../context/ToastContext";
 import { AiOutlineGlobal } from "react-icons/ai";
 import { MdOutlineLightMode, MdOutlineDarkMode } from "react-icons/md";
 import { PiAirplaneTilt } from "react-icons/pi";
-import { MdOutlineTrain, MdOutlinePercent } from "react-icons/md";
+import { MdOutlineTrain } from "react-icons/md";
 import { IoIosBus } from "react-icons/io";
 import { useNavigate, useLocation } from "react-router-dom";
 import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users, Tag, Menu, X } from "lucide-react";
@@ -41,7 +41,6 @@ const Header = () => {
     { icon: <PiAirplaneTilt />, label: t.flight, path: "/ve-may-bay" },
     { icon: <MdOutlineTrain />, label: t.train, path: "/ve-tau-hoa" },
     { icon: <IoIosBus />, label: t.bus, path: "/xe-khach" },
-    { icon: <MdOutlinePercent />, label: t.package, path: "/dat-theo-goi" },
     { icon: <Tag size={16} />, label: "Ưu đãi", path: "/uu-dai" },
   ];
 

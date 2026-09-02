@@ -56,7 +56,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/reviews/trip/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/payment/vnpay-return", "/api/payment/vnpay-ipn").permitAll()
-                        .requestMatchers("/api/reviews/all").hasAuthority("ROLE_PROVIDER")
+                        // Trang /admin/reviews cho cả provider lẫn admin vào, nên quyền ở đây
+                        // phải khớp. Trước đây chỉ có ROLE_PROVIDER: admin đăng nhập là nhận 403
+                        // và màn hình chỉ hiện "không tải được đánh giá", không nói vì sao.
+                        // Liệt kê cả biến thể không tiền tố vì authority lấy nguyên văn từ
+                        // cột role trong DB (xem CustomUserDetailsService), giống các dòng dưới.
+                        .requestMatchers("/api/reviews/all").hasAnyAuthority("ROLE_PROVIDER", "PROVIDER", "ROLE_ADMIN", "ADMIN")
                         .requestMatchers("/api/refunds/all").hasAuthority("ROLE_ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/refunds/*/approve").hasAuthority("ROLE_ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/refunds/*/reject").hasAuthority("ROLE_ADMIN")

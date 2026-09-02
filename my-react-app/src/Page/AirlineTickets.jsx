@@ -37,21 +37,39 @@ import { CiCreditCard1 } from "react-icons/ci";
 const PENDING_HOLD_MS = 5 * 60 * 1000;
 
 
+/**
+ * Ô logo chỉ rộng 52px, nên ảnh nguồn phải là PNG NỀN TRONG SUỐT và đã cắt sát nét.
+ *
+ * Bản .jpg trước đây hỏng ở hai chỗ. Một, JPG không có kênh trong suốt: nền trắng của
+ * ảnh đè lên màu nền `bg` của ô, thành ra một hình chữ nhật trắng nằm giữa ô bo tròn
+ * (riêng Vietjet là khối đỏ đặc chọi với nền hồng nhạt). Hai, ảnh để nguyên khung gốc
+ * nên 71–91% diện tích là khoảng trắng thừa; `object-fit: contain` co cả khung đó vào
+ * 44px, đẩy phần logo thật xuống chỉ còn cao 4–10px — nhoè thành một vệt.
+ *
+ * Vietnam Airlines dùng RIÊNG bông sen thay vì nguyên lockup: chữ trong lockup không
+ * đọc được ở cỡ này, còn biểu tượng gần vuông nên lấp đầy ô. Bamboo giữ cả tên nhưng
+ * XẾP CHỒNG lá tre lên trên chữ — lockup gốc nằm ngang tỉ lệ 4:1, nhét vào ô vuông thì
+ * chữ chỉ còn cao 8px; xếp chồng kéo tỉ lệ về 1.42 nên chữ to gần gấp đôi. Vietjet không
+ * có biểu tượng tách rời nên đành giữ chữ, đổi sang chữ đỏ nền trong suốt.
+ *
+ * Hai biến thể còn lại của Bamboo vẫn nằm trong /logos nếu muốn đổi: bambooairways.png
+ * (chỉ lá tre, rõ nhất nhưng không có tên) và bambooairways-full.png (lockup gốc).
+ */
 const PROVIDER_LOGOS = {
   "Vietnam Airlines": {
-    logo: "/logos/vietnamairlines.jpg",
+    logo: "/logos/vietnamairlines.png",
     code: "VN",
     color: "#005baa",
     bg: "#e6f0fa",
   },
   "Vietjet Air": {
-    logo: "/logos/VietjetAir.jpg",
+    logo: "/logos/vietjetair.png",
     code: "VJ",
     color: "#e3001b",
     bg: "#fde8eb",
   },
   "Bamboo Airways": {
-    logo: "/logos/bambooairways.jpg",
+    logo: "/logos/bambooairways-stacked.png",
     code: "QH",
     color: "#00843d",
     bg: "#e6f3ec",

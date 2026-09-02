@@ -1,7 +1,6 @@
 import { PiAirplaneTilt } from "react-icons/pi";
 import { MdOutlineTrain } from "react-icons/md";
 import { IoIosBus } from "react-icons/io";
-import { MdOutlinePercent } from "react-icons/md";
 import { useLanguage } from "../context/LanguageContext";
 import { useNavigate } from "react-router-dom";
 
@@ -13,7 +12,6 @@ const Sidebar = ({ isOpen }) => {
     { icon: <PiAirplaneTilt />, label: t.flight, path: "/ve-may-bay" },
     { icon: <MdOutlineTrain />, label: t.train, path: "/ve-tau-hoa" },
     { icon: <IoIosBus />, label: t.bus, path: "/xe-khach" },
-    { icon: <MdOutlinePercent />, label: t.package, path: "/dat-theo-goi" },
   ];
 
   const handleMenuClick = (path) => {

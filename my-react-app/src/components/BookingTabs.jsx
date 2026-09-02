@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { PiAirplaneTilt } from "react-icons/pi";
-import { MdOutlineTrain, MdOutlinePercent } from "react-icons/md";
+import { MdOutlineTrain } from "react-icons/md";
 import { IoIosBus } from "react-icons/io";
 import { useLanguage } from "../context/LanguageContext";
 import FlightSearch from "./FlightSearch";
 import TrainSearch from "./TrainSearch";
 import BusSearch from "./BusSearch";
-import PackageSearch from "./PackageSearch";
 
 const BookingTabs = () => {
   const [active, setActive] = useState(0);
@@ -16,7 +15,6 @@ const BookingTabs = () => {
     { icon: <PiAirplaneTilt />, label: t.flight },
     { icon: <MdOutlineTrain />, label: t.train },
     { icon: <IoIosBus />, label: t.bus },
-    { icon: <MdOutlinePercent />, label: t.package },
   ];
 
   return (
@@ -40,7 +38,6 @@ const BookingTabs = () => {
         {active === 0 && <FlightSearch />}
         {active === 1 && <TrainSearch />}
         {active === 2 && <BusSearch />}
-        {active === 3 && <PackageSearch />}
       </div>
     </div>
   );

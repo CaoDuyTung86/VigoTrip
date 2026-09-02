@@ -71,7 +71,6 @@ const translations = {
     flight: "Vé máy bay",
     train: "Vé tàu hỏa",
     bus: "Xe khách",
-    package: "Đặt theo gói",
     bookingContent: "Nội dung đặt vé cho:",
 
     // Flight Search
@@ -176,29 +175,11 @@ const translations = {
     hotlineLabel: "Hotline:",
     copyright: "Bản quyền © 2025 VigoTrip Travel VietNam Pte. Ltd. Bảo lưu mọi quyền. Nhà điều hành trang: VigoTrip Travel VietNam Pte. Ltd.",
 
-    packageSubtitle: "Lựa chọn gói du lịch trọn gói với nhiều ưu đãi hấp dẫn",
-    selectPackage: "Chọn gói",
-    backToList: "Quay lại danh sách",
-    detailedItinerary: "Lịch trình chi tiết",
-    includes: "Bao gồm",
-    priceFrom: "Giá từ",
-    save: "Tiết kiệm",
     departurePoint: "Điểm khởi hành",
     destinationPoint: "Điểm đến",
-    duration: "Thời gian",
-    transportation: "Phương tiện",
-    bookNow: "Đặt ngay",
-    sharePackage: "Chia sẻ gói này",
-    priceDisclaimer: "Giá có thể thay đổi theo ngày khởi hành và số lượng khách",
-    reviews: "đánh giá",
 
     // PACKAGE SEARCH (Uses shared keys: roundTrip, oneWay, from, to, search, apply, departureDate, returnDate)
-    hotel: "Khách sạn",
     hotelDestination: "Điểm đến",
-    checkin: "Nhận phòng",
-    checkout: "Trả phòng",
-    nights: "đêm",
-    rooms: " Số phòng",
 
     // Search Forms
     selectAirport: "Chọn sân bay",
@@ -238,8 +219,6 @@ const translations = {
     promoCodeLabel: "Mã khuyến mãi / phiếu quà tặng",
     applyPromo: "Xác nhận",
     promoInstruction: "Nhập mã nếu có để được giảm giá.",
-    passengerLastName: "Họ *",
-    passengerFirstName: "Tên & tên đệm *",
     dob: "Ngày sinh *",
     nationality: "Quốc tịch",
     phoneNumber: "Số điện thoại *",
@@ -440,7 +419,6 @@ const translations = {
     getAIInsights: "Phân tích AI",
 
     // Package
-    favoriteTours: "Tour Yêu thích",
 
     // Home Page Extras
     quickBooking: "Đặt vé nhanh",
@@ -448,7 +426,6 @@ const translations = {
     bestPriceAllAirlines: "Giá tốt nhất mọi hãng",
     easyBookingSeat: "Đặt nhanh, chọn chỗ ngồi",
     hundredsBusOperators: "Hàng trăm nhà xe uy tín",
-    comboMoreSavings: "Combo tiết kiệm hơn",
     startingFrom: "Từ {price}",
     safePayment: "Thanh toán an toàn",
     instantConfirmation: "Xác nhận tức thì",
@@ -656,22 +633,6 @@ const translations = {
     themeLight: "Chế độ sáng",
     themeDark: "Chế độ tối",
     support247Text: "Tư vấn 24/7",
-    pkgErrLastName: "Vui lòng nhập họ",
-    pkgErrFirstName: "Vui lòng nhập tên",
-    pkgErrEmail: "Vui lòng nhập email",
-    pkgErrPhone: "Vui lòng nhập số điện thoại",
-    pkgBookingInfo: "Thông tin đặt gói",
-    pkgTravelersCount: "Số lượng khách",
-    pkgStartDate: "Ngày khởi hành",
-    pkgEndDate: "Ngày kết thúc",
-    pkgPromoCode: "Mã khuyến mãi",
-    pkgBasePriceFor: "Giá gói cơ bản ({count} khách)",
-    pkgPriceFor: "Giá gói ({count} khách)",
-    pkgProceedPayment: "Tiến hành thanh toán",
-    pkgCustomerInfo: "Thông tin khách hàng",
-    pkgDobLabel: "Ngày sinh",
-    pkgTourLabel: "Gói du lịch",
-    pkgCustomerLabel: "Khách hàng",
     smSeatLabel: "Ghế {seat}",
     smSpotLabel: "Chỗ {seat}",
     smSleeper: "Giường nằm",
@@ -1138,7 +1099,6 @@ const translations = {
     flight: "Flight Tickets",
     train: "Train Tickets",
     bus: "Bus Tickets",
-    package: "Package Booking",
     bookingContent: "Booking content for:",
 
     // Flight Search
@@ -1244,29 +1204,11 @@ const translations = {
     hotlineLabel: "Hotline:",
     copyright: "Copyright © 2025 VigoTrip Travel VietNam Pte. Ltd. All rights reserved. Operator: VigoTrip Travel VietNam Pte. Ltd.",
 
-    packageSubtitle: "Choose an all-inclusive travel package with attractive offers",
-    selectPackage: "Select package",
-    backToList: "Back to list",
-    detailedItinerary: "Detailed itinerary",
-    includes: "Includes",
-    priceFrom: "Price from",
-    save: "Save",
     departurePoint: "Departure point",
     destinationPoint: "Destination",
-    duration: "Duration",
-    transportation: "Transportation",
-    bookNow: "Book now",
-    sharePackage: "Share this package",
-    priceDisclaimer: "Prices may vary depending on departure date and number of guests",
-    reviews: "reviews",
 
     // Package Search (Uses shared keys: search, apply, package, roundTrip, oneWay, from, to, departureDate, returnDate)
-    hotel: "Hotel",
     hotelDestination: "Destination",
-    checkin: "Check-in",
-    checkout: "Check-out",
-    nights: "nights",
-    rooms: "rooms",
 
     // Search Forms
     selectAirport: "Select airport",
@@ -1306,8 +1248,6 @@ const translations = {
     promoCodeLabel: "Promo Code / Gift Voucher",
     applyPromo: "Apply",
     promoInstruction: "Enter a code if you have one.",
-    passengerLastName: "Last Name *",
-    passengerFirstName: "First & Middle Name *",
     dob: "Date of Birth *",
     nationality: "Nationality",
     phoneNumber: "Phone Number *",
@@ -1508,7 +1448,6 @@ const translations = {
     getAIInsights: "AI Analysis",
 
     // Package
-    favoriteTours: "Favorite Tours",
 
     // Home Page Extras
     quickBooking: "Quick Booking",
@@ -1516,7 +1455,6 @@ const translations = {
     bestPriceAllAirlines: "Best price from all airlines",
     easyBookingSeat: "Fast booking, choose seats",
     hundredsBusOperators: "Hundreds of trusted bus operators",
-    comboMoreSavings: "Combo, save more",
     startingFrom: "From {price}",
     safePayment: "Secure Payment",
     instantConfirmation: "Instant Confirmation",
@@ -1723,22 +1661,6 @@ const translations = {
     themeLight: "Light mode",
     themeDark: "Dark mode",
     support247Text: "24/7 Support",
-    pkgErrLastName: "Please enter your last name",
-    pkgErrFirstName: "Please enter your first name",
-    pkgErrEmail: "Please enter your email",
-    pkgErrPhone: "Please enter your phone number",
-    pkgBookingInfo: "Package Booking Details",
-    pkgTravelersCount: "Number of travelers",
-    pkgStartDate: "Start date",
-    pkgEndDate: "End date",
-    pkgPromoCode: "Promo code",
-    pkgBasePriceFor: "Base package price ({count} guests)",
-    pkgPriceFor: "Package price ({count} guests)",
-    pkgProceedPayment: "Proceed to payment",
-    pkgCustomerInfo: "Customer Information",
-    pkgDobLabel: "Date of birth",
-    pkgTourLabel: "Tour package",
-    pkgCustomerLabel: "Customer",
     smSeatLabel: "Seat {seat}",
     smSpotLabel: "Spot {seat}",
     smSleeper: "Sleeper",
@@ -2211,7 +2133,6 @@ const translations = {
     flight: "航空券",
     train: "鉄道チケット",
     bus: "バスチケット",
-    package: "パッケージ予約",
     bookingContent: "予約内容:",
 
     // Flight Search
@@ -2317,29 +2238,11 @@ const translations = {
     hotlineLabel: "ホットライン:",
     copyright: "著作権 © 2025 VigoTrip Travel VietNam Pte. Ltd. 全著作権所有。運営会社: VigoTrip Travel VietNam Pte. Ltd.",
 
-    packageSubtitle: "魅力的なオファーがあるパッケージ旅行を選びましょう",
-    selectPackage: "パッケージを選択",
-    backToList: "リストに戻る",
-    detailedItinerary: "詳細なスケジュール",
-    includes: "含まれるもの",
-    priceFrom: "最低価格",
-    save: "割引",
     departurePoint: "出発地",
     destinationPoint: "目的地",
-    duration: "所要時間",
-    transportation: "交通手段",
-    bookNow: "今すぐ予約",
-    sharePackage: "このパッケージを共有",
-    priceDisclaimer: "出発日や人数によって価格が変動する場合があります",
-    reviews: "件のレビュー",
 
     // Package Search (Shared keys: search, apply, package, roundTrip, oneWay, from, to, departureDate, returnDate)
-    hotel: "ホテル",
     hotelDestination: "目的地",
-    checkin: "チェックイン",
-    checkout: "チェックアウト",
-    nights: "泊",
-    rooms: "部屋",
 
     // Search Forms
     selectAirport: "空港を選択",
@@ -2379,8 +2282,6 @@ const translations = {
     promoCodeLabel: "プロモコード / ギフト券",
     applyPromo: "適用",
     promoInstruction: "お持ちのコードを入力してください。",
-    passengerLastName: "姓 *",
-    passengerFirstName: "名 *",
     dob: "生年月日 *",
     nationality: "国籍",
     phoneNumber: "電話番号 *",
@@ -2578,7 +2479,6 @@ const translations = {
     revenueCol: "収益",
 
     // Package
-    favoriteTours: "お気に入りツアー",
 
     // Home Page Extras
     quickBooking: "スピード予約",
@@ -2586,7 +2486,6 @@ const translations = {
     bestPriceAllAirlines: "全航空会社の最安値",
     easyBookingSeat: "スピーディー予約・座席指定",
     hundredsBusOperators: "信頼できる数百のバス会社",
-    comboMoreSavings: "お得なセットプラン",
     startingFrom: "{price} から",
     safePayment: "安全な決済",
     instantConfirmation: "即時確定",
@@ -2793,22 +2692,6 @@ const translations = {
     themeLight: "ライトモード",
     themeDark: "ダークモード",
     support247Text: "24時間サポート",
-    pkgErrLastName: "姓を入力してください",
-    pkgErrFirstName: "名を入力してください",
-    pkgErrEmail: "メールアドレスを入力してください",
-    pkgErrPhone: "電話番号を入力してください",
-    pkgBookingInfo: "パッケージ予約情報",
-    pkgTravelersCount: "人数",
-    pkgStartDate: "出発日",
-    pkgEndDate: "終了日",
-    pkgPromoCode: "プロモコード",
-    pkgBasePriceFor: "基本パッケージ料金（{count}名）",
-    pkgPriceFor: "パッケージ料金（{count}名）",
-    pkgProceedPayment: "お支払いへ進む",
-    pkgCustomerInfo: "お客様情報",
-    pkgDobLabel: "生年月日",
-    pkgTourLabel: "ツアーパッケージ",
-    pkgCustomerLabel: "お客様",
     smSeatLabel: "座席{seat}",
     smSpotLabel: "席{seat}",
     smSleeper: "寝台",
@@ -3283,7 +3166,6 @@ const translations = {
     flight: "機票",
     train: "火車票",
     bus: "巴士票",
-    package: "套裝預訂",
     bookingContent: "預訂內容:",
 
     // Flight Search
@@ -3389,30 +3271,12 @@ const translations = {
     hotlineLabel: "服務專線:",
     copyright: "版權所有 © 2025 VigoTrip Travel VietNam Pte. Ltd. 保留所有權利。運營商：VigoTrip Travel VietNam Pte. Ltd.",
 
-    packageSubtitle: "选择具有丰富优惠的全包旅游套餐",
-    selectPackage: "选择套餐",
-    backToList: "返回列表",
-    detailedItinerary: "详细行程",
-    includes: "包含",
-    priceFrom: "起价",
-    save: "节省",
     departurePoint: "出发地",
     destinationPoint: "目的地",
-    duration: "时长",
-    transportation: "交通工具",
-    bookNow: "立即预订",
-    sharePackage: "分享此套餐",
-    priceDisclaimer: "价格可能会根据出发日期和客人数量而变化",
-    reviews: "条评论",
 
 
     //Package Search (Shared keys: search, apply, package, roundTrip, oneWay, from, to, departureDate, returnDate)
-    hotel: "酒店",
     hotelDestination: "目的地",
-    checkin: "入住",
-    checkout: "退房",
-    nights: "晚",
-    rooms: "房間",
 
     // Search Forms
     selectAirport: "选择机场",
@@ -3452,8 +3316,6 @@ const translations = {
     promoCodeLabel: "优惠码 / 礼品券",
     applyPromo: "确认",
     promoInstruction: "如果您有优惠码，请在此输入。",
-    passengerLastName: "姓 *",
-    passengerFirstName: "名 *",
     dob: "出生日期 *",
     nationality: "国籍",
     phoneNumber: "电话号码 *",
@@ -3651,7 +3513,6 @@ const translations = {
     revenueCol: "收入",
 
     // Package
-    favoriteTours: "收藏的行程",
 
     // Home Page Extras
     quickBooking: "快速預訂",
@@ -3659,7 +3520,6 @@ const translations = {
     bestPriceAllAirlines: "各大航空公司最優價",
     easyBookingSeat: "快速預訂，自由選座",
     hundredsBusOperators: "數百家優質客運公司",
-    comboMoreSavings: "超值組合更省錢",
     startingFrom: "起價 {price}",
     safePayment: "安全支付",
     instantConfirmation: "即時確認",
@@ -3866,22 +3726,6 @@ const translations = {
     themeLight: "浅色模式",
     themeDark: "深色模式",
     support247Text: "24小时客服",
-    pkgErrLastName: "请输入姓",
-    pkgErrFirstName: "请输入名",
-    pkgErrEmail: "请输入邮箱",
-    pkgErrPhone: "请输入电话号码",
-    pkgBookingInfo: "套餐预订信息",
-    pkgTravelersCount: "出行人数",
-    pkgStartDate: "出发日期",
-    pkgEndDate: "结束日期",
-    pkgPromoCode: "优惠码",
-    pkgBasePriceFor: "基础套餐价格（{count}人）",
-    pkgPriceFor: "套餐价格（{count}人）",
-    pkgProceedPayment: "前往支付",
-    pkgCustomerInfo: "客户信息",
-    pkgDobLabel: "出生日期",
-    pkgTourLabel: "旅游套餐",
-    pkgCustomerLabel: "客户",
     smSeatLabel: "座位{seat}",
     smSpotLabel: "铺位{seat}",
     smSleeper: "卧铺",
