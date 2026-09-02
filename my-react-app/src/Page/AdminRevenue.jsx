@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import Sidebar from "../components/Sidebar";
-import Header from "../LayOut/Header";
 import { useLanguage } from "../context/LanguageContext";
 import {
   PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area,
@@ -57,7 +56,7 @@ const AdminRevenue = () => {
   const { t } = useLanguage();
   const tr = useCallback((key, fallback) => t?.[key] || fallback, [t]);
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen] = useState(true); // setter đã bỏ: chỉ từng truyền cho <Header />, mà Header không nhận prop
 
   const [scope, setScope] = useState(null);
   const [ownedProviders, setOwnedProviders] = useState([]);
@@ -194,7 +193,10 @@ const AdminRevenue = () => {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-main)", display: "flex", flexDirection: "column" }}>
-      <Header setIsSidebarOpen={setIsSidebarOpen} />
+      {/* App.jsx đã dựng <Header /> cho route này. Trang tự dựng thêm một cái nữa là
+          hai header position:fixed chồng khít lên nhau — từ khi có ngăn kéo mobile thành
+          hai hamburger, hai ngăn kéo trong DOM. Prop setIsSidebarOpen cũng chưa bao giờ
+          có tác dụng: Header không nhận prop nào. */}
 
       <style>{`
         @keyframes modalFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -214,7 +216,7 @@ const AdminRevenue = () => {
         .bi-table tbody tr:hover { background: var(--bg-hover); }
       `}</style>
 
-      <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "70px" }}>
+      <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "var(--header-height)" }}>
         <Sidebar isOpen={isSidebarOpen} />
         <div className={`page-main ${isSidebarOpen ? "with-sidebar" : ""}`} style={{ padding: "28px", flex: 1, overflowY: "auto" }}>
           <div style={{ maxWidth: 1240, margin: "0 auto" }}>
@@ -421,7 +423,7 @@ const AdminRevenue = () => {
                 </div>
 
                 {/* ── Cơ cấu ── */}
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1fr) minmax(320px, 1.6fr)", gap: 20, marginBottom: 22 }}>
+                <div className="grid-stack" style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1fr) minmax(320px, 1.6fr)", gap: 20, marginBottom: 22 }}>
                   <div className="bi-card" style={{ padding: "20px 22px" }}>
                     <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700, color: "var(--text-heading)" }}>
                       {tr("revenueByService", "Cơ cấu theo dịch vụ")}

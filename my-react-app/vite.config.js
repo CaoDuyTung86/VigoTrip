@@ -22,6 +22,14 @@ export default defineConfig(({ mode }) => {
         name: 'VigoTrip - Hệ Thống Đặt Vé Đa Phương Tiện',
         short_name: 'VigoTrip',
         description: 'Ứng dụng đặt vé máy bay, tàu hỏa và xe khách chuyên nghiệp',
+        // vite-plugin-pwa mặc định điền "standalone". Đặt lại thành "browser" để
+        // biểu tượng trên màn hình chính mở bằng Safari đầy đủ thay vì cửa sổ
+        // standalone — nghiệp vụ quét QR check-in cần camera, mà standalone trên
+        // iOS dưới 14.3 không được cấp getUserMedia.
+        // Đánh đổi: Chrome (Android & desktop) sẽ không còn mời "Cài đặt ứng dụng"
+        // nữa, vì Chrome chỉ coi là cài được khi display là standalone/fullscreen/
+        // minimal-ui. Service worker và bộ nhớ đệm offline KHÔNG bị ảnh hưởng.
+        display: 'browser',
         theme_color: '#ffffff',
         icons: [
           {

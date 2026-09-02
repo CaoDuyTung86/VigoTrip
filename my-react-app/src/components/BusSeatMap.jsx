@@ -430,6 +430,7 @@ const BusSeatMap = ({
           aria-label={`${t.smSpotLabel.replace('{seat}', s.seatNumber)}, ${isBed ? t.smSleeper : t.smSeatChair}, ${s.booked ? t.smBooked : locked ? t.smHeld : t.smVacant}`}
           onMouseEnter={() => setHoveredSeat(s)}
           onMouseLeave={() => setHoveredSeat(null)}
+          className={`seat-btn${isBed ? " seat-btn-wide" : ""}`}
           style={{
             width: isBed ? 100 : 54,
             height: isBed ? 52 : 50,
@@ -811,7 +812,7 @@ const BusSeatMap = ({
             boxShadow: '0 12px 36px rgba(0,0,0,0.2)',
             overflowX: 'auto',
             animation: 'slideFloorIn 0.35s ease-out',
-          }}>
+          }} data-seat-scroll>
             {/* Đầu xe: tài xế & lối lên */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 22 }}>
               <div style={{
@@ -841,7 +842,7 @@ const BusSeatMap = ({
             </div>
 
             {/* Column headers (sticky) */}
-            <div style={{
+            <div className="seat-row seat-head" style={{
               display: 'flex',
               gap: 8,
               justifyContent: 'center',
@@ -856,21 +857,21 @@ const BusSeatMap = ({
               margin: '0 auto 12px',
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
             }}>
-              <div style={{ width: 36 }} />
-              {leftCols.map(c => <div key={c} style={{ width: floor === 1 ? 100 : 54, textAlign: 'center', fontWeight: 800, color: 'var(--primary)', fontSize: 13 }}>{c}</div>)}
-              <div style={{ width: 44, textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)' }}>{t.smAisle}</div>
-              {rightCols.map(c => <div key={c} style={{ width: floor === 1 ? 100 : 54, textAlign: 'center', fontWeight: 800, color: 'var(--primary)', fontSize: 13 }}>{c}</div>)}
+              <div className="seat-rail" style={{ width: 36 }} />
+              {leftCols.map(c => <div key={c} className={`seat-cell${floor === 1 ? " seat-cell-wide" : ""}`} style={{ width: floor === 1 ? 100 : 54, textAlign: 'center', fontWeight: 800, color: 'var(--primary)', fontSize: 13 }}>{c}</div>)}
+              <div className="seat-aisle" style={{ width: 44, textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)' }}>{t.smAisle}</div>
+              {rightCols.map(c => <div key={c} className={`seat-cell${floor === 1 ? " seat-cell-wide" : ""}`} style={{ width: floor === 1 ? 100 : 54, textAlign: 'center', fontWeight: 800, color: 'var(--primary)', fontSize: 13 }}>{c}</div>)}
             </div>
 
             {/* Hàng ghế / giường */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="seat-rows" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               {rows.map(row => {
                 const rowIsBed = [...leftCols, ...rightCols].some(col => {
                   const s = smap.get(`${row}${col}`);
                   return s && ['SLEEPER', 'BUSINESS'].includes(s.seatType);
                 });
                 return (
-                  <div key={row} style={{
+                  <div key={row} className="seat-row" style={{
                     display: 'flex',
                     gap: 8,
                     marginBottom: rowIsBed ? 10 : 6,
@@ -880,14 +881,14 @@ const BusSeatMap = ({
                     borderRadius: 12,
                     border: rowIsBed ? '1px dashed rgba(99,102,241,0.2)' : 'none',
                   }}>
-                    <div style={{ width: 36, textAlign: 'center', fontWeight: 700, color: rowIsBed ? 'var(--primary)' : 'var(--text-secondary)', fontSize: 12 }}>{row}</div>
+                    <div className="seat-rail" style={{ width: 36, textAlign: 'center', fontWeight: 700, color: rowIsBed ? 'var(--primary)' : 'var(--text-secondary)', fontSize: 12 }}>{row}</div>
                     {leftCols.map(col => {
                       const s = smap.get(`${row}${col}`);
-                      if (!s) return <div key={col} style={{ width: floor === 1 ? 100 : 54, height: 52 }} />;
+                      if (!s) return <div key={col} className={`seat-cell${floor === 1 ? " seat-cell-wide" : ""}`} style={{ width: floor === 1 ? 100 : 54, height: 52 }} />;
                       return renderSeatBtn(s);
                     })}
                     {/* Lối đi giữa xe */}
-                    <div style={{
+                    <div className="seat-aisle" style={{
                       width: 44,
                       minHeight: 42,
                       display: 'flex',
@@ -900,7 +901,7 @@ const BusSeatMap = ({
                     </div>
                     {rightCols.map(col => {
                       const s = smap.get(`${row}${col}`);
-                      if (!s) return <div key={col} style={{ width: floor === 1 ? 100 : 54, height: 52 }} />;
+                      if (!s) return <div key={col} className={`seat-cell${floor === 1 ? " seat-cell-wide" : ""}`} style={{ width: floor === 1 ? 100 : 54, height: 52 }} />;
                       return renderSeatBtn(s);
                     })}
                   </div>

@@ -399,8 +399,10 @@ const FlightSearch = () => {
         renderMultiCity()
       ) : (
         <>
-          {/* From - To cho roundtrip và oneway */}
-          <div style={{
+          {/* From - To cho roundtrip và oneway.
+              className route-* để index.css xếp lại thành một cột trên màn hình
+              hẹp; lưới 1fr auto 1fr chỉ chừa ~150px mỗi bên trên iPhone. */}
+          <div className="route-grid" style={{
             display: "grid",
             gridTemplateColumns: "1fr auto 1fr",
             gap: "12px",
@@ -408,6 +410,7 @@ const FlightSearch = () => {
           }}>
             {/* From */}
             <div
+              className="route-field"
               style={{
                 border: "1px solid var(--border-input)",
                 borderRadius: "12px",
@@ -438,6 +441,7 @@ const FlightSearch = () => {
 
             {/* Swap button */}
             <button
+              className="route-swap"
               onClick={handleSwapCities}
               style={{
                 width: "40px",
@@ -457,6 +461,7 @@ const FlightSearch = () => {
 
             {/* To */}
             <div
+              className="route-field"
               style={{
                 border: "1px solid var(--border-input)",
                 borderRadius: "12px",

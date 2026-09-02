@@ -94,7 +94,7 @@ const BusSearch = () => {
   return (
     <div>
       {/* From - Swap - To */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: "12px", marginBottom: "16px" }}>
+      <div className="route-grid" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: "12px", marginBottom: "16px" }}>
 
         {/* From */}
         <div style={{ position: "relative" }}>
@@ -135,7 +135,7 @@ const BusSearch = () => {
         </div>
 
         {/* Swap */}
-        <button onClick={handleSwap} style={{ width: "40px", height: "40px", borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", alignSelf: "center", marginTop: "12px" }}>
+        <button className="route-swap" onClick={handleSwap} style={{ width: "40px", height: "40px", borderRadius: "50%", border: "1px solid var(--border-input)", background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", alignSelf: "center", marginTop: "12px" }}>
           <IoIosSwap style={{ fontSize: "20px", color: "var(--primary)" }} />
         </button>
 

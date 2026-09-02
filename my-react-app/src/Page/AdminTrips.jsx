@@ -440,7 +440,7 @@ const AdminTrips = () => {
         </h3>
 
         {/* Hàng 1: 4 ô bằng nhau */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
+        <div className="grid-form" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, display: "block", color: "var(--text-muted)" }}>
               {t.admRouteLabel}
@@ -547,7 +547,7 @@ const AdminTrips = () => {
         </div>
 
         {/* Hàng 2: 4 ô đối ứng (Giờ đi, Giờ đến, Giá vé, Nút bấm) */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, alignItems: "flex-end", marginBottom: 8 }}>
+        <div className="grid-form" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, alignItems: "flex-end", marginBottom: 8 }}>
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, display: "block", color: "var(--text-muted)" }}>
               {t.admDepartureTimeLabel}

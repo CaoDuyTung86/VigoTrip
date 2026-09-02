@@ -22,12 +22,16 @@ const Sidebar = ({ isOpen }) => {
 
   return (
     <aside
+      className="app-sidebar"
       style={{
         position: "fixed",
-        top: "70px",
+        // Trước đây cắm cứng 70px. Header nay cao 64px ở desktop và 56px + vùng
+        // tai thỏ ở mobile, nên phải bám biến — không thì sidebar hoặc hụt hoặc
+        // chui xuống dưới header trên iPhone có notch.
+        top: "var(--header-height)",
         left: 0,
         width: isOpen ? "170px" : "0",
-        height: "calc(100vh - 70px)",
+        height: "calc(100vh - var(--header-height))",
         backgroundColor: "var(--bg-card)",
         boxShadow: isOpen ? "2px 0 10px rgba(0,0,0,0.05)" : "none",
         transition: "width 0.3s",

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Html5Qrcode, Html5QrcodeScannerState, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import axios from "axios";
-import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -1058,7 +1057,10 @@ const ProviderCheckIn = () => {
       <Sidebar />
 
       <div className="chk-shell">
-        <Header />
+        {/* App.jsx đã dựng <Header /> cho route này. Trang tự dựng thêm một cái nữa là
+            hai header position:fixed chồng khít lên nhau — từ khi có ngăn kéo mobile thành
+            hai hamburger, hai ngăn kéo trong DOM. Prop setIsSidebarOpen cũng chưa bao giờ
+            có tác dụng: Header không nhận prop nào. */}
 
         <main className="chk-main">
           <header className="chk-head">

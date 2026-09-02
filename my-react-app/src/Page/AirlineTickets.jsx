@@ -6,7 +6,6 @@ import PassengerInfoForm from "../components/PassengerInfoForm";
 import ContactInfoForm from "../components/ContactInfoForm";
 import { validatePassengerDob } from "../utils/passengerValidation";
 import AirplaneSeatMap from "../components/AirplaneSeatMap";
-import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import SavedVoucherPicker from "../components/SavedVoucherPicker";
 import { FiLock, FiInfo } from "react-icons/fi";
@@ -66,7 +65,7 @@ const AirlineTickets = () => {
   const { isConnected, subscribe, lockSeats, unlockSeats } = useWebSocket();
   const location = useLocation();
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen] = useState(true); // setter đã bỏ: chỉ từng truyền cho <Header />, mà Header không nhận prop
 
   const airportTranslations = {
     vi: {
@@ -861,7 +860,10 @@ const AirlineTickets = () => {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "var(--bg-main)" }}>
 
-      <Header setIsSidebarOpen={setIsSidebarOpen} />
+      {/* App.jsx đã dựng <Header /> cho route này. Trang tự dựng thêm một cái nữa là
+          hai header position:fixed chồng khít lên nhau — từ khi có ngăn kéo mobile thành
+          hai hamburger, hai ngăn kéo trong DOM. Prop setIsSidebarOpen cũng chưa bao giờ
+          có tác dụng: Header không nhận prop nào. */}
 
       <div className="page-with-sidebar">
         <Sidebar isOpen={isSidebarOpen} />
@@ -891,7 +893,7 @@ const AirlineTickets = () => {
               }}
             >
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr 1fr auto", gap: 12, alignItems: "start" }}>
+              <div className="flight-filter-grid" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr 1fr auto", gap: 12, alignItems: "start" }}>
 
 
                 <div style={{ position: "relative" }}>
@@ -1609,7 +1611,7 @@ const AirlineTickets = () => {
 
 
             {selectedTrip && step === "seatClass" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
+              <div className="booking-split-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)" }}>
                   <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>{t.step1}</h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 16 }}>{t.selectSeatInstruction}</p>
@@ -1682,7 +1684,7 @@ const AirlineTickets = () => {
 
 
             {selectedTrip && step === "passenger" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
+              <div className="booking-split-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-md)" }}>
                   <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{t.step2}</h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{t.passengerInstruction}</p>
@@ -1788,7 +1790,7 @@ const AirlineTickets = () => {
 
 
             {selectedTrip && step === "extras" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
+              <div className="booking-split-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)" }}>
                   <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>{t.step3}</h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{t.extrasInstruction}</p>
@@ -1871,7 +1873,7 @@ const AirlineTickets = () => {
                           </div>
                         ) : (
                           <>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                            <div className="stack-on-mobile" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                               {(showAllMeals ? categories.meal : categories.meal.slice(0, 4)).map((s, index) => {
                                 const fallbackImages = [
                                   "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?q=80&w=400&auto=format&fit=crop",
@@ -2077,7 +2079,7 @@ const AirlineTickets = () => {
             )}
 
             {selectedTrip && step === "review" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
+              <div className="booking-split-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
                 <div style={{ background: "var(--bg-card)", borderRadius: 12, padding: 24, boxShadow: "var(--shadow-card)", border: "1px solid var(--border-main)" }}>
                   <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-main)" }}>{t.step4}</h2>
                   <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20 }}>{t.reviewInstruction}</p>

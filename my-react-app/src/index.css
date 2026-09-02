@@ -989,3 +989,504 @@ body:not(.dark) .chatbot-messages-container::-webkit-scrollbar-thumb:hover {
   animation: redHeartbeat 2.2s infinite cubic-bezier(0.45, 0, 0.55, 1);
   display: inline-block;
 }
+
+/* ==========================================================================
+   MOBILE & iOS SAFARI
+   --------------------------------------------------------------------------
+   Toàn bộ phần dưới đây chỉ nhắm tới màn hình hẹp và Safari trên iPhone/iPad.
+   Đặt ở CUỐI file để các rule ghi đè được phần desktop phía trên mà không phải
+   sửa rải rác — muốn bỏ tối ưu mobile chỉ cần cắt nguyên khối này.
+
+   Ta CỐ Ý không thêm apple-mobile-web-app-capable và không đặt display:standalone
+   trong manifest: mở bằng Safari thường thì camera (quét QR check-in) chắc chắn
+   xin quyền được, còn chế độ "Thêm vào màn hình chính" tuỳ phiên bản iOS mà bị
+   chặn getUserMedia.
+   ========================================================================== */
+
+:root {
+  /* Gói env() vào biến để dùng lại; trên trình duyệt desktop tất cả đều = 0px. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* Thanh công cụ Safari trượt lên/xuống làm 100vh nhảy giật; dvh bám theo vùng
+   nhìn thấy thật. Đặt sau bản 100vh ở trên nên trình duyệt cũ vẫn có fallback. */
+@supports (height: 100dvh) {
+  body { min-height: 100dvh; }
+  .page-with-sidebar { min-height: calc(100dvh - var(--header-height)); }
+}
+
+/* ===== 1. HEADER TRÊN MOBILE ===== */
+@media (max-width: 768px) {
+  /* Header thấp hơn + cộng thêm tai thỏ. Mọi chỗ chừa chỗ cho header đều đọc
+     biến này (.home-wrap, .page-with-sidebar) nên chỉ cần sửa một nơi. */
+  :root { --header-height: calc(56px + env(safe-area-inset-top, 0px)); }
+
+  .app-header {
+    padding: var(--safe-top) calc(12px + var(--safe-right)) 0 calc(12px + var(--safe-left));
+    gap: 8px;
+  }
+  .app-header-left { min-width: 0; }
+  .app-header-left .brand-name { font-size: 18px; }
+  .app-header-left .brand-mark { width: 32px; height: 32px; font-size: 16px; border-radius: 8px; }
+
+  /* Bộ nút desktop (đổi theme, chọn ngôn ngữ, CSKH, menu tài khoản) chuyển hết
+     vào ngăn kéo. Trước đây chúng vẫn hiện và tràn khỏi mép phải màn hình, kéo
+     theo dropdown position:absolute;right:0 bị cắt mất một nửa. */
+  .header-desktop-only { display: none !important; }
+  .header-mobile-only { display: flex !important; }
+  .app-header-actions { gap: 6px; min-width: 0; }
+}
+@media (min-width: 769px) {
+  .header-mobile-only { display: none !important; }
+}
+
+/* Nút hamburger */
+.header-burger {
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-input);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-main);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Nút đăng nhập rút gọn cạnh hamburger */
+.header-login-compact {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ===== 2. NGĂN KÉO ĐIỀU HƯỚNG (mobile drawer) =====
+   Trước đây .app-header-center bị display:none dưới 900px mà không có gì thay
+   thế — nghĩa là trên điện thoại KHÔNG có đường nào vào trang vé tàu/xe khách/
+   ưu đãi ngoài mấy thẻ ở trang chủ. Ngăn kéo này trả lại toàn bộ menu. */
+.mobile-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1400;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+.mobile-drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+
+.mobile-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(86vw, 340px);
+  background: var(--bg-card);
+  z-index: 1401;
+  box-shadow: var(--shadow-lg);
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  /* overscroll-behavior: chặn kiểu "kéo hết danh sách thì cả trang nền cuộn theo"
+     của Safari; -webkit-overflow-scrolling cho đà cuộn mượt trên iOS cũ. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(12px + var(--safe-top)) 0 calc(20px + var(--safe-bottom));
+}
+.mobile-drawer.open { transform: translateX(0); }
+
+.mobile-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+.mobile-drawer-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.mobile-drawer-close {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--bg-input);
+  border-radius: 10px;
+  color: var(--text-main);
+  cursor: pointer;
+}
+.mobile-drawer-section {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.mobile-drawer-section:last-child { border-bottom: none; }
+.mobile-drawer-label {
+  padding: 6px 18px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+/* 48px là ngưỡng vùng chạm tối thiểu Apple/Google khuyến nghị (44/48pt). */
+.mobile-drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mobile-drawer-item:active { background: var(--bg-hover); }
+.mobile-drawer-item.active { color: var(--primary); font-weight: 700; background: var(--primary-light); }
+.mobile-drawer-item.danger { color: var(--danger); }
+.mobile-drawer-item .di-icon { display: flex; align-items: center; font-size: 19px; flex-shrink: 0; }
+.mobile-drawer-item .di-flag {
+  width: 26px; height: 18px; object-fit: cover; border-radius: 3px;
+  border: 1px solid var(--border-light); flex-shrink: 0;
+}
+.mobile-drawer-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px 14px;
+}
+.mobile-drawer-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: linear-gradient(135deg, #0071EB, #00b4d8);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; flex-shrink: 0;
+}
+.mobile-drawer-username {
+  font-weight: 700; font-size: 15px; color: var(--text-main);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ===== 3. CHATBOT ===== */
+.chat-fab {
+  position: fixed;
+  right: calc(24px + var(--safe-right));
+  bottom: calc(24px + var(--safe-bottom));
+  height: 60px;
+  padding: 0 22px;
+  border-radius: 30px;
+}
+.chat-panel {
+  position: fixed;
+  right: calc(24px + var(--safe-right));
+  bottom: calc(24px + var(--safe-bottom));
+  width: 450px;
+  height: 680px;
+  min-width: 340px;
+  max-width: calc(100vw - 48px);
+  min-height: 450px;
+  max-height: 85vh;
+  border-radius: 24px;
+  resize: both;
+}
+@media (max-width: 768px) {
+  /* Nút chat cũ rộng ~200px nằm đè lên đúng ô "Hành khách"/nút Tìm của widget
+     đặt vé. Trên mobile thu về nút tròn 56px, chỉ còn icon. */
+  .chat-fab {
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+    right: calc(14px + var(--safe-right));
+    bottom: calc(14px + var(--safe-bottom));
+  }
+  .chat-fab-label { display: none; }
+
+  /* Cửa sổ chat chiếm trọn màn hình: 450x680 không thể vừa iPhone, và resize:both
+     vô nghĩa khi không có chuột. */
+  .chat-panel {
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    min-width: 0;
+    min-height: 0;
+    border-radius: 0;
+    resize: none;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+  }
+}
+@supports (height: 100dvh) {
+  @media (max-width: 768px) { .chat-panel { height: 100dvh; } }
+}
+
+/* ===== 4. WIDGET ĐẶT VÉ ===== */
+@media (max-width: 600px) {
+  .search-widget-wrap {
+    width: calc(100% - 20px);
+    margin-top: 18px;
+  }
+  .booking-tabs-nav {
+    justify-content: flex-start;
+    padding: 5px 6px;
+    scroll-snap-type: x proximity;
+  }
+  .booking-tab-btn {
+    padding: 9px 13px;
+    font-size: 13px;
+    gap: 6px;
+    scroll-snap-align: start;
+  }
+  .booking-tab-icon { font-size: 16px; }
+  .booking-tab-content { padding: 16px 14px 20px; }
+
+  /* Segmented "Một chiều / Khứ hồi" tràn ra ngoài card ở 375px → cho co lại
+     bằng đúng bề rộng card và chia đôi. */
+  .trip-type-segmented { width: 100%; margin-bottom: 16px; }
+  .trip-type-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    text-align: center;
+    padding: 9px 8px;
+    font-size: 12.5px;
+    line-height: 1.25;
+  }
+
+  .btn-search-glow { width: 100%; padding: 14px 20px; }
+}
+
+/* Ô "Từ / Đến" + nút đảo chiều. Lưới 1fr auto 1fr với nút 40px và gap 12px chỉ
+   chừa ~150px mỗi cột trên iPhone, đủ để "Chọn điểm đi" vỡ thành 3 dòng.
+   Trên mobile xếp dọc, nút đảo chiều nằm giữa và xoay 90°. */
+@media (max-width: 560px) {
+  .route-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    justify-items: stretch;
+  }
+  .route-swap {
+    margin-top: 0 !important;
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+  .route-field { padding: 10px 12px !important; }
+}
+
+/* ===== 5. HERO & TRANG CHỦ ===== */
+@media (max-width: 600px) {
+  .hero-section { min-height: 300px; }
+  .hero-content { padding: 44px 18px 40px; }
+  .hero-badges { gap: 8px; margin-top: 14px; }
+  .hero-badge { font-size: 12px; padding: 5px 11px; }
+  .home-section { padding: 0 16px; }
+  .section-title { font-size: 17px; }
+  .trust-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 12px;
+  }
+  .trust-item { font-size: 13.5px; gap: 8px; }
+  .trust-icon { font-size: 20px; }
+  .promo-card { padding: 14px 10px; }
+}
+
+/* ===== 6. NỀN CHUNG CHO MÀN HÌNH CẢM ỨNG ===== */
+@media (max-width: 768px) {
+  /* Ô xám nhấp nháy khi chạm của WebKit; và bỏ delay 300ms chờ double-tap zoom. */
+  a, button, [role="button"], .promo-card, .dest-card {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .page-content-wrap { padding: 76px 14px calc(16px + var(--safe-bottom)); }
+  .booking-card { border-radius: 16px; }
+  /* Bảng admin: giữ cuộn ngang có đà thay vì ép cả trang rộng ra. */
+  .table-wrap { overscroll-behavior-x: contain; }
+}
+
+/* Safari iOS tự phóng to trang khi focus vào input có font-size < 16px, và
+   KHÔNG tự thu lại — người dùng bị bỏ lại ở trạng thái zoom lệch. Nhiều input
+   trong dự án đặt inline fontSize 13-15px nên phải ép bằng !important.
+   @supports (-webkit-touch-callout: none) là cách khoanh vùng chỉ Safari iOS,
+   để input trên Android/desktop giữ nguyên cỡ chữ thiết kế. */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 820px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
+/* ===== 7. FOOTER ===== */
+@media (max-width: 768px) {
+  .app-footer { padding-bottom: calc(24px + var(--safe-bottom)) !important; }
+}
+
+/* Nhóm nút header bản desktop (bọc thêm một lớp để ẩn cả cụm trên mobile). */
+.app-header-actions-desktop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Footer: 32px padding ngang là quá rộng ở 375px, và chừa thêm thanh Home. */
+@media (max-width: 600px) {
+  .app-footer { padding-top: 36px !important; margin-top: 36px !important; }
+  .app-footer-inner { padding: 0 16px !important; }
+}
+
+/* ===== 8. LUỒNG ĐẶT VÉ (AirlineTickets) =====
+   Bốn bước của luồng đặt vé dùng lưới cứng "1fr 320px" (nội dung + cột tóm tắt
+   giá). Trên iPhone 375px, cột 320px chiếm gần trọn màn hình và đẩy cột nội
+   dung xuống còn ~35px — trang coi như không dùng được. Xếp chồng lại và cho
+   phần tóm tắt xuống dưới. */
+@media (max-width: 860px) {
+  .booking-split-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+@media (max-width: 640px) {
+  /* Bộ lọc chuyến bay 5 cột → 1 cột. */
+  .flight-filter-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  .stack-on-mobile {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+}
+
+/* ==========================================================================
+   MOBILE — PHẦN 2: SƠ ĐỒ GHẾ, TRANG QUẢN TRỊ, NHÀ CUNG CẤP
+   ========================================================================== */
+
+/* ===== 9. SIDEBAR TRÁI =====
+   Sidebar là position:fixed rộng 170px. Dưới 768px .page-main.with-sidebar đã
+   bỏ margin-left, nghĩa là nội dung bắt đầu từ x=0 và bị chính sidebar che mất
+   170px bên trái. Ẩn hẳn trên mobile — ngăn kéo hamburger đã có đủ các mục. */
+@media (max-width: 768px) {
+  .app-sidebar { display: none !important; }
+  .page-main.with-sidebar { margin-left: 0 !important; }
+
+  /* Các trang quản trị đặt inline padding 28-30px. Chỉ ép lại padding NGANG và
+     DƯỚI bằng longhand: padding-top của chúng vẫn là phần chừa cho header cố
+     định, ghi đè vào sẽ đẩy nội dung chui xuống dưới header. */
+  .page-main {
+    padding-left: 14px !important;
+    padding-right: calc(14px + var(--safe-right)) !important;
+    padding-bottom: calc(20px + var(--safe-bottom)) !important;
+  }
+}
+
+/* ===== 10. LƯỚI DÙNG CHUNG =====
+   Các trang quản trị đặt gridTemplateColumns inline nên phải !important. */
+@media (max-width: 900px) {
+  .grid-form { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width: 600px) {
+  .grid-form { grid-template-columns: 1fr !important; gap: 12px !important; }
+}
+@media (max-width: 860px) {
+  .grid-stack { grid-template-columns: 1fr !important; gap: 14px !important; }
+}
+@media (max-width: 700px) {
+  .grid-2 { grid-template-columns: 1fr 1fr !important; }
+}
+
+/* ===== 11. SƠ ĐỒ GHẾ =====
+   Một hàng ghế 3-3 của máy bay rộng 36 + 6x46 + 44 + 7x8 = 412px, chưa kể
+   padding — tràn khỏi iPhone. Khung bao đã có overflow-x:auto nhưng phần tử
+   con lại căn giữa (align-items: center), mà nội dung căn giữa khi tràn thì
+   phần thò ra BÊN TRÁI không cuộn tới được: mấy ghế đầu hàng thành vùng chết.
+
+   Hai việc: (a) cho .seat-rows chiếm đúng bề rộng nội dung để việc căn giữa
+   không sinh vùng chết, (b) thu nhỏ ô ghế để cấu hình 3-3 vừa màn 375px:
+   24 + 6x38 + 20 + 7x4 = 300px. */
+[data-seat-scroll] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.seat-rows {
+  width: fit-content;
+  min-width: 100%;
+  margin-inline: auto;
+}
+
+@media (max-width: 560px) {
+  .seat-btn:not(.seat-btn-wide) { width: 38px !important; font-size: 11px !important; }
+  .seat-cell:not(.seat-cell-wide) { width: 38px !important; }
+  .seat-cell-wide { width: 78px !important; }
+  .seat-btn-wide { width: 78px !important; }
+  .seat-rail { width: 24px !important; font-size: 11px !important; }
+  .seat-aisle { width: 20px !important; }
+  .seat-row { gap: 4px !important; }
+  .seat-head { padding: 5px 8px !important; }
+
+  [data-seat-scroll] {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    border-radius: 16px !important;
+  }
+}
+
+/* ===== 12. TRANG CHECK-IN QUÉT QR =====
+   .chk-* nằm trong thẻ <style> ngay trong ProviderCheckIn nên đứng SAU file
+   này trong tài liệu; cần !important để thắng. Bố cục vốn đã một cột, chỉ
+   chỉnh phần chừa header và lề. */
+@media (max-width: 768px) {
+  .chk-main {
+    padding: calc(var(--header-height) + 16px) 14px calc(28px + var(--safe-bottom)) !important;
+  }
+  .chk-head { padding: 14px 16px !important; border-radius: 18px !important; }
+  .chk-head-text { min-width: 0 !important; }
+  .chk-head-stats { width: 100%; justify-content: flex-start; }
+}
+@supports (height: 100dvh) {
+  .chk-page { min-height: 100dvh; }
+}
+
+/* ===== 13. BẢNG DỮ LIỆU QUẢN TRỊ =====
+   Bảng vẫn cuộn ngang (đúng cho dữ liệu nhiều cột), chỉ làm cho việc cuộn rõ
+   ràng và ngón tay không kéo nhầm cả trang. */
+@media (max-width: 768px) {
+  .table-wrap,
+  .bi-table {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .bi-card { padding: 14px !important; border-radius: 16px !important; }
+  .bi-nav, .bi-seg { flex-wrap: wrap; }
+}

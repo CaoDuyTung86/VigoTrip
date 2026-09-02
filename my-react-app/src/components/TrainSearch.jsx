@@ -119,14 +119,14 @@ const TrainSearch = () => {
         ))}
       </div>
 
-      <div style={{
+      <div className="route-grid" style={{
         display: "grid",
         gridTemplateColumns: "1fr auto 1fr",
         gap: "12px",
         marginBottom: "16px",
       }}>
  
-        <div 
+        <div className="route-field" 
           style={{
             border: "1px solid var(--border-input)",
             borderRadius: "12px",
@@ -156,7 +156,7 @@ const TrainSearch = () => {
         </div>
 
       
-        <button 
+        <button className="route-swap" 
           onClick={handleSwapCities}
           style={{
             width: "40px",
@@ -175,7 +175,7 @@ const TrainSearch = () => {
         </button>
 
        
-        <div 
+        <div className="route-field" 
           style={{
             border: "1px solid var(--border-input)",
             borderRadius: "12px",
@@ -213,7 +213,7 @@ const TrainSearch = () => {
         marginBottom: "16px",
       }}>
         {/* Depart date */}
-        <div style={{
+        <div className="route-field" style={{
           border: "1px solid var(--border-input)",
           borderRadius: "12px",
           padding: "12px",
@@ -244,7 +244,7 @@ const TrainSearch = () => {
 
         {/* Return date - only for roundtrip */}
         {tripType === "roundtrip" && (
-          <div style={{
+          <div className="route-field" style={{
             border: "1px solid var(--border-input)",
             borderRadius: "12px",
             padding: "12px",
@@ -278,7 +278,7 @@ const TrainSearch = () => {
       {/* "Chỉ tàu cao tốc" - ẩn: không có dữ liệu backend hỗ trợ */}
 
       {/* Passengers */}
-      <div style={{
+      <div className="route-field" style={{
         border: "1px solid var(--border-input)",
         borderRadius: "12px",
         padding: "12px",

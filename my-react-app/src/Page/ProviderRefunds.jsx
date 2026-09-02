@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
-import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import { useLanguage } from "../context/LanguageContext";
 import { FaPlane, FaBus, FaTrain, FaUser, FaRegClock, FaCommentDots, FaCheck, FaTimes } from "react-icons/fa";
@@ -13,7 +12,7 @@ const ProviderRefunds = () => {
   const [refunds, setRefunds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen] = useState(true); // setter đã bỏ: chỉ từng truyền cho <Header />, mà Header không nhận prop
   const [filter, setFilter] = useState("ALL");
 
   // Modal cho approve & reject
@@ -93,8 +92,11 @@ const ProviderRefunds = () => {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "var(--bg-main)", display: "flex", flexDirection: "column" }}>
-      <Header setIsSidebarOpen={setIsSidebarOpen} />
-      <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "70px" }}>
+      {/* App.jsx đã dựng <Header /> cho route này. Trang tự dựng thêm một cái nữa là
+          hai header position:fixed chồng khít lên nhau — từ khi có ngăn kéo mobile thành
+          hai hamburger, hai ngăn kéo trong DOM. Prop setIsSidebarOpen cũng chưa bao giờ
+          có tác dụng: Header không nhận prop nào. */}
+      <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "var(--header-height)" }}>
         <Sidebar isOpen={isSidebarOpen} />
         <div className={`page-main ${isSidebarOpen ? "with-sidebar" : ""}`} style={{ padding: "30px", flex: 1, overflowY: "auto" }}>
           <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -178,7 +180,7 @@ const ProviderRefunds = () => {
                       </div>
 
                       {/* Main details: Route, Provider, Passenger */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "center", marginBottom: 16 }}>
+                      <div className="grid-stack" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "center", marginBottom: 16 }}>
                         <div>
                           <div style={{ fontSize: 19, fontWeight: 800, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                             <span style={{ color: "var(--primary)", display: "flex", alignItems: "center" }}>

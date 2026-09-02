@@ -1,14 +1,23 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: cho phép trang tràn ra vùng tai thỏ / thanh Home của iPhone,
+         kèm theo đó safe-area-inset-* trong index.css mới có giá trị khác 0.
+         KHÔNG đặt maximum-scale/user-scalable=no: chặn zoom là lỗi trợ năng và iOS
+         hiện đại cũng phớt lờ nó. Chống zoom khi focus input xử lý bằng font-size 16px. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d1117" />
+    <meta name="apple-mobile-web-app-title" content="VigoTrip" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="description" content="VigoTrip - Đặt vé máy bay, tàu hỏa, xe khách & tour du lịch với giá tốt nhất." />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <script>
       window.global = window;
     </script>
-    <title>my-react-app</title>
+    <title>VigoTrip - Đặt vé máy bay, tàu hỏa, xe khách</title>
   </head>
   <body>
     <div id="root"></div>

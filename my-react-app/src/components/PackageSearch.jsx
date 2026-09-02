@@ -490,7 +490,7 @@ const PackageSearch = () => {
 
           {/* Swap button */}
           {tripType === "roundtrip" && (
-            <button
+            <button className="route-swap"
               onClick={handleSwapCities}
               style={{
                 width: "32px",
@@ -723,7 +723,7 @@ const PackageSearch = () => {
         </div>
 
         {/* Check-in / Check-out */}
-        <div style={{
+        <div className="route-grid" style={{
           display: "grid",
           gridTemplateColumns: "1fr auto 1fr",
           gap: "8px",

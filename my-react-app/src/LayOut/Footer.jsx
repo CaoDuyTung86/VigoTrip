@@ -23,7 +23,7 @@ const Footer = () => {
   const currentPhone = phoneNumbers[currentLanguage?.code] || phoneNumbers.vi;
 
   return (
-    <footer style={{
+    <footer className="app-footer" style={{
       backgroundColor: "var(--bg-main)",
       borderTop: "1px solid var(--border-light)",
       padding: "56px 0 28px 0",
@@ -32,7 +32,7 @@ const Footer = () => {
       boxSizing: "border-box",
       transition: "all 0.3s ease",
     }}>
-      <div style={{
+      <div className="app-footer-inner" style={{
         maxWidth: "1280px",
         margin: "0 auto",
         width: "100%",

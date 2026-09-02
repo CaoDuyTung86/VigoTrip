@@ -12,13 +12,14 @@ import { PiAirplaneTilt } from "react-icons/pi";
 import { MdOutlineTrain, MdOutlinePercent } from "react-icons/md";
 import { IoIosBus } from "react-icons/io";
 import { useNavigate, useLocation } from "react-router-dom";
-import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users, Tag } from "lucide-react";
+import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users, Tag, Menu, X } from "lucide-react";
 
 const Header = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isLanguageOpen, setIsLanguageOpen] = useState(false);
   const [showPhone, setShowPhone] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const { currentLanguage, t, changeLanguage } = useLanguage();
   const { user, isAuthenticated, logout } = useAuth();
@@ -44,7 +45,40 @@ const Header = () => {
     { icon: <Tag size={16} />, label: "Ưu đãi", path: "/uu-dai" },
   ];
 
+  // Danh sách chức năng quản trị được tách ra khỏi JSX vì giờ có HAI nơi cùng
+  // dựng menu này: dropdown tài khoản (desktop) và ngăn kéo (mobile).
+  const adminItems = [
+    { label: t.adminTrips || "Quản lý chuyến đi", path: "/admin/trips", icon: <Navigation size={16} color="#3b82f6" /> },
+    { label: "Quản lý tuyến đường", path: "/admin/routes", icon: <MapPin size={16} color="#8b5cf6" /> },
+    { label: "Quản lý người dùng", path: "/admin/users", icon: <Users size={16} color="#06b6d4" /> },
+    { label: "Quản lý voucher", path: "/admin/vouchers", icon: <Tag size={16} color="#f59e0b" /> },
+    { label: t.refunds || "Hoàn tiền & Hủy vé", path: "/provider/refunds", icon: <Undo2 size={16} color="#ef4444" /> },
+    { label: t.revenue || "Thống kê doanh thu", path: "/admin/revenue", icon: <DollarSign size={16} color="#fbbf24" /> },
+    { label: t.providerReviews || "Đánh giá & Feedback", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },
+    { label: t.checkInQR || "Quét vé (Check-in)", path: "/provider/check-in", icon: <QrCode size={16} color="#10b981" /> },
+  ];
+
+  const providerItems = [
+    { label: t.providerReviews || "Đánh giá khách hàng", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },
+    { label: t.revenue || "Doanh thu", path: "/admin/revenue", icon: <DollarSign size={16} color="#fbbf24" /> },
+    { label: t.checkInQR || "Quét vé (Check-in)", path: "/provider/check-in", icon: <QrCode size={16} color="#10b981" /> },
+  ];
+
+  const accountItems = [
+    { label: t.account, path: "/account", icon: <User size={16} /> },
+    { label: t.bookingHistory, path: "/my-bookings", icon: <Ticket size={16} /> },
+  ];
+
+  const roleItems = user?.role === "ROLE_ADMIN" ? adminItems : user?.role === "ROLE_PROVIDER" ? providerItems : [];
+  const roleLabel = user?.role === "ROLE_ADMIN" ? "Quản trị hệ thống" : "Nhà cung cấp";
+
   const handleLogoClick = () => navigate("/");
+
+  /** Điều hướng từ trong ngăn kéo: luôn đóng ngăn kéo lại sau khi chuyển trang. */
+  const goFromDrawer = (path) => {
+    setIsDrawerOpen(false);
+    navigate(path);
+  };
 
   const handleLanguageSelect = (language) => {
     changeLanguage(language);
@@ -67,6 +101,21 @@ const Header = () => {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
+  // Đóng ngăn kéo mỗi khi đổi trang — nếu không, bấm một mục xong quay lại bằng
+  // nút Back của trình duyệt sẽ thấy ngăn kéo vẫn mở đè lên nội dung.
+  React.useEffect(() => {
+    setIsDrawerOpen(false);
+  }, [location.pathname]);
+
+  // Khoá cuộn nền khi ngăn kéo mở. Trên Safari iOS nếu không khoá, cuộn trong
+  // ngăn kéo tới cuối là trang phía dưới bắt đầu trôi theo (scroll chaining).
+  React.useEffect(() => {
+    if (!isDrawerOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [isDrawerOpen]);
+
   return (
     <>
       <header
@@ -86,7 +135,7 @@ const Header = () => {
             onClick={handleLogoClick}
             style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8, userSelect: "none" }}
           >
-            <div style={{
+            <div className="brand-mark" style={{
               width: 38,
               height: 38,
               background: "linear-gradient(135deg, #0071EB, #00b4d8)",
@@ -101,7 +150,7 @@ const Header = () => {
             }}>
               ✈
             </div>
-            <span style={{
+            <span className="brand-name" style={{
               fontWeight: 800,
               fontSize: 22,
               background: "linear-gradient(135deg, #0071EB, #00b4d8)",
@@ -130,6 +179,11 @@ const Header = () => {
 
         {/* RIGHT: Actions */}
         <div className="app-header-actions">
+
+          {/* Nhóm nút đầy đủ — chỉ hiện từ 769px trở lên. Dưới ngưỡng đó toàn bộ
+              chuyển vào ngăn kéo, vì bốn nút này cộng lại rộng hơn cả màn hình
+              iPhone và đẩy dropdown ra ngoài mép phải. */}
+          <div className="app-header-actions-desktop header-desktop-only">
 
           {/* Theme toggle */}
           <button
@@ -373,10 +427,7 @@ const Header = () => {
                   padding: "4px 0",
                 }}>
                   {/* Mục cá nhân */}
-                  {[
-                    { label: t.account, path: "/account", icon: <User size={16} /> },
-                    { label: t.bookingHistory, path: "/my-bookings", icon: <Ticket size={16} /> },
-                  ].map((item) => (
+                  {accountItems.map((item) => (
                     <button
                       key={item.path}
                       style={dropdownItemStyle}
@@ -395,16 +446,7 @@ const Header = () => {
                       <div style={{ padding: "4px 14px 2px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                         Quản trị hệ thống
                       </div>
-                      {[
-                        { label: t.adminTrips || "Quản lý chuyến đi", path: "/admin/trips", icon: <Navigation size={16} color="#3b82f6" /> },
-                        { label: "Quản lý tuyến đường", path: "/admin/routes", icon: <MapPin size={16} color="#8b5cf6" /> },
-                        { label: "Quản lý người dùng", path: "/admin/users", icon: <Users size={16} color="#06b6d4" /> },
-                        { label: "Quản lý voucher", path: "/admin/vouchers", icon: <Tag size={16} color="#f59e0b" /> },
-                        { label: t.refunds || "Hoàn tiền & Hủy vé", path: "/provider/refunds", icon: <Undo2 size={16} color="#ef4444" /> },
-                        { label: t.revenue || "Thống kê doanh thu", path: "/admin/revenue", icon: <DollarSign size={16} color="#fbbf24" /> },
-                        { label: t.providerReviews || "Đánh giá & Feedback", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },
-                        { label: t.checkInQR || "Quét vé (Check-in)", path: "/provider/check-in", icon: <QrCode size={16} color="#10b981" /> },
-                      ].map((item) => (
+                      {adminItems.map((item) => (
                         <button
                           key={item.path}
                           style={dropdownItemStyle}
@@ -425,11 +467,7 @@ const Header = () => {
                       <div style={{ padding: "4px 14px 2px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                         Nhà cung cấp
                       </div>
-                      {[
-                        { label: t.providerReviews || "Đánh giá khách hàng", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },
-                        { label: t.revenue || "Doanh thu", path: "/admin/revenue", icon: <DollarSign size={16} color="#fbbf24" /> },
-                        { label: t.checkInQR || "Quét vé (Check-in)", path: "/provider/check-in", icon: <QrCode size={16} color="#10b981" /> },
-                      ].map((item) => (
+                      {providerItems.map((item) => (
                         <button
                           key={item.path}
                           style={dropdownItemStyle}
@@ -477,8 +515,135 @@ const Header = () => {
               {t.login}
             </button>
           )}
+
+          </div>{/* /header-desktop-only */}
+
+          {/* Bộ điều khiển mobile: nút đăng nhập gọn (chỉ khi chưa đăng nhập, vì
+              đây là hành động chính) + hamburger mở ngăn kéo. */}
+          {!isAuthenticated && (
+            <button
+              className="header-login-compact header-mobile-only"
+              onClick={() => setIsAuthOpen(true)}
+            >
+              {/* t.login là "Đăng nhập/Đăng ký" (Login/Register, ログイン/登録,
+                  登入 / 註冊) — 168px, chiếm gần nửa bề ngang iPhone. Lấy vế đầu
+                  cho bản mobile; cả bốn ngôn ngữ đều dùng dấu "/" nên không cần
+                  thêm khoá dịch mới. */}
+              {(t.login || "").split("/")[0].trim() || t.login}
+            </button>
+          )}
+          <button
+            className="header-burger header-mobile-only"
+            aria-label={isDrawerOpen ? "Đóng menu" : "Mở menu"}
+            aria-expanded={isDrawerOpen}
+            onClick={(e) => { e.stopPropagation(); setIsDrawerOpen((v) => !v); }}
+          >
+            {isDrawerOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
         </div>
       </header>
+
+      {/* ===== NGĂN KÉO ĐIỀU HƯỚNG (mobile) ===== */}
+      <div
+        className={`mobile-drawer-backdrop${isDrawerOpen ? " open" : ""}`}
+        onClick={() => setIsDrawerOpen(false)}
+        aria-hidden="true"
+      />
+      <aside className={`mobile-drawer${isDrawerOpen ? " open" : ""}`} inert={!isDrawerOpen || undefined}>
+        <div className="mobile-drawer-head">
+          <span className="mobile-drawer-title">VigoTrip</span>
+          <button className="mobile-drawer-close" onClick={() => setIsDrawerOpen(false)} aria-label="Đóng menu">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Tài khoản */}
+        {isAuthenticated && (
+          <div className="mobile-drawer-section">
+            <div className="mobile-drawer-user">
+              <div className="mobile-drawer-avatar">
+                {(user?.fullName || user?.email || "U")[0].toUpperCase()}
+              </div>
+              <div className="mobile-drawer-username">{user?.fullName || user?.email}</div>
+            </div>
+            {accountItems.map((item) => (
+              <button key={item.path} className="mobile-drawer-item" onClick={() => goFromDrawer(item.path)}>
+                <span className="di-icon">{item.icon}</span>{item.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Điều hướng chính */}
+        <div className="mobile-drawer-section">
+          <div className="mobile-drawer-label">{t.bookTicket || "Đặt vé"}</div>
+          {navTabs.map((tab) => (
+            <button
+              key={tab.path}
+              className={`mobile-drawer-item${location.pathname === tab.path ? " active" : ""}`}
+              onClick={() => goFromDrawer(tab.path)}
+            >
+              <span className="di-icon">{tab.icon}</span>{tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Quản trị / Nhà cung cấp */}
+        {roleItems.length > 0 && (
+          <div className="mobile-drawer-section">
+            <div className="mobile-drawer-label">{roleLabel}</div>
+            {roleItems.map((item) => (
+              <button key={item.path} className="mobile-drawer-item" onClick={() => goFromDrawer(item.path)}>
+                <span className="di-icon">{item.icon}</span>{item.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Ngôn ngữ */}
+        <div className="mobile-drawer-section">
+          <div className="mobile-drawer-label">
+            <AiOutlineGlobal style={{ marginRight: 4 }} />{t.selectLanguage}
+          </div>
+          {languages.map((lang) => (
+            <button
+              key={lang.code}
+              className={`mobile-drawer-item${currentLanguage.code === lang.code ? " active" : ""}`}
+              onClick={() => changeLanguage(lang)}
+            >
+              <img className="di-flag" src={lang.flag} alt={lang.name} />
+              {lang.name}
+              {currentLanguage.code === lang.code && <span style={{ marginLeft: "auto" }}>✓</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Tiện ích */}
+        <div className="mobile-drawer-section">
+          <button className="mobile-drawer-item" onClick={toggleTheme}>
+            <span className="di-icon">{isDark ? <MdOutlineLightMode /> : <MdOutlineDarkMode />}</span>
+            {isDark ? t.themeLight : t.themeDark}
+          </button>
+          {/* tel: mở thẳng trình quay số của iPhone — tiện hơn hẳn dropdown chỉ
+              hiện số như bản desktop. */}
+          <a
+            className="mobile-drawer-item"
+            href={`tel:${phoneNumbers[currentLanguage.code].replace(/[^\d+]/g, "")}`}
+            style={{ textDecoration: "none" }}
+          >
+            <span className="di-icon"><MdOutlinePhone /></span>
+            {t.support} · {phoneNumbers[currentLanguage.code]}
+          </a>
+          {isAuthenticated && (
+            <button
+              className="mobile-drawer-item danger"
+              onClick={() => { setIsDrawerOpen(false); logout(); showToast(t.authXLogoutSuccess, "info"); }}
+            >
+              <span className="di-icon"><LogOut size={18} /></span>{t.logout}
+            </button>
+          )}
+        </div>
+      </aside>
 
       <Auth isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </>

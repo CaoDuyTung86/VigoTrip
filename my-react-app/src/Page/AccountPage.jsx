@@ -177,7 +177,7 @@ const AccountPage = () => {
 
         {/* Tier Table */}
         <h3 style={{ fontWeight: 700, color: "var(--text-heading)", marginBottom: 12 }}>{t.acctTierTable}</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
           {tiers.map(tier => {
             const isCurrent = tier.name === level;
             const tColor = isDark ? (tier.darkColor || tier.color) : tier.color;

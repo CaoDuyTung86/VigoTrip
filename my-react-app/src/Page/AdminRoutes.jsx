@@ -278,7 +278,7 @@ const AdminRoutes = () => {
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 8 }}>
           <FaPlus style={{ fontSize: 14, color: "var(--primary)" }} /> Thêm Tuyến đường Mới
         </h3>
-        <form onSubmit={handleCreateRoute} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 16, alignItems: "flex-end" }}>
+        <form className="grid-form" onSubmit={handleCreateRoute} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 16, alignItems: "flex-end" }}>
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, display: "block", color: "var(--text-muted)" }}>
               Điểm đi (Mã TP / Sân bay / Bến) <span style={{ color: "red" }}>*</span>

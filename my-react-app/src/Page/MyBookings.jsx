@@ -466,7 +466,7 @@ const MyBookings = () => {
                       </div>
 
                       {/* Middle Body Row */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "start" }}>
+                      <div className="grid-stack" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "start" }}>
                         {/* Left Column Info */}
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-main)", display: "flex", alignItems: "center", gap: 10 }}>

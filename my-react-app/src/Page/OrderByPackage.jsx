@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useLanguage } from "../context/LanguageContext";
-import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -884,7 +883,7 @@ const extraServiceTranslations = {
 const OrderByPackage = () => {
   const { t, currentLanguage } = useLanguage();
   const { token } = useAuth();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen] = useState(true); // setter đã bỏ: chỉ từng truyền cho <Header />, mà Header không nhận prop
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [bookingStep, setBookingStep] = useState("browse");
@@ -1021,7 +1020,10 @@ const OrderByPackage = () => {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "var(--bg-main)" }}>
-      <Header setIsSidebarOpen={setIsSidebarOpen} />
+      {/* App.jsx đã dựng <Header /> cho route này. Trang tự dựng thêm một cái nữa là
+          hai header position:fixed chồng khít lên nhau — từ khi có ngăn kéo mobile thành
+          hai hamburger, hai ngăn kéo trong DOM. Prop setIsSidebarOpen cũng chưa bao giờ
+          có tác dụng: Header không nhận prop nào. */}
 
       <div className="page-with-sidebar">
         <Sidebar isOpen={isSidebarOpen} />

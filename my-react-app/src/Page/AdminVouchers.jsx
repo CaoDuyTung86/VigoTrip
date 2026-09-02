@@ -337,7 +337,7 @@ const AdminVouchers = () => {
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 8 }}>
           <FaPlus style={{ fontSize: 14, color: "var(--primary)" }} /> Thêm Voucher Mới
         </h3>
-        <form onSubmit={handleCreate} style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        <form className="grid-form" onSubmit={handleCreate} style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
           <div>
             <label style={labelStyle}>Hãng phương tiện áp dụng</label>
             <select value={form.providerId} onChange={(e) => setForm((p) => ({ ...p, providerId: e.target.value }))} style={inputStyle}>
@@ -582,7 +582,7 @@ const AdminVouchers = () => {
               </button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div className="grid-form" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={labelStyle}>Hãng phương tiện áp dụng</label>
                 <select

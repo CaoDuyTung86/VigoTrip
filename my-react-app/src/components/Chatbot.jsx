@@ -515,14 +515,14 @@ const Chatbot = () => {
     <>
       {/* Nút mở Chatbot */}
       <button
+        className="chat-fab"
+        aria-label={t.chatbotSupportBtn || 'Hỗ trợ đặt vé'}
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          position: 'fixed',
-          bottom: '30px',
-          right: '30px',
-          height: '64px',
-          padding: '0 24px',
-          borderRadius: '32px',
+          /* Vị trí, kích thước và bo góc chuyển hết sang .chat-fab trong index.css
+             để media query mobile thu nút này về dạng tròn 56px chỉ có icon —
+             bản cũ rộng ~200px nằm đè lên widget đặt vé trên màn hình iPhone.
+             Inline style chỉ còn giữ phần đổi theo state (ẩn/hiện khi mở chat). */
           backgroundColor: 'var(--primary)',
           color: 'white',
           border: 'none',
@@ -540,26 +540,19 @@ const Chatbot = () => {
         }}
       >
         <MessageCircle size={28} />
-        <span style={{ fontSize: '16px', fontWeight: 600 }}>{t.chatbotSupportBtn || 'Hỗ trợ đặt vé'}</span>
+        <span className="chat-fab-label" style={{ fontSize: '16px', fontWeight: 600 }}>{t.chatbotSupportBtn || 'Hỗ trợ đặt vé'}</span>
       </button>
 
       {/* Cửa sổ Chatbot */}
       <div
+        className="chat-panel"
         inert={!isOpen}
         style={{
-          position: 'fixed',
-          bottom: '30px',
-          right: '30px',
-          width: '450px',
-          height: '680px',
-          minWidth: '340px',
-          maxWidth: '85vw',
-          minHeight: '450px',
-          maxHeight: '85vh',
-          resize: 'both',
+          /* Hình học nằm ở .chat-panel: dưới 768px cửa sổ chuyển sang chiếm trọn
+             màn hình, vì 450x680 không thể vừa iPhone và resize:both vô dụng khi
+             không có chuột. */
           overflow: 'hidden',
           backgroundColor: 'var(--bg-card)',
-          borderRadius: '24px',
           boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
           display: 'flex',
           flexDirection: 'column',
