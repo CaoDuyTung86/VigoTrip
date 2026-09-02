@@ -13,7 +13,11 @@ import java.util.List;
 @AllArgsConstructor
 @Entity
 @Table(name = "nha_cung_cap")
-@JsonIgnoreProperties({"vehicles"})
+// ownerUser là liên kết LAZY: khi Jackson gặp proxy chưa nạp nó ném
+// "Type definition error: ByteBuddyInterceptor" và cả request thành 500. Ba màn hình admin
+// (hãng, phương tiện, chuyến đi) đều trả Provider ra ngoài nên cùng chết một lúc. Frontend
+// không dùng tới chủ sở hữu — đó là dữ liệu nội bộ để thu hẹp báo cáo — nên chặn ngay ở đây.
+@JsonIgnoreProperties({"vehicles", "ownerUser"})
 public class Provider {
 
     @Id

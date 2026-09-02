@@ -58,6 +58,11 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
                                    @Param("keyword") String keyword,
                                    Pageable pageable);
 
+    /** Đếm chuyến đang gắn với một tuyến/phương tiện — dùng để chặn xóa danh mục còn được tham chiếu. */
+    long countByRouteId(Long routeId);
+
+    long countByVehicleId(Long vehicleId);
+
     @Query("SELECT t FROM Trip t WHERE t.departureTime >= :now ORDER BY t.departureTime ASC")
     Page<Trip> findUpcomingTrips(@Param("now") LocalDateTime now, Pageable pageable);
 

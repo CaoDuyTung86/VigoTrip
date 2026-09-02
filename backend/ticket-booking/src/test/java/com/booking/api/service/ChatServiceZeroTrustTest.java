@@ -4,7 +4,6 @@ import com.booking.api.ai.rag.HybridRetriever;
 import com.booking.api.repository.BookingRepository;
 import com.booking.api.repository.RouteRepository;
 import com.booking.api.repository.TripRepository;
-import com.booking.api.repository.VoucherRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +35,7 @@ class ChatServiceZeroTrustTest {
     private static final String VICTIM = "nannhan@example.com";
 
     private BookingRepository bookingRepository;
+    private VoucherService voucherService;
     private AIService aiService;
     private ChatService chatService;
 
@@ -43,19 +43,21 @@ class ChatServiceZeroTrustTest {
     void setUp() {
         TripRepository tripRepository = mock(TripRepository.class);
         bookingRepository = mock(BookingRepository.class);
-        VoucherRepository voucherRepository = mock(VoucherRepository.class);
+        voucherService = mock(VoucherService.class);
         RouteRepository routeRepository = mock(RouteRepository.class);
         aiService = mock(AIService.class);
         HybridRetriever hybridRetriever = mock(HybridRetriever.class);
 
-        when(voucherRepository.findByIsActiveTrue()).thenReturn(List.of());
+        when(voucherService.getPublicVouchers(any(), any(), any())).thenReturn(List.of());
+        when(voucherService.validateVoucherForUser(anyString(), any(), any(), any()))
+                .thenReturn(Map.of("valid", false, "message", "Mã giảm giá đã hết hạn."));
         when(routeRepository.findDistinctOrigins()).thenReturn(List.of("HAN"));
         when(routeRepository.findDistinctDestinations()).thenReturn(List.of("SGN"));
         when(hybridRetriever.retrieve(anyString())).thenReturn(List.of());
         when(bookingRepository.findByUserEmailOrderByBookingDateDesc(anyString())).thenReturn(List.of());
         when(bookingRepository.findByIdAndUserEmail(any(), anyString())).thenReturn(Optional.empty());
 
-        chatService = new ChatService(tripRepository, bookingRepository, voucherRepository,
+        chatService = new ChatService(tripRepository, bookingRepository, voucherService,
                 routeRepository, aiService, mock(RestTemplate.class), hybridRetriever,
                 mock(ChatHistoryService.class));
     }
@@ -142,5 +144,17 @@ class ChatServiceZeroTrustTest {
 
         assertThat(result).isNotNull();
         verify(bookingRepository).findByUserEmailOrderByBookingDateDesc(JWT_USER);
+    }
+
+    @Test
+    @DisplayName("check_voucher: mã giảm giá luôn được kiểm tra theo danh tính JWT")
+    void checkVoucherAlwaysUsesJwtIdentity() {
+        AIService.ToolHandler handler = captureToolHandler(JWT_USER);
+
+        // Mã còn dùng được hay không phụ thuộc vào việc TÀI KHOẢN NÀO đã dùng nó, nên
+        // username giả cũng là một đường rò dữ liệu người khác.
+        handler.executeTool("check_voucher", Map.of("code", "VIP50", "orderAmount", "300000", "username", VICTIM));
+
+        verify(voucherService).validateVoucherForUser(eq("VIP50"), any(), any(), eq(JWT_USER));
     }
 }

@@ -28,6 +28,8 @@ public class AdminService {
     private final ProviderRepository providerRepository;
     private final TripRepository tripRepository;
     private final BookingRepository bookingRepository;
+    private final TicketRepository ticketRepository;
+    private final VoucherRepository voucherRepository;
     private final EmailService emailService;
 
     // ==================== ROUTE ====================
@@ -60,6 +62,14 @@ public class AdminService {
         if (!routeRepository.existsById(id)) {
             throw new IllegalArgumentException("Không tìm thấy tuyến đường với ID: " + id);
         }
+        // Route.trips là cascade ALL + orphanRemoval, và Trip.tickets cũng vậy: xóa một tuyến
+        // là xóa sạch chuyến của tuyến đó kèm mọi vé đã bán, im lặng và không hoàn tác được.
+        long tripCount = tripRepository.countByRouteId(id);
+        if (tripCount > 0) {
+            throw new IllegalArgumentException(String.format(
+                    "Không thể xóa tuyến đường này: đang có %d chuyến thuộc tuyến. "
+                            + "Hãy xóa hoặc chuyển các chuyến đó trước khi xóa tuyến.", tripCount));
+        }
         routeRepository.deleteById(id);
     }
 
@@ -70,12 +80,17 @@ public class AdminService {
         return providerRepository.findAll();
     }
 
+    // Tên hãng và thông số xe nằm trong kết quả tìm chuyến đã cache (TripService: "trips" 5 phút,
+    // "calendar_prices" 10 phút). Không dọn cache ở đây thì khách còn thấy tên hãng cũ, số ghế cũ
+    // sau khi admin đã sửa — sửa xong nhìn không thấy đổi gì là bug rất khó tin là do cache.
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Provider createProvider(Provider provider) {
         return providerRepository.save(provider);
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Provider updateProvider(Long id, Provider providerData) {
         Provider provider = providerRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhà cung cấp với ID: " + id));
@@ -86,9 +101,28 @@ public class AdminService {
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public void deleteProvider(Long id) {
         if (!providerRepository.existsById(id)) {
             throw new IllegalArgumentException("Không tìm thấy nhà cung cấp với ID: " + id);
+        }
+        // Provider.vehicles cascade xuống Vehicle.trips rồi Trip.tickets — xóa một hãng là cuốn
+        // theo toàn bộ đội xe, lịch chạy và vé đã bán của hãng đó.
+        long vehicleCount = vehicleRepository.countByProviderId(id);
+        long voucherCount = voucherRepository.countByProviderId(id);
+        if (vehicleCount > 0 || voucherCount > 0) {
+            StringBuilder reason = new StringBuilder("Không thể xóa hãng này: đang có ");
+            if (vehicleCount > 0) {
+                reason.append(vehicleCount).append(" phương tiện");
+            }
+            if (vehicleCount > 0 && voucherCount > 0) {
+                reason.append(" và ");
+            }
+            if (voucherCount > 0) {
+                reason.append(voucherCount).append(" mã giảm giá");
+            }
+            reason.append(" gắn với hãng. Hãy gỡ những mục đó trước khi xóa hãng.");
+            throw new IllegalArgumentException(reason.toString());
         }
         providerRepository.deleteById(id);
     }
@@ -97,20 +131,22 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public List<Vehicle> getAllVehicles() {
-        return vehicleRepository.findAll();
+        return vehicleRepository.findAllWithProvider();
     }
 
     @Transactional(readOnly = true)
     public List<Vehicle> getVehiclesByProvider(Long providerId) {
-        return vehicleRepository.findByProviderId(providerId);
+        return vehicleRepository.findByProviderIdWithProvider(providerId);
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Vehicle createVehicle(Vehicle vehicle) {
         return vehicleRepository.save(vehicle);
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Vehicle updateVehicle(Long id, Vehicle vehicleData) {
         Vehicle vehicle = vehicleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phương tiện với ID: " + id));
@@ -123,9 +159,17 @@ public class AdminService {
     }
 
     @Transactional
+    @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public void deleteVehicle(Long id) {
         if (!vehicleRepository.existsById(id)) {
             throw new IllegalArgumentException("Không tìm thấy phương tiện với ID: " + id);
+        }
+        // Vehicle.trips cascade ALL: xóa xe là xóa luôn mọi chuyến nó đang chạy, kèm vé của khách.
+        long tripCount = tripRepository.countByVehicleId(id);
+        if (tripCount > 0) {
+            throw new IllegalArgumentException(String.format(
+                    "Không thể xóa phương tiện này: đang có %d chuyến sử dụng nó. "
+                            + "Hãy xóa hoặc đổi phương tiện cho các chuyến đó trước.", tripCount));
         }
         vehicleRepository.deleteById(id);
     }
@@ -189,6 +233,15 @@ public class AdminService {
     public void deleteTrip(Long id) {
         if (!tripRepository.existsById(id)) {
             throw new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + id);
+        }
+        // Chuyến đã bán vé thì việc cần làm là HỦY (có hoàn tiền và báo cho khách), không phải xóa
+        // — xóa chỉ làm vé bốc hơi khỏi CSDL còn tiền thì đã thu rồi. countByTripId chỉ tính vé
+        // còn hiệu lực, nên chuyến mà mọi đơn đều đã hủy vẫn xóa được bình thường.
+        long ticketCount = ticketRepository.countByTripId(id);
+        if (ticketCount > 0) {
+            throw new IllegalArgumentException(String.format(
+                    "Không thể xóa chuyến này: đã có %d vé được đặt. "
+                            + "Hãy dùng chức năng hủy chuyến để hoàn tiền và báo cho khách.", ticketCount));
         }
         tripRepository.deleteById(id);
     }

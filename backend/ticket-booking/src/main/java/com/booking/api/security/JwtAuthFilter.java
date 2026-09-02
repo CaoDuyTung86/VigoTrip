@@ -43,7 +43,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
 
-                if (jwtService.isTokenValid(jwt, userDetails)) {
+                // Tài khoản bị admin khóa phải mất quyền NGAY. isTokenValid chỉ so khớp email
+                // và hạn token, nên trước đây người bị khóa vẫn gọi API bình thường tới 24 giờ
+                // (đúng bằng jwt.expiration): đăng nhập mới thì bị chặn, còn token đang cầm thì không.
+                if (jwtService.isTokenValid(jwt, userDetails) && userDetails.isEnabled()) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,

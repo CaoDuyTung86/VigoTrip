@@ -1,6 +1,7 @@
 package com.booking.api.service;
 
 import com.booking.api.dto.MessageDto;
+import com.booking.api.dto.VoucherPublicDTO;
 import com.booking.api.entity.Booking;
 import com.booking.api.entity.Trip;
 import com.booking.api.repository.BookingRepository;
@@ -27,12 +28,14 @@ public class ChatService implements AIService.ToolHandler {
 
     private final TripRepository tripRepository;
     private final BookingRepository bookingRepository;
-    private final com.booking.api.repository.VoucherRepository voucherRepository;
+    private final VoucherService voucherService;
     private final com.booking.api.repository.RouteRepository routeRepository;
     private final AIService aiService;
     private final org.springframework.web.client.RestTemplate aiRestTemplate;
     private final com.booking.api.ai.rag.HybridRetriever hybridRetriever;
     private final ChatHistoryService chatHistoryService;
+
+    private static final DateTimeFormatter VOUCHER_DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     // Giới hạn an toàn
     private static final int MAX_USER_MESSAGE_LENGTH = 500; // ký tự
@@ -306,7 +309,113 @@ public class ChatService implements AIService.ToolHandler {
             );
         }
 
+        if ("check_voucher".equals(functionName)) {
+            String username = arguments != null && arguments.containsKey("username")
+                    ? String.valueOf(arguments.get("username"))
+                    : null;
+            if (username != null && (username.isBlank() || "null".equals(username))) {
+                username = null;
+            }
+            String code = arguments != null && arguments.containsKey("code")
+                    ? String.valueOf(arguments.get("code")).trim()
+                    : null;
+            if (code == null || code.isBlank() || "null".equals(code)) {
+                return "Cần biết khách muốn kiểm tra mã giảm giá nào.";
+            }
+
+            java.math.BigDecimal orderAmount = parseMoney(
+                    arguments != null && arguments.containsKey("orderAmount")
+                            ? String.valueOf(arguments.get("orderAmount"))
+                            : null);
+
+            // Chưa biết tổng tiền đơn hàng thì KHÔNG kết luận áp dụng được hay không —
+            // chỉ nêu điều kiện của mã để trợ lý hỏi lại khách giá vé.
+            if (orderAmount == null) {
+                java.util.Optional<VoucherPublicDTO> found = voucherService
+                        .getPublicVouchers(null, null, username).stream()
+                        .filter(v -> v.getCode() != null && v.getCode().equalsIgnoreCase(code))
+                        .findFirst();
+                if (found.isEmpty()) {
+                    return "Không có mã giảm giá \"" + code + "\".";
+                }
+                VoucherPublicDTO v = found.get();
+                if (!v.isAvailable()) {
+                    return "Mã \"" + v.getCode() + "\" hiện KHÔNG dùng được: " + v.getUnavailableReason();
+                }
+                StringBuilder sb = new StringBuilder();
+                sb.append("Mã \"").append(v.getCode()).append("\" còn hiệu lực với tài khoản này. Điều kiện: giảm ")
+                        .append(String.format("%.0f", v.getDiscountPercent())).append("%");
+                if (v.getMaxDiscountAmount() != null) {
+                    sb.append(", tối đa ").append(df.format(v.getMaxDiscountAmount())).append(" VND");
+                }
+                if (v.getMinOrderAmount() != null) {
+                    sb.append(", đơn tối thiểu ").append(df.format(v.getMinOrderAmount())).append(" VND");
+                }
+                if (v.getMaxUsage() != null && v.getCurrentUsage() != null) {
+                    sb.append(", còn ").append(Math.max(0, v.getMaxUsage() - v.getCurrentUsage())).append(" lượt");
+                }
+                if (v.getExpiryDate() != null) {
+                    sb.append(", hạn dùng ").append(v.getExpiryDate().format(VOUCHER_DATE_FMT));
+                }
+                if (v.getProviderName() != null) {
+                    sb.append(", chỉ áp dụng cho hãng ").append(v.getProviderName());
+                }
+                sb.append(". CHƯA BIẾT tổng tiền đơn hàng nên chưa khẳng định được có áp dụng được không — hãy hỏi khách đơn khoảng bao nhiêu.");
+                return sb.toString();
+            }
+
+            // Đã có số tiền: dùng đúng hàm validate của luồng đặt vé để kết quả trong chat
+            // không bao giờ lệch với lúc khách bấm áp dụng mã ở trang thanh toán.
+            Map<String, Object> result = voucherService.validateVoucherForUser(code, orderAmount, null, username);
+            if (Boolean.TRUE.equals(result.get("valid"))) {
+                return String.format("ÁP DỤNG ĐƯỢC: mã \"%s\" giảm %s VND cho đơn hàng %s VND.",
+                        code.toUpperCase(Locale.ROOT), df.format(result.get("discountAmount")), df.format(orderAmount));
+            }
+            return String.format("KHÔNG ÁP DỤNG ĐƯỢC cho đơn hàng %s VND: %s",
+                    df.format(orderAmount), result.get("message"));
+        }
+
         return "Công cụ không hợp lệ.";
+    }
+
+    /**
+     * Đọc số tiền do model gửi lên. Model hay viết "300.000", "300 000 VND" hoặc "300k" nên
+     * không thể tin vào một cách viết duy nhất; trả về null khi không đọc được số nào để
+     * người gọi biết là CHƯA có ngữ cảnh đơn hàng, thay vì hiểu nhầm thành đơn 0 đồng.
+     */
+    /**
+     * Số tiền trong prompt luôn viết theo kiểu Việt Nam (1.000.000) bất kể locale của máy chủ,
+     * để trợ lý đọc lại đúng con số mà khách nhìn thấy trên trang ưu đãi.
+     */
+    private static String formatVnd(Number amount) {
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.US);
+        symbols.setGroupingSeparator('.');
+        return new DecimalFormat("#,###", symbols).format(amount);
+    }
+
+    static java.math.BigDecimal parseMoney(String raw) {
+        if (raw == null || raw.isBlank() || "null".equals(raw)) {
+            return null;
+        }
+        String text = raw.trim().toLowerCase(Locale.ROOT);
+        long multiplier = 1L;
+        if (text.endsWith("tr") || text.endsWith("trieu") || text.endsWith("triệu") || text.endsWith("m")) {
+            multiplier = 1_000_000L;
+        } else if (text.endsWith("k") || text.endsWith("nghìn") || text.endsWith("nghin")) {
+            multiplier = 1_000L;
+        }
+        String digits = text.replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) {
+            return null;
+        }
+        try {
+            java.math.BigDecimal amount = new java.math.BigDecimal(digits)
+                    .multiply(java.math.BigDecimal.valueOf(multiplier));
+            return amount.signum() < 0 ? null : amount;
+        } catch (NumberFormatException e) {
+            log.warn("Không đọc được số tiền từ tham số check_voucher: {}", raw);
+            return null;
+        }
     }
 
     private String buildSystemInstruction(String username, String sessionKey, String userMessage, String language) {
@@ -343,22 +452,82 @@ public class ChatService implements AIService.ToolHandler {
             cacheContext.append(". ");
         }
 
-        // Retrieve Active Vouchers
-        List<com.booking.api.entity.Voucher> activeVouchers = voucherRepository.findByIsActiveTrue();
+        // Danh sách mã giảm giá — CÁ NHÂN HÓA theo tài khoản đang đăng nhập.
+        // Dùng chung nguồn với trang /uu-dai (VoucherService.getPublicVouchers) để chatbot không
+        // còn gợi ý những mã khách đã dùng, đã hết hạn hoặc đã hết lượt — trước đây chỗ này lấy thẳng
+        // voucherRepository.findByIsActiveTrue() nên mã nào đang bật cũng bị đọc ra.
+        // orderAmount = null: trong khung chat chưa có đơn hàng nào nên không loại mã theo điều
+        // kiện đơn tối thiểu, chỉ nêu điều kiện đó ra cho khách biết.
+        List<VoucherPublicDTO> allVouchers = new ArrayList<>(voucherService.getPublicVouchers(null, null, username));
+        // Mã mới phát hành lên trước để câu hỏi "mã giảm giá mới nhất" trả đúng thứ tự.
+        allVouchers.sort(java.util.Comparator.comparing(VoucherPublicDTO::getStartDate,
+                java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())));
+
+        List<VoucherPublicDTO> usableVouchers = allVouchers.stream()
+                .filter(VoucherPublicDTO::isAvailable)
+                .toList();
+        List<VoucherPublicDTO> blockedVouchers = allVouchers.stream()
+                .filter(v -> !v.isAvailable())
+                .toList();
+
         StringBuilder voucherContext = new StringBuilder();
-        if (activeVouchers != null && !activeVouchers.isEmpty()) {
-            voucherContext.append("- QUY TẮC MÃ GIẢM GIÁ (RẤT QUAN TRỌNG): TUYỆT ĐỐI KHÔNG tự ý gửi mã giảm giá khi khách đang tìm vé hoặc hỏi thông tin chung. CHỈ gửi mã giảm giá [VOUCHER: MÃ_VOUCHER] KHI khách hàng CHỦ ĐỘNG hỏi xin mã giảm giá, khuyến mãi hoặc ưu đãi. Mã gồm: ");
-            for (int i = 0; i < activeVouchers.size(); i++) {
-                com.booking.api.entity.Voucher v = activeVouchers.get(i);
-                voucherContext.append(v.getCode()).append(" (giảm ").append(v.getDiscountPercent()).append("%)");
-                if (i < activeVouchers.size() - 1) {
+        voucherContext.append("- QUY TẮC MÃ GIẢM GIÁ (RẤT QUAN TRỌNG): TUYỆT ĐỐI KHÔNG tự ý gửi mã giảm giá khi khách đang tìm vé hoặc hỏi thông tin chung. CHỈ gửi mã giảm giá [VOUCHER: MÃ_VOUCHER] KHI khách hàng CHỦ ĐỘNG hỏi xin mã giảm giá, khuyến mãi hoặc ưu đãi. TUYỆT ĐỐI KHÔNG bịa mã nằm ngoài danh sách dưới đây.\n");
+
+        voucherContext.append("- KHI GIỚI THIỆU MỘT MÃ, LUÔN nói kèm điều kiện đi cùng mã đó (đơn tối thiểu, số lượt còn lại, hạn dùng, hãng áp dụng) đúng như liệt kê bên dưới — không được bỏ bớt điều kiện để mã trông hấp dẫn hơn.\n");
+        voucherContext.append("- ĐIỀU KIỆN ĐƠN TỐI THIỂU: danh sách dưới đây CHƯA đối chiếu với giá trị đơn hàng của khách. Nếu khách có nói tổng tiền đơn hàng hoặc giá vé, BẮT BUỘC gọi công cụ `check_voucher` để biết chính xác mã có áp dụng được và giảm bao nhiêu — TUYỆT ĐỐI KHÔNG tự tính nhẩm số tiền giảm. Nếu chưa biết số tiền, hãy hỏi khách đơn khoảng bao nhiêu trước khi khẳng định mã dùng được.\n");
+
+        if (!usableVouchers.isEmpty()) {
+            voucherContext.append("- MÃ KHÁCH ĐANG DÙNG ĐƯỢC, CHƯA XÉT ĐƠN TỐI THIỂU (chỉ được gợi ý những mã này): ");
+            for (int i = 0; i < usableVouchers.size(); i++) {
+                VoucherPublicDTO v = usableVouchers.get(i);
+                voucherContext.append(v.getCode()).append(" (giảm ")
+                        .append(String.format("%.0f", v.getDiscountPercent())).append("%");
+                if (v.getMaxDiscountAmount() != null) {
+                    voucherContext.append(", tối đa ").append(formatVnd(v.getMaxDiscountAmount())).append(" VND");
+                }
+                if (v.getMinOrderAmount() != null) {
+                    voucherContext.append(", đơn tối thiểu ").append(formatVnd(v.getMinOrderAmount())).append(" VND");
+                }
+                if (v.getMaxUsage() != null && v.getCurrentUsage() != null) {
+                    voucherContext.append(", còn ")
+                            .append(Math.max(0, v.getMaxUsage() - v.getCurrentUsage())).append(" lượt");
+                }
+                if (v.getExpiryDate() != null) {
+                    voucherContext.append(", hạn dùng ").append(v.getExpiryDate().format(VOUCHER_DATE_FMT));
+                }
+                if (v.getProviderName() != null) {
+                    voucherContext.append(", chỉ áp dụng cho hãng ").append(v.getProviderName());
+                }
+                voucherContext.append(")");
+                if (i < usableVouchers.size() - 1) {
                     voucherContext.append(", ");
                 }
             }
-            voucherContext.append(".\n\n");
+            voucherContext.append(".\n");
+            if (username == null) {
+                voucherContext.append("- Khách chưa đăng nhập nên chưa thể kiểm tra khách đã dùng mã nào. Hãy nhắc khách đăng nhập để biết chính xác mã nào còn dùng được.\n");
+            }
+        } else if (username == null) {
+            voucherContext.append("- Hiện không có mã giảm giá nào còn hiệu lực. Hãy thông báo lịch sự và mời khách theo dõi tại [LINK: Xem ưu đãi | /uu-dai].\n");
         } else {
-            voucherContext.append("- Hiện tại hệ thống KHÔNG CÓ mã giảm giá nào. Hãy thông báo lịch sự cho khách.\n\n");
+            voucherContext.append("- TÀI KHOẢN NÀY HIỆN KHÔNG CÒN MÃ NÀO DÙNG ĐƯỢC. Hãy nói thẳng là hiện chưa có mã phù hợp với tài khoản của khách, TUYỆT ĐỐI KHÔNG gợi ý bất kỳ mã nào, và mời khách theo dõi ưu đãi mới tại [LINK: Xem ưu đãi | /uu-dai].\n");
         }
+
+        if (!blockedVouchers.isEmpty()) {
+            voucherContext.append("- MÃ KHÔNG DÙNG ĐƯỢC (TUYỆT ĐỐI KHÔNG gợi ý; chỉ nêu lý do khi khách hỏi đích danh mã đó): ");
+            for (int i = 0; i < blockedVouchers.size(); i++) {
+                VoucherPublicDTO v = blockedVouchers.get(i);
+                voucherContext.append(v.getCode());
+                if (v.getUnavailableReason() != null) {
+                    voucherContext.append(" - ").append(v.getUnavailableReason());
+                }
+                if (i < blockedVouchers.size() - 1) {
+                    voucherContext.append("; ");
+                }
+            }
+            voucherContext.append("\n");
+        }
+        voucherContext.append("\n");
 
 
         // Lấy danh sách địa điểm (origin/destination) đang có chuyến
@@ -389,6 +558,7 @@ public class ChatService implements AIService.ToolHandler {
                 + "- LƯU Ý KHỨ HỒI: Hiện tại tính năng vé khứ hồi đang được bảo trì. Nếu khách hỏi vé khứ hồi, hãy xin lỗi và hướng dẫn khách tìm/đặt vé 1 chiều.\n"
                 + "- Bạn có công cụ `get_user_bookings` để tra cứu vé đã đặt của khách. Hãy gọi công cụ này khi khách hỏi về đơn hàng hoặc vé của họ (có thể phân tích ngày từ câu hỏi để tra cứu).\n"
                 + "- Bạn có công cụ `get_booking_by_id` để tra cứu chính xác một mã đơn hàng. Hãy gọi khi khách cung cấp ID cụ thể.\n"
+                + "- Bạn có công cụ `check_voucher` để kiểm tra một mã giảm giá có áp dụng được cho đơn hàng của khách không và giảm bao nhiêu tiền. Hãy gọi khi khách hỏi 'mã X có dùng được không', 'đơn Y đồng thì giảm bao nhiêu', hoặc khi khách đã cho biết giá vé/tổng tiền.\n"
                 + "- Khi khách hỏi tìm vé mà thiếu thông tin (điểm đi, điểm đến, ngày đi) → bạn có thể hỏi thêm điểm đi/đến hoặc gọi `search_trips` với thông tin hiện có.\n\n"
                 
                 + "KIẾN THỨC VỀ DỊCH VỤ (RAG Context):\n"

@@ -13,6 +13,9 @@ public interface VoucherRepository extends JpaRepository<Voucher, Long> {
 
     java.util.List<Voucher> findByIsActiveTrue();
 
+    /** Voucher trỏ tới hãng qua khóa ngoại không cascade: còn mã nào thì không xóa hãng được. */
+    long countByProviderId(Long providerId);
+
     /**
      * Tăng lượt dùng bằng một câu UPDATE duy nhất thay vì đọc — cộng — ghi.
      * Điều kiện maxUsage nằm ngay trong câu lệnh nên hai request song song không thể

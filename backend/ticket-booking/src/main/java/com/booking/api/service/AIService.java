@@ -327,6 +327,29 @@ public class AIService {
         ));
         tools.add(Map.of("type", "function", "function", getBookingByIdFn));
 
+        // Tool 4: check_voucher
+        Map<String, Object> checkVoucherFn = new HashMap<>();
+        checkVoucherFn.put("name", "check_voucher");
+        checkVoucherFn.put("description",
+            "Kiểm tra một mã giảm giá có áp dụng được cho đơn hàng của khách hàng hiện tại không và giảm bao nhiêu tiền. " +
+            "Gọi khi khách hỏi một mã cụ thể có dùng được không, hoặc khi khách đã cho biết giá vé / tổng tiền đơn hàng. " +
+            "Kết quả đã tính cả điều kiện đơn tối thiểu, hạn sử dụng, số lượt còn lại và việc khách đã dùng mã đó chưa.");
+        checkVoucherFn.put("parameters", Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "code", Map.of(
+                    "type", "string",
+                    "description", "Mã giảm giá cần kiểm tra, ví dụ 'SUMMER2026'."
+                ),
+                "orderAmount", Map.of(
+                    "type", "string",
+                    "description", "Tổng tiền đơn hàng của khách, tính bằng VND và CHỈ gồm chữ số (ví dụ '300000'). Nếu khách chưa nói giá trị đơn hàng thì truyền giá trị rỗng ''."
+                )
+            ),
+            "required", List.of("code")
+        ));
+        tools.add(Map.of("type", "function", "function", checkVoucherFn));
+
         return tools;
     }
 }
