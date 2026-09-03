@@ -1,4 +1,4 @@
-# 🔒 Giữ ghế thời gian thực — WebSocket và ba lớp chống đặt trùng vé
+# 🔒 Giữ ghế thời gian thực — WebSocket và các lớp chống ghi trùng
 
 Tài liệu giải thích tầng realtime (`/ws`, STOMP over SockJS): nó chống đặt trùng vé bằng
 cách nào, những lỗ hổng nào đã được vá, và giới hạn nào còn nguyên đó cùng lý do.
@@ -7,7 +7,7 @@ Phần AI là chuyện khác: xem [CHATBOT_AI.md](./CHATBOT_AI.md) và [AI_BI.md
 
 ---
 
-## 1. Ba lớp, và chỉ hai lớp dưới mới quyết định tính đúng đắn
+## 1. Hai lớp chống đặt trùng ghế, và một lớp thứ ba cho việc khác
 
 ```
        Trình duyệt A                  Trình duyệt B
@@ -41,7 +41,13 @@ Mỗi lớp bắt một loại tranh chấp khác nhau:
 | 2 | Hai yêu cầu lọt qua lớp 1 (mất mạng, tab cũ, gọi thẳng API, backend vừa restart) | `SeatRepository.findByIdWithLock` |
 | 3 | Callback VNPay và redirect người dùng cùng xác nhận một đơn → hai mail, tích điểm hai lần | `BookingRepository.findByIdForUpdate` |
 
-**Điểm quan trọng nhất:** tính đúng đắn KHÔNG nằm ở lớp 1. Lớp 1 nằm trong bộ nhớ của một
+> ⚠️ **Đừng gộp lớp 3 vào "chống đặt trùng ghế".** Lớp 3 không ngăn hai người lấy cùng
+> một ghế — việc đó do lớp 1 và lớp 2 làm. Nó ngăn **một đơn** bị xác nhận thanh toán hai
+> lần (callback VNPay và redirect người dùng cùng chạy → khách nhận hai mail, được tích
+> điểm hai lần). Đó là một bài toán ghi trùng khác: cùng họ, khác đối tượng. Nói "ba lớp
+> chống đặt trùng ghế" là sai, và sẽ vỡ ngay khi bị hỏi "lớp 3 chặn đặt trùng ghế kiểu gì?".
+
+**Điểm quan trọng nhất:** tính đúng đắn của việc giữ ghế KHÔNG nằm ở lớp 1. Lớp 1 nằm trong bộ nhớ của một
 tiến trình và *sẽ* biến mất trong đời thật (mục 4). Mất sạch lớp 1 thì hậu quả tệ nhất là
 hai người cùng chọn được một ghế trên giao diện rồi một người bị từ chối ở bước tạo đơn —
 khó chịu, nhưng **không có vé trùng**.
