@@ -1,45 +1,49 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Chuyển chủ sở hữu lock ghế khi danh tính người dùng đổi giữa chừng luồng đặt vé.
+ * Nhận lại ghế đang giữ khi danh tính đổi giữa chừng luồng đặt vé.
  *
- * getSeatUserId() trả về email khi đã đăng nhập, còn chưa đăng nhập thì trả khoá thiết bị
- * "sess_...". Nghĩa là ai chọn ghế lúc chưa đăng nhập rồi mới đăng nhập ở bước thanh toán
- * sẽ giữ ghế dưới một danh tính, nhưng tạo đơn dưới một danh tính khác — BookingService so
- * lock với email của tài khoản nên trả 400 "Ghế X đang được giữ bởi người khác", trong khi
- * người khác đó chính là họ vài phút trước.
+ * Ai chọn ghế lúc chưa đăng nhập rồi mới đăng nhập ở bước thanh toán sẽ giữ ghế dưới danh
+ * tính `guest:<khoá thiết bị>`, nhưng tạo đơn dưới danh tính `user:<email>` — BookingService
+ * so lock với danh tính tài khoản nên trả 400 "Ghế X đang được giữ bởi người khác", trong
+ * khi người khác đó chính là họ vài phút trước.
  *
- * Hook này bắt đúng thời điểm danh tính đổi: nhả lock theo danh tính cũ rồi giữ lại ngay
- * bằng danh tính mới. Chỉ chạy khi đang thực sự có lock tạm ở backend (`active`), tức từ
- * bước 2 trở đi; ở bước chọn ghế thì ghế mới chỉ được chọn trên giao diện.
+ * Hook bắt đúng thời điểm danh tính đổi (mã chủ sở hữu do máy chủ cấp đổi theo) và gọi
+ * seat-handover.
  *
- * Khoảng trống giữa nhả và giữ lại là vài chục mili giây trên cùng một kết nối, nhưng nếu
- * xui mà mất ghế thật thì `onFailure` được gọi để màn hình đưa người dùng về chọn lại,
+ * Trước đây việc chuyển chủ do frontend tự làm bằng hai lượt: nhả ghế theo danh tính cũ
+ * rồi giữ lại bằng danh tính mới. Giữa hai lượt ghế thực sự trống vài chục mili giây, đủ
+ * để người khác chen vào và khách mất ghế dù không làm gì sai. Giờ máy chủ chuyển chủ
+ * trong một thao tác, khoảng trống đó không còn. Nếu vẫn hụt (ghế đã hết hạn giữ và bị
+ * người khác lấy trước) thì `onFailure` được gọi để màn hình đưa người dùng về chọn lại,
  * thay vì để họ đi tiếp rồi vỡ ở bước tạo đơn.
  */
 export default function useSeatLockRekey({
-  ownerId,
+  ownerToken,
   tripId,
   seatIds,
   active,
-  lockSeats,
-  unlockSeats,
+  handoverSeats,
   onFailure,
 }) {
-  const previousOwnerRef = useRef(ownerId);
+  // Chỉ nhớ mã khác null: lúc nối lại (đăng nhập xong) mã tạm về null một nhịp, lấy nhịp
+  // đó làm "danh tính trước" thì lần nào cũng tưởng là đã đổi danh tính.
+  const previousOwnerRef = useRef(ownerToken ?? null);
   const runningRef = useRef(false);
-  // Đọc qua ref để effect chỉ phụ thuộc ownerId — đổi ghế hay đổi chuyến không được
+  // Đọc qua ref để effect chỉ phụ thuộc ownerToken — đổi ghế hay đổi chuyến không được
   // kích hoạt việc chuyển khoá.
   const latestRef = useRef(null);
-  latestRef.current = { tripId, seatIds, active, lockSeats, unlockSeats, onFailure };
+  latestRef.current = { tripId, seatIds, active, handoverSeats, onFailure };
 
   useEffect(() => {
+    if (!ownerToken) return;
+
     const previousOwner = previousOwnerRef.current;
-    previousOwnerRef.current = ownerId;
+    previousOwnerRef.current = ownerToken;
 
-    if (!ownerId || !previousOwner || previousOwner === ownerId) return;
+    if (!previousOwner || previousOwner === ownerToken) return;
 
-    const { tripId: trip, seatIds: seats, active: hasHold, lockSeats: lock, unlockSeats: unlock, onFailure: fail } =
+    const { tripId: trip, seatIds: seats, active: hasHold, handoverSeats: handover, onFailure: fail } =
       latestRef.current;
 
     if (!hasHold || !trip || !seats?.length || runningRef.current) return;
@@ -49,12 +53,11 @@ export default function useSeatLockRekey({
 
     (async () => {
       try {
-        unlock({ tripId: trip, seatIds: held, userId: previousOwner });
-        const { success } = await lock({ tripId: trip, seatIds: held, userId: ownerId });
+        const { success } = await handover({ tripId: trip, seatIds: held });
         if (!success) fail?.();
       } finally {
         runningRef.current = false;
       }
     })();
-  }, [ownerId]);
+  }, [ownerToken]);
 }

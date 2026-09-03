@@ -21,8 +21,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -68,8 +66,9 @@ class BookingServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        // Mock seat lock service to allow seat reservation
-        when(seatLockService.getLockedBy(anyLong())).thenReturn(null);
+        // SeatLockService là mock, isHeldByOther mặc định trả false -> mọi ghế trông như
+        // chưa ai giữ. Không cần stub gì thêm; kịch bản tranh chấp ghế thật nằm ở
+        // SeatDoubleBookingIntegrationTest.
 
         // Seed test data in database
         User user = new User();

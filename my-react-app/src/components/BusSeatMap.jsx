@@ -14,6 +14,7 @@ const BusSeatMap = ({
   onToggleSeat,
   isSeatLockedByOthers,
   user,
+  ownerToken,
   isAuthenticated,
   canSelectSeats,
   isMaxReached,
@@ -342,7 +343,7 @@ const BusSeatMap = ({
 
   // Thống kê nhanh cho tooltip hover xe
   const busStats = useMemo(() => {
-    const avail = s => !s.booked && !isSeatLockedByOthers(s, user);
+    const avail = s => !s.booked && !isSeatLockedByOthers(s, ownerToken);
     const beds = seats.filter(s => ['SLEEPER', 'BUSINESS'].includes(s.seatType));
     const chairs = seats.filter(s => !['SLEEPER', 'BUSINESS'].includes(s.seatType));
     return {
@@ -353,7 +354,7 @@ const BusSeatMap = ({
       chairAvail: chairs.filter(avail).length,
       chairTotal: chairs.length,
     };
-  }, [seats, isSeatLockedByOthers, user]);
+  }, [seats, isSeatLockedByOthers, ownerToken]);
 
   const floorSeats = useMemo(() => {
     const parse = sn => {
@@ -389,7 +390,7 @@ const BusSeatMap = ({
   // ── Nút ghế ngồi / giường nằm ────────────────────────────────────────────────
   function renderSeatBtn(s) {
     const sel    = selectedSeatIds.includes(s.id);
-    const locked = isSeatLockedByOthers(s, user);
+    const locked = isSeatLockedByOthers(s, ownerToken);
     const isBed  = ['SLEEPER', 'BUSINESS'].includes(s.seatType);
     const rip    = rippleSeatId === s.id;
 

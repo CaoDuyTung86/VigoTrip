@@ -13,6 +13,7 @@ const TrainSeatMap = ({
   onToggleSeat,
   isSeatLockedByOthers,
   user,
+  ownerToken,
   isAuthenticated,
   canSelectSeats,
   isMaxReached,
@@ -338,7 +339,7 @@ const TrainSeatMap = ({
 
     const toaList = groups
       .map((list, idx) => {
-        const available = list.filter(s => !s.booked && !isSeatLockedByOthers(s, user)).length;
+        const available = list.filter(s => !s.booked && !isSeatLockedByOthers(s, ownerToken)).length;
         const types = [...new Set(list.map(s => s.seatType || 'ECONOMY'))];
         const isBiz = types.length > 0 && types.every(t => ['BUSINESS', 'VIP', 'SLEEPER'].includes(t));
         const isMixed = types.length > 1;
@@ -357,7 +358,7 @@ const TrainSeatMap = ({
       .filter(t => t.total > 0);
 
     return { toas: toaList };
-  }, [seats, isSeatLockedByOthers, user]);
+  }, [seats, isSeatLockedByOthers, ownerToken]);
 
   // ── Sơ đồ ghế của toa đang mở ───────────────────────────────────────────────
   const active = toas[activeToa] || null;
@@ -404,7 +405,7 @@ const TrainSeatMap = ({
   // ── Nút ghế / giường nằm trong toa ──────────────────────────────────────────
   function renderSeatBtn(s) {
     const sel    = selectedSeatIds.includes(s.id);
-    const locked = isSeatLockedByOthers(s, user);
+    const locked = isSeatLockedByOthers(s, ownerToken);
     const isBiz  = ['BUSINESS', 'VIP'].includes(s.seatType);
     const isSleeper = s.seatType === 'SLEEPER';
     const rip    = rippleSeatId === s.id;

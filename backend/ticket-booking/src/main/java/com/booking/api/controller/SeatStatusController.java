@@ -1,55 +1,103 @@
 package com.booking.api.controller;
 
-import lombok.AllArgsConstructor;
+import com.booking.api.realtime.SeatIdentity;
+import com.booking.api.realtime.SeatStatusBroadcaster;
+import com.booking.api.realtime.SeatStatusMessage;
+import com.booking.api.security.StompPrincipal;
+import com.booking.api.service.SeatLockService;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.stereotype.Controller;
 
-import com.booking.api.service.SeatLockService;
+import java.util.ArrayList;
+import java.util.List;
 
+/**
+ * Đầu vào WebSocket cho việc chọn/nhả ghế.
+ *
+ * <p><b>Điểm khác cốt lõi so với bản cũ:</b> danh tính lấy từ {@link StompPrincipal} — do
+ * {@code StompAuthChannelInterceptor} suy ra một lần lúc CONNECT — chứ không còn đọc từ
+ * trường {@code userId} trong thân thông điệp. Client vẫn gửi lên trường đó thì cũng bị bỏ
+ * qua, nên không mạo danh được nữa.
+ */
 @Controller
 @RequiredArgsConstructor
 public class SeatStatusController {
 
     private final SeatLockService seatLockService;
+    private final SeatStatusBroadcaster broadcaster;
 
     @MessageMapping("/seat-selection")
-    @SendTo("/topic/seat-status")
-    public SeatStatusUpdate updateSeatStatus(SeatStatusUpdate update) {
-        if (update.getUserId() == null || update.getUserId().trim().isEmpty()) {
-            update.setStatus("LOCK_FAILED");
-            return update;
-        }
+    public void updateSeatStatus(SeatSelectionCommand command, StompPrincipal principal) {
+        String identity = principal.getName();
 
-        if ("SELECTED".equals(update.getStatus())) {
-            boolean success = seatLockService.lockSeat(update.getTripId(), update.getSeatId(), update.getUserId());
-            if (!success) {
-                update.setStatus("LOCK_FAILED");
-                return update; 
+        if (SeatStatusMessage.SELECTED.equals(command.getStatus())) {
+            if (seatLockService.lockSeat(command.getTripId(), command.getSeatId(), identity)) {
+                broadcaster.selected(command.getTripId(), command.getSeatId(), identity);
+            } else {
+                // Báo riêng cho người vừa bấm hụt. Bản cũ phát LOCK_FAILED cho cả phòng,
+                // khiến giao diện của những người không liên quan cũng nhấp nháy.
+                broadcaster.lockFailedTo(identity, command.getTripId(), command.getSeatId());
             }
-        } else if ("AVAILABLE".equals(update.getStatus())) {
-            seatLockService.unlockSeat(update.getSeatId(), update.getUserId());
+        } else if (SeatStatusMessage.AVAILABLE.equals(command.getStatus())
+                && seatLockService.unlockSeat(command.getSeatId(), identity)) {
+            broadcaster.available(command.getTripId(), command.getSeatId());
         }
-
-        return update;
     }
 
-    private boolean isAuthenticatedUser(String userId) {
-        return userId != null
-                && !userId.isBlank()
-                && !"anonymous".equalsIgnoreCase(userId.trim());
+    /**
+     * Chuyển ghế đang giữ dưới danh tính khách sang tài khoản vừa đăng nhập.
+     *
+     * <p>Phiên này được phép nhận vì chính nó đã khai khoá thiết bị đó ở frame CONNECT —
+     * tức nó vốn là phiên khách đang giữ mấy ghế này, chỉ vừa đăng nhập xong.
+     */
+    @MessageMapping("/seat-handover")
+    public void handoverSeats(SeatHandoverCommand command, StompPrincipal principal) {
+        String identity = principal.getName();
+        if (!SeatIdentity.isUser(identity) || principal.guestKey() == null || command.getSeatIds() == null) {
+            return;
+        }
+
+        String guestIdentity = SeatIdentity.ofGuest(principal.guestKey());
+        List<Long> failed = new ArrayList<>();
+        for (Long seatId : command.getSeatIds()) {
+            // Ghế đã mang sẵn danh tính mới (đăng nhập rồi chọn tiếp) thì coi như xong.
+            if (identity.equals(seatLockService.getLockedBy(seatId))
+                    || seatLockService.transferLock(seatId, guestIdentity, identity)) {
+                broadcaster.selected(command.getTripId(), seatId, identity);
+            } else {
+                failed.add(seatId);
+            }
+        }
+
+        for (Long seatId : failed) {
+            broadcaster.lockFailedTo(identity, command.getTripId(), seatId);
+        }
+    }
+
+    /**
+     * Trả cho phiên gọi mã chủ sở hữu của chính nó.
+     *
+     * <p>Cần vì thông điệp phát ra không còn chứa email nữa: giao diện muốn biết "ghế này
+     * của tôi hay của người khác" thì phải có mã của chính mình để so.
+     */
+    @MessageMapping("/whoami")
+    public void whoami(StompPrincipal principal) {
+        broadcaster.sendIdentityTo(principal.getName());
+    }
+
+    /** Lệnh chọn/nhả một ghế. Không có {@code userId} — danh tính lấy từ phiên. */
+    @Data
+    public static class SeatSelectionCommand {
+        private Long tripId;
+        private Long seatId;
+        private String status;
     }
 
     @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class SeatStatusUpdate {
+    public static class SeatHandoverCommand {
         private Long tripId;
-        private Long seatId;
-        private String status; 
-        private String userId; 
+        private List<Long> seatIds;
     }
 }

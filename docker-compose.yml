@@ -46,6 +46,10 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      # Tên miền được phép mở WebSocket giữ ghế. Deploy ở tên miền khác thì thêm vào đây,
+      # đừng nới về "*": kênh này từng để mở như vậy, và khi đó bất kỳ trang web nào cũng
+      # nhúng được vài dòng JavaScript để đọc luồng chọn ghế của người dùng.
+      - WS_ALLOWED_ORIGIN_PATTERNS=${WS_ALLOWED_ORIGIN_PATTERNS:-http://localhost:*,https://*.duckdns.org,https://*.vercel.app}
       # StartupSecretsValidator BẮT BUỘC hai biến này. Thiếu là container thoát ngay lúc
       # khởi động rồi bị restart lại — trông y hệt "backend tự ngắt" mà không rõ vì sao.
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}

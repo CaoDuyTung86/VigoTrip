@@ -4,7 +4,12 @@ import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/apiClient";
 import { useToast } from "./ToastContext";
 
-const AuthContext = createContext(null);
+/**
+ * Xuất ra ngoài để WebSocketContext đọc được token mà không bắt buộc phải nằm trong
+ * AuthProvider: nó dùng useContext trực tiếp và tự rơi về chế độ khách khi context rỗng,
+ * nhờ vậy vẫn render và test độc lập được.
+ */
+export const AuthContext = createContext(null);
 
 /**
  * Những khu vực chỉ xem được khi đã đăng nhập — mất phiên ở đây thì buộc phải rời trang.

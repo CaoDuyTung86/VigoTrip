@@ -78,6 +78,17 @@ app:
   # Đây là allowlist chứ không phải giá trị tin cậy tuyệt đối: origin do client gửi lên,
   # không lọc thì thành open redirect. Thêm tên miền mới vào đây khi đổi chỗ deploy.
   allowed-frontend-origins: ${ALLOWED_FRONTEND_ORIGINS:https://vigotrip.vercel.app,https://datxe.duckdns.org,http://localhost:5173}
+  # Tên miền được phép mở WebSocket tới máy chủ này.
+  #
+  # Trước đây WebSocketConfig để setAllowedOriginPatterns("*"): bất kỳ trang web nào cũng mở
+  # được kết nối STOMP từ trình duyệt của người dùng. Cộng với việc kênh khi đó không xác
+  # thực, một trang bất kỳ chỉ cần vài dòng JavaScript là đọc được toàn bộ luồng chọn ghế và
+  # nhả ghế người khác đang giữ.
+  #
+  # Để mẫu "https://*.vercel.app" vì mỗi bản deploy xem trước lại được cấp một tên miền mới;
+  # liệt kê cứng từng tên miền sẽ khiến bản xem trước gãy rồi lại bị nới về "*" cho xong.
+  websocket:
+    allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS:https://vigotrip.vercel.app,https://*.vercel.app,https://datxe.duckdns.org,https://*.ngrok-free.dev,http://localhost:*}
   # URL công khai của chính backend. Dùng để nhúng ảnh QR vào email — client mail nằm
   # ngoài mạng nội bộ nên localhost không dùng được khi deploy.
   backend-url: ${BACKEND_URL:http://localhost:8080}

@@ -13,7 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
+import com.booking.api.realtime.SeatIdentity;
+import com.booking.api.realtime.SeatStatusBroadcaster;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -46,7 +47,7 @@ class BookingServiceTest {
     @Mock
     private SeatLockService seatLockService;
     @Mock
-    private SimpMessagingTemplate messagingTemplate;
+    private SeatStatusBroadcaster seatStatusBroadcaster;
     @Mock
     private com.booking.api.repository.ReviewRepository reviewRepository;
 
@@ -110,7 +111,6 @@ class BookingServiceTest {
         when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
         when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
         when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
-        when(seatLockService.getLockedBy(1L)).thenReturn(null);
         when(bookingMapper.toBookingResponse(any(), any())).thenReturn(new BookingResponse());
 
         BookingResponse response = bookingService.createBooking("test@example.com", request);
@@ -118,7 +118,8 @@ class BookingServiceTest {
         assertNotNull(response);
         verify(bookingRepository, times(1)).save(any(Booking.class));
         verify(seatLockService, times(1)).removeLockBySeatId(1L);
-        verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/seat-status"), any(Object.class));
+        // Phát trên kênh riêng của chuyến, kèm danh tính chuẩn hoá thay vì email trần.
+        verify(seatStatusBroadcaster, times(1)).booked(1L, 1L, "user:test@example.com");
     }
 
     @Test
@@ -131,7 +132,6 @@ class BookingServiceTest {
         when(tripRepository.findById(2L)).thenReturn(Optional.of(flightTrip));
         when(seatRepository.findByIdWithLock(2L)).thenReturn(Optional.of(businessSeat));
         when(ticketRepository.existsByTripIdAndSeatId(2L, 2L)).thenReturn(false);
-        when(seatLockService.getLockedBy(2L)).thenReturn(null);
         when(bookingMapper.toBookingResponse(any(), any())).thenReturn(new BookingResponse());
 
         BookingResponse response = bookingService.createBooking("test@example.com", request);
@@ -162,7 +162,6 @@ class BookingServiceTest {
         when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
         when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
         when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
-        when(seatLockService.getLockedBy(1L)).thenReturn(null);
         when(additionalServiceRepository.findAllById(Collections.singletonList(10L)))
                 .thenReturn(Collections.singletonList(addService));
         when(bookingRepository.existsByUserIdAndVoucherCodeAndStatusNotIn(1L, "SALE20",
@@ -198,7 +197,6 @@ class BookingServiceTest {
         when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
         when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
         when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
-        when(seatLockService.getLockedBy(1L)).thenReturn(null);
         when(bookingRepository.existsByUserIdAndVoucherCodeAndStatusNotIn(1L, "SALE20",
                 BookingRepository.VOUCHER_RELEASING_STATUSES)).thenReturn(false);
         when(voucherService.validateVoucher(eq("SALE20"), any(java.math.BigDecimal.class), any()))
@@ -312,7 +310,6 @@ class BookingServiceTest {
         when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
         when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
         when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
-        when(seatLockService.getLockedBy(1L)).thenReturn(null);
         when(bookingMapper.toBookingResponse(any(), any())).thenReturn(new BookingResponse());
 
         bookingService.createBooking("test@example.com", request);
@@ -329,7 +326,7 @@ class BookingServiceTest {
         when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
         when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
         when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
-        when(seatLockService.getLockedBy(1L)).thenReturn("otheruser@example.com");
+        when(seatLockService.isHeldByOther(1L, "user:test@example.com")).thenReturn(true);
 
         BookingException ex = assertThrows(BookingException.class,
                 () -> bookingService.createBooking("test@example.com", request));
@@ -337,17 +334,20 @@ class BookingServiceTest {
     }
 
     @Test
-    @DisplayName("Ghế do chính mình giữ nhưng email lệch hoa thường thì vẫn tạo đơn được")
-    void createBooking_Success_WhenLockOwnerEmailDiffersOnlyByCase() {
+    @DisplayName("Email trong CSDL lệch hoa thường vẫn tra lock bằng danh tính chữ thường")
+    void createBooking_NormalizesIdentity_WhenAccountEmailHasMixedCase() {
+        // Tài khoản Google có thể trả email lệch hoa/thường so với bản lưu trong CSDL.
+        // Lock được giữ dưới danh tính chuẩn hoá (chữ thường), nên chỗ tra cứu cũng phải
+        // chuẩn hoá — không thì chính chủ bị báo "ghế đang được người khác giữ".
+        user.setEmail("Test@Example.COM");
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
         when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
         when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
         when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
-        // Khoá lock do trình duyệt gửi lên, email trong DB là "test@example.com"
-        when(seatLockService.getLockedBy(1L)).thenReturn("Test@Example.COM");
         when(bookingMapper.toBookingResponse(any(), any())).thenReturn(new BookingResponse());
 
         assertNotNull(bookingService.createBooking("test@example.com", request));
+        verify(seatLockService).isHeldByOther(1L, SeatIdentity.ofUser("test@example.com"));
         verify(bookingRepository, times(1)).save(any(Booking.class));
     }
 
@@ -379,7 +379,6 @@ class BookingServiceTest {
         when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
         when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
         when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
-        when(seatLockService.getLockedBy(1L)).thenReturn(null);
         // id 901 không có trong bảng nên findAllById chỉ trả về 1 dòng
         when(additionalServiceRepository.findAllById(Arrays.asList(10L, 901L)))
                 .thenReturn(Collections.singletonList(addService));
@@ -412,7 +411,6 @@ class BookingServiceTest {
         when(tripRepository.findById(1L)).thenReturn(Optional.of(busTrip));
         when(seatRepository.findByIdWithLock(1L)).thenReturn(Optional.of(normalSeat));
         when(ticketRepository.existsByTripIdAndSeatId(1L, 1L)).thenReturn(false);
-        when(seatLockService.getLockedBy(1L)).thenReturn(null);
         when(bookingRepository.existsByUserIdAndVoucherCodeAndStatusNotIn(1L, "USED_CODE",
                 BookingRepository.VOUCHER_RELEASING_STATUSES)).thenReturn(true);
 

@@ -17,7 +17,6 @@ import useSeatLockRekey from "../hooks/useSeatLockRekey";
 import HoldCountdownBanner from "../components/HoldCountdownBanner";
 import {
   canSelectSeats,
-  getSeatUserId,
   isSeatLockedByOthers,
 } from "../utils/seatBookingHelpers";
 import { getMealImage } from "../utils/mealImages";
@@ -80,7 +79,8 @@ const AirlineTickets = () => {
   const { t, currentLanguage } = useLanguage();
   const { token, isAuthenticated, user, membershipDiscountPercent } = useAuth();
   const { showToast } = useToast();
-  const { isConnected, subscribe, lockSeats, unlockSeats } = useWebSocket();
+  const { isConnected, ownerToken, subscribeToTrip, lockSeats, unlockSeats, handoverSeats } =
+    useWebSocket();
   const location = useLocation();
 
   const [isSidebarOpen] = useState(true); // setter đã bỏ: chỉ từng truyền cho <Header />, mà Header không nhận prop
@@ -270,11 +270,10 @@ const AirlineTickets = () => {
 
   useEffect(() => {
     if (selectedTrip && isConnected) {
-      const subscription = subscribe("/topic/seat-status", (update) => {
-        if (update.status === "LOCK_FAILED") return; // Bỏ qua tin nhắn lock thất bại
+      const subscription = subscribeToTrip(selectedTrip.id, (update) => {
         if (update.tripId === selectedTrip.id) {
-          const currentUserId = getSeatUserId(user);
-          const isLockedByOther = (update.status === "SELECTED" || update.status === "BOOKED") && update.userId !== currentUserId;
+          const isLockedByOther =
+            (update.status === "SELECTED" || update.status === "BOOKED") && update.ownerToken !== ownerToken;
           
           if (isLockedByOther) {
             setSelectedSeatIds((prev) => {
@@ -292,7 +291,7 @@ const AirlineTickets = () => {
                 ? {
                   ...s,
                   booked: update.status === "BOOKED",
-                  tempLockedBy: update.status === "SELECTED" ? update.userId : null
+                  tempLockedBy: update.status === "SELECTED" ? update.ownerToken : null
                 }
                 : s
             )
@@ -303,14 +302,13 @@ const AirlineTickets = () => {
         if (subscription) subscription.unsubscribe();
       };
     }
-  }, [selectedTrip, isConnected, subscribe, user]);
+  }, [selectedTrip, isConnected, subscribeToTrip, ownerToken]);
 
   // Giữ ghế bằng lock tạm ở backend (SeatLockService, 10 phút). Hết giờ thì nhả ghế.
   const timeLeft = useCountdown(lockDeadline, () => {
     unlockSeats({
       tripId: selectedTrip?.id,
       seatIds: selectedSeatIds,
-      userId: getSeatUserId(user),
     });
     setSelectedSeatIds([]);
     setLockDeadline(null);
@@ -333,12 +331,11 @@ const AirlineTickets = () => {
   // Không chuyển lock theo thì bước tạo đơn sẽ báo "ghế đang được giữ bởi người khác",
   // mà người khác đó chính là phiên khách vãng lai của chính họ vài phút trước.
   useSeatLockRekey({
-    ownerId: getSeatUserId(user),
+    ownerToken,
     tripId: selectedTrip?.id,
     seatIds: selectedSeatIds,
     active: !!lockDeadline,
-    lockSeats,
-    unlockSeats,
+    handoverSeats,
     onFailure: () => {
       setSelectedSeatIds([]);
       setLockDeadline(null);
@@ -363,7 +360,6 @@ const AirlineTickets = () => {
       unlockSeats({
         tripId: selectedTrip?.id,
         seatIds: selectedSeatIds,
-        userId: getSeatUserId(user),
       });
       setSelectedSeatIds([]);
       setLockDeadline(null);
@@ -633,7 +629,7 @@ const AirlineTickets = () => {
       return;
     }
 
-    if (seat.booked || isSeatLockedByOthers(seat, user)) return;
+    if (seat.booked || isSeatLockedByOthers(seat, ownerToken)) return;
 
     const maxSeats = passengers || 1;  // em bé dưới 2 tuổi ngồi cùng người lớn, không tính chỗ riêng
 
@@ -722,11 +718,9 @@ const AirlineTickets = () => {
     }
 
     setError("");
-    const userId = getSeatUserId(user);
     const { success, failed, error } = await lockSeats({
       tripId: selectedTrip.id,
       seatIds: selectedSeatIds,
-      userId,
     });
 
     if (!success) {
@@ -1648,6 +1642,7 @@ const AirlineTickets = () => {
                       selectedSeatIds={selectedSeatIds}
                       onToggleSeat={toggleSeat}
                       isSeatLockedByOthers={isSeatLockedByOthers}
+                      ownerToken={ownerToken}
                       user={user}
                       isAuthenticated={isAuthenticated}
                       canSelectSeats={canSelectSeats}
@@ -1749,7 +1744,6 @@ const AirlineTickets = () => {
                       unlockSeats({
                         tripId: selectedTrip.id,
                         seatIds: seatsToUnlock,
-                        userId: getSeatUserId(user),
                       });
                       setSelectedSeatIds([]);
                       setLockDeadline(null);

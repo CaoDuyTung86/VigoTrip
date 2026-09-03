@@ -13,8 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import com.booking.api.controller.SeatStatusController.SeatStatusUpdate;
+import com.booking.api.realtime.SeatIdentity;
+import com.booking.api.realtime.SeatStatusBroadcaster;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ public class BookingService {
     private final EmailService emailService;
     private final VoucherService voucherService;
     private final SeatLockService seatLockService;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final SeatStatusBroadcaster seatStatusBroadcaster;
     private final ReviewRepository reviewRepository;
 
     @Transactional
@@ -86,11 +86,11 @@ public class BookingService {
                 throw new BookingException("Ghế " + seat.getSeatNumber() + " đã được đặt cho chuyến này");
             }
 
-            // equalsIgnoreCase: khoá lock do trình duyệt gửi qua WebSocket, còn vế phải là
-            // email lấy từ DB. Tài khoản Google có thể lệch hoa/thường giữa hai nguồn, so
-            // sánh phân biệt hoa thường sẽ chặn nhầm chính người đang giữ ghế.
-            String lockedBy = seatLockService.getLockedBy(seatId);
-            if (lockedBy != null && !lockedBy.equalsIgnoreCase(user.getEmail())) {
+            // Danh tính giữ ghế do máy chủ suy ra lúc bắt tay WebSocket, không phải chuỗi
+            // trình duyệt tự khai. SeatIdentity.ofUser hạ email về chữ thường vì tài khoản
+            // Google có thể lệch hoa/thường so với bản lưu trong CSDL, và so sánh phân biệt
+            // hoa thường sẽ chặn nhầm chính người đang giữ ghế.
+            if (seatLockService.isHeldByOther(seatId, SeatIdentity.ofUser(user.getEmail()))) {
                 throw new BookingException(
                         "Ghế " + seat.getSeatNumber() + " đang được giữ bởi người khác. Vui lòng chọn ghế khác.");
             }
@@ -224,8 +224,7 @@ public class BookingService {
         // Remove locks and broadcast BOOKED status
         for (Long seatId : request.getSeatIds()) {
             seatLockService.removeLockBySeatId(seatId);
-            SeatStatusUpdate update = new SeatStatusUpdate(trip.getId(), seatId, "BOOKED", user.getEmail());
-            messagingTemplate.convertAndSend("/topic/seat-status", update);
+            seatStatusBroadcaster.booked(trip.getId(), seatId, SeatIdentity.ofUser(user.getEmail()));
         }
 
         return bookingMapper.toBookingResponse(booking, trip);
@@ -396,13 +395,9 @@ public class BookingService {
         if (booking.getTickets() != null) {
             for (Ticket t : booking.getTickets()) {
                 if (t.getSeat() != null) {
-                    SeatStatusUpdate update = new SeatStatusUpdate(
+                    seatStatusBroadcaster.available(
                         trip != null ? trip.getId() : t.getTrip().getId(),
-                        t.getSeat().getId(),
-                        "AVAILABLE",
-                        null
-                    );
-                    messagingTemplate.convertAndSend("/topic/seat-status", update);
+                        t.getSeat().getId());
                 }
             }
         }
@@ -470,13 +465,9 @@ public class BookingService {
         ticketRepository.save(ticketToCancel);
 
         if (ticketToCancel.getSeat() != null) {
-            SeatStatusUpdate update = new SeatStatusUpdate(
+            seatStatusBroadcaster.available(
                 ticketToCancel.getTrip().getId(),
-                ticketToCancel.getSeat().getId(),
-                "AVAILABLE",
-                null
-            );
-            messagingTemplate.convertAndSend("/topic/seat-status", update);
+                ticketToCancel.getSeat().getId());
         }
 
         // Trừ giá vé khỏi tổng

@@ -405,6 +405,7 @@ const AirplaneSeatMap = ({
   onToggleSeat,
   isSeatLockedByOthers,
   user,
+  ownerToken,
   isAuthenticated,
   canSelectSeats,
   isMaxReached,
@@ -737,7 +738,7 @@ const AirplaneSeatMap = ({
   // ── Seat button ───────────────────────────────────────────────────────────
   function renderSeatBtn(s) {
     const sel    = selectedSeatIds.includes(s.id);
-    const locked = isSeatLockedByOthers(s, user);
+    const locked = isSeatLockedByOthers(s, ownerToken);
     const isBiz  = ['BUSINESS', 'VIP'].includes(s.seatType);
     const rip    = rippleSeatId === s.id;
 

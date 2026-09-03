@@ -18,9 +18,8 @@ import com.booking.api.repository.RefundRepository;
 import com.booking.api.repository.UserRepository;
 import com.booking.api.util.VNPayUtil;
 import com.booking.api.entity.Ticket;
-import com.booking.api.controller.SeatStatusController.SeatStatusUpdate;
+import com.booking.api.realtime.SeatStatusBroadcaster;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -100,7 +99,7 @@ public class PaymentService {
     private final PromotionRepository promotionRepository;
     private final VNPayConfig vnPayConfig;
     private final ApplicationEventPublisher eventPublisher;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final SeatStatusBroadcaster seatStatusBroadcaster;
     private final VoucherService voucherService;
     private final VNPayQueryService vnPayQueryService;
 
@@ -696,13 +695,7 @@ public class PaymentService {
             Long tripId = booking.getTickets().get(0).getTrip().getId();
             for (Ticket t : booking.getTickets()) {
                 if (t.getSeat() != null) {
-                    SeatStatusUpdate update = new SeatStatusUpdate(
-                        tripId,
-                        t.getSeat().getId(),
-                        "AVAILABLE",
-                        null
-                    );
-                    messagingTemplate.convertAndSend("/topic/seat-status", update);
+                    seatStatusBroadcaster.available(tripId, t.getSeat().getId());
                 }
             }
         }

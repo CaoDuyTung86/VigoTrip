@@ -9,7 +9,7 @@ Dự án đồ án tốt nghiệp cung cấp giải pháp đặt vé toàn diệ
 - **AI Chatbot với Hybrid RAG:** Tri thức lưu trong CSDL kèm vector embedding, truy hồi lai giữa tìm kiếm ngữ nghĩa (cosine) và BM25, hợp nhất bằng Reciprocal Rank Fusion. Đo được: recall@3 94.7%, MRR 0.795 trên bộ 57 câu hỏi vàng.
 - **Multi-model LLM Gateway:** Bộ điều phối tự động chuyển đổi giữa các nhà cung cấp LLM (Gemini, Groq) kèm circuit breaker và metric Prometheus, bảo đảm chatbot vẫn trả lời khi một nhà cung cấp trả 429/503.
 - **AI Business Intelligence:** Phân tích dữ liệu doanh thu và đưa ra các nhận định chiến lược cho Admin & Nhà xe.
-- **Real-time Synchronization:** Đồng bộ trạng thái chỗ ngồi thời gian thực qua WebSocket (STOMP / SockJS) & Seat Lock Service, ngăn chặn tình trạng đặt trùng vé (double-booking).
+- **Real-time Synchronization:** Đồng bộ trạng thái chỗ ngồi thời gian thực qua WebSocket (STOMP / SockJS). Chống đặt trùng vé bằng ba lớp độc lập — lock tạm qua WebSocket, khoá bi quan ở tầng giao dịch, và khoá dòng đơn hàng chống xác nhận thanh toán trùng. Kênh STOMP xác thực bằng JWT ngay tại frame CONNECT, danh tính do máy chủ suy ra chứ không đọc từ thân thông điệp.
 - **QR Check-in System:** Hệ thống xác thực vé tại bến qua mã QR (ZXing + html5-qrcode), tích hợp trình quét camera trực tiếp trên web, tối ưu cho quy trình soát vé nhanh.
 - **Hệ thống Giám sát & Quản lý:** Theo dõi sức khỏe hệ thống (CPU, RAM, Request) qua Prometheus & Grafana; Kiểm soát chất lượng mã nguồn qua SonarQube.
 - **Quy trình Thanh toán:** Tích hợp cổng thanh toán VNPay Sandbox, xử lý quy trình đặt chỗ và hoàn tiền tự động.
@@ -69,6 +69,8 @@ Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây lin
 - [x] **AI BI theo kỳ báo cáo:** Màn Thống kê doanh thu chọn được kỳ Tháng / Quý / Năm, có so sánh tăng trưởng với kỳ liền trước. Trước đây chỉ biểu đồ doanh thu tháng là có lọc thời gian, còn top tuyến, cơ cấu theo loại phương tiện, top nhà cung cấp và tổng số booking đều lấy all-time — báo cáo ghi tiêu đề một tháng nhưng thân bài là số liệu từ đầu hệ thống. Giao diện và phần AI giờ đọc chung một đối tượng số liệu (`/api/analytics/summary`) nên con số AI dẫn ra không thể lệch với biểu đồ. Kỳ trống thì tự chuyển về kỳ gần nhất có dữ liệu kèm thông báo rõ ràng.
 - [x] **Provider Data Scoping:** Tài khoản đối tác chỉ đọc được số liệu của những thương hiệu mình vận hành (`nha_cung_cap.owner_user_id`), thay vì xem được doanh thu của cả đối thủ như trước. Yêu cầu phạm vi toàn hệ thống từ tài khoản đối tác bị từ chối thẳng.
 
+- [x] **WebSocket Hardening:** Vá bốn lỗ hổng của kênh giữ ghế thời gian thực. (1) Kênh STOMP trước đây không xác thực — danh tính người giữ ghế là trường `userId` do trình duyệt tự khai, nên bất kỳ ai cũng gửi được một frame để nhả ghế người khác đang giữ; giờ `StompAuthChannelInterceptor` suy ra danh tính từ JWT ngay tại frame CONNECT và bỏ qua mọi thứ client khai trong thân thông điệp. (2) Thông điệp phát ra không còn chứa email — chủ ghế được nêu bằng mã HMAC ẩn danh, trước đây mở DevTools là đọc được email của mọi người đang chọn ghế cùng chuyến. (3) Tách kênh theo từng chuyến thay cho một kênh toàn cục đẩy mọi sự kiện của mọi chuyến tới mọi trình duyệt. (4) Bỏ `setAllowedOriginPatterns("*")`. Kèm theo: trần 20 ghế mỗi danh tính chống giữ ghế hàng loạt, và việc chuyển chủ ghế lúc khách đăng nhập giữa chừng gộp về một thao tác phía máy chủ thay vì cặp nhả-rồi-giữ-lại để hở ghế ở giữa. Chi tiết tại [docs/REALTIME_WEBSOCKET.md](./docs/REALTIME_WEBSOCKET.md).
+
 ### Hướng phát triển tiếp theo:
 
 - [ ] **Zero-Trust Auth & Security Hardening (HttpOnly Cookie + Refresh Token):** Nâng cấp cơ chế xác thực sang HttpOnly Cookie kết hợp Refresh Token (Token Rotation), lưu Access Token ngắn hạn trong in-memory state (React Context), loại bỏ hoàn toàn việc lưu JWT tại localStorage nhằm triệt tiêu nguy cơ tấn công XSS đánh cắp phiên đăng nhập.
@@ -90,7 +92,8 @@ Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây lin
 4. **Chi tiết thiết lập:** Xem hướng dẫn chi tiết dành cho AI/Developer tại [AI_ONBOARDING.md](./AI_ONBOARDING.md).
 5. **Tìm hiểu Chatbot AI:** Giải thích toàn diện về kiến trúc RAG, LLM Gateway, cách đo chất lượng (Recall@3, MRR, F1) và các quyết định thiết kế: [docs/CHATBOT_AI.md](./docs/CHATBOT_AI.md).
 6. **Tìm hiểu AI Business Intelligence:** Cách phần Thống kê doanh thu + Báo cáo AI hoạt động (SQL tính số → LLM chỉ diễn giải), kỳ báo cáo, phân quyền đối tác và đo chất lượng tới đâu: [docs/AI_BI.md](./docs/AI_BI.md).
-7. **Demo & kiểm thử bản deploy:** Kịch bản demo theo từng màn kèm checklist smoke test sau mỗi lần deploy: [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md).
+7. **Tìm hiểu tầng Real-time:** Ba lớp chống đặt trùng vé, các lỗ hổng WebSocket đã vá và giới hạn còn lại của lock in-memory: [docs/REALTIME_WEBSOCKET.md](./docs/REALTIME_WEBSOCKET.md).
+8. **Demo & kiểm thử bản deploy:** Kịch bản demo theo từng màn kèm checklist smoke test sau mỗi lần deploy: [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md).
 
 ---
 

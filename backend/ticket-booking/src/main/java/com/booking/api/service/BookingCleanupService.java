@@ -3,10 +3,9 @@ package com.booking.api.service;
 import com.booking.api.entity.Booking;
 import com.booking.api.entity.Ticket;
 import com.booking.api.repository.BookingRepository;
-import com.booking.api.controller.SeatStatusController.SeatStatusUpdate;
+import com.booking.api.realtime.SeatStatusBroadcaster;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,7 +48,7 @@ public class BookingCleanupService {
     private static final int SWEEP_GIVE_UP_MINUTES = 60;
 
     private final BookingRepository bookingRepository;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final SeatStatusBroadcaster seatStatusBroadcaster;
     private final VoucherService voucherService;
     private final PaymentService paymentService;
 
@@ -146,8 +145,7 @@ public class BookingCleanupService {
             if (t.getSeat() == null || t.getTrip() == null) {
                 continue;
             }
-            messagingTemplate.convertAndSend("/topic/seat-status",
-                    new SeatStatusUpdate(t.getTrip().getId(), t.getSeat().getId(), "AVAILABLE", null));
+            seatStatusBroadcaster.available(t.getTrip().getId(), t.getSeat().getId());
         }
     }
 }
