@@ -22,9 +22,10 @@
 9. [Quy mô, giới hạn và ngưỡng gãy](#9-quy-mô-giới-hạn-và-ngưỡng-gãy)
 10. [Hỗ trợ đa ngôn ngữ](#10-hỗ-trợ-đa-ngôn-ngữ)
 11. [Bảo mật](#11-bảo-mật)
-12. [Đi theo một câu hỏi từ đầu đến cuối](#12-đi-theo-một-câu-hỏi-từ-đầu-đến-cuối)
-13. [Tự chạy và tự thử](#13-tự-chạy-và-tự-thử)
-14. [Bảng tra cứu thuật ngữ](#14-bảng-tra-cứu-thuật-ngữ)
+12. [Vòng đời dữ liệu hội thoại](#12-vòng-đời-dữ-liệu-hội-thoại)
+13. [Đi theo một câu hỏi từ đầu đến cuối](#13-đi-theo-một-câu-hỏi-từ-đầu-đến-cuối)
+14. [Tự chạy và tự thử](#14-tự-chạy-và-tự-thử)
+15. [Bảng tra cứu thuật ngữ](#15-bảng-tra-cứu-thuật-ngữ)
 
 ---
 
@@ -48,6 +49,10 @@ Phân biệt được hai cơ chế này là chìa khóa hiểu toàn bộ tài 
 
 Nhồi danh sách chuyến đi vào RAG là sai về bản chất — dữ liệu sẽ cũ ngay lập tức. Ngược lại,
 viết một hàm SQL để trả lời "chính sách hủy vé" cũng sai — đó là văn bản, không phải dữ liệu.
+
+Quanh hai cơ chế trả lời đó còn ba thứ nữa, không ảnh hưởng tới việc trả lời nhưng quyết định
+chatbot có dùng được lâu dài hay không — **xem lại hội thoại cũ**, **đánh giá 👍/👎** và **bảng
+điều khiển vận hành**. Tất cả nằm ở [mục 12](#12-vòng-đời-dữ-liệu-hội-thoại).
 
 ---
 
@@ -73,15 +78,22 @@ flowchart TB
     AI -->|"3· model xin gọi tool"| T["executeTool<br/>search_trips · get_user_bookings"]
     T --> DB2[("DB nghiệp vụ<br/>chuyến đi · đơn hàng")]
 
-    S -->|"4· lưu hội thoại"| H[("tin_nhan_chat")]
+    S -->|"4· ghi số đo"| MT[("chi_so_chat<br/>ẩn danh")]
+    S -->|"5· lưu hội thoại<br/>nếu được đồng ý"| H[("tin_nhan_chat")]
+    U -.->|"👍/👎"| FB[("phan_hoi_chat")]
 ```
 
-Bốn bước, chạy tuần tự trong một lượt chat:
+Năm bước, chạy tuần tự trong một lượt chat:
 
 1. **Truy hồi tri thức** — tìm các đoạn tài liệu liên quan tới câu hỏi.
 2. **Gọi model** — gửi câu hỏi + tri thức + mô tả các tool cho LLM.
 3. **Chạy tool nếu model yêu cầu** — rồi gọi model lần hai để nó diễn đạt kết quả.
-4. **Lưu lịch sử** (chỉ với người đã đăng nhập).
+4. **Ghi số đo vận hành** — độ trễ, số chunk tìm được, kết quả. Không kèm nội dung, không
+   kèm danh tính, nên ghi cho mọi lượt kể cả khách vãng lai.
+5. **Lưu lịch sử** — chỉ với người đã đăng nhập **và** đang bật đồng ý lưu hội thoại.
+
+Bước 4 và 5 cùng với đánh giá 👍/👎 của người dùng tạo thành vòng đời dữ liệu của hội thoại,
+trình bày đầy đủ ở [mục 12](#12-vòng-đời-dữ-liệu-hội-thoại).
 
 ---
 
@@ -683,6 +695,13 @@ tự chấm theo 3 mức (đúng / thiếu / sai), rồi báo cáo kèm mô tả
 là đánh giá thủ công** — điều đó đáng tin hơn nhiều so với một con số tự động mà không giải
 thích được nguồn gốc.
 
+Hệ thống hiện đã có thêm một nguồn thứ ba, rẻ hơn cả hai cách trên: **đánh giá 👍/👎 của chính
+người dùng**, kèm mã lý do khi bị chê (*thông tin sai · không hiểu câu hỏi · trả lời thiếu ·
+lạc đề*). Nó không thay thế được Faithfulness hay LLM-as-a-judge — mẫu bị lệch, vì người hài
+lòng thường không bấm gì — nhưng nó đo đúng thứ mà cả `rag-eval.yml` lẫn đánh giá thủ công đều
+không đo được: **câu hỏi thật của người dùng thật**, chứ không phải bộ câu hỏi do chính ta soạn.
+Cơ chế và ranh giới dữ liệu ở mục 12.4.
+
 ---
 
 ## 7. Multi-model LLM Gateway
@@ -823,6 +842,11 @@ Router ghi các metric sau, dùng được ngay với hạ tầng giám sát s�
 
 `rag_retrievals_total{mode="lexical_only"}` tăng đột biến là tín hiệu API embedding đang hỏng —
 chatbot vẫn chạy nhưng kém đi, và nếu không có metric này thì **không ai biết**.
+
+Đây là lớp giám sát **hạ tầng**: nó trả lời "hệ thống có chạy không". Câu hỏi khác — "chatbot có
+hữu ích không" — cần số liệu nghiệp vụ và có bảng điều khiển riêng ở [mục 12.5](#125-bảng-điều-khiển-vận-hành).
+Hai thứ này cố ý tách nhau: Prometheus/Grafana dành cho người trực hạ tầng, `/admin/chatbot` dành
+cho người vận hành nghiệp vụ, và họ đọc hai loại tín hiệu khác nhau.
 
 ---
 
@@ -980,8 +1004,9 @@ Thành thật về ngưỡng — biết trước điểm gãy quan trọng hơn 
 | **Nhiều instance backend** | Bộ đếm ngân sách và circuit breaker nằm trong RAM từng tiến trình → mỗi instance có trần riêng | Chuyển sang bộ đếm dùng chung (Redis) |
 | **Tri thức đa ngôn ngữ đầy đủ** | BM25 chỉ được chuẩn hóa cho tiếng Việt | Thêm chunk đã dịch, dùng cột `lang` sẵn có |
 | **Thêm tool ghi dữ liệu** | Failover chạy lại action → có thể ghi hai lần | Thêm khóa idempotent, hoặc không failover cho tool ghi |
+| **Lưu lượng chat lớn** | Mỗi lượt ghi thêm 1 dòng `chi_so_chat`; dashboard quét cả kỳ mỗi lần mở | Gộp sẵn theo ngày vào bảng tổng hợp thay vì `GROUP BY` khi đọc |
 
-Điều đáng chú ý: **cả 5 ngưỡng đều nằm rất xa quy mô một đồ án**, và mỗi cái đều có đường xử
+Điều đáng chú ý: **cả 6 ngưỡng đều nằm rất xa quy mô một đồ án**, và mỗi cái đều có đường xử
 lý rõ ràng. Đó là dấu hiệu của kiến trúc chọn đúng tầm — không phình to trước nhu cầu, nhưng
 cũng không dồn mình vào ngõ cụt.
 
@@ -1083,7 +1108,11 @@ người dùng — luôn đáng ngờ.**
 | Đốt quota API | Rate limit 15/phút (thành viên), 5/phút (khách) + trần 2.000/ngày |
 | Giả mạo IP để né rate limit | Khóa theo `SecurityContextHolder` và xử lý `X-Forwarded-For` theo số proxy tin cậy |
 | Upstream treo giữ thread | Timeout HTTP: connect 5s, read 30s |
-| Rò rỉ lịch sử chat | Chỉ lưu với người đã đăng nhập; chỉ chính chủ đọc được; tự xóa sau 30 ngày |
+| Rò rỉ lịch sử chat | Chỉ lưu với người đã đăng nhập **và** đang bật đồng ý; chỉ chính chủ đọc được; tự xóa sau 30 ngày; không có API nào cho admin đọc hội thoại của người khác |
+| Hội thoại của khách còn lại trên máy dùng chung | Chỉ lưu ở `localStorage` của máy đó, hết hạn sau 7 ngày, xóa ngay khi có người đăng nhập |
+| Thông tin cá nhân lọt vào bảng thống kê | Lý do đánh giá 👎 chỉ chọn từ danh sách mã cố định, không có ô nhập tự do; server whitelist lại |
+| Bơm rác vào bảng đánh giá | Rate limit riêng 30/phút cho `/api/chat/feedback` |
+| Đối tác đọc câu hỏi của khách | `/chat/ops/issues` chỉ ADMIN; đối tác chỉ xem được số đo ẩn danh ở `/chat/ops/summary` |
 
 > **Bẫy đã gặp và đã sửa:** bản đầu chỉ verify CAPTCHA khi client **có gửi** token —
 > `if (username == null && request.getCaptchaToken() != null)`. Khách chỉ cần **không gửi**
@@ -1092,7 +1121,155 @@ người dùng — luôn đáng ngờ.**
 
 ---
 
-## 12. Đi theo một câu hỏi từ đầu đến cuối
+## 12. Vòng đời dữ liệu hội thoại
+
+Ba mục trước nói về việc trả lời cho đúng. Mục này nói về thứ còn lại sau khi đã trả lời:
+hội thoại được giữ ở đâu, ai xem được, và ta học được gì từ nó.
+
+### 12.1 Ba loại dữ liệu, ba mức đồng ý khác nhau
+
+Đây là bảng quan trọng nhất của cả mục. Ba bảng dữ liệu, cố ý tách rời, vì chúng có mức
+nhạy cảm khác nhau nên phải chịu luật khác nhau:
+
+| Bảng | Chứa gì | Ai được lưu | Cần đồng ý? | Giữ bao lâu |
+|---|---|---|---|---|
+| `tin_nhan_chat` | Nội dung hỏi–đáp đầy đủ | Chỉ người **đã đăng nhập** | **Có** — tắt được | 30 ngày |
+| `phan_hoi_chat` | Điểm 👍/👎 + mã lý do | Mọi người, kể cả khách | Không — cú bấm chính là sự đồng ý | Điểm giữ lâu dài; câu hỏi kèm theo xóa sau 30 ngày |
+| `chi_so_chat` | Độ trễ, độ dài, kết quả OK/lỗi | Mọi lượt chat | Không — **không có gì quy về một con người** | 90 ngày |
+
+Nguyên tắc chung: **mức bảo vệ tỉ lệ với khả năng quy về một cá nhân.** `chi_so_chat` không
+có email, không session id, không một chữ nào người dùng gõ ra — nên nó ghi cho tất cả mà
+không cần hỏi ai. `tin_nhan_chat` thì ngược lại, nên nó có công tắc.
+
+Khách vãng lai **không bao giờ** được lưu nội dung ở phía server. Lý do không phải kỹ thuật
+mà là đạo đức: họ không có cách nào đăng nhập để xem lại hay yêu cầu xóa dữ liệu của chính
+mình, nên giữ nội dung của họ là giữ thứ họ không kiểm soát được.
+
+### 12.2 Khôi phục hội thoại: hai nguồn, tách theo danh tính
+
+Khi mở widget, chatbot nạp lại hội thoại cũ từ **hai nguồn khác nhau tùy người dùng là ai**:
+
+| | Đã đăng nhập | Khách vãng lai |
+|---|---|---|
+| Nguồn | `GET /api/chat/history` (server) | `localStorage` trên chính máy đó |
+| Server giữ gì | Có, trả về tối đa 50 tin nhắn gần nhất | **Không giữ gì** |
+| Sống được bao lâu | 30 ngày, qua mọi thiết bị | 7 ngày, chỉ máy đó, tối đa 60 tin nhắn |
+
+Đổi danh tính giữa phiên (đăng nhập hoặc đăng xuất) sẽ nạp lại từ đầu, và bộ nhớ đệm của
+khách bị xóa ngay khi đăng nhập — để hội thoại của người này không còn nằm trên màn hình của
+người kia trên cùng một máy.
+
+> **Vì sao `localStorage` chứ không phải `sessionStorage`:** `sessionStorage` chết theo tab.
+> Bản đầu dùng nó, hệ quả là mỗi tab thành một phiên mới và cột `session_id` trong DB gần như
+> vô dụng. Đổi sang `localStorage` cũng là điều kiện cần nếu sau này muốn tách nhiều mạch hội
+> thoại song song.
+
+> **Hạn 7 ngày cho khách không phải con số tùy tiện.** Rủi ro chính của việc lưu ở phía client
+> là **máy dùng chung** — phòng máy, quán net: người sau mở widget lên sẽ thấy hội thoại của
+> người trước, trong đó có thể có mã vé hay số điện thoại. Hạn dùng là cách rẻ nhất để giới
+> hạn thiệt hại đó.
+
+Cửa sổ 10 cặp gửi lên model và lịch sử hiển thị là **hai thứ khác nhau, đừng gộp**: model chỉ
+cần đủ ngữ cảnh để hiểu "nó", "chuyến đó" ở câu tiếp theo — nhồi 50 tin nhắn vào prompt chỉ
+làm loãng ngữ cảnh và tốn token.
+
+Nhưng khác nhau không có nghĩa là phải lưu riêng. Cửa sổ 10 cặp được **suy ra từ chính các
+bong bóng đang hiển thị** ngay lúc gửi (`deriveChatHistory`), nhờ quy ước đã có sẵn: chỉ câu
+trả lời thật mới được cấp `id`, còn tin nhắn chào và bong bóng báo lỗi thì không. Bản đầu giữ
+nó thành một state riêng chạy song song — cùng nội dung nằm ở hai chỗ, phải nhớ đồng bộ ở bảy
+nơi, và bộ nhớ đệm của khách ghi 20 tin nhắn cuối hai lần (~25% dung lượng là trùng lặp). Bản
+suy ra còn đúng hơn ở một điểm: lượt hỏi mà bot không đáp được (bảo trì, đứt mạng) bị loại cả
+cặp, thay vì để lại một câu hỏi lơ lửng trong ngữ cảnh gửi lên model.
+
+### 12.3 Công tắc đồng ý
+
+Người dùng bật/tắt việc lưu hội thoại ở **Tài khoản → Cài đặt** (`PUT /api/users/me/chat-consent`).
+
+Ba quyết định thiết kế đáng giải thích:
+
+1. **Mặc định BẬT, không phải tắt.** Tắt mặc định thì tính năng xem lại lịch sử chết ngay với
+   toàn bộ người dùng cũ. Đánh đổi này chỉ chấp nhận được vì đi kèm điều kiện thứ hai.
+2. **Widget phải nói rõ đang lưu.** Có một dòng thông báo trong khung chat cho người đã đăng
+   nhập, kèm nút "Đã hiểu". Thiếu dòng đó thì mặc định bật là lén lút chứ không phải tiện lợi
+   — và việc khôi phục lịch sử sẽ là một bất ngờ khó chịu, không phải một tính năng.
+3. **Tắt là XÓA, không chỉ ngừng ghi.** Một công tắc quyền riêng tư mà để lại nguyên đống dữ
+   liệu cũ trong DB thì chẳng khác gì không có. Tắt sẽ xóa cả `tin_nhan_chat` lẫn phần nội
+   dung người dùng để lại trong `phan_hoi_chat`.
+
+Cờ được kiểm tra ở `ChatHistoryService.saveExchange()`, đọc thẳng từ DB mỗi lượt chứ không
+cache. Cache lại thì người vừa tắt vẫn bị ghi thêm vài lượt nữa — đúng cái điều họ vừa nói là
+không muốn.
+
+### 12.4 Đánh giá 👍/👎
+
+Dưới mỗi câu trả lời **thật** của bot có hai nút đánh giá. Bấm 👎 thì hiện thêm một hàng lý do
+chọn sẵn: *thông tin sai · không hiểu câu hỏi · trả lời thiếu · lạc đề · lý do khác*.
+
+Bốn ràng buộc, mỗi cái có lý do riêng:
+
+- **Không có ô nhập lý do tự do.** Ô text tự do là đường nhanh nhất để số điện thoại, mã vé,
+  email lọt vào một bảng vốn không định chứa thông tin cá nhân. Server whitelist lại danh sách
+  mã; mã lạ thì bỏ chứ không lưu.
+- **Chỉ câu trả lời thật mới hỏi đánh giá.** Tin nhắn chào và các bubble báo lỗi không được cấp
+  `messageRef`, nên giao diện tự động không hỏi — không cần thêm điều kiện nào.
+- **Đổi ý thì sửa dòng cũ.** Ràng buộc duy nhất trên `message_ref`; bấm 👎 rồi đổi sang 👍 cho
+  ra một dòng chứ không phải hai, nếu không thống kê sẽ đếm trùng.
+- **Câu hỏi kèm theo chỉ lưu khi người hỏi đã đăng nhập VÀ đang bật đồng ý.** Client vẫn gửi
+  câu hỏi lên nhưng **server tự quyết định** có ghi hay không — client không được phép tự cho
+  mình quyền đó.
+
+Đây chính là câu trả lời cho khoảng trống mà [mục 6.7](#67-còn-chất-lượng-câu-trả-lời-cuối-thì-sao)
+đã thừa nhận: bộ đo RAG chỉ đo bước truy hồi, không đo chất lượng câu trả lời cuối. Đánh giá
+của người dùng thật không thay thế được Faithfulness hay LLM-as-a-judge, nhưng nó là tín hiệu
+**rẻ nhất và trung thực nhất** hiện có — và không có nó thì không ai biết chatbot đang sai ở đâu.
+
+### 12.5 Bảng điều khiển vận hành
+
+`/admin/chatbot`, dành cho admin và đối tác, gộp cả ba nguồn trên vào một màn hình xem hằng ngày:
+
+| Chỉ số | Trả lời câu hỏi gì |
+|---|---|
+| Lượt hỏi (tách thành viên/khách) | Có ai dùng không? |
+| Tỉ lệ hài lòng 👍/(👍+👎) | Người dùng có thấy được việc không? |
+| Độ trễ trung bình và lớn nhất | Chatbot có đang chậm đi không? |
+| Tỉ lệ lỗi | Có đang hỏng không? |
+| **Tỉ lệ có tài liệu để dựa vào** | Bao nhiêu % câu hỏi model phải trả lời chay? |
+| Xếp hạng lý do bị chê | Sai ở đâu, và nên sửa cái nào trước? |
+| Câu hỏi bị 👎 gần đây | Cụ thể là câu nào? |
+
+Ô đáng chú ý nhất là **tỉ lệ có tài liệu để dựa vào** — tỉ lệ lượt mà `HybridRetriever` tìm được
+ít nhất một chunk. Con số này thấp nghĩa là kho tri thức đang thủng, và nó chỉ thẳng ra cần bổ
+sung gì vào `faq-vi.yml`. Đây là thứ mà metric hạ tầng ở [mục 7.7](#77-quan-sát-bằng-prometheus--grafana)
+không nói được: Prometheus cho biết hệ thống *có chạy không*, bảng này cho biết nó *có hữu ích không*.
+
+**Phân quyền tách làm hai**, vì hai loại dữ liệu khác nhau:
+
+| Endpoint | Ai xem được | Vì sao |
+|---|---|---|
+| `GET /api/chat/ops/summary` | Admin **và** đối tác | Toàn số đo ẩn danh, không nội dung |
+| `GET /api/chat/ops/issues` | **Chỉ admin** | Đây là chữ người dùng gõ ra |
+
+Đối tác là bên ngoài; cho họ đọc câu hỏi của khách là vượt quá mức cần thiết để họ làm việc.
+Ngay cả với admin, bảng câu hỏi cũng **không kèm email**, không kèm câu trả lời của bot, và
+không kèm phần còn lại của hội thoại — mục đích là sửa chatbot, không phải để biết ai đã hỏi gì.
+
+> **Vẫn không có API nào cho admin đọc hội thoại của một người dùng cụ thể**, và đó là chủ ý.
+> Một endpoint như vậy nghe rất tiện cho "hỗ trợ khách hàng" nhưng đúng là định nghĩa của việc
+> theo dõi người dùng.
+
+### 12.6 Vì sao ba bảng chứ không phải một
+
+Cách dễ nhất là nhét tất cả vào `tin_nhan_chat` rồi thêm vài cột. Nhưng khi đó **một quy tắc
+quyền riêng tư sẽ phải áp cho cả ba loại dữ liệu**, và vì loại nhạy cảm nhất quyết định luật,
+kết quả là: hoặc mất số đo vận hành của khách vãng lai (nhóm đông nhất), hoặc phải lưu nội dung
+của họ để có số đo. Cả hai đều tệ.
+
+Tách ra thì mỗi bảng chịu đúng luật của nó, và người dùng tắt công tắc vẫn không làm mù hệ
+thống giám sát.
+
+---
+
+## 13. Đi theo một câu hỏi từ đầu đến cuối
 
 Khách đã đăng nhập gõ: **"cho tôi hỏi mang chó lên xe khách được không"**
 
@@ -1124,8 +1301,10 @@ sequenceDiagram
     A->>M: chat completion + 3 tool
     M-->>A: Câu trả lời (không cần tool)
     A-->>S: text
-    S->>S: Lưu cặp hỏi–đáp vào tin_nhan_chat
+    S->>S: Ghi chi_so_chat: 1.4s · 4 chunk · OK (ẩn danh)
+    S->>S: Còn bật đồng ý? → lưu cặp hỏi–đáp vào tin_nhan_chat
     S-->>U: "Xe khách cho phép mang thú cưng nhỏ như chó, mèo nếu để trong lồng..."
+    U->>U: Hiện nút 👍/👎 dưới câu trả lời
 ```
 
 Điểm đáng chú ý ở bước 8: khách viết **"chó"**, còn chunk viết **"thú cưng nhỏ như chó, mèo,
@@ -1135,9 +1314,9 @@ chắc chắn.
 
 ---
 
-## 13. Tự chạy và tự thử
+## 14. Tự chạy và tự thử
 
-### 13.1 Chạy bộ đo chất lượng (offline, không cần API key)
+### 14.1 Chạy bộ đo chất lượng (offline, không cần API key)
 
 ```bash
 cd backend/ticket-booking && ./mvnw test -Dtest=RagRetrievalQualityTest
@@ -1146,7 +1325,7 @@ cd backend/ticket-booking && ./mvnw test -Dtest=RagRetrievalQualityTest
 In ra bảng chỉ số và danh sách câu trượt. **Luôn đọc danh sách câu trượt** — đó là nơi phát
 hiện lỗi thật.
 
-### 13.2 Chạy bộ đo đầy đủ (có gọi API, so sánh 3 kiến trúc)
+### 14.2 Chạy bộ đo đầy đủ (có gọi API, so sánh 3 kiến trúc)
 
 ```bash
 RAG_EVAL_LIVE=1 GEMINI_API_KEY=your_key ./mvnw test -Dtest=RagRetrievalQualityTest
@@ -1154,7 +1333,7 @@ RAG_EVAL_LIVE=1 GEMINI_API_KEY=your_key ./mvnw test -Dtest=RagRetrievalQualityTe
 
 Cho ra đúng bảng 3 dòng ở [mục 6.5](#65-số-liệu-thật-đo-được). Có throttle 800ms để không dính rate limit.
 
-### 13.3 Thêm tri thức mới
+### 14.3 Thêm tri thức mới
 
 Cách 1 — sửa file rồi khởi động lại:
 
@@ -1180,7 +1359,7 @@ curl -X POST http://localhost:8081/api/admin/knowledge \
   -d '{"docId":"wifi-tren-xe","title":"Xe khách có wifi không","content":"...","category":"TRIP","lang":"vi"}'
 ```
 
-### 13.4 Xem trước hệ thống truy hồi được gì
+### 14.4 Xem trước hệ thống truy hồi được gì
 
 Cực kỳ hữu ích khi soạn tri thức — thấy ngay câu hỏi có chạm đúng chunk không, mà không phải
 mở chatbot chat thử:
@@ -1190,7 +1369,7 @@ curl "http://localhost:8081/api/admin/knowledge/preview?query=mang%20cho%20len%2
   -H "Authorization: Bearer <token_admin>"
 ```
 
-### 13.5 Thử nghiệm nên làm để hiểu sâu
+### 14.5 Thử nghiệm nên làm để hiểu sâu
 
 | Thử | Cách | Bạn sẽ thấy |
 |---|---|---|
@@ -1199,6 +1378,10 @@ curl "http://localhost:8081/api/admin/knowledge/preview?query=mang%20cho%20len%2
 | Thấy P@3 bị chặn | Thêm chunk đúng thứ hai cho một câu hỏi trong `rag-eval.yml` | P@3 tăng dù hệ thống không đổi |
 | Phá tokenizer | Xóa luật tách chữ–số trong `TextNormalizer` | Recall@3 tụt từ 94.7% xuống ~77% |
 | Chỉnh RRF | Đổi `rag.rrf-k` từ 60 thành 5 | Thứ hạng đổi mạnh — hạng đầu được ưu ái hơn hẳn |
+| Kiểm tra công tắc đồng ý | `PUT /api/users/me/chat-consent` với `{"chatHistoryOptIn": false}` rồi chat tiếp | Chat vẫn trả lời 200, nhưng `GET /api/chat/history` luôn rỗng |
+| Kiểm tra ranh giới dữ liệu đánh giá | Gửi 👎 kèm `question` **không** đính JWT | `saved: true`, nhưng câu hỏi không xuất hiện ở `/api/chat/ops/issues` |
+| Kiểm tra whitelist lý do | Gửi 👎 với `reason: "BAT_KY_CHU_GI"` | Lưu thành `NONE`, không lưu chuỗi lạ |
+| Xem tỉ lệ RAG thủng | Chạy với `RAG_SEED_ON_STARTUP=false` rồi mở `/admin/chatbot` | "Có tài liệu để dựa vào" = 0% — đúng như kỳ vọng |
 
 Thử nghiệm cuối cùng đáng làm nhất: **thêm trọng số cho nhánh vector trong RRF** rồi chạy lại
 bộ đo, xem có vượt được P@1 = 86.0% của hybrid hiện tại không. Đó là bài toán mở đã nêu ở
@@ -1206,7 +1389,7 @@ bộ đo, xem có vượt được P@1 = 86.0% của hybrid hiện tại không.
 
 ---
 
-## 14. Bảng tra cứu thuật ngữ
+## 15. Bảng tra cứu thuật ngữ
 
 | Thuật ngữ | Giải thích ngắn |
 |---|---|
@@ -1214,6 +1397,7 @@ bộ đo, xem có vượt được P@1 = 86.0% của hybrid hiện tại không.
 | **Chunk** | Một mẩu tài liệu được đánh chỉ mục và truy hồi độc lập |
 | **Circuit breaker** | Cơ chế tạm loại một dịch vụ khỏi vòng chọn sau nhiều lần lỗi liên tiếp |
 | **Context window** | Số token tối đa model xử lý được trong một lượt |
+| **Consent flag (công tắc đồng ý)** | Cờ `luu_lich_su_chat` trên người dùng, quyết định hệ thống có được lưu nội dung hội thoại của họ hay không. Tắt là xóa luôn phần đã lưu |
 | **Cosine similarity** | Đo độ giống nhau giữa hai vector bằng góc, cho giá trị −1 đến 1 |
 | **Cross-lingual** | Model ánh xạ nhiều ngôn ngữ vào cùng một không gian vector |
 | **Embedding** | Vector số biểu diễn ngữ nghĩa của một đoạn văn bản |
@@ -1233,6 +1417,7 @@ bộ đo, xem có vượt được P@1 = 86.0% của hybrid hiện tại không.
 | **RAG** | Retrieval-Augmented Generation — tìm tài liệu rồi mới sinh câu trả lời |
 | **Recall@k** | Tỉ lệ câu hỏi tìm được kết quả đúng trong top-k |
 | **RRF** | Reciprocal Rank Fusion — hợp nhất nhiều bảng xếp hạng chỉ dựa trên thứ hạng |
+| **Sliding window (cửa sổ trượt)** | Chỉ gửi 10 cặp hỏi–đáp gần nhất lên model. Khác với lịch sử hiển thị cho người dùng — xem mục 12.2 |
 | **SSE** | Server-Sent Events — giao thức đẩy dữ liệu từ server, dùng cho hiệu ứng gõ chữ |
 | **System prompt** | Chỉ dẫn đặt đầu prompt, định nghĩa vai trò và luật cho model |
 | **Temperature** | Tham số điều khiển độ ngẫu nhiên của câu trả lời |
@@ -1259,6 +1444,14 @@ bộ đo, xem có vượt được P@1 = 86.0% của hybrid hiện tại không.
 | Gọi API embedding | `ai/embedding/OpenAiCompatibleEmbeddingClient.java` |
 | Dựng prompt + tool handler | `service/ChatService.java` |
 | Vòng lặp function calling | `service/AIService.java` |
+| Lưu / xóa lịch sử + kiểm tra đồng ý | `service/ChatHistoryService.java` |
+| Ghi nhận đánh giá 👍/👎 | `service/ChatFeedbackService.java` |
+| Số đo vận hành + tổng hợp dashboard | `service/ChatMetricService.java` |
+| Công tắc đồng ý lưu hội thoại | `service/UserService.java#setChatHistoryOptIn` |
+| Ba bảng dữ liệu hội thoại | `entity/ChatMessage.java` · `entity/ChatFeedback.java` · `entity/ChatTurnMetric.java` |
+| Endpoint chat + lịch sử + đánh giá + ops | `controller/ChatController.java` |
+| Widget chat, khôi phục & cache khách | `my-react-app/src/components/Chatbot.jsx` |
+| Bảng điều khiển vận hành | `my-react-app/src/Page/AdminChatbot.jsx` |
 | **Nội dung tri thức** | `resources/knowledge/faq-vi.yml` |
 | **Bộ câu hỏi vàng** | `test/resources/rag-eval.yml` |
 | **Bộ đo chất lượng** | `test/.../RagRetrievalQualityTest.java` |
@@ -1267,4 +1460,4 @@ bộ đo, xem có vượt được P@1 = 86.0% của hybrid hiện tại không.
 ---
 
 *Tài liệu thuộc đồ án tốt nghiệp VigoTrip — Đại học CMC, 2026.*
-*Mọi số liệu trong tài liệu đều đo được và tái lập được bằng các lệnh ở mục 13.*
+*Mọi số liệu trong tài liệu đều đo được và tái lập được bằng các lệnh ở mục 14.*

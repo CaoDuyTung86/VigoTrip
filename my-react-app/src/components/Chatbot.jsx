@@ -30,21 +30,21 @@ const readGuestCache = () => {
       localStorage.removeItem(GUEST_CACHE_KEY);
       return null;
     }
-    return {
-      messages: cached.messages,
-      chatHistory: Array.isArray(cached.chatHistory) ? cached.chatHistory : []
-    };
+    return cached.messages;
   } catch {
     // localStorage bị chặn (chế độ riêng tư) hoặc JSON hỏng — coi như chưa có gì.
     return null;
   }
 };
 
-const writeGuestCache = (messages, chatHistory) => {
+/**
+ * Chỉ lưu `messages`. Phần lịch sử gửi lên model suy ra được từ chính nó
+ * (xem deriveChatHistory), lưu thêm là ghi 20 tin nhắn cuối hai lần.
+ */
+const writeGuestCache = (messages) => {
   try {
     localStorage.setItem(GUEST_CACHE_KEY, JSON.stringify({
       messages: messages.slice(-MAX_CACHED_MESSAGES),
-      chatHistory: chatHistory.slice(-MAX_HISTORY_PAIRS_FRONTEND * 2),
       savedAt: Date.now()
     }));
   } catch {
@@ -58,6 +58,41 @@ const clearGuestCache = () => {
   } catch {
     // Không đọc được storage thì cũng không có gì để dọn.
   }
+};
+
+/**
+ * Dựng lịch sử gửi lên model từ chính các bong bóng đang hiển thị.
+ *
+ * Trước đây đây là một state riêng (`chatHistory`) chạy song song với `messages`: cùng một
+ * nội dung nằm ở hai chỗ, phải nhớ cập nhật cả hai ở bảy nơi, và bộ nhớ đệm của khách ghi
+ * 20 tin nhắn cuối hai lần. Suy ra được thì không cần cái nào trong số đó.
+ *
+ * Quy ước phân biệt đã có sẵn: chỉ câu trả lời THẬT mới được cấp `id` (xem newMessageRef).
+ * Tin nhắn chào và mọi bong bóng báo lỗi đều không có, nên chúng tự động không lọt vào đây.
+ *
+ * Bản suy ra còn sạch hơn bản cũ ở một điểm: lượt hỏi mà bot không đáp được (bảo trì, đứt
+ * mạng) bị loại cả cặp, thay vì để lại một câu hỏi lơ lửng không có câu trả lời đi kèm.
+ */
+const deriveChatHistory = (messages) => {
+  const history = [];
+  let pendingQuestion = null;
+
+  for (const msg of messages) {
+    if (msg.sender === 'user') {
+      // Câu hỏi trước đó chưa được đáp thì bỏ luôn, không dồn hai câu hỏi liền nhau.
+      pendingQuestion = msg.text;
+    } else if (!msg.id) {
+      pendingQuestion = null; // bong bóng hệ thống: lượt này coi như không xảy ra
+    } else if (pendingQuestion !== null) {
+      history.push({ role: 'user', content: pendingQuestion });
+      history.push({ role: 'assistant', content: msg.text });
+      pendingQuestion = null;
+    }
+    // Câu trả lời không có câu hỏi đứng trước bị bỏ qua, để mảng luôn là các cặp chẵn —
+    // nhờ đó cắt cửa sổ ở dưới không bao giờ rơi vào giữa một cặp.
+  }
+
+  return history.slice(-MAX_HISTORY_PAIRS_FRONTEND * 2);
 };
 
 /**
@@ -120,7 +155,8 @@ const Chatbot = () => {
   const welcomeMessage = () => [{ sender: 'bot', text: welcomeText }];
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState(welcomeMessage);
-  const [chatHistory, setChatHistory] = useState([]); // Lịch sử gửi lên AI
+  // Không có state `chatHistory` riêng: phần gửi lên model suy ra từ `messages` bằng
+  // deriveChatHistory ngay lúc gửi. Một nguồn sự thật, không có gì để lệch nhau.
   const [historyLoading, setHistoryLoading] = useState(false);
   const [clearingHistory, setClearingHistory] = useState(false);
   // Đánh giá đã gửi, khóa theo id câu trả lời: { [messageRef]: { rating, reason } }
@@ -262,36 +298,28 @@ const Chatbot = () => {
                 ...(m.role === 'user' ? {} : { id: newMessageRef() })
               }))
             ]);
-            // Server trả về tối đa 50 tin nhắn để hiển thị, nhưng phần đẩy lên model vẫn
-            // giữ nguyên cửa sổ 10 cặp — đây là hai thứ khác nhau, đừng gộp.
-            setChatHistory(
-              data.map(m => ({ role: m.role, content: m.content }))
-                .slice(-MAX_HISTORY_PAIRS_FRONTEND * 2)
-            );
+            // Server trả về tối đa 50 tin nhắn để hiển thị; phần đẩy lên model vẫn là cửa
+            // sổ 10 cặp, cắt ra lúc gửi. Đây là hai thứ khác nhau, đừng gộp.
             setShowFaq(false);
           } else {
             setMessages(welcomeMessage());
-            setChatHistory([]);
           }
         } catch (e) {
           // Không lấy được lịch sử thì vẫn phải chat được: chỉ mất phần cũ, không chặn widget.
           console.warn('Không khôi phục được lịch sử chat:', e);
           if (!cancelled) {
             setMessages(welcomeMessage());
-            setChatHistory([]);
           }
         } finally {
           if (!cancelled) setHistoryLoading(false);
         }
       } else {
         const cached = readGuestCache();
-        if (cached && cached.messages.length > 1) {
-          setMessages(cached.messages);
-          setChatHistory(cached.chatHistory);
+        if (cached && cached.length > 1) {
+          setMessages(cached);
           setShowFaq(false);
         } else {
           setMessages(welcomeMessage());
-          setChatHistory([]);
         }
       }
       if (!cancelled) canPersistRef.current = true;
@@ -309,8 +337,8 @@ const Chatbot = () => {
       clearGuestCache();
       return;
     }
-    writeGuestCache(messages, chatHistory);
-  }, [messages, chatHistory, isAuthenticated]);
+    writeGuestCache(messages);
+  }, [messages, isAuthenticated]);
 
   const handleSend = async (text = input) => {
     const messageToSend = typeof text === 'string' ? text.trim() : input.trim();
@@ -347,7 +375,10 @@ const Chatbot = () => {
     // bằng đường nào thì nó vẫn là một câu trả lời, một lượt đánh giá.
     const answerRef = newMessageRef();
 
-    const trimmedHistory = chatHistory.slice(-MAX_HISTORY_PAIRS_FRONTEND * 2);
+    // `messages` ở đây vẫn là ảnh chụp TRƯỚC khi thêm câu hỏi vừa gõ (setMessages ở trên
+    // chỉ có hiệu lực ở lần render sau), nên lịch sử suy ra không chứa câu đang gửi —
+    // đúng như mong muốn, vì nó đã đi riêng ở trường `message`.
+    const trimmedHistory = deriveChatHistory(messages);
 
     const headers = {
       'Content-Type': 'application/json',
@@ -442,14 +473,8 @@ const Chatbot = () => {
       }
     }
 
-    // Lưu lịch sử
-    if (botReply) {
-      setChatHistory(prev => [
-        ...prev,
-        { role: 'user', content: messageToSend },
-        { role: 'assistant', content: botReply }
-      ].slice(-MAX_HISTORY_PAIRS_FRONTEND * 2));
-    }
+    // Không cần lưu lịch sử ở đây nữa: bong bóng câu trả lời đã nằm trong `messages` kèm
+    // `id`, nên lượt này tự động có mặt ở lần deriveChatHistory tiếp theo.
 
     setLoading(false);
     
@@ -538,8 +563,9 @@ const Chatbot = () => {
       clearGuestCache();
     }
 
+    // Tin nhắn mở đầu này không có `id`, nên lịch sử suy ra cũng rỗng theo — không phải
+    // dọn thêm state nào.
     setMessages([{ sender: 'bot', text: t.chatbotNewChatMsg || 'Cuộc hội thoại mới. Tôi có thể hỗ trợ gì cho bạn?' }]);
-    setChatHistory([]);
     setFeedback({});
     setReasonPromptFor(null);
     setShowFaq(true);

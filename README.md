@@ -92,9 +92,8 @@ Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây lin
 4. **Chi tiết thiết lập:** Xem hướng dẫn chi tiết dành cho AI/Developer tại [AI_ONBOARDING.md](./AI_ONBOARDING.md).
 5. **Tìm hiểu Chatbot AI:** Giải thích toàn diện về kiến trúc RAG, LLM Gateway, cách đo chất lượng (Recall@3, MRR, F1) và các quyết định thiết kế: [docs/CHATBOT_AI.md](./docs/CHATBOT_AI.md).
 6. **Tìm hiểu AI Business Intelligence:** Cách phần Thống kê doanh thu + Báo cáo AI hoạt động (SQL tính số → LLM chỉ diễn giải), kỳ báo cáo, phân quyền đối tác và đo chất lượng tới đâu: [docs/AI_BI.md](./docs/AI_BI.md).
-7. **Tìm hiểu tầng Real-time:** Ba lớp chống đặt trùng vé, các lỗ hổng WebSocket đã vá và giới hạn còn lại của lock in-memory: [docs/REALTIME_WEBSOCKET.md](./docs/REALTIME_WEBSOCKET.md).
-8. **Demo & kiểm thử bản deploy:** Kịch bản demo theo từng màn kèm checklist smoke test sau mỗi lần deploy: [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md).
-
+7. **Demo & kiểm thử bản deploy:** Kịch bản demo theo từng màn kèm checklist smoke test sau mỗi lần deploy: [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md).
+8. **Luồng thanh toán VNPay:** Luồng Return/IPN, ba lớp phòng thủ trước khi giao vé, các sự cố đã gặp (và vì sao sửa theo cách hiện tại), cùng cách chẩn đoán bằng log: [docs/THANH_TOAN_VNPAY.md](./docs/THANH_TOAN_VNPAY.md).
 ---
 
 _Phát triển bởi nhóm sinh viên Đồ án Tốt nghiệp trường Đại Học CMC - 2026_
