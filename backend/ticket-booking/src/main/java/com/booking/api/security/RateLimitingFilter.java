@@ -54,6 +54,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final int FORGOT_PW_LIMIT_PER_15MIN = 3;
     private static final int CHAT_LIMIT_PER_MIN = 15;
     private static final int GUEST_CHAT_LIMIT_PER_MIN = 5;
+    /** Đánh giá 👍/👎 rất rẻ, nhưng vẫn cần trần để không ai bơm rác vào bảng thống kê. */
+    private static final int FEEDBACK_LIMIT_PER_MIN = 30;
     private static final int BOOKING_LIMIT_PER_MIN = 10;
 
     /**
@@ -153,7 +155,26 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                 sendRateLimitResponse(response, "Bạn đã yêu cầu gửi lại mã quá 3 lần. Vui lòng đợi 15 phút.");
                 return;
             }
-        } else if (path.startsWith("/api/chat") && !path.equals("/api/chat/status")) {
+        } else if (path.startsWith("/api/chat/feedback")) {
+            // Không gọi model nên không tính vào hạn mức LLM, nhưng vẫn phải có trần riêng:
+            // endpoint này permitAll và ghi DB, để trống là mời người ta bơm rác vào bảng
+            // thống kê chất lượng.
+            if (isRateLimited(clientIp + ":chat_feedback", requestCounts, FEEDBACK_LIMIT_PER_MIN)) {
+                sendRateLimitResponse(response, "Bạn gửi đánh giá quá nhanh. Vui lòng đợi 1 phút.");
+                return;
+            }
+        } else if (path.startsWith("/api/chat/ops")) {
+            // Bảng điều khiển quản trị, chỉ đọc và đã có phân quyền — không dính gì tới
+            // hạn mức gọi model.
+            filterChain.doFilter(request, response);
+            return;
+        } else if (path.startsWith("/api/chat")
+                && !path.equals("/api/chat/status")
+                && !path.equals("/api/chat/history")) {
+            // Hạn mức này tồn tại để chặn chi phí gọi LLM, nên chỉ áp cho đường thực sự
+            // gọi model. /chat/status và /chat/history chỉ đọc hoặc xóa dữ liệu có sẵn:
+            // tính chúng vào đây thì khách vãng lai đóng mở widget vài lần là hết lượt hỏi.
+            //
             // Thành viên đã đăng nhập khóa theo danh tính: không bị ảnh hưởng khi dùng
             // chung IP với người khác, và cũng không nhân được hạn mức bằng cách đổi IP.
             String authenticatedUser = getAuthenticatedUsername();

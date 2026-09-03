@@ -2,6 +2,7 @@ package com.booking.api.service;
 
 import com.booking.api.entity.ChatMessage;
 import com.booking.api.repository.ChatMessageRepository;
+import com.booking.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +33,7 @@ public class ChatHistoryService {
     private static final int MAX_CONTENT_LENGTH = 4000;
 
     private final ChatMessageRepository repository;
+    private final UserRepository userRepository;
 
     @Value("${chat.history.enabled:true}")
     private boolean enabled;
@@ -52,6 +54,9 @@ public class ChatHistoryService {
     @Transactional
     public void saveExchange(String userEmail, String sessionId, String question, String answer, String lang) {
         if (!enabled || userEmail == null || userEmail.isBlank()) {
+            return;
+        }
+        if (!isHistoryAllowed(userEmail)) {
             return;
         }
         try {
@@ -82,6 +87,21 @@ public class ChatHistoryService {
                 .lang(lang)
                 .createdAt(createdAt)
                 .build();
+    }
+
+    /**
+     * Người dùng này có đang cho phép lưu nội dung hội thoại không.
+     *
+     * Đọc thêm một dòng ở mỗi lượt chat là cái giá phải trả để công tắc có hiệu lực ngay:
+     * cache lại thì người vừa tắt vẫn bị ghi thêm vài lượt nữa, mà đó đúng là điều họ
+     * vừa nói là không muốn.
+     */
+    @Transactional(readOnly = true)
+    public boolean isHistoryAllowed(String userEmail) {
+        if (userEmail == null || userEmail.isBlank()) {
+            return false;
+        }
+        return userRepository.findChatHistoryOptIn(userEmail).orElse(Boolean.TRUE);
     }
 
     /** Lịch sử của chính người dùng, cũ trước mới sau để hiển thị thẳng lên UI. */

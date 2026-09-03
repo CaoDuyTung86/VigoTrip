@@ -214,6 +214,19 @@ chat:
     retention-days: ${CHAT_HISTORY_RETENTION_DAYS:30}
     max-messages-returned: ${CHAT_HISTORY_MAX_RETURNED:50}
     cleanup-cron: ${CHAT_HISTORY_CLEANUP_CRON:0 0 3 * * *}
+  # Đánh giá 👍/👎 cho câu trả lời của bot. Điểm số là ẩn danh và giữ lâu dài; riêng câu
+  # hỏi kèm theo bị xóa trắng sau retention-days ở trên, xem ChatFeedbackService.
+  feedback:
+    enabled: ${CHAT_FEEDBACK_ENABLED:true}
+    cleanup-cron: ${CHAT_FEEDBACK_CLEANUP_CRON:0 30 3 * * *}
+  # Số đo vận hành từng lượt chat: không nội dung, không danh tính (xem ChatTurnMetric).
+  # Giữ lâu hơn tin nhắn vì so sánh theo tháng mới thấy xu hướng, mà giữ lại không đánh
+  # đổi gì về quyền riêng tư.
+  metrics:
+    enabled: ${CHAT_METRICS_ENABLED:true}
+    retention-days: ${CHAT_METRICS_RETENTION_DAYS:90}
+    max-issues-returned: ${CHAT_METRICS_MAX_ISSUES:20}
+    cleanup-cron: ${CHAT_METRICS_CLEANUP_CRON:0 45 3 * * *}
 
 # Retrieval-Augmented Generation: tri thức chatbot đọc từ bảng tri_thuc,
 # nguồn gốc là resources/knowledge/*.yml

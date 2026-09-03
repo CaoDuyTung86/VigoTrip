@@ -63,4 +63,15 @@ public class User {
 
     @Column(name = "verification_code")
     private String verificationCode;
+
+    /**
+     * Người dùng có cho phép lưu nội dung hội thoại với trợ lý AI hay không.
+     *
+     * null = chưa từng bấm vào công tắc, hiểu là ĐỒNG Ý. Mặc định bật chứ không phải tắt
+     * là một đánh đổi có chủ đích: tắt mặc định thì tính năng xem lại lịch sử chết ngay
+     * với toàn bộ người dùng cũ. Bù lại, widget chat phải nói rõ đang lưu và tắt được ở
+     * đâu — thiếu lời thông báo đó thì mặc định bật là lén lút, không phải tiện lợi.
+     */
+    @Column(name = "luu_lich_su_chat")
+    private Boolean chatHistoryOptIn = true;
 }

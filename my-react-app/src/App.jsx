@@ -24,6 +24,7 @@ import AdminVouchers from "./Page/AdminVouchers";
 import VoucherPromotions from "./Page/VoucherPromotions";
 import AccountPage from "./Page/AccountPage";
 import AdminRevenue from "./Page/AdminRevenue";
+import AdminChatbot from "./Page/AdminChatbot";
 import ProviderRefunds from "./Page/ProviderRefunds";
 import ProviderCheckIn from "./Page/ProviderCheckIn";
 import Chatbot from "./components/Chatbot";
@@ -73,6 +74,7 @@ function AppWrapper() {
           <Route path="/admin/vouchers" element={<AdminVouchers />} />
           <Route path="/admin/reviews" element={<AdminReviews />} />
           <Route path="/admin/revenue" element={<AdminRevenue />} />
+          <Route path="/admin/chatbot" element={<AdminChatbot />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/provider/refunds" element={<ProviderRefunds />} />
           <Route path="/provider/check-in" element={<ProviderCheckIn />} />

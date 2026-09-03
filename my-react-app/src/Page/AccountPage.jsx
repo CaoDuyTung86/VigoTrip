@@ -32,6 +32,9 @@ const AccountPage = () => {
   const [pwdMsg, setPwdMsg] = useState(null);
   const [pwdLoading, setPwdLoading] = useState(false);
 
+  const [chatConsentMsg, setChatConsentMsg] = useState(null);
+  const [chatConsentLoading, setChatConsentLoading] = useState(false);
+
   const token = localStorage.getItem("authToken");
   const { isDark, toggleTheme } = useTheme();
   const { t } = useLanguage();
@@ -68,6 +71,37 @@ const AccountPage = () => {
       setProfileMsg({ type: "error", text: err.response?.data?.message || t.acctProfileUpdateFailed });
     } finally {
       setProfileLoading(false);
+    }
+  };
+
+  /**
+   * Bật/tắt việc lưu hội thoại với trợ lý AI.
+   *
+   * Chỉ hỏi lại khi TẮT, vì chỉ chiều đó mới xóa dữ liệu. Trạng thái công tắc lấy từ
+   * phản hồi của server chứ không tự đoán ở client: nếu request hỏng, công tắc phải nằm
+   * yên ở giá trị thật thay vì nhảy sang giá trị người dùng tưởng là đã lưu.
+   */
+  const handleToggleChatConsent = async () => {
+    const next = !(profile?.chatHistoryOptIn ?? true);
+    if (!next && !window.confirm(t.acctChatPrivacyOffConfirm
+      || "Tắt sẽ xóa toàn bộ hội thoại đã lưu của bạn. Tiếp tục?")) {
+      return;
+    }
+    setChatConsentLoading(true);
+    setChatConsentMsg(null);
+    try {
+      const res = await axios.put(`${API}/api/users/me/chat-consent`, { chatHistoryOptIn: next }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setProfile(res.data);
+      setChatConsentMsg({ type: "success", text: t.acctChatPrivacySaved || "Đã cập nhật cài đặt." });
+    } catch (err) {
+      setChatConsentMsg({
+        type: "error",
+        text: err.response?.data?.message || t.acctChatPrivacyFailed || "Không cập nhật được cài đặt.",
+      });
+    } finally {
+      setChatConsentLoading(false);
     }
   };
 
@@ -337,6 +371,62 @@ const AccountPage = () => {
                         boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
                       }} />
                     </button>
+                  </div>
+
+                  {/* Đồng ý lưu hội thoại với trợ lý AI. Đặt ngay cạnh công tắc giao diện
+                      vì đây cũng là một cài đặt của người dùng — nhưng là cài đặt chi phối
+                      dữ liệu của họ, nên có xác nhận và có thông báo kết quả. */}
+                  <div style={{
+                    marginTop: 16,
+                    padding: "20px 24px", borderRadius: 12,
+                    background: "var(--bg-input)", border: "1.5px solid var(--border-main)",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-main)", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                          <ShieldCheck size={15} style={{ color: "var(--primary)" }} />
+                          {t.acctChatPrivacyLabel || "Lưu lịch sử trò chuyện với trợ lý AI"}
+                        </div>
+                        <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
+                          {t.acctChatPrivacyHint}
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleToggleChatConsent}
+                        disabled={chatConsentLoading}
+                        aria-pressed={profile?.chatHistoryOptIn ?? true}
+                        aria-label={t.acctChatPrivacyLabel || "Lưu lịch sử trò chuyện với trợ lý AI"}
+                        style={{
+                          width: 56, height: 30, borderRadius: 15,
+                          border: "none",
+                          cursor: chatConsentLoading ? "not-allowed" : "pointer",
+                          opacity: chatConsentLoading ? 0.6 : 1,
+                          background: (profile?.chatHistoryOptIn ?? true) ? "var(--primary)" : "#ccc",
+                          position: "relative", transition: "background 0.3s",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <div style={{
+                          width: 24, height: 24, borderRadius: "50%",
+                          background: "var(--bg-card)", position: "absolute",
+                          top: 3, left: (profile?.chatHistoryOptIn ?? true) ? 29 : 3,
+                          transition: "left 0.3s",
+                          boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                        }} />
+                      </button>
+                    </div>
+                    {chatConsentMsg && (
+                      <div style={{
+                        marginTop: 12, fontSize: 13,
+                        color: chatConsentMsg.type === "success" ? "#16a34a" : "#dc2626",
+                        display: "flex", alignItems: "center", gap: 6,
+                      }}>
+                        {chatConsentMsg.type === "success"
+                          ? <CheckCircle size={14} />
+                          : <AlertTriangle size={14} />}
+                        {chatConsentMsg.text}
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ marginTop: 16, padding: 16, background: "var(--bg-accent)", borderRadius: 12, fontSize: 13, color: "var(--text-secondary)" }}>

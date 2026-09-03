@@ -47,6 +47,15 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
+                        // Phải đứng TRƯỚC permitAll của /api/chat/**: matcher đầu tiên khớp
+                        // là matcher quyết định. Thống kê phản hồi chatbot là dữ liệu vận hành,
+                        // không phải thứ khách vãng lai xem được.
+                        .requestMatchers(HttpMethod.GET, "/api/chat/feedback/summary", "/api/chat/ops/issues")
+                        .hasAnyAuthority("ROLE_ADMIN", "ADMIN")
+                        // Số đo vận hành là ẩn danh nên đối tác xem được; phần có nội dung
+                        // (/chat/ops/issues) đã bị chặn riêng ở dòng trên.
+                        .requestMatchers(HttpMethod.GET, "/api/chat/ops/summary")
+                        .hasAnyAuthority("ROLE_PROVIDER", "PROVIDER", "ROLE_ADMIN", "ADMIN")
                         .requestMatchers("/api/auth/**", "/api/chat/**", "/api/voucher/**", "/ws/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         // Ảnh QR nhúng trong mail: client mail không gửi kèm JWT được.

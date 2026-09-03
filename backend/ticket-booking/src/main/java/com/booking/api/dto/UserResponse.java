@@ -21,4 +21,6 @@ public class UserResponse {
     private Double discountPercent;
     private boolean hasPassword;
     private Boolean enabled;
+    /** Đang cho phép lưu hội thoại với trợ lý AI hay không. Không bao giờ null ở đây. */
+    private Boolean chatHistoryOptIn;
 }

@@ -28,6 +28,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT COUNT(u) > 0 FROM User u WHERE LOWER(u.email) = LOWER(:email)")
     boolean existsByEmail(@Param("email") String email);
 
+    /**
+     * Cờ đồng ý lưu hội thoại AI. Chỉ lấy đúng một cột thay vì cả entity vì nó được hỏi
+     * ở mỗi lượt chat.
+     *
+     * Optional rỗng có thể là "chưa từng chọn" (cột null) hoặc "không có user" — cả hai
+     * đều quy về mặc định ĐỒNG Ý, xem ghi chú ở {@link com.booking.api.entity.User}.
+     */
+    @Query("SELECT u.chatHistoryOptIn FROM User u WHERE LOWER(u.email) = LOWER(:email) ORDER BY u.id ASC LIMIT 1")
+    Optional<Boolean> findChatHistoryOptIn(@Param("email") String email);
+
     /** Dùng cho tác vụ dọn dẹp / chẩn đoán dữ liệu trùng email. */
     @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email) ORDER BY u.id ASC")
     List<User> findAllByEmailIgnoreCase(@Param("email") String email);

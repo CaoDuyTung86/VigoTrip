@@ -16,6 +16,8 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ChatHistoryService chatHistoryService;
+    private final ChatFeedbackService chatFeedbackService;
 
     @Transactional(readOnly = true)
     public UserResponse getProfile(String email) {
@@ -34,6 +36,27 @@ public class UserService {
         if (request.getPhone() != null) user.setPhone(request.getPhone());
 
         userRepository.save(user);
+        return toResponse(user);
+    }
+
+    /**
+     * Bật/tắt việc lưu hội thoại với trợ lý AI.
+     *
+     * Tắt là XÓA luôn phần đã lưu, không chỉ ngừng ghi tiếp: một công tắc quyền riêng tư
+     * mà để lại nguyên đống dữ liệu cũ trong DB thì chẳng khác gì không có.
+     */
+    @Transactional
+    public UserResponse setChatHistoryOptIn(String email, boolean optIn) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user với email: " + email));
+
+        user.setChatHistoryOptIn(optIn);
+        userRepository.save(user);
+
+        if (!optIn) {
+            chatHistoryService.clearHistory(user.getEmail());
+            chatFeedbackService.clearForUser(user.getEmail());
+        }
         return toResponse(user);
     }
 
@@ -76,6 +99,9 @@ public class UserService {
                 .discountPercent(discount)
                 .hasPassword(user.getPassword() != null && !user.getPassword().isEmpty())
                 .enabled(user.getEnabled())
+                // null = chưa từng chọn = đồng ý; quy về giá trị rõ ràng ngay tại biên,
+                // để phía client không phải đoán ý nghĩa của null.
+                .chatHistoryOptIn(user.getChatHistoryOptIn() == null || user.getChatHistoryOptIn())
                 .build();
     }
 

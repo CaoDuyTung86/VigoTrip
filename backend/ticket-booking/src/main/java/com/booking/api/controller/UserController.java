@@ -33,6 +33,22 @@ public class UserController {
         return ResponseEntity.ok(userService.updateProfile(userDetails.getUsername(), request));
     }
 
+    /**
+     * Bật/tắt lưu hội thoại với trợ lý AI. Endpoint riêng chứ không nhét vào PUT /me:
+     * đây là công tắc bấm phát ăn ngay, không nằm trong form "lưu thông tin cá nhân",
+     * và tắt nó còn kéo theo việc xóa dữ liệu — trộn chung sẽ khó đọc lẫn khó kiểm toán.
+     */
+    @PutMapping("/me/chat-consent")
+    public ResponseEntity<UserResponse> setChatConsent(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, Boolean> body) {
+        Boolean optIn = body.get("chatHistoryOptIn");
+        if (optIn == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(userService.setChatHistoryOptIn(userDetails.getUsername(), optIn));
+    }
+
     @PutMapping("/me/password")
     public ResponseEntity<Map<String, String>> changePassword(
             @AuthenticationPrincipal UserDetails userDetails,

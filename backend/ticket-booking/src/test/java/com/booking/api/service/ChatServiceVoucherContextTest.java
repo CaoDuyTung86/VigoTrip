@@ -56,7 +56,7 @@ class ChatServiceVoucherContextTest {
 
         chatService = new ChatService(tripRepository, bookingRepository, voucherService,
                 routeRepository, aiService, mock(RestTemplate.class), hybridRetriever,
-                mock(ChatHistoryService.class));
+                mock(ChatHistoryService.class), mock(ChatMetricService.class));
     }
 
     private VoucherPublicDTO voucher(String code, boolean available, String reason) {

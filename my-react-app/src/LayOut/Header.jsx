@@ -12,7 +12,7 @@ import { PiAirplaneTilt } from "react-icons/pi";
 import { MdOutlineTrain } from "react-icons/md";
 import { IoIosBus } from "react-icons/io";
 import { useNavigate, useLocation } from "react-router-dom";
-import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users, Tag, Menu, X } from "lucide-react";
+import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users, Tag, Menu, X, Bot } from "lucide-react";
 
 const Header = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -54,12 +54,14 @@ const Header = () => {
     { label: t.refunds || "Hoàn tiền & Hủy vé", path: "/provider/refunds", icon: <Undo2 size={16} color="#ef4444" /> },
     { label: t.revenue || "Thống kê doanh thu", path: "/admin/revenue", icon: <DollarSign size={16} color="#fbbf24" /> },
     { label: t.providerReviews || "Đánh giá & Feedback", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },
+    { label: t.adminChatbotTitle || "Vận hành chatbot", path: "/admin/chatbot", icon: <Bot size={16} color="#a78bfa" /> },
     { label: t.checkInQR || "Quét vé (Check-in)", path: "/provider/check-in", icon: <QrCode size={16} color="#10b981" /> },
   ];
 
   const providerItems = [
     { label: t.providerReviews || "Đánh giá khách hàng", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },
     { label: t.revenue || "Doanh thu", path: "/admin/revenue", icon: <DollarSign size={16} color="#fbbf24" /> },
+    { label: t.adminChatbotTitle || "Vận hành chatbot", path: "/admin/chatbot", icon: <Bot size={16} color="#a78bfa" /> },
     { label: t.checkInQR || "Quét vé (Check-in)", path: "/provider/check-in", icon: <QrCode size={16} color="#10b981" /> },
   ];
 

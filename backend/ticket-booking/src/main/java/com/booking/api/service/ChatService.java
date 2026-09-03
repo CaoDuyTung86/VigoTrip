@@ -34,6 +34,7 @@ public class ChatService implements AIService.ToolHandler {
     private final org.springframework.web.client.RestTemplate aiRestTemplate;
     private final com.booking.api.ai.rag.HybridRetriever hybridRetriever;
     private final ChatHistoryService chatHistoryService;
+    private final ChatMetricService chatMetricService;
 
     private static final DateTimeFormatter VOUCHER_DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -418,7 +419,13 @@ public class ChatService implements AIService.ToolHandler {
         }
     }
 
-    private String buildSystemInstruction(String username, String sessionKey, String userMessage, String language) {
+    /**
+     * @param ragChunks các đoạn tri thức đã truy hồi. Nhận từ ngoài vào thay vì tự gọi
+     *                  hybridRetriever ở đây, để bên gọi đếm được số đoạn tìm thấy mà
+     *                  không phải truy hồi hai lần.
+     */
+    private String buildSystemInstruction(String username, String sessionKey, String userMessage, String language,
+                                          List<com.booking.api.entity.KnowledgeChunk> ragChunks) {
         String currentTime = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"))
                 .format(DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM/yyyy"));
         String userContextStr = username != null ? "Email khách hàng hiện tại: " + username
@@ -427,7 +434,7 @@ public class ChatService implements AIService.ToolHandler {
         // Truy hồi tri thức: tìm kiếm lai (vector + BM25) trên knowledge base trong DB.
         // Thay cho bảng FAQ hardcode 6 mục + khớp từ khóa trước đây.
         StringBuilder ragContext = new StringBuilder();
-        for (com.booking.api.entity.KnowledgeChunk chunk : hybridRetriever.retrieve(userMessage)) {
+        for (com.booking.api.entity.KnowledgeChunk chunk : ragChunks) {
             ragContext.append("- ");
             if (chunk.getTitle() != null && !chunk.getTitle().isBlank()) {
                 ragContext.append(chunk.getTitle()).append(": ");
@@ -601,13 +608,40 @@ public class ChatService implements AIService.ToolHandler {
         }
 
         String effectiveKey = (username != null && !username.isBlank()) ? username : sessionKey;
-        String systemInstruction = buildSystemInstruction(username, effectiveKey, userMessage, language);
+        List<com.booking.api.entity.KnowledgeChunk> ragChunks = hybridRetriever.retrieve(userMessage);
+        String systemInstruction = buildSystemInstruction(username, effectiveKey, userMessage, language, ragChunks);
 
-        String reply = aiService.getChatResponse(systemInstruction, safeHistory, userMessage,
-                securedToolHandler(username, effectiveKey));
+        long startedAt = System.currentTimeMillis();
+        String reply;
+        try {
+            reply = aiService.getChatResponse(systemInstruction, safeHistory, userMessage,
+                    securedToolHandler(username, effectiveKey));
+        } catch (RuntimeException e) {
+            recordMetric(language, username, false, startedAt, userMessage, null, ragChunks.size(), "ERROR");
+            throw e;
+        }
 
+        recordMetric(language, username, false, startedAt, userMessage, reply, ragChunks.size(),
+                reply == null || reply.isBlank() ? "EMPTY" : "OK");
         chatHistoryService.saveExchange(username, sessionKey, userMessage, reply, language);
         return reply;
+    }
+
+    /**
+     * Ghi số đo vận hành cho một lượt. Không có nội dung và không có danh tính đi kèm —
+     * chỉ độ dài, độ trễ, kết quả; xem ghi chú ở ChatTurnMetric.
+     */
+    private void recordMetric(String language, String username, boolean streamed, long startedAt,
+                              String question, String answer, int ragChunks, String outcome) {
+        chatMetricService.record(
+                language,
+                username != null && !username.isBlank(),
+                streamed,
+                System.currentTimeMillis() - startedAt,
+                question == null ? 0 : question.length(),
+                answer == null ? 0 : answer.length(),
+                ragChunks,
+                outcome);
     }
 
     /**
@@ -653,17 +687,29 @@ public class ChatService implements AIService.ToolHandler {
         }
 
         String effectiveKey = (username != null && !username.isBlank()) ? username : sessionKey;
-        String systemInstruction = buildSystemInstruction(username, effectiveKey, userMessage, language);
+        List<com.booking.api.entity.KnowledgeChunk> ragChunks = hybridRetriever.retrieve(userMessage);
+        String systemInstruction = buildSystemInstruction(username, effectiveKey, userMessage, language, ragChunks);
 
         // Gom lại toàn bộ câu trả lời trong lúc stream để còn lưu lịch sử — người dùng
         // vẫn nhận từng mẩu ngay, việc lưu chỉ xảy ra sau khi stream kết thúc.
         StringBuilder fullReply = new StringBuilder();
-        aiService.streamChatResponse(systemInstruction, safeHistory, userMessage,
-                securedToolHandler(username, effectiveKey), chunk -> {
-                    fullReply.append(chunk);
-                    chunkConsumer.accept(chunk);
-                });
+        long startedAt = System.currentTimeMillis();
+        try {
+            aiService.streamChatResponse(systemInstruction, safeHistory, userMessage,
+                    securedToolHandler(username, effectiveKey), chunk -> {
+                        fullReply.append(chunk);
+                        chunkConsumer.accept(chunk);
+                    });
+        } catch (RuntimeException e) {
+            // Stream đứt giữa chừng vẫn là một lượt có thật và là lượt đáng quan tâm nhất
+            // trên bảng điều khiển — đo trước rồi mới ném tiếp.
+            recordMetric(language, username, true, startedAt, userMessage, fullReply.toString(),
+                    ragChunks.size(), "ERROR");
+            throw e;
+        }
 
+        recordMetric(language, username, true, startedAt, userMessage, fullReply.toString(),
+                ragChunks.size(), fullReply.length() == 0 ? "EMPTY" : "OK");
         chatHistoryService.saveExchange(username, sessionKey, userMessage, fullReply.toString(), language);
     }
 
