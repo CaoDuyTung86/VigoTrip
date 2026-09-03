@@ -151,16 +151,40 @@ lại bị nới về `"*"` cho xong.
 
 ---
 
-## 3. Hai cải tiến đi kèm
+## 3. Ba cải tiến đi kèm
 
-### 3.1. Trần số ghế một danh tính giữ cùng lúc
+### 3.1. Hai trần khác nhau, chặn hai thứ khác nhau
 
-Không có trần thì một phiên chỉ cần gửi liên tiếp vài trăm frame là giữ sạch ghế của mọi
-chuyến trong 10 phút. Không cướp được vé của ai, nhưng đủ để không ai đặt được vé nữa — và
-`RateLimitingFilter` không chạm tới được. Trần đặt ở 20 ghế mỗi danh tính; gia hạn ghế đang
-giữ không tính thêm.
+`RateLimitingFilter` không với tới kênh này: nó là servlet filter, chỉ chạy trên request
+HTTP, mà WebSocket bắt tay HTTP đúng **một lần** rồi mọi frame đi trong kết nối đã mở. Nên
+kênh này cần trần riêng — và cần **hai** cái, vì có hai thứ khác nhau cần chặn:
 
-### 3.2. Chuyển chủ ghế khi khách đăng nhập giữa chừng
+| Trần | Chặn gì | Ở đâu |
+| --- | --- | --- |
+| **20 ghế / danh tính** | *Hệ quả*: giữ sạch ghế để không ai đặt được vé | `SeatLockService.MAX_SEATS_PER_IDENTITY` |
+| **10 frame/giây, cụm 40 / phiên** | *Chi phí*: bơm frame làm quá tải máy chủ | `StompRateLimitChannelInterceptor` |
+
+Trần thứ nhất không thay được trần thứ hai: gửi 10.000 frame/giây vào ghế người khác đang
+giữ thì lần nào cũng bị từ chối, **không giữ thêm ghế nào**, nhưng máy chủ vẫn phải giải mã,
+tra bảng lock và xử lý đủ 10.000 lượt.
+
+Trần tần suất dùng **gáo token**: mỗi phiên có tối đa 40 token, tự đầy lại 10 token mỗi
+giây. Cần cả hai tham số vì giao diện thật hoạt động theo cụm — chọn 10 ghế một lúc là 10
+frame gửi liền nhau trong vài mili giây. Chỉ giới hạn tốc độ trung bình sẽ chặn nhầm nhịp
+bấm bình thường; chỉ cho phép bùng nổ mà không khống chế tốc độ thì không chặn được gì.
+
+Vượt trần thì frame bị **bỏ**, kết nối vẫn sống: client thật cũng có thể chạm trần khi mạng
+chập chờn, và khi đó việc giữ ghế lỗi có kiểm soát (frontend hết 8 giây báo "hết thời gian
+chờ") còn hơn mất luôn cả sơ đồ ghế đang xem. Chỉ khi vượt trần **20 lần liên tiếp** thì
+phiên mới bị ngắt hẳn — bộ đếm về 0 ngay khi có một frame đi qua được, nên một phiên mở cả
+buổi thỉnh thoảng chạm trần không bị cộng dồn thành án ngắt kết nối.
+
+### 3.2. Trần số ghế một danh tính giữ cùng lúc
+
+Trần đặt ở 20 ghế mỗi danh tính; gia hạn ghế đang giữ không tính thêm, và trần tính theo
+từng danh tính chứ không phải trần chung của hệ thống.
+
+### 3.3. Chuyển chủ ghế khi khách đăng nhập giữa chừng
 
 Khách chọn ghế lúc chưa đăng nhập (`guest:...`) rồi mới đăng nhập ở bước thanh toán
 (`user:...`). Không chuyển lock theo thì chính họ bị `BookingService` báo "ghế đang được giữ
@@ -224,6 +248,7 @@ thiếu sót.
 ./mvnw test -Dtest=StompAuthChannelInterceptorTest   # xác thực ở frame CONNECT
 ./mvnw test -Dtest=SeatStatusControllerTest          # danh tính lấy từ phiên, không từ thân tin
 ./mvnw test -Dtest=SeatLockServiceTest               # lock, trần ghế, chuyển chủ
+./mvnw test -Dtest=StompRateLimitChannelInterceptorTest  # trần tần suất frame
 ./mvnw test -Dtest=SeatDoubleBookingIntegrationTest  # lớp 2 giữ được bất biến khi lớp 1 mất
 ./mvnw test -Dtest=SeatWebSocketIntegrationTest       # đầu-cuối trên máy chủ thật, cổng ngẫu nhiên
 

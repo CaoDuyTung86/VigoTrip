@@ -89,6 +89,18 @@ app:
   # liệt kê cứng từng tên miền sẽ khiến bản xem trước gãy rồi lại bị nới về "*" cho xong.
   websocket:
     allowed-origin-patterns: ${WS_ALLOWED_ORIGIN_PATTERNS:https://vigotrip.vercel.app,https://*.vercel.app,https://datxe.duckdns.org,https://*.ngrok-free.dev,http://localhost:*}
+    # Trần tần suất frame trên MỖI PHIÊN STOMP. RateLimitingFilter không với tới được:
+    # nó là servlet filter, mà WebSocket chỉ bắt tay HTTP đúng một lần rồi mọi frame đi
+    # trong kết nối đã mở.
+    #
+    # burst phải lớn hơn số ghế tối đa một người chọn được một lần (mỗi ghế là một frame,
+    # gửi liền nhau trong vài mili giây), nếu không thao tác chọn nhóm bị chặn nhầm.
+    # frames-per-second khống chế tốc độ về lâu dài. Vượt trần thì frame bị BỎ chứ không
+    # ngắt kết nối; vượt quá max-violations lần trong một phiên mới ngắt hẳn.
+    rate-limit:
+      frames-per-second: ${WS_RATE_LIMIT_FPS:10}
+      burst: ${WS_RATE_LIMIT_BURST:40}
+      max-violations: ${WS_RATE_LIMIT_MAX_VIOLATIONS:20}
   # URL công khai của chính backend. Dùng để nhúng ảnh QR vào email — client mail nằm
   # ngoài mạng nội bộ nên localhost không dùng được khi deploy.
   backend-url: ${BACKEND_URL:http://localhost:8080}

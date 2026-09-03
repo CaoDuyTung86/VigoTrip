@@ -1,6 +1,7 @@
 package com.booking.api.config;
 
 import com.booking.api.security.StompAuthChannelInterceptor;
+import com.booking.api.security.StompRateLimitChannelInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +19,7 @@ import java.util.List;
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final StompAuthChannelInterceptor stompAuthChannelInterceptor;
+    private final StompRateLimitChannelInterceptor stompRateLimitChannelInterceptor;
 
     /**
      * Tên miền được phép mở WebSocket.
@@ -44,9 +46,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         config.setUserDestinationPrefix("/user");
     }
 
+    /**
+     * Thứ tự có ý nghĩa: xác thực trước, rồi mới tới trần tần suất.
+     *
+     * <p>Bộ đếm tần suất khoá theo phiên, mà phiên chỉ có danh tính sau khi frame CONNECT
+     * đi qua bộ chặn xác thực. Đảo lại thì một phiên chưa xác thực cũng chiếm được một gáo
+     * token.
+     */
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(stompAuthChannelInterceptor);
+        registration.interceptors(stompAuthChannelInterceptor, stompRateLimitChannelInterceptor);
     }
 
     @Override
