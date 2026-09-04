@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send, X, Search, User, Link as LinkIcon, HelpCircle, Tag, Ticket, CreditCard, RotateCcw, TrainTrack, Bus, Trash2, ThumbsUp, ThumbsDown, ShieldCheck } from 'lucide-react';
 import BotAvatar from './BotAvatar';
+import ConfirmDialog from './ConfirmDialog';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { Turnstile } from '@marsidev/react-turnstile';
@@ -79,6 +80,25 @@ const clearGuestCache = () => {
   }
 };
 
+const CHAT_SESSION_KEY = 'chat_session_id';
+
+/**
+ * Bỏ định danh phiên chat để lượt hỏi kế tiếp sinh cái mới.
+ *
+ * Gọi khi ĐỔI DANH TÍNH. Nếu không, người vừa đăng xuất và bất kỳ ai dùng máy sau đó vẫn
+ * gửi lên đúng cái session_id đang nằm trong những dòng `tin_nhan_chat` mang email của
+ * người kia — nối được hai bên với nhau ngay trong DB của chính mình, dù nội dung hội thoại
+ * đã được dọn khỏi màn hình. Cùng lý do ở chiều ngược lại: mạch hỏi của khách trước khi
+ * đăng nhập không nên mang sang phiên đã có danh tính.
+ */
+const resetChatSessionId = () => {
+  try {
+    localStorage.removeItem(CHAT_SESSION_KEY);
+  } catch {
+    // Không đọc được storage thì cũng không có gì để dọn.
+  }
+};
+
 /**
  * Dựng lịch sử gửi lên model từ chính các bong bóng đang hiển thị.
  *
@@ -122,10 +142,10 @@ const deriveChatHistory = (messages) => {
 const getGuestSessionId = () => {
   const newId = () => 'guest_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
   try {
-    let sid = localStorage.getItem('chat_session_id');
+    let sid = localStorage.getItem(CHAT_SESSION_KEY);
     if (!sid) {
       sid = newId();
-      localStorage.setItem('chat_session_id', sid);
+      localStorage.setItem(CHAT_SESSION_KEY, sid);
     }
     return sid;
   } catch {
@@ -216,6 +236,7 @@ const Chatbot = () => {
   const DRAG_THRESHOLD_PX = 8; // dưới ngưỡng này coi là click, không phải kéo
   
   const [guestCaptchaToken, setGuestCaptchaToken] = useState(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [turnstileKey, setTurnstileKey] = useState(0);
   const hasToken = isAuthenticated;
 
@@ -303,6 +324,8 @@ const Chatbot = () => {
     // Buộc effect khôi phục nạp lại từ đầu ở lần mở widget kế tiếp.
     restoredIdentityRef.current = null;
     clearGuestCache();
+    // Dọn cả định danh phiên, không chỉ nội dung: xem resetChatSessionId.
+    resetChatSessionId();
     setMessages(welcomeMessage());
     setFeedback({});
     setReasonPromptFor(null);
@@ -659,10 +682,16 @@ const Chatbot = () => {
    */
   const handleClearHistory = async () => {
     if (clearingHistory) return;
-    const confirmText = t.chatbotClearConfirm
-      || 'Xóa toàn bộ lịch sử hội thoại? Thao tác này không thể hoàn tác.';
-    if (messages.length > 1 && !window.confirm(confirmText)) return;
+    // Chưa hỏi gì thì không có gì để mất — hỏi lại chỉ tổ phiền.
+    if (messages.length > 1) {
+      setConfirmClearOpen(true);
+      return;
+    }
+    await doClearHistory();
+  };
 
+  /** Phần xóa thật, chỉ chạy sau khi người dùng đã xác nhận (hoặc không có gì để hỏi). */
+  const doClearHistory = async () => {
     if (isAuthenticated) {
       setClearingHistory(true);
       try {
@@ -678,6 +707,7 @@ const Chatbot = () => {
           text: t.chatbotClearFailed || 'Chưa xóa được lịch sử. Vui lòng thử lại sau.'
         }]);
         setClearingHistory(false);
+        setConfirmClearOpen(false);
         // Cố ý KHÔNG dọn màn hình khi server chưa xóa: màn hình trắng sẽ khiến người dùng
         // tin là đã xóa xong trong khi dữ liệu vẫn còn.
         return;
@@ -693,6 +723,7 @@ const Chatbot = () => {
     setFeedback({});
     setReasonPromptFor(null);
     setShowFaq(true);
+    setConfirmClearOpen(false);
   };
 
   const [showFaq, setShowFaq] = useState(true);
@@ -1485,6 +1516,18 @@ const Chatbot = () => {
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmClearOpen}
+        busy={clearingHistory}
+        title={t.chatbotClearConfirmTitle || 'Xóa lịch sử hội thoại?'}
+        message={t.chatbotClearConfirm
+          || 'Xóa toàn bộ lịch sử hội thoại? Thao tác này không thể hoàn tác.'}
+        confirmLabel={t.chatbotClearConfirmYes || 'Xóa'}
+        cancelLabel={t.commonCancel || 'Hủy'}
+        onConfirm={doClearHistory}
+        onCancel={() => { if (!clearingHistory) setConfirmClearOpen(false); }}
+      />
     </>
   );
 };

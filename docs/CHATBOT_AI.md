@@ -1111,7 +1111,8 @@ người dùng — luôn đáng ngờ.**
 | Rò rỉ lịch sử chat | Chỉ lưu với người đã đăng nhập **và** đang bật đồng ý; chỉ chính chủ đọc được; tự xóa sau 30 ngày; không có API nào cho admin đọc hội thoại của người khác |
 | Hội thoại của khách còn lại trên máy dùng chung | Chỉ lưu ở `localStorage` của máy đó, hết hạn sau 7 ngày, xóa ngay khi có người đăng nhập |
 | Thông tin cá nhân lọt vào bảng thống kê | Lý do đánh giá 👎 chỉ chọn từ danh sách mã cố định, không có ô nhập tự do; server whitelist lại |
-| Bơm rác vào bảng đánh giá | Rate limit riêng 30/phút cho `/api/chat/feedback` |
+| Bơm rác vào bảng đánh giá | Chỉ nhận `messageRef` mà server đã thực sự cấp cho một lượt hỏi (`ChatMessageRefRegistry`, hoặc lịch sử DB của chính người đó) + rate limit riêng 30/phút cho `/api/chat/feedback` |
+| Nối phiên khách với tài khoản vừa đăng xuất | `chat_session_id` bị đổi mới mỗi lần đổi danh tính, không chỉ nội dung hội thoại |
 | Đối tác đọc câu hỏi của khách | `/chat/ops/issues` chỉ ADMIN; đối tác chỉ xem được số đo ẩn danh ở `/chat/ops/summary` |
 
 > **Bẫy đã gặp và đã sửa:** bản đầu chỉ verify CAPTCHA khi client **có gửi** token —
@@ -1186,6 +1187,13 @@ người kia trên cùng một máy.
 > để phòng, chỉ khác là dữ liệu rò rỉ nghiêm trọng hơn: hội thoại của người **đã đăng nhập**.
 > Nay phần dọn nằm ở một effect riêng chỉ phụ thuộc `isAuthenticated`. Bài học: điều kiện tối
 > ưu hiệu năng (`if (!isOpen)`) không được nằm chắn trước một bước dọn dữ liệu.
+
+> **Dọn nội dung thôi chưa đủ, phải dọn cả định danh phiên.** `chat_session_id` sống trong
+> `localStorage` và trước đây được sinh đúng một lần rồi giữ mãi. Nó đi kèm mọi lượt hỏi, nên
+> nằm sẵn trong cột `session_id` của những dòng `tin_nhan_chat` mang email người dùng. Sau khi
+> họ đăng xuất, khách dùng máy tiếp theo vẫn gửi lên đúng cái id ấy — màn hình đã sạch nhưng
+> trong DB hai bên vẫn nối được với nhau. Nay `resetChatSessionId()` chạy cùng chỗ với phần
+> dọn hội thoại, ở cả hai chiều đăng nhập và đăng xuất.
 
 > **Vì sao `localStorage` chứ không phải `sessionStorage`:** `sessionStorage` chết theo tab.
 > Bản đầu dùng nó, hệ quả là mỗi tab thành một phiên mới và cột `session_id` trong DB gần như

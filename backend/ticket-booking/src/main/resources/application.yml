@@ -242,6 +242,12 @@ chat:
   feedback:
     enabled: ${CHAT_FEEDBACK_ENABLED:true}
     cleanup-cron: ${CHAT_FEEDBACK_CLEANUP_CRON:0 30 3 * * *}
+    # Chỉ nhận đánh giá cho mã câu trả lời mà server đã thực sự cấp (ChatMessageRefRegistry).
+    # Sổ nằm trong bộ nhớ: hạn dài thì người dùng quay lại tab cũ hôm sau vẫn chấm điểm được,
+    # hạn ngắn thì sổ gọn hơn. Server khởi động lại là sổ trắng — với người đã đăng nhập còn
+    # đường kiểm tra thứ hai qua lịch sử trong DB.
+    ref-ttl-hours: ${CHAT_FEEDBACK_REF_TTL_HOURS:24}
+    ref-max-entries: ${CHAT_FEEDBACK_REF_MAX_ENTRIES:50000}
   # Số đo vận hành từng lượt chat: không nội dung, không danh tính (xem ChatTurnMetric).
   # Giữ lâu hơn tin nhắn vì so sánh theo tháng mới thấy xu hướng, mà giữ lại không đánh
   # đổi gì về quyền riêng tư.

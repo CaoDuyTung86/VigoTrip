@@ -123,6 +123,22 @@ public class ChatHistoryService {
         return userRepository.findChatHistoryOptIn(userEmail).orElse(Boolean.TRUE);
     }
 
+    /**
+     * Câu trả lời mang mã này có nằm trong lịch sử của chính người dùng đó không.
+     *
+     * Đường kiểm tra thứ hai cho đánh giá 👍/👎, bên cạnh sổ trong bộ nhớ
+     * ({@link ChatMessageRefRegistry}). Cần cả hai vì chúng bù chỗ hở của nhau: sổ mất sau
+     * mỗi lần server khởi động lại, còn lịch sử DB thì chỉ có với người đã đăng nhập và đang
+     * bật đồng ý lưu.
+     */
+    @Transactional(readOnly = true)
+    public boolean ownsMessageRef(String userEmail, String messageRef) {
+        if (userEmail == null || userEmail.isBlank() || messageRef == null || messageRef.isBlank()) {
+            return false;
+        }
+        return repository.existsByMessageRefAndUserEmail(messageRef, userEmail);
+    }
+
     /** Lịch sử của chính người dùng, cũ trước mới sau để hiển thị thẳng lên UI. */
     @Transactional(readOnly = true)
     public List<ChatMessage> getHistory(String userEmail) {

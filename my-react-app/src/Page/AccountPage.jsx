@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Sidebar from "../components/Sidebar";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
 import { User, Lock, Award, Settings, Info, ShieldCheck, AlertTriangle, CheckCircle } from "lucide-react";
@@ -34,6 +35,7 @@ const AccountPage = () => {
 
   const [chatConsentMsg, setChatConsentMsg] = useState(null);
   const [chatConsentLoading, setChatConsentLoading] = useState(false);
+  const [confirmChatOffOpen, setConfirmChatOffOpen] = useState(false);
 
   const token = localStorage.getItem("authToken");
   const { isDark, toggleTheme } = useTheme();
@@ -83,10 +85,16 @@ const AccountPage = () => {
    */
   const handleToggleChatConsent = async () => {
     const next = !(profile?.chatHistoryOptIn ?? true);
-    if (!next && !window.confirm(t.acctChatPrivacyOffConfirm
-      || "Tắt sẽ xóa toàn bộ hội thoại đã lưu của bạn. Tiếp tục?")) {
+    // Chỉ hỏi lại ở chiều TẮT; bật lại không mất gì nên bấm là chạy luôn.
+    if (!next) {
+      setConfirmChatOffOpen(true);
       return;
     }
+    await applyChatConsent(next);
+  };
+
+  /** Gọi API đổi trạng thái, sau khi đã xác nhận (nếu cần). */
+  const applyChatConsent = async (next) => {
     setChatConsentLoading(true);
     setChatConsentMsg(null);
     try {
@@ -102,6 +110,7 @@ const AccountPage = () => {
       });
     } finally {
       setChatConsentLoading(false);
+      setConfirmChatOffOpen(false);
     }
   };
 
@@ -438,6 +447,18 @@ const AccountPage = () => {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmChatOffOpen}
+        busy={chatConsentLoading}
+        title={t.acctChatPrivacyOffTitle || "Tắt lưu lịch sử trò chuyện?"}
+        message={t.acctChatPrivacyOffConfirm
+          || "Tắt sẽ xóa toàn bộ hội thoại đã lưu của bạn. Tiếp tục?"}
+        confirmLabel={t.acctChatPrivacyOffYes || "Tắt và xóa"}
+        cancelLabel={t.commonCancel || "Hủy"}
+        onConfirm={() => applyChatConsent(false)}
+        onCancel={() => { if (!chatConsentLoading) setConfirmChatOffOpen(false); }}
+      />
     </div>
   );
 };

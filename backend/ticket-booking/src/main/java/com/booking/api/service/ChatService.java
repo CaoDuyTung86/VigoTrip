@@ -36,6 +36,7 @@ public class ChatService implements AIService.ToolHandler {
     private final com.booking.api.ai.rag.HybridRetriever hybridRetriever;
     private final ChatHistoryService chatHistoryService;
     private final ChatMetricService chatMetricService;
+    private final ChatMessageRefRegistry messageRefRegistry;
 
     private static final DateTimeFormatter VOUCHER_DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -601,6 +602,8 @@ public class ChatService implements AIService.ToolHandler {
         if (userMessage.length() > MAX_USER_MESSAGE_LENGTH) {
             return "Tin nhắn của bạn quá dài (tối đa 500 ký tự). Vui lòng rút gọn và thử lại.";
         }
+        // Từ đây trở đi lượt hỏi là thật: nhận mã của nó vào sổ để lát nữa còn duyệt đánh giá.
+        messageRefRegistry.register(messageRef);
 
         List<MessageDto> safeHistory = new ArrayList<>();
         if (history != null && !history.isEmpty()) {
@@ -681,6 +684,8 @@ public class ChatService implements AIService.ToolHandler {
         if (userMessage.length() > MAX_USER_MESSAGE_LENGTH) {
             throw new ChatInputException(ChatInputException.MESSAGE_TOO_LONG);
         }
+        // Từ đây trở đi lượt hỏi là thật: nhận mã của nó vào sổ để lát nữa còn duyệt đánh giá.
+        messageRefRegistry.register(messageRef);
 
         List<MessageDto> safeHistory = new ArrayList<>();
         if (history != null && !history.isEmpty()) {

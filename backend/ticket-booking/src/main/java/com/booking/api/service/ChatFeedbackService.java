@@ -48,6 +48,7 @@ public class ChatFeedbackService {
 
     private final ChatFeedbackRepository repository;
     private final ChatHistoryService chatHistoryService;
+    private final ChatMessageRefRegistry refRegistry;
 
     @Value("${chat.feedback.enabled:true}")
     private boolean enabled;
@@ -73,6 +74,18 @@ public class ChatFeedbackService {
             return false;
         }
         if (!RATING_UP.equals(rating) && !RATING_DOWN.equals(rating)) {
+            return false;
+        }
+
+        // Mã phải là mã server đã cấp cho một lượt hỏi có thật. Không có bước này thì mã do
+        // client bịa ra cũng được ghi, và bảng dùng để đo chất lượng chatbot trở thành chỗ
+        // ai cũng bơm số vào được — 30 dòng rác mỗi phút, chỉ cần một vòng lặp curl.
+        //
+        // Hai đường kiểm tra bù chỗ hở cho nhau: sổ trong bộ nhớ phục vụ cả khách vãng lai
+        // nhưng trắng sau mỗi lần server khởi động lại; lịch sử DB sống lâu nhưng chỉ có với
+        // người đã đăng nhập và đang bật đồng ý lưu.
+        if (!refRegistry.wasIssued(messageRef) && !chatHistoryService.ownsMessageRef(userEmail, messageRef)) {
+            log.debug("[ChatFeedback] Bỏ qua đánh giá cho mã lạ {}", messageRef);
             return false;
         }
 

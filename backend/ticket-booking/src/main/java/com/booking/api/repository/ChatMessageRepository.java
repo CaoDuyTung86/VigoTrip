@@ -23,6 +23,15 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     long countByUserEmail(String userEmail);
 
+    /**
+     * Câu trả lời mang mã này có phải của chính người dùng đó không.
+     *
+     * Dùng để duyệt đánh giá 👍/👎: mã do client sinh ra nên không tự nó chứng minh được điều
+     * gì. Vẫn bắt buộc kèm userEmail, đúng nguyên tắc "mọi truy vấn đọc đều lọc theo người
+     * dùng" ở trên — hỏi trống email sẽ thành đường xác nhận sự tồn tại của mã người khác.
+     */
+    boolean existsByMessageRefAndUserEmail(String messageRef, String userEmail);
+
     @Modifying
     @Query("DELETE FROM ChatMessage m WHERE m.createdAt < :cutoff")
     int deleteOlderThan(@Param("cutoff") LocalDateTime cutoff);
