@@ -3,6 +3,7 @@ package com.booking.api.controller;
 import com.booking.api.dto.ChatFeedbackRequest;
 import com.booking.api.dto.ChatRequest;
 import com.booking.api.dto.ChatResponse;
+import com.booking.api.exception.ChatInputException;
 import com.booking.api.service.ChatFeedbackService;
 import com.booking.api.service.ChatHistoryService;
 import com.booking.api.service.ChatMetricService;
@@ -36,7 +37,9 @@ public class ChatController {
         // Khách chưa đăng nhập LUÔN phải qua Turnstile — không phụ thuộc việc client
         // có gửi captchaToken hay không (bỏ trống token trước đây là bypass được).
         if (username == null && !chatService.verifyTurnstile(request.getCaptchaToken())) {
-            return ResponseEntity.status(403).body(new ChatResponse("Captcha verification failed."));
+            // Mã máy đọc, không phải câu chữ hiển thị — cùng bộ mã với luồng SSE ở dưới.
+            // Trạng thái 403 mới là thứ client dựa vào; thân phản hồi chỉ để gỡ lỗi.
+            return ResponseEntity.status(403).body(new ChatResponse(ChatInputException.CAPTCHA_REQUIRED));
         }
         String reply = chatService.getChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory(), request.getLanguage(), request.getMessageRef());
         return ResponseEntity.ok(new ChatResponse(reply));
@@ -50,8 +53,7 @@ public class ChatController {
         CompletableFuture.runAsync(() -> {
             try {
                 if (username == null && !chatService.verifyTurnstile(request.getCaptchaToken())) {
-                    emitter.send(SseEmitter.event().data(Map.of("content", "Captcha verification failed.")));
-                    emitter.complete();
+                    sendChatError(emitter, ChatInputException.CAPTCHA_REQUIRED);
                     return;
                 }
                 chatService.streamChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory(), request.getLanguage(), request.getMessageRef(), chunk -> {
@@ -64,6 +66,10 @@ public class ChatController {
                 });
                 emitter.send(SseEmitter.event().data(Map.of("content", "[DONE]")));
                 emitter.complete();
+            } catch (ChatInputException e) {
+                // Lượt hỏi bị từ chối trước khi gọi model: không phải sự cố máy chủ, và
+                // cũng không phải câu trả lời. Đi bằng trường riêng, xem sendChatError.
+                sendChatError(emitter, e.getCode());
             } catch (Exception e) {
                 log.error("SSE stream error", e);
                 emitter.completeWithError(e);
@@ -71,6 +77,27 @@ public class ChatController {
         });
 
         return emitter;
+    }
+
+    /**
+     * Báo cho client biết lượt hỏi bị từ chối, bằng trường {@code error} chứ không phải
+     * {@code content}.
+     *
+     * Đây chính là chỗ đã sinh ra lỗi cũ: câu "Captcha verification failed." từng được gửi
+     * qua {@code content} trên một luồng HTTP 200, nên với client nó không khác gì một câu
+     * trả lời thật — được cấp id/ref, hiện nút 👍/👎, được lưu vào lịch sử và được đẩy lên
+     * model ở lượt sau. Client nhận {@code error} thì vẽ bong bóng hệ thống, không gắn ref.
+     *
+     * Gửi mã chứ không gửi câu chữ: phần hiển thị do client dịch theo ngôn ngữ đang chọn.
+     */
+    private void sendChatError(SseEmitter emitter, String code) {
+        try {
+            emitter.send(SseEmitter.event().data(Map.of("error", code)));
+            emitter.complete();
+        } catch (Exception e) {
+            log.error("Không gửi được sự kiện lỗi SSE ({})", code, e);
+            emitter.completeWithError(e);
+        }
     }
 
     @GetMapping("/chat/status")

@@ -196,6 +196,10 @@ const Chatbot = () => {
   });
   // Danh tính mà state trên màn hình đang thuộc về: 'user' | 'guest' | null (chưa khôi phục).
   const restoredIdentityRef = useRef(null);
+  // Danh tính ở lần render trước, chỉ để nhận ra thời điểm ĐỔI danh tính. Khởi tạo bằng
+  // danh tính hiện tại chứ không phải null: lần mount đầu tiên không phải một lần đổi, nếu
+  // không thì khách chỉ cần tải lại trang là mất sạch hội thoại đang lưu.
+  const identityRef = useRef(isAuthenticated ? 'user' : 'guest');
   // Chỉ ghi cache sau khi khôi phục xong; nếu không, lần render đầu (mới có mỗi tin nhắn
   // chào) sẽ ghi đè lên hội thoại đang lưu.
   const canPersistRef = useRef(false);
@@ -278,6 +282,31 @@ const Chatbot = () => {
       setMessages(welcomeMessage());
     }
   }, [currentLanguage?.code]);
+
+  /**
+   * Đổi danh tính (đăng nhập / đăng xuất) thì dọn sạch NGAY, không đợi tới lúc mở widget.
+   *
+   * Phần dọn cố ý nằm riêng chứ không gộp vào effect khôi phục bên dưới: effect đó mở đầu
+   * bằng `if (!isOpen) return`, nên khi người dùng đóng widget rồi mới bấm đăng xuất, nó
+   * thoát sớm và không kịp hạ canPersistRef. Effect ghi cache ở dưới chạy ngay sau đó với
+   * isAuthenticated đã thành false nhưng `messages` vẫn là hội thoại của tài khoản vừa
+   * thoát — và ghi nguyên hội thoại đó vào bộ nhớ đệm của KHÁCH, hạn 7 ngày. Trên máy dùng
+   * chung, người mở widget kế tiếp đọc được toàn bộ, kèm cả các đánh giá đã bấm.
+   */
+  useEffect(() => {
+    const identity = isAuthenticated ? 'user' : 'guest';
+    if (identityRef.current === identity) return;
+    identityRef.current = identity;
+
+    // Hạ cờ TRƯỚC khi đụng vào state: chặn effect ghi cache dùng `messages` của danh tính cũ.
+    canPersistRef.current = false;
+    // Buộc effect khôi phục nạp lại từ đầu ở lần mở widget kế tiếp.
+    restoredIdentityRef.current = null;
+    clearGuestCache();
+    setMessages(welcomeMessage());
+    setFeedback({});
+    setReasonPromptFor(null);
+  }, [isAuthenticated]);
 
   /**
    * Khôi phục hội thoại khi mở widget. Hai nguồn tách bạch theo danh tính:
@@ -390,6 +419,23 @@ const Chatbot = () => {
     writeGuestCache(messages, feedback);
   }, [messages, feedback, isAuthenticated]);
 
+  /**
+   * Câu chữ hiển thị cho một mã từ chối của server (bộ mã ở ChatInputException, backend).
+   * Server chỉ gửi mã chứ không gửi câu chữ, để giao diện dịch được theo ngôn ngữ đang chọn.
+   */
+  const chatErrorText = (code) => {
+    switch (code) {
+      case 'CAPTCHA_REQUIRED':
+        return t.cbCaptchaRequired;
+      case 'MESSAGE_TOO_LONG':
+        return t.cbMsgTooLong;
+      default:
+        // EMPTY_MESSAGE và mọi mã thêm về sau: giao diện đã chặn từ trước nên tới được đây
+        // là chuyện lạ — nói chung chung vẫn hơn là hiện một mã máy cho người dùng đọc.
+        return t.cbReplyFallback;
+    }
+  };
+
   const handleSend = async (text = input) => {
     const messageToSend = typeof text === 'string' ? text.trim() : input.trim();
     if (!messageToSend) return;
@@ -451,6 +497,9 @@ const Chatbot = () => {
 
     let botReply = '';
     let streamSuccess = false;
+    // Mã từ chối do server gửi qua trường `error` (chưa qua CAPTCHA, tin nhắn quá dài...).
+    // Khác hẳn lỗi mạng ở dưới: đây là câu trả lời "không" dứt khoát, không phải sự cố.
+    let rejectedCode = null;
 
     try {
       const response = await fetch(`${API_BASE}/chat/stream`, {
@@ -481,6 +530,13 @@ const Chatbot = () => {
           const dataStr = line.substring(5).trim();
           try {
             const parsed = JSON.parse(dataStr);
+            // Lượt hỏi bị từ chối. Đi bằng trường `error` riêng nên tuyệt đối KHÔNG ghép
+            // vào bong bóng câu trả lời: nó không phải câu trả lời, và bong bóng dựng ở
+            // dưới cố ý không có id/ref (không đánh giá được, không lọt vào ngữ cảnh model).
+            if (parsed.error) {
+              rejectedCode = parsed.error;
+              break;
+            }
             // Kiểm tra signal [DONE]
             if (parsed.content === '[DONE]') break;
 
@@ -504,12 +560,19 @@ const Chatbot = () => {
             // Ignore parse error for partial chunks
           }
         }
+
+        if (rejectedCode) break; // `break` ở trên chỉ thoát vòng lặp dòng, không thoát stream
       }
     } catch (streamError) {
       console.warn('SSE stream lỗi, fallback sang POST /api/chat:', streamError);
     }
 
-    if (!streamSuccess) {
+    if (rejectedCode) {
+      // Bong bóng hệ thống: không `id` nên không lọt vào lịch sử đẩy lên model ở lượt sau,
+      // không `ref` nên không hiện nút 👍/👎 — không ai chấm điểm được một câu báo lỗi.
+      // Cũng không thử lại bằng POST: server đã từ chối, gọi lại chỉ nhận đúng câu đó.
+      setMessages(prev => [...prev, { sender: 'bot', text: chatErrorText(rejectedCode) }]);
+    } else if (!streamSuccess) {
       // Fallback sang POST /api/chat chuẩn
       try {
         const response = await fetch(`${API_BASE}/chat`, {

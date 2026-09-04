@@ -4,6 +4,7 @@ import com.booking.api.dto.MessageDto;
 import com.booking.api.dto.VoucherPublicDTO;
 import com.booking.api.entity.Booking;
 import com.booking.api.entity.Trip;
+import com.booking.api.exception.ChatInputException;
 import com.booking.api.repository.BookingRepository;
 import com.booking.api.repository.TripRepository;
 import lombok.RequiredArgsConstructor;
@@ -671,13 +672,14 @@ public class ChatService implements AIService.ToolHandler {
 
     public void streamChatResponse(String userMessage, String username, String sessionKey, List<MessageDto> history, String language,
             String messageRef, java.util.function.Consumer<String> chunkConsumer) {
+        // Ném chứ không đẩy xuống chunkConsumer: mọi thứ đi qua consumer đều được client
+        // ghép vào bong bóng câu trả lời, tức là lời từ chối cũng thành một "câu trả lời"
+        // có nút đánh giá và lọt vào ngữ cảnh gửi lên model ở lượt sau. Xem ChatInputException.
         if (userMessage == null || userMessage.isBlank()) {
-            chunkConsumer.accept("Bạn chưa nhập câu hỏi.");
-            return;
+            throw new ChatInputException(ChatInputException.EMPTY_MESSAGE);
         }
         if (userMessage.length() > MAX_USER_MESSAGE_LENGTH) {
-            chunkConsumer.accept("Tin nhắn của bạn quá dài (tối đa 500 ký tự). Vui lòng rút gọn và thử lại.");
-            return;
+            throw new ChatInputException(ChatInputException.MESSAGE_TOO_LONG);
         }
 
         List<MessageDto> safeHistory = new ArrayList<>();

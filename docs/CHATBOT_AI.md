@@ -1119,6 +1119,24 @@ người dùng — luôn đáng ngờ.**
 > `captchaToken` là bỏ qua toàn bộ kiểm tra. Bài học: khi viết điều kiện bảo mật, hãy tự hỏi
 > *"chuyện gì xảy ra nếu kẻ tấn công đơn giản là BỎ TRỐNG trường này?"*
 
+> **Bẫy thứ hai, cùng một cơ chế: hai khóa Turnstile nằm ở hai nơi.** `TURNSTILE_SECRET_KEY`
+> có trong `.env` gốc nên backend bật kiểm tra, còn `VITE_TURNSTILE_SITE_KEY` cũng bị đặt ở
+> đó — mà Vite chỉ nạp env từ thư mục `my-react-app/`, không bao giờ đọc file ấy. Kết quả:
+> widget CAPTCHA không render, client không có token để gửi, backend fail-closed, **mọi tin
+> nhắn của khách vãng lai đều bị chặn**. Site key giờ nằm ở `my-react-app/.env.development |
+> .env.localapi | .env.docker | .env.production`. Bài học: một cơ chế bảo mật gồm hai nửa
+> cấu hình rời nhau thì phải kiểm tra được rằng cả hai cùng bật — thiếu nửa nào cũng hỏng,
+> chỉ khác là hỏng theo kiểu mở toang hay khóa chết.
+
+> **Bẫy thứ ba: câu từ chối đi chung đường với câu trả lời.** `/api/chat/stream` từng gửi
+> "Captcha verification failed." qua đúng trường `content` như một mẩu câu trả lời, trên một
+> luồng HTTP 200. Client không có cách nào phân biệt: nó cấp `id`/`ref` cho bong bóng đó, mời
+> người dùng chấm 👍/👎 một câu **báo lỗi** (điểm ấy chảy thẳng vào bảng thống kê chất lượng
+> chatbot), rồi đẩy luôn câu đó lên model làm ngữ cảnh ở lượt sau. Nay lời từ chối đi bằng
+> trường `error` riêng với mã máy đọc (`ChatInputException`), client vẽ bong bóng hệ thống
+> không `id`/`ref`. Bài học: **kênh dữ liệu và kênh lỗi phải phân biệt được ở tầng giao thức**,
+> đừng bắt phía nhận đoán bằng cách so chuỗi.
+
 ---
 
 ## 12. Vòng đời dữ liệu hội thoại
@@ -1158,6 +1176,16 @@ Khi mở widget, chatbot nạp lại hội thoại cũ từ **hai nguồn khác 
 Đổi danh tính giữa phiên (đăng nhập hoặc đăng xuất) sẽ nạp lại từ đầu, và bộ nhớ đệm của
 khách bị xóa ngay khi đăng nhập — để hội thoại của người này không còn nằm trên màn hình của
 người kia trên cùng một máy.
+
+> **Việc dọn phải chạy kể cả khi widget đang đóng.** Bản đầu gộp phần dọn vào chính effect
+> khôi phục, mà effect đó mở đầu bằng `if (!isOpen) return`. Người dùng đóng widget rồi mới
+> bấm đăng xuất — thao tác thường gặp nhất — thì nó thoát sớm và không kịp hạ cờ
+> `canPersistRef`. Effect ghi cache chạy ngay sau đó với `isAuthenticated` đã là `false`
+> nhưng `messages` vẫn là hội thoại của tài khoản vừa thoát, nên **ghi nguyên hội thoại đó
+> vào bộ nhớ đệm của khách**, hạn 7 ngày. Đúng kịch bản máy dùng chung mà cả mục này dựng ra
+> để phòng, chỉ khác là dữ liệu rò rỉ nghiêm trọng hơn: hội thoại của người **đã đăng nhập**.
+> Nay phần dọn nằm ở một effect riêng chỉ phụ thuộc `isAuthenticated`. Bài học: điều kiện tối
+> ưu hiệu năng (`if (!isOpen)`) không được nằm chắn trước một bước dọn dữ liệu.
 
 > **Vì sao `localStorage` chứ không phải `sessionStorage`:** `sessionStorage` chết theo tab.
 > Bản đầu dùng nó, hệ quả là mỗi tab thành một phiên mới và cột `session_id` trong DB gần như
