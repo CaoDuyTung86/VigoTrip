@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, X, MessageCircle, Search, Bot, User, Link as LinkIcon, HelpCircle, Tag, Ticket, CreditCard, RotateCcw, TrainTrack, Bus, Trash2, ThumbsUp, ThumbsDown, ShieldCheck } from 'lucide-react';
+import { Send, X, Search, User, Link as LinkIcon, HelpCircle, Tag, Ticket, CreditCard, RotateCcw, TrainTrack, Bus, Trash2, ThumbsUp, ThumbsDown, ShieldCheck } from 'lucide-react';
+import BotAvatar from './BotAvatar';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { Turnstile } from '@marsidev/react-turnstile';
@@ -19,7 +20,9 @@ const GUEST_CACHE_KEY = 'vigotrip_chat_guest';
 const GUEST_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_CACHED_MESSAGES = 60; // trần dung lượng, tránh phình localStorage
 
-/** Cache của khách, hoặc null nếu không có / hỏng / đã quá hạn. */
+/**
+ * Cache của khách dạng `{ messages, feedback }`, hoặc null nếu không có / hỏng / đã quá hạn.
+ */
 const readGuestCache = () => {
   try {
     const raw = localStorage.getItem(GUEST_CACHE_KEY);
@@ -30,7 +33,11 @@ const readGuestCache = () => {
       localStorage.removeItem(GUEST_CACHE_KEY);
       return null;
     }
-    return cached.messages;
+    return {
+      messages: cached.messages,
+      // Cache cũ (trước khi có phần này) không có trường feedback — coi như chưa đánh giá gì.
+      feedback: cached.feedback && typeof cached.feedback === 'object' ? cached.feedback : {}
+    };
   } catch {
     // localStorage bị chặn (chế độ riêng tư) hoặc JSON hỏng — coi như chưa có gì.
     return null;
@@ -38,13 +45,25 @@ const readGuestCache = () => {
 };
 
 /**
- * Chỉ lưu `messages`. Phần lịch sử gửi lên model suy ra được từ chính nó
- * (xem deriveChatHistory), lưu thêm là ghi 20 tin nhắn cuối hai lần.
+ * Lưu `messages` kèm các đánh giá đã gửi. Phần lịch sử đẩy lên model thì KHÔNG lưu — nó
+ * suy ra được từ chính messages (xem deriveChatHistory), lưu thêm là ghi 20 tin nhắn cuối
+ * hai lần.
+ *
+ * `feedback` thì phải lưu: nó không suy ra được từ đâu cả, và thiếu nó thì sau khi tải lại
+ * trang giao diện lại mời khách đánh giá tiếp chính câu trả lời họ vừa chấm xong.
  */
-const writeGuestCache = (messages) => {
+const writeGuestCache = (messages, feedback) => {
   try {
+    const kept = messages.slice(-MAX_CACHED_MESSAGES);
+    // Chỉ giữ đánh giá của những tin nhắn còn nằm trong cache, để phần này không phình mãi.
+    const keptRefs = new Set(kept.map(m => m.ref).filter(Boolean));
+    const keptFeedback = {};
+    for (const [id, value] of Object.entries(feedback || {})) {
+      if (keptRefs.has(id)) keptFeedback[id] = value;
+    }
     localStorage.setItem(GUEST_CACHE_KEY, JSON.stringify({
-      messages: messages.slice(-MAX_CACHED_MESSAGES),
+      messages: kept,
+      feedback: keptFeedback,
       savedAt: Date.now()
     }));
   } catch {
@@ -116,11 +135,17 @@ const getGuestSessionId = () => {
 };
 
 /**
- * Định danh cho một câu trả lời của bot, để gắn đánh giá 👍/👎 vào đúng câu đó và để
- * người dùng đổi ý thì sửa dòng cũ chứ không đẻ thêm dòng mới.
+ * Định danh cho một câu trả lời của bot. Ở lượt hỏi, cùng một chuỗi được dùng cho cả hai
+ * trường trên bong bóng trả lời, nhưng chúng có tuổi thọ khác nhau — đừng gộp lại:
  *
- * Chỉ câu trả lời THẬT mới có id. Tin nhắn chào và các thông báo lỗi cố ý không có, nhờ
- * vậy phần render không cần biết gì thêm vẫn tự động không hỏi đánh giá cho chúng.
+ *  - `id`  : "đây là câu trả lời thật", để deriveChatHistory nhặt đúng các cặp hỏi-đáp.
+ *            Chỉ sống trong bộ nhớ của tab; khôi phục lịch sử thì sinh lại thoải mái.
+ *  - `ref` : tên của câu trả lời trong hệ thống đánh giá, được gửi kèm lượt hỏi để server
+ *            lưu vào lịch sử. Phải giữ NGUYÊN qua các lần tải trang: đổi ref là biến một
+ *            lượt đánh giá thành nhiều lượt trong thống kê.
+ *
+ * Tin nhắn chào và các thông báo lỗi cố ý không có trường nào trong hai trường này, nhờ vậy
+ * phần render không cần biết gì thêm vẫn tự động không hỏi đánh giá cho chúng.
  */
 const newMessageRef = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -292,12 +317,27 @@ const Chatbot = () => {
               ...data.map(m => ({
                 sender: m.role === 'user' ? 'user' : 'bot',
                 text: m.content,
-                // id sinh lại mỗi lần khôi phục, nên đánh giá cho câu trả lời cũ sau khi
-                // tải lại trang sẽ tính là một lượt mới. Chấp nhận được: đây là tín hiệu
-                // tổng hợp, không phải sổ kế toán.
-                ...(m.role === 'user' ? {} : { id: newMessageRef() })
+                // Hai vai trò khác nhau, cố ý tách:
+                //  - `id` chỉ để deriveChatHistory nhận ra "đây là câu trả lời thật"; sinh
+                //    mới mỗi lần khôi phục là không sao, nó chỉ sống trong bộ nhớ tab này.
+                //  - `ref` là tên do server đặt cho câu trả lời, dùng để chấm điểm. Nó phải
+                //    y nguyên qua các lần tải trang, nếu không thì mỗi lần F5 lại là một
+                //    "câu trả lời" khác và cùng một lượt được đếm thêm sau mỗi lần đánh giá.
+                // Câu trả lời cũ (lưu từ trước thay đổi này) không có ref nên không hiện nút
+                // đánh giá — thà mất nút còn hơn đếm sai — nhưng vẫn nằm trong lịch sử hội thoại.
+                ...(m.role === 'user' ? {} : { id: newMessageRef() }),
+                ...(m.role === 'user' || !m.messageRef ? {} : { ref: m.messageRef })
               }))
             ]);
+            // Dựng lại trạng thái nút 👍/👎 từ những gì server đã ghi nhận.
+            const restoredFeedback = {};
+            for (const m of data) {
+              if (m.messageRef && m.rating) {
+                restoredFeedback[m.messageRef] = { rating: m.rating, reason: m.reason || null };
+              }
+            }
+            setFeedback(restoredFeedback);
+            setReasonPromptFor(null);
             // Server trả về tối đa 50 tin nhắn để hiển thị; phần đẩy lên model vẫn là cửa
             // sổ 10 cặp, cắt ra lúc gửi. Đây là hai thứ khác nhau, đừng gộp.
             setShowFaq(false);
@@ -315,11 +355,21 @@ const Chatbot = () => {
         }
       } else {
         const cached = readGuestCache();
-        if (cached && cached.length > 1) {
-          setMessages(cached);
+        if (cached && cached.messages.length > 1) {
+          // Với khách, `id` sinh ra ở lượt hỏi CHÍNH LÀ ref đã gửi lên server, nên cache cũ
+          // (chưa có trường `ref`) vẫn chấm điểm đúng chỗ.
+          setMessages(cached.messages.map(m => (
+            m.sender === 'bot' && m.id && !m.ref ? { ...m, ref: m.id } : m
+          )));
+          // Cùng lý do như nhánh đã đăng nhập: id của khách vốn đã nằm sẵn trong cache, chỉ
+          // thiếu phần "đã đánh giá rồi" nên nút cứ hiện lại sau mỗi lần tải trang.
+          setFeedback(cached.feedback);
+          setReasonPromptFor(null);
           setShowFaq(false);
         } else {
           setMessages(welcomeMessage());
+          setFeedback({});
+          setReasonPromptFor(null);
         }
       }
       if (!cancelled) canPersistRef.current = true;
@@ -337,8 +387,8 @@ const Chatbot = () => {
       clearGuestCache();
       return;
     }
-    writeGuestCache(messages);
-  }, [messages, isAuthenticated]);
+    writeGuestCache(messages, feedback);
+  }, [messages, feedback, isAuthenticated]);
 
   const handleSend = async (text = input) => {
     const messageToSend = typeof text === 'string' ? text.trim() : input.trim();
@@ -392,7 +442,11 @@ const Chatbot = () => {
       sessionId,
       history: trimmedHistory,
       language: currentLanguage?.code || 'vi',
-      captchaToken: guestCaptchaToken
+      captchaToken: guestCaptchaToken,
+      // Đặt tên cho câu trả lời sắp nhận NGAY từ lượt hỏi, để server lưu kèm nó vào lịch
+      // sử. Nhờ vậy lần sau mở lại trang, câu trả lời này vẫn mang đúng cái tên cũ và một
+      // lượt đánh giá vẫn chỉ là một lượt.
+      messageRef: answerRef
     };
 
     let botReply = '';
@@ -436,12 +490,12 @@ const Chatbot = () => {
               if (!streamBubbleAdded) {
                 // Lần đầu nhận ký tự → tắt loader, thêm bubble bot
                 setLoading(false);
-                setMessages(prev => [...prev, { sender: 'bot', text: botReply, id: answerRef }]);
+                setMessages(prev => [...prev, { sender: 'bot', text: botReply, id: answerRef, ref: answerRef }]);
                 streamBubbleAdded = true;
               } else {
                 setMessages(prev => {
                   const updated = [...prev];
-                  updated[updated.length - 1] = { sender: 'bot', text: botReply, id: answerRef };
+                  updated[updated.length - 1] = { sender: 'bot', text: botReply, id: answerRef, ref: answerRef };
                   return updated;
                 });
               }
@@ -466,7 +520,7 @@ const Chatbot = () => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         botReply = data.reply || t.cbReplyFallback;
-        setMessages(prev => [...prev, { sender: 'bot', text: botReply, id: answerRef }]);
+        setMessages(prev => [...prev, { sender: 'bot', text: botReply, id: answerRef, ref: answerRef }]);
       } catch (fallbackError) {
         console.error('Fallback chat cũng lỗi:', fallbackError);
         setMessages(prev => [...prev, { sender: 'bot', text: t.cbConnectError }]);
@@ -495,6 +549,13 @@ const Chatbot = () => {
    */
   const sendFeedback = async (messageId, index, rating, reason = null) => {
     if (!messageId) return;
+    // Bấm lại đúng cái đã bấm thì không có gì mới để nói với server. Đổi ý (👍 → 👎) hay bổ
+    // sung lý do thì vẫn gửi — server sửa dòng cũ theo ref chứ không thêm dòng mới.
+    const current = feedback[messageId];
+    if (current && current.rating === rating && (current.reason || null) === reason) {
+      setReasonPromptFor(null);
+      return;
+    }
     setFeedback(prev => ({ ...prev, [messageId]: { rating, reason } }));
     setReasonPromptFor(rating === 'DOWN' && !reason ? messageId : null);
 
@@ -856,7 +917,7 @@ const Chatbot = () => {
           pointerEvents: isOpen ? 'none' : 'auto'
         }}
       >
-        <MessageCircle size={28} />
+        <BotAvatar size={30} />
         <span className="chat-fab-label" style={{ fontSize: '16px', fontWeight: 600 }}>{t.chatbotSupportBtn || 'Hỗ trợ đặt vé'}</span>
       </button>
 
@@ -895,7 +956,7 @@ const Chatbot = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ backgroundColor: 'rgba(255,255,255,0.18)', padding: 8, borderRadius: 12 }}>
-              <Bot size={22} />
+              <BotAvatar size={22} />
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15.5, letterSpacing: '-0.2px' }}>
@@ -1066,7 +1127,7 @@ const Chatbot = () => {
                 flexShrink: 0,
                 color: msg.sender === 'user' ? 'white' : '#818cf8'
               }}>
-                {msg.sender === 'user' ? <User size={16} /> : <Bot size={16} />}
+                {msg.sender === 'user' ? <User size={16} /> : <BotAvatar size={17} />}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
                 <div
@@ -1087,12 +1148,12 @@ const Chatbot = () => {
 
                 {/* Đánh giá: chỉ hỏi cho câu trả lời thật (có id), không hỏi cho tin nhắn
                     chào hay các thông báo lỗi. Cú bấm chính là sự đồng ý gửi tín hiệu này. */}
-                {msg.sender === 'bot' && msg.id && (
+                {msg.sender === 'bot' && msg.ref && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 4 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {feedback[msg.id] ? (
+                      {feedback[msg.ref] ? (
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          {feedback[msg.id].rating === 'UP'
+                          {feedback[msg.ref].rating === 'UP'
                             ? (t.cbFeedbackThanksUp || 'Cảm ơn bạn đã đánh giá.')
                             : (t.cbFeedbackThanksDown || 'Cảm ơn bạn, chúng tôi sẽ cải thiện.')}
                         </span>
@@ -1102,12 +1163,12 @@ const Chatbot = () => {
                         </span>
                       )}
                       {['UP', 'DOWN'].map(rating => {
-                        const active = feedback[msg.id]?.rating === rating;
+                        const active = feedback[msg.ref]?.rating === rating;
                         const Icon = rating === 'UP' ? ThumbsUp : ThumbsDown;
                         return (
                           <button
                             key={rating}
-                            onClick={() => sendFeedback(msg.id, index, rating)}
+                            onClick={() => sendFeedback(msg.ref, index, rating)}
                             title={rating === 'UP'
                               ? (t.cbFeedbackUp || 'Hữu ích')
                               : (t.cbFeedbackDown || 'Chưa tốt')}
@@ -1130,12 +1191,12 @@ const Chatbot = () => {
                       })}
                     </div>
 
-                    {reasonPromptFor === msg.id && (
+                    {reasonPromptFor === msg.ref && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {FEEDBACK_REASONS.map(({ code, key, fallback }) => (
                           <button
                             key={code}
-                            onClick={() => sendFeedback(msg.id, index, 'DOWN', code)}
+                            onClick={() => sendFeedback(msg.ref, index, 'DOWN', code)}
                             style={{
                               background: 'var(--bg-main)',
                               border: '1px solid var(--border-light)',
@@ -1159,7 +1220,7 @@ const Chatbot = () => {
           {loading && (
             <div style={{ alignSelf: 'flex-start', display: 'flex', gap: 10 }}>
               <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8' }}>
-                <Bot size={16} />
+                <BotAvatar size={17} />
               </div>
               <div style={{ backgroundColor: 'var(--bg-card)', padding: '12px 16px', borderRadius: '18px 18px 18px 2px', border: '1px solid var(--border-light)' }}>
                 <div className="typing-loader">

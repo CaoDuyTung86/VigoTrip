@@ -38,7 +38,7 @@ public class ChatController {
         if (username == null && !chatService.verifyTurnstile(request.getCaptchaToken())) {
             return ResponseEntity.status(403).body(new ChatResponse("Captcha verification failed."));
         }
-        String reply = chatService.getChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory(), request.getLanguage());
+        String reply = chatService.getChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory(), request.getLanguage(), request.getMessageRef());
         return ResponseEntity.ok(new ChatResponse(reply));
     }
 
@@ -54,7 +54,7 @@ public class ChatController {
                     emitter.complete();
                     return;
                 }
-                chatService.streamChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory(), request.getLanguage(), chunk -> {
+                chatService.streamChatResponse(request.getMessage(), username, request.getSessionId(), request.getHistory(), request.getLanguage(), request.getMessageRef(), chunk -> {
                     try {
                         Map<String, String> data = Map.of("content", chunk);
                         emitter.send(SseEmitter.event().data(data));
@@ -90,11 +90,32 @@ public class ChatController {
         if (principal == null) {
             return ResponseEntity.ok(List.of());
         }
-        List<Map<String, Object>> history = chatHistoryService.getHistory(principal.getName()).stream()
-                .map(msg -> Map.<String, Object>of(
-                        "role", msg.getRole(),
-                        "content", msg.getContent(),
-                        "createdAt", msg.getCreatedAt().toString()))
+        List<com.booking.api.entity.ChatMessage> messages = chatHistoryService.getHistory(principal.getName());
+
+        // Kèm luôn đánh giá đã có: nếu không, sau mỗi lần F5 giao diện lại mời người dùng
+        // đánh giá lại chính những câu trả lời họ vừa chấm xong.
+        List<String> refs = messages.stream()
+                .map(com.booking.api.entity.ChatMessage::getMessageRef)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        Map<String, Map<String, String>> ratings = chatFeedbackService.ratingsFor(refs);
+
+        List<Map<String, Object>> history = messages.stream()
+                .map(msg -> {
+                    // HashMap chứ không Map.of: messageRef và reason đều có thể null.
+                    Map<String, Object> item = new java.util.HashMap<>();
+                    item.put("role", msg.getRole());
+                    item.put("content", msg.getContent());
+                    item.put("createdAt", msg.getCreatedAt().toString());
+                    item.put("messageRef", msg.getMessageRef());
+                    Map<String, String> rating = msg.getMessageRef() == null
+                            ? null : ratings.get(msg.getMessageRef());
+                    if (rating != null) {
+                        item.put("rating", rating.get("rating"));
+                        item.put("reason", rating.get("reason"));
+                    }
+                    return item;
+                })
                 .toList();
         return ResponseEntity.ok(history);
     }

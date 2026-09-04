@@ -77,7 +77,7 @@ class ChatServiceVoucherContextTest {
 
     /** Chạy một lượt chat rồi lấy ra system prompt mà ChatService đã dựng. */
     private String captureSystemInstruction(String username) {
-        chatService.getChatResponse("cho mình xin mã giảm giá", username, "session-1", List.of(), "vi");
+        chatService.getChatResponse("cho mình xin mã giảm giá", username, "session-1", List.of(), "vi", null);
 
         ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
         verify(aiService).getChatResponse(captor.capture(), anyList(), anyString(), any());

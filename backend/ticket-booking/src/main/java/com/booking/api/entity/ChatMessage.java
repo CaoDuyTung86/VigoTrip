@@ -64,6 +64,18 @@ public class ChatMessage {
     @Column(length = 8)
     private String lang;
 
+    /**
+     * Định danh ổn định của câu trả lời, do client sinh ra ở lượt hỏi và được giữ nguyên
+     * qua mọi lần tải lại trang. Chỉ có ở dòng "assistant".
+     *
+     * Có nó thì một câu trả lời chỉ ứng với đúng một dòng trong bảng phan_hoi_chat. Trước
+     * đây client sinh lại ref mới mỗi lần khôi phục lịch sử, nên cùng một câu trả lời được
+     * đánh giá lại sau mỗi lần F5 và mỗi lần lại đẻ thêm một dòng — thống kê "tỉ lệ hài
+     * lòng" đếm cùng một lượt nhiều lần.
+     */
+    @Column(name = "message_ref", length = 64)
+    private String messageRef;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }

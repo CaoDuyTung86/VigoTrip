@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -112,6 +113,28 @@ public class ChatFeedbackService {
             log.error("[ChatFeedback] Không lưu được đánh giá {}: {}", messageRef, e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Đánh giá hiện có của các câu trả lời được nêu tên, dạng {messageRef -> {rating, reason}}.
+     *
+     * Chỉ dùng để dựng lại trạng thái nút 👍/👎 khi người dùng tải lại trang. Bên gọi phải
+     * tự giới hạn danh sách ref vào những câu trả lời của chính người dùng đó — ở đây không
+     * có cách nào kiểm tra, và cũng không được biến nó thành đường đọc đánh giá của người khác.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Map<String, String>> ratingsFor(Collection<String> messageRefs) {
+        if (messageRefs == null || messageRefs.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Map<String, String>> result = new java.util.HashMap<>();
+        for (ChatFeedback f : repository.findByMessageRefIn(messageRefs)) {
+            Map<String, String> value = new java.util.HashMap<>(2);
+            value.put("rating", f.getRating());
+            value.put("reason", f.getReason());
+            result.put(f.getMessageRef(), value);
+        }
+        return result;
     }
 
     /** Số liệu gộp trong N ngày gần nhất: mỗi phần tử là {rating, reason, count}. */

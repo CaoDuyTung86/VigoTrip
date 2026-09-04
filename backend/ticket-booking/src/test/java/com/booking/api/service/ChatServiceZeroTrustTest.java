@@ -64,7 +64,7 @@ class ChatServiceZeroTrustTest {
 
     /** Chạy một lượt chat rồi lấy ra ToolHandler mà ChatService đã trao cho AIService. */
     private AIService.ToolHandler captureToolHandler(String username) {
-        chatService.getChatResponse("vé của tôi đâu", username, "session-1", List.of(), "vi");
+        chatService.getChatResponse("vé của tôi đâu", username, "session-1", List.of(), "vi", null);
 
         ArgumentCaptor<AIService.ToolHandler> captor = ArgumentCaptor.forClass(AIService.ToolHandler.class);
         verify(aiService).getChatResponse(anyString(), anyList(), anyString(), captor.capture());
@@ -113,7 +113,7 @@ class ChatServiceZeroTrustTest {
     @Test
     @DisplayName("Luồng stream áp dụng đúng quy tắc như luồng thường")
     void streamingPathAppliesSameRule() {
-        chatService.streamChatResponse("vé của tôi đâu", JWT_USER, "session-1", List.of(), "vi", chunk -> {
+        chatService.streamChatResponse("vé của tôi đâu", JWT_USER, "session-1", List.of(), "vi", null, chunk -> {
         });
 
         ArgumentCaptor<AIService.ToolHandler> captor = ArgumentCaptor.forClass(AIService.ToolHandler.class);

@@ -592,7 +592,7 @@ public class ChatService implements AIService.ToolHandler {
                 "NGÔN NGỮ GIAO TIẾP HIỆN TẠI LÀ: " + (language != null ? language : "vi") + ". BẠN PHẢI TRẢ LỜI 100% BẰNG NGÔN NGỮ NÀY DÙ NGƯỜI DÙNG CÓ CHAT NGÔN NGỮ KHÁC.";
     }
 
-    public String getChatResponse(String userMessage, String username, String sessionKey, List<MessageDto> history, String language) {
+    public String getChatResponse(String userMessage, String username, String sessionKey, List<MessageDto> history, String language, String messageRef) {
         // --- Phòng thủ đầu vào ---
         if (userMessage == null || userMessage.isBlank()) {
             return "Bạn chưa nhập câu hỏi.";
@@ -623,7 +623,7 @@ public class ChatService implements AIService.ToolHandler {
 
         recordMetric(language, username, false, startedAt, userMessage, reply, ragChunks.size(),
                 reply == null || reply.isBlank() ? "EMPTY" : "OK");
-        chatHistoryService.saveExchange(username, sessionKey, userMessage, reply, language);
+        chatHistoryService.saveExchange(username, sessionKey, userMessage, reply, language, messageRef);
         return reply;
     }
 
@@ -670,7 +670,7 @@ public class ChatService implements AIService.ToolHandler {
     }
 
     public void streamChatResponse(String userMessage, String username, String sessionKey, List<MessageDto> history, String language,
-            java.util.function.Consumer<String> chunkConsumer) {
+            String messageRef, java.util.function.Consumer<String> chunkConsumer) {
         if (userMessage == null || userMessage.isBlank()) {
             chunkConsumer.accept("Bạn chưa nhập câu hỏi.");
             return;
@@ -710,7 +710,7 @@ public class ChatService implements AIService.ToolHandler {
 
         recordMetric(language, username, true, startedAt, userMessage, fullReply.toString(),
                 ragChunks.size(), fullReply.length() == 0 ? "EMPTY" : "OK");
-        chatHistoryService.saveExchange(username, sessionKey, userMessage, fullReply.toString(), language);
+        chatHistoryService.saveExchange(username, sessionKey, userMessage, fullReply.toString(), language, messageRef);
     }
 
     public Map<String, Object> getAiHealthStatus() {

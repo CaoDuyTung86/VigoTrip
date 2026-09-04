@@ -31,6 +31,10 @@ import java.util.List;
 public class ChatHistoryService {
 
     private static final int MAX_CONTENT_LENGTH = 4000;
+    private static final int MAX_REF_LENGTH = 64;
+    /** UUID hoặc ref dự phòng của client — chữ, số, gạch ngang, gạch dưới. */
+    private static final java.util.regex.Pattern REF_PATTERN =
+            java.util.regex.Pattern.compile("[A-Za-z0-9_-]{1,64}");
 
     private final ChatMessageRepository repository;
     private final UserRepository userRepository;
@@ -52,7 +56,8 @@ public class ChatHistoryService {
      * trả lời mà khách đang chờ.
      */
     @Transactional
-    public void saveExchange(String userEmail, String sessionId, String question, String answer, String lang) {
+    public void saveExchange(String userEmail, String sessionId, String question, String answer, String lang,
+                             String messageRef) {
         if (!enabled || userEmail == null || userEmail.isBlank()) {
             return;
         }
@@ -62,10 +67,11 @@ public class ChatHistoryService {
         try {
             LocalDateTime now = LocalDateTime.now();
             List<ChatMessage> batch = new ArrayList<>(2);
-            batch.add(build(userEmail, sessionId, "user", question, lang, now));
+            batch.add(build(userEmail, sessionId, "user", question, lang, now, null));
             if (answer != null && !answer.isBlank()) {
                 // Cộng 1 nano để câu trả lời luôn xếp sau câu hỏi khi sắp theo thời gian.
-                batch.add(build(userEmail, sessionId, "assistant", answer, lang, now.plusNanos(1000)));
+                batch.add(build(userEmail, sessionId, "assistant", answer, lang, now.plusNanos(1000),
+                        sanitizeRef(messageRef)));
             }
             repository.saveAll(batch);
         } catch (Exception e) {
@@ -73,8 +79,20 @@ public class ChatHistoryService {
         }
     }
 
+    /**
+     * Ref do client gửi lên nên coi là dữ liệu chưa tin được: quá dài hoặc có ký tự lạ thì
+     * bỏ hẳn chứ không cắt bừa — mất nút đánh giá ở một lượt còn hơn ghi rác vào cột khóa.
+     */
+    private static String sanitizeRef(String messageRef) {
+        String trimmed = messageRef == null ? null : messageRef.trim();
+        if (trimmed == null || trimmed.isEmpty() || trimmed.length() > MAX_REF_LENGTH) {
+            return null;
+        }
+        return REF_PATTERN.matcher(trimmed).matches() ? trimmed : null;
+    }
+
     private ChatMessage build(String userEmail, String sessionId, String role, String content,
-                              String lang, LocalDateTime createdAt) {
+                              String lang, LocalDateTime createdAt, String messageRef) {
         String safeContent = content == null ? "" : content;
         if (safeContent.length() > MAX_CONTENT_LENGTH) {
             safeContent = safeContent.substring(0, MAX_CONTENT_LENGTH);
@@ -86,6 +104,7 @@ public class ChatHistoryService {
                 .content(safeContent)
                 .lang(lang)
                 .createdAt(createdAt)
+                .messageRef(messageRef)
                 .build();
     }
 

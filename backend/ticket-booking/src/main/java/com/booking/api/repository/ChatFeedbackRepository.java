@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,6 +17,12 @@ import java.util.Optional;
 public interface ChatFeedbackRepository extends JpaRepository<ChatFeedback, Long> {
 
     Optional<ChatFeedback> findByMessageRef(String messageRef);
+
+    /**
+     * Đánh giá đã có của một loạt câu trả lời, để khi khôi phục lịch sử thì giao diện
+     * hiện đúng "đã đánh giá" thay vì mời người dùng bấm lại lần nữa.
+     */
+    List<ChatFeedback> findByMessageRefIn(Collection<String> messageRefs);
 
     /**
      * Thống kê gộp để trả lời "chatbot đang yếu ở đâu": mỗi dòng là (rating, reason, số lượt).

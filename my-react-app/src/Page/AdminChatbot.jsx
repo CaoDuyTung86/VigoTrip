@@ -6,8 +6,9 @@ import {
   ResponsiveContainer, Legend,
 } from "recharts";
 import {
-  Bot, ThumbsUp, ThumbsDown, Timer, AlertTriangle, BookOpen, ShieldCheck, RefreshCw,
+  ThumbsUp, ThumbsDown, Timer, AlertTriangle, BookOpen, ShieldCheck, RefreshCw,
 } from "lucide-react";
+import BotAvatar from "../components/BotAvatar";
 
 /**
  * Bảng điều khiển vận hành chatbot.
@@ -31,6 +32,23 @@ const REASON_LABELS = {
   OTHER: "Lý do khác",
   NONE: "Không nêu lý do",
 };
+
+/**
+ * Kiểu của tooltip biểu đồ, gom một chỗ vì hai biểu đồ phải trông giống nhau.
+ *
+ * `cursor` là phần bắt buộc: mặc định recharts tô dải highlight màu #ccc đặc, nên ở giao
+ * diện tối, hễ rê chuột vào là cả vùng biểu đồ bị phủ trắng và không đọc được gì nữa.
+ * Ở đây dùng màu xám mờ để dải chỉ đủ thấy là "đang trỏ vào cột này".
+ */
+const TOOLTIP_STYLE = {
+  background: "var(--bg-card)",
+  border: "1px solid var(--border-main)",
+  borderRadius: 8,
+  fontSize: 12,
+  color: "var(--text-main)",
+};
+const BAR_CURSOR = { fill: "rgba(148, 163, 184, 0.14)" };
+const LINE_CURSOR = { stroke: "var(--border-main)", strokeWidth: 1 };
 
 const pct = (part, whole) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
 
@@ -109,7 +127,7 @@ const AdminChatbot = () => {
 
   const cards = [
     {
-      icon: <Bot size={18} />,
+      icon: <BotAvatar size={18} />,
       label: tr("adminChatbotTurns", "Lượt hỏi"),
       value: turns.toLocaleString("vi-VN"),
       hint: `${(totals.memberTurns || 0).toLocaleString("vi-VN")} thành viên · ${(totals.guestTurns || 0).toLocaleString("vi-VN")} khách`,
@@ -158,7 +176,7 @@ const AdminChatbot = () => {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
           <div>
             <h1 style={{ fontWeight: 800, fontSize: 22, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 8, margin: 0 }}>
-              <Bot size={22} style={{ color: "var(--primary)" }} />
+              <BotAvatar size={22} style={{ color: "var(--primary)" }} />
               {tr("adminChatbotTitle", "Vận hành chatbot")}
             </h1>
             <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
@@ -242,7 +260,7 @@ const AdminChatbot = () => {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--text-muted)" }} />
                       <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} allowDecimals={false} />
-                      <Tooltip contentStyle={{ background: "var(--bg-card)", border: "1px solid var(--border-main)", borderRadius: 8, fontSize: 12 }} />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} cursor={BAR_CURSOR} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
                       <Bar dataKey="turns" name={tr("adminChatbotTurns", "Lượt hỏi")} fill="#60a5fa" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="down" name="👎" fill="#f87171" radius={[4, 4, 0, 0]} />
@@ -260,7 +278,7 @@ const AdminChatbot = () => {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--text-muted)" }} />
                       <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} />
-                      <Tooltip contentStyle={{ background: "var(--bg-card)", border: "1px solid var(--border-main)", borderRadius: 8, fontSize: 12 }} />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} cursor={LINE_CURSOR} />
                       <Line type="monotone" dataKey="avgLatencyMs" name="ms" stroke="#fbbf24" strokeWidth={2} dot={{ r: 3 }} />
                     </LineChart>
                   </ResponsiveContainer>
