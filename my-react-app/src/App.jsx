@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import Header from "./LayOut/Header";
 import Home from "./Page/Home";
 import Auth from "./Page/Auth";
+import { Terms, PrivacyPolicy } from "./Page/LegalPages";
 import AirlineTickets from "./Page/AirlineTickets";
 import BusTickets from "./Page/BusTickets";
 import TrainTickets from "./Page/TrainTickets";
@@ -67,6 +68,8 @@ function AppWrapper() {
           <Route path="/auth" element={<Auth />} />
           <Route path="/my-bookings" element={<MyBookings />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/dieu-khoan" element={<Terms />} />
+          <Route path="/chinh-sach-bao-mat" element={<PrivacyPolicy />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/admin/trips" element={<AdminTrips />} />
           <Route path="/admin/routes" element={<AdminRoutes />} />

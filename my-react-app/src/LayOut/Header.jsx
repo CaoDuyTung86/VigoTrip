@@ -240,7 +240,7 @@ const Header = () => {
                   flexShrink: 0,
                 }}
               />
-              <span>{currentLanguage.code.toUpperCase()}</span>
+              <span className="header-lang-code">{currentLanguage.code.toUpperCase()}</span>
               <IoChevronDown style={{ fontSize: 14, color: "var(--text-muted)", transform: isLanguageOpen ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }} />
             </button>
             {isLanguageOpen && (
@@ -323,7 +323,7 @@ const Header = () => {
               onClick={(e) => { e.stopPropagation(); setShowPhone(!showPhone); setIsLanguageOpen(false); setShowUserMenu(false); }}
             >
               <MdOutlinePhone style={{ fontSize: 17 }} />
-              {t.support}
+              <span className="header-support-label">{t.support}</span>
             </button>
             {showPhone && (
               <div style={{
@@ -409,7 +409,7 @@ const Header = () => {
                 }}>
                   {(user?.fullName || user?.email || "U")[0].toUpperCase()}
                 </div>
-                <span style={{ maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span className="header-username" style={{ maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {user?.fullName || user?.email}
                 </span>
                 <IoChevronDown style={{ fontSize: 14, color: "var(--text-muted)", transform: showUserMenu ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }} />

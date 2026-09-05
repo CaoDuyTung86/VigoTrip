@@ -78,6 +78,39 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
+    /**
+     * Mật khẩu đúng nhưng email chưa xác thực. Trả 403 + code để frontend mở thẳng
+     * màn nhập mã thay vì báo "sai mật khẩu" rồi bỏ mặc người dùng.
+     *
+     * Không dùng 401: interceptor fetch trong AuthContext coi 401 là phiên hỏng.
+     */
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ErrorResponse> handleEmailNotVerified(EmailNotVerifiedException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.FORBIDDEN.value(),
+                "Forbidden",
+                ex.getMessage(),
+                LocalDateTime.now(),
+                "EMAIL_NOT_VERIFIED");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    /**
+     * Tài khoản bị quản trị viên khóa. Cùng 403 như EMAIL_NOT_VERIFIED nhưng khác code,
+     * để giao diện KHÔNG hiện nút "nhập mã xác thực" — nút đó sẽ cho người bị khóa
+     * tự mở khóa.
+     */
+    @ExceptionHandler(AccountLockedException.class)
+    public ResponseEntity<ErrorResponse> handleAccountLocked(AccountLockedException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.FORBIDDEN.value(),
+                "Forbidden",
+                ex.getMessage(),
+                LocalDateTime.now(),
+                "ACCOUNT_LOCKED");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
         ErrorResponse error = new ErrorResponse(

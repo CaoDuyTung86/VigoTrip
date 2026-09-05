@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useMemo, useCallback, useEf
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/apiClient";
 import { useToast } from "./ToastContext";
+import { useLanguage } from "./LanguageContext";
 
 /**
  * Xuất ra ngoài để WebSocketContext đọc được token mà không bắt buộc phải nằm trong
@@ -20,6 +21,7 @@ const AUTH_ONLY_PREFIXES = ["/admin", "/account", "/my-bookings", "/provider"];
 export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem("authUser");
@@ -117,6 +119,9 @@ export const AuthProvider = ({ children }) => {
     setProfile(null);
     localStorage.removeItem("authToken");
     localStorage.removeItem("authUser");
+    // Email của phiên vừa rồi. Trước đây chỉ được xóa khi đăng nhập THÀNH CÔNG, nên sau khi
+    // đăng xuất, form đăng nhập vẫn tự điền sẵn email của người trước — khó chịu trên máy dùng chung.
+    sessionStorage.removeItem("tempEmail");
   }, []);
 
   /**
@@ -128,19 +133,20 @@ export const AuthProvider = ({ children }) => {
    * điều hướng chỉ xảy ra khi đang đứng trong khu vực bắt buộc đăng nhập, và bằng router
    * chứ không tải lại trang.
    */
-  const forceLogout = useCallback((reason = "Phiên đăng nhập đã hết hạn hoặc tài khoản bị khóa. Vui lòng đăng nhập lại.") => {
+  const forceLogout = useCallback((reason) => {
     if (!tokenRef.current) return; // chỉ xử lý nếu đang đăng nhập
     setToken(null);
     setUser(null);
     setProfile(null);
     localStorage.removeItem("authToken");
     localStorage.removeItem("authUser");
-    showToast(reason, "error", 6000);
+    sessionStorage.removeItem("tempEmail");
+    showToast(reason || t.authXSessionExpiredOrLocked, "error", 6000);
 
     if (AUTH_ONLY_PREFIXES.some((prefix) => window.location.pathname.startsWith(prefix))) {
       navigate("/", { replace: true });
     }
-  }, [navigate, showToast]);
+  }, [navigate, showToast, t]);
 
   /**
    * Patch global fetch — chỉ đăng xuất khi API nội bộ trả về 401.
@@ -172,7 +178,7 @@ export const AuthProvider = ({ children }) => {
         const isAuthEndpoint = url.includes("/api/auth/");
 
         if (isInternalApi && !isAuthEndpoint) {
-          forceLogout("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+          forceLogout(t.authXSessionExpired);
         }
       }
 
@@ -182,7 +188,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       window.fetch = originalFetch;
     };
-  }, [forceLogout]);
+  }, [forceLogout, t]);
 
   const value = useMemo(() => ({
     user: user && profile ? { ...user, ...profile } : user,

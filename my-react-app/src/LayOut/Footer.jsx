@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { useTheme } from "../context/ThemeContext";
 import Visa from "../Picture/Visa.png";
@@ -141,18 +142,18 @@ const Footer = () => {
                 </a>
               </li>
               <li style={{ marginBottom: "12px" }}>
-                <a href="#" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }}
+                <Link to="/dieu-khoan" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }}
                   onMouseEnter={(e) => (e.target.style.color = "var(--primary)")}
                   onMouseLeave={(e) => (e.target.style.color = "var(--text-secondary)")}>
                   {t.termsConditions || "Điều Khoản & Điều Kiện"}
-                </a>
+                </Link>
               </li>
               <li style={{ marginBottom: "12px" }}>
-                <a href="#" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }}
+                <Link to="/chinh-sach-bao-mat" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }}
                   onMouseEnter={(e) => (e.target.style.color = "var(--primary)")}
                   onMouseLeave={(e) => (e.target.style.color = "var(--text-secondary)")}>
                   {t.privacyPolicy || "Chính Sách Bảo Mật"}
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

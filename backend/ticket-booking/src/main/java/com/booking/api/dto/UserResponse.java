@@ -21,6 +21,11 @@ public class UserResponse {
     private Double discountPercent;
     private boolean hasPassword;
     private Boolean enabled;
+    /**
+     * enabled = false có hai nghĩa: chưa xác thực email, hoặc bị quản trị viên khóa.
+     * Cờ này tách chúng ra để bảng quản trị không phải hiển thị "Đã khóa / Chưa kích hoạt".
+     */
+    private boolean awaitingEmailVerification;
     /** Đang cho phép lưu hội thoại với trợ lý AI hay không. Không bao giờ null ở đây. */
     private Boolean chatHistoryOptIn;
 }

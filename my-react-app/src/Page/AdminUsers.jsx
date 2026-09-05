@@ -10,7 +10,8 @@ import {
   FaUserEdit,
   FaTimes,
   FaCheckCircle,
-  FaBan
+  FaBan,
+  FaEnvelope
 } from "react-icons/fa";
 
 const API_BASE = "/api";
@@ -151,10 +152,13 @@ const AdminUsers = () => {
       String(u.id).includes(q);
 
     const matchRole = roleFilter === "ALL" || u.role === roleFilter;
+    // enabled = false có HAI nghĩa khác hẳn nhau: đang chờ xác thực email, và bị khóa.
+    // Backend nay tách sẵn bằng cờ awaitingEmailVerification nên lọc được riêng từng loại.
     const matchStatus =
       statusFilter === "ALL" ||
       (statusFilter === "ACTIVE" && u.enabled) ||
-      (statusFilter === "LOCKED" && !u.enabled);
+      (statusFilter === "UNVERIFIED" && !u.enabled && u.awaitingEmailVerification) ||
+      (statusFilter === "LOCKED" && !u.enabled && !u.awaitingEmailVerification);
 
     return matchSearch && matchRole && matchStatus;
   });
@@ -188,7 +192,7 @@ const AdminUsers = () => {
             <FaUsers style={{ color: "var(--primary)" }} /> Quản lý Người dùng & Phân quyền
           </h2>
           <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-            Kiểm soát tài khoản, cấp quyền Admin/Nhà cung cấp, mở khóa và kích hoạt email hộ người dùng
+            Kiểm soát tài khoản, cấp quyền Admin/Nhà cung cấp, khóa/mở khóa và kích hoạt email hộ người dùng
           </p>
         </div>
 
@@ -229,8 +233,9 @@ const AdminUsers = () => {
             }}
           >
             <option value="ALL">Tất cả trạng thái</option>
-            <option value="ACTIVE">Đã kích hoạt / Hoạt động</option>
-            <option value="LOCKED">Bị khóa / Chưa kích hoạt</option>
+            <option value="ACTIVE">Đang hoạt động</option>
+            <option value="UNVERIFIED">Chưa xác thực email</option>
+            <option value="LOCKED">Bị khóa</option>
           </select>
 
           {/* Search box */}
@@ -341,9 +346,15 @@ const AdminUsers = () => {
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#10b981", fontSize: 13, fontWeight: 600 }}>
                             <FaCheckCircle size={14} /> Hoạt động
                           </span>
+                        ) : u.awaitingEmailVerification ? (
+                          /* Người dùng tự đăng ký nhưng chưa nhập mã — họ tự xử lý được,
+                             admin không cần làm gì. Khác hẳn với tài khoản bị khóa. */
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#f59e0b", fontSize: 13, fontWeight: 600 }}>
+                            <FaEnvelope size={13} /> Chưa xác thực email
+                          </span>
                         ) : (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#ef4444", fontSize: 13, fontWeight: 600 }}>
-                            <FaBan size={14} /> Đã khóa / Chưa kích hoạt
+                            <FaBan size={14} /> Đã khóa
                           </span>
                         )}
                       </td>
@@ -415,7 +426,7 @@ const AdminUsers = () => {
                                   loading: false,
                                 })
                               }
-                              title="Kích hoạt email / Mở khóa tài khoản"
+                              title={u.awaitingEmailVerification ? "Kích hoạt hộ (bỏ qua bước xác thực email)" : "Mở khóa tài khoản"}
                               style={{
                                 padding: "6px 9px",
                                 borderRadius: 8,

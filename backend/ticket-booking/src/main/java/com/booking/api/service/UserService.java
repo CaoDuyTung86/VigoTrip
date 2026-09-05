@@ -99,6 +99,8 @@ public class UserService {
                 .discountPercent(discount)
                 .hasPassword(user.getPassword() != null && !user.getPassword().isEmpty())
                 .enabled(user.getEnabled())
+                .awaitingEmailVerification(
+                        !Boolean.TRUE.equals(user.getEnabled()) && user.getVerificationCode() != null)
                 // null = chưa từng chọn = đồng ý; quy về giá trị rõ ràng ngay tại biên,
                 // để phía client không phải đoán ý nghĩa của null.
                 .chatHistoryOptIn(user.getChatHistoryOptIn() == null || user.getChatHistoryOptIn())

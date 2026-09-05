@@ -255,6 +255,21 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 
+/* ===== KEYFRAMES DÙNG CHUNG =====
+   "spin" và "fadeIn" được nhiều trang gọi qua style inline (MyBookings,
+   AdminRevenue...) nhưng trước đây chỉ được định nghĩa trong thẻ <style> nội bộ
+   của AdminRevenue. Vào thẳng /my-bookings mà không qua trang đó thì trình duyệt
+   không tìm thấy keyframes: vòng tròn tải hiện ra nhưng đứng im như bị treo.
+   Khai báo ở đây để mọi trang dùng chung. */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* ===== HEADER ===== */
 .app-header {
   display: flex;
@@ -273,13 +288,18 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   gap: 12px;
   flex-shrink: 0;
 }
+/* Trước đây cụm này là position:absolute;left:50% để căn giữa tuyệt đối. Vì nằm
+   ngoài luồng flex, nó không đẩy được cụm nút bên phải: ngay ở 1280px cụm nút
+   đã đè lên tab "Ưu đãi" 135px, hẹp thêm nữa thì chữ chồng lên nhau rồi mất
+   hẳn. Giờ là một flex item bình thường — không bao giờ đè, và khi hết chỗ thì
+   cả cụm nhường sân cho ngăn kéo (xem "Ngưỡng thu gọn header" bên dưới). */
 .app-header-center {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .app-header-actions {
   display: flex;
@@ -318,8 +338,28 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   box-shadow: 0 0 12px rgba(96, 165, 250, 0.25);
 }
 
-@media (max-width: 900px) {
+/* ---- Ngưỡng thu gọn header ----
+   >= 1340px : header đầy đủ.
+   1101-1339 : thu gọn — tab nhỏ lại, nút ngôn ngữ/CSKH chỉ còn icon.
+   <= 1100px : không còn đủ chỗ cho tab + 4 nút, chuyển hết vào ngăn kéo
+               (nút hamburger + thanh menu có nút X), giống hệt bản mobile.
+   Các mốc lấy từ bề rộng thật của header khi đã đăng nhập (tên người dùng làm
+   cụm nút bên phải rộng thêm ~70px so với lúc chưa đăng nhập). */
+@media (max-width: 1339px) {
+  .header-nav-tab { padding: 8px 12px; font-size: 15px; gap: 6px; }
+  .header-nav-tab > span:first-child { font-size: 16px !important; }
+  .header-lang-code { display: none; }
+  .header-support-label { display: none; }
+  .header-username { max-width: 84px !important; }
+}
+@media (max-width: 1100px) {
   .app-header-center { display: none; }
+  .header-desktop-only { display: none !important; }
+  .header-mobile-only { display: flex !important; }
+  .app-header-actions { gap: 6px; min-width: 0; }
+}
+@media (min-width: 1101px) {
+  .header-mobile-only { display: none !important; }
 }
 @media (max-width: 600px) {
   .app-header { padding: 0 12px; gap: 8px; }
@@ -521,12 +561,16 @@ body:not(.dark) .trip-type-btn:hover:not(.maintenance):not(.active) {
   opacity: 0.15;
   mix-blend-mode: luminosity;
 }
+/* max-width 720px chỉ vừa đủ cho tiêu đề, nhưng hàng 4 huy hiệu tin cậy rộng
+   ~690px + padding 48px nên luôn bị đẩy cái thứ tư xuống dòng hai. Nới khung
+   ngoài ra cho hàng huy hiệu, còn tiêu đề/mô tả vẫn giữ nguyên 720px để không
+   đổi cách ngắt dòng. */
 .hero-content {
   position: relative;
   z-index: 1;
   text-align: center;
   padding: clamp(64px, 8vw, 92px) 24px clamp(60px, 8vw, 84px);
-  max-width: 720px;
+  max-width: 940px;
 }
 .hero-title {
   font-size: clamp(32px, 5.5vw, 60px);
@@ -543,6 +587,14 @@ body:not(.dark) .trip-type-btn:hover:not(.maintenance):not(.active) {
   margin: 0;
   font-weight: 400;
 }
+/* Phải đặt SAU hai khối trên: cả hai đều khai báo margin dạng rút gọn, viết
+   trước thì margin-left/right:auto bị ghi đè về 0 và chữ lệch sang trái. */
+.hero-title,
+.hero-subtitle {
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
 .hero-badges {
   display: flex;
   align-items: center;
@@ -550,6 +602,11 @@ body:not(.dark) .trip-type-btn:hover:not(.maintenance):not(.active) {
   gap: 12px;
   margin-top: 18px;
   flex-wrap: wrap;
+}
+/* Trên màn rộng ép đúng một hàng; hẹp hơn thì flex-wrap ở trên vẫn xuống dòng. */
+@media (min-width: 860px) {
+  .hero-badges { flex-wrap: nowrap; }
+  .hero-badge { white-space: nowrap; }
 }
 .hero-badge {
   display: flex;
@@ -1032,15 +1089,9 @@ body:not(.dark) .chatbot-messages-container::-webkit-scrollbar-thumb:hover {
   .app-header-left .brand-name { font-size: 18px; }
   .app-header-left .brand-mark { width: 32px; height: 32px; font-size: 16px; border-radius: 8px; }
 
-  /* Bộ nút desktop (đổi theme, chọn ngôn ngữ, CSKH, menu tài khoản) chuyển hết
-     vào ngăn kéo. Trước đây chúng vẫn hiện và tràn khỏi mép phải màn hình, kéo
-     theo dropdown position:absolute;right:0 bị cắt mất một nửa. */
-  .header-desktop-only { display: none !important; }
-  .header-mobile-only { display: flex !important; }
-  .app-header-actions { gap: 6px; min-width: 0; }
-}
-@media (min-width: 769px) {
-  .header-mobile-only { display: none !important; }
+  /* Việc ẩn bộ nút desktop / hiện hamburger đã chuyển lên ngưỡng 1100px ở phần
+     HEADER phía trên — dưới 768px đương nhiên vẫn áp dụng. Ở đây chỉ còn những
+     chỉnh riêng cho điện thoại. */
 }
 
 /* Nút hamburger */
@@ -1489,4 +1540,25 @@ body:not(.dark) .chatbot-messages-container::-webkit-scrollbar-thumb:hover {
   }
   .bi-card { padding: 14px !important; border-radius: 16px !important; }
   .bi-nav, .bi-seg { flex-wrap: wrap; }
+}
+
+/* ===== 14. MODAL ĐĂNG NHẬP / ĐĂNG KÝ =====
+   Khung buộc phải tự giới hạn chiều cao và cho phần thân cuộn riêng.
+   Trước đây card không có max-height mà lại overflow:hidden: trên màn thấp
+   (laptop 768px, điện thoại xoay ngang) form đăng ký cao ~915px bị căn giữa nên
+   tràn cả hai đầu — nút ✕ nằm ở toạ độ âm, cuộn chuột thì trang nền trôi còn
+   modal đứng im. Người dùng không còn cách nào đóng được modal. */
+.auth-card { max-height: calc(100vh - 40px); }
+@supports (height: 100dvh) {
+  .auth-card { max-height: calc(100dvh - 40px); }
+}
+/* overscroll-behavior: chặn "scroll chaining" — cuộn hết thân modal thì dừng,
+   không đẩy tiếp sang trang đặt vé phía sau. */
+.auth-card-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+@media (max-width: 480px) {
+  .auth-card { border-radius: 18px; }
 }

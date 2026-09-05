@@ -200,7 +200,6 @@ const AdminRevenue = () => {
 
       <style>{`
         @keyframes modalFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes spin { to { transform: rotate(360deg); } }
         .bi-card { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 14px; box-shadow: var(--shadow-sm); }
         .bi-seg { border: 1px solid var(--border-input); background: var(--bg-card); border-radius: 10px; overflow: hidden; display: flex; }
         .bi-seg button { border: none; background: transparent; color: var(--text-secondary); font-weight: 600; font-size: 13px; padding: 8px 16px; cursor: pointer; transition: 0.15s; }

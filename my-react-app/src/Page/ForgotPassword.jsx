@@ -22,9 +22,13 @@ const ForgotPassword = () => {
         try {
             await axios.post("/api/auth/forgot-password", { email });
             setStep(2);
+            // Backend nay LUÔN trả thành công, kể cả khi email không tồn tại — nếu phân biệt
+            // thì form này thành công cụ dò xem email nào đã đăng ký. Vì vậy câu thông báo
+            // cũng phải trung tính ("nếu email này có tài khoản thì mã đã được gửi"), và
+            // nhánh "không tìm thấy tài khoản" ở đây không còn xảy ra nữa.
             setMessage({ type: "success", text: t.fgpOtpSent });
-        } catch (err) {
-            setMessage({ type: "error", text: err.response?.data?.message || t.fgpEmailNotFound });
+        } catch {
+            setMessage({ type: "error", text: t.authXConnFailed });
         } finally {
             setLoading(false);
         }
@@ -54,6 +58,7 @@ const ForgotPassword = () => {
                 navigate("/auth");
             }, 2000);
         } catch (err) {
+            // Backend gộp "sai mã" / "hết hạn" / "email không tồn tại" thành một câu duy nhất.
             setMessage({ type: "error", text: err.response?.data?.message || t.fgpOtpInvalid });
         } finally {
             setLoading(false);

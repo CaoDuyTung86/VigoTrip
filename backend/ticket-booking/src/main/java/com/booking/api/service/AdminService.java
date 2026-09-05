@@ -357,9 +357,13 @@ public class AdminService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng với ID: " + userId));
         user.setEnabled(enabled);
-        if (Boolean.TRUE.equals(enabled)) {
-            user.setVerificationCode(null); // Xóa mã nếu admin kích hoạt trực tiếp
-        }
+        // Xóa mã xác thực ở CẢ hai chiều, không chỉ khi kích hoạt.
+        //
+        // enabled = false mang hai nghĩa chồng nhau: "chưa xác thực email" và "bị khóa".
+        // AuthService phân biệt chúng bằng chính verificationCode (còn mã = đang chờ xác
+        // thực). Nếu khóa một tài khoản chưa xác thực mà để nguyên mã, tài khoản đó vẫn
+        // nằm ở nhánh "chưa xác thực" — người bị khóa xin mã mới rồi tự kích hoạt lại.
+        user.setVerificationCode(null);
         return userRepository.save(user);
     }
 }

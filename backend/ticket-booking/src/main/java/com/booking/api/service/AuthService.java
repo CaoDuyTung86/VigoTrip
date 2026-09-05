@@ -8,6 +8,8 @@ import com.booking.api.dto.RegisterRequest;
 import com.booking.api.dto.ResetPasswordRequest;
 import com.booking.api.entity.User;
 import com.booking.api.exception.DuplicateResourceException;
+import com.booking.api.exception.AccountLockedException;
+import com.booking.api.exception.EmailNotVerifiedException;
 import com.booking.api.repository.UserRepository;
 import com.booking.api.security.GoogleTokenVerifier;
 import com.booking.api.security.JwtService;
@@ -70,18 +72,45 @@ public class AuthService {
         return new AuthResponse(null, user.getEmail(), user.getFullName(), user.getRole()); // Không trả về token ngay
     }
 
+    /**
+     * Thứ tự kiểm tra ở đây là có chủ đích, đừng đảo lại.
+     *
+     * Trước đây trạng thái "chưa kích hoạt" được kiểm TRƯỚC mật khẩu, nên bất kỳ ai gõ một
+     * email bất kỳ kèm mật khẩu bừa cũng phân biệt được "email này có tồn tại (chưa kích hoạt)"
+     * với "email này không có" — tức /login là một công cụ dò email miễn phí.
+     *
+     * Nay chỉ tiết lộ SAU khi người gọi đã chứng minh mình biết mật khẩu. Ai không biết
+     * mật khẩu luôn nhận đúng một câu "Email hoặc mật khẩu không đúng", bất kể email có
+     * tồn tại hay không; còn chủ tài khoản thật thì được dẫn thẳng tới màn nhập mã xác thực.
+     */
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BadCredentialsException("Email hoặc mật khẩu không đúng"));
+        User user = userRepository.findByEmail(normalizeEmail(request.getEmail()))
+                .orElse(null);
 
-        if (!Boolean.TRUE.equals(user.getEnabled())) {
-            throw new BadCredentialsException("Tài khoản chưa được kích hoạt. Vui lòng xác thực email của bạn.");
+        boolean passwordMatches = user != null
+                && user.getPassword() != null
+                && !user.getPassword().isEmpty()
+                && passwordEncoder.matches(request.getPassword(), user.getPassword());
+
+        if (!passwordMatches) {
+            throw new BadCredentialsException("Email hoặc mật khẩu không đúng");
         }
 
+        // Mật khẩu đã đúng -> giờ mới được phép nói ra trạng thái tài khoản.
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            if (isAwaitingEmailVerification(user)) {
+                throw new EmailNotVerifiedException("Tài khoản chưa được kích hoạt. Vui lòng xác thực email của bạn.");
+            }
+            throw new AccountLockedException("Tài khoản đã bị khóa. Vui lòng liên hệ bộ phận hỗ trợ.");
+        }
+
+        // Vẫn đi qua AuthenticationManager để giữ nguyên các kiểm tra khác của Spring Security
+        // (khóa tài khoản, hết hạn...). Tự so mật khẩu ở trên chỉ để phân biệt được lý do lỗi:
+        // DaoAuthenticationProvider ném DisabledException TRƯỚC khi so mật khẩu.
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            request.getEmail(),
+                            user.getEmail(),
                             request.getPassword()));
         } catch (Exception e) {
             throw new BadCredentialsException("Email hoặc mật khẩu không đúng");
@@ -92,15 +121,20 @@ public class AuthService {
 
     @Transactional
     public AuthResponse verifyEmail(String email, String code) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng với email: " + email));
+        // Ba nhánh hỏng dưới đây (không có user / đã kích hoạt / sai mã) cố tình dùng CHUNG
+        // một câu trả lời. Tách ra thì chỉ cần gửi một mã bừa là biết được email nào đã đăng ký
+        // và email nào đã kích hoạt — đúng thứ mà /resend-verification đã cẩn thận giấu đi.
+        String genericError = "Mã xác thực không chính xác hoặc đã hết hạn.";
+
+        User user = userRepository.findByEmail(normalizeEmail(email))
+                .orElseThrow(() -> new IllegalArgumentException(genericError));
 
         if (Boolean.TRUE.equals(user.getEnabled())) {
-            throw new IllegalArgumentException("Tài khoản đã được kích hoạt trước đó.");
+            throw new IllegalArgumentException(genericError);
         }
 
         if (user.getVerificationCode() == null || !user.getVerificationCode().equals(code)) {
-            throw new IllegalArgumentException("Mã xác thực không chính xác.");
+            throw new IllegalArgumentException(genericError);
         }
 
         user.setEnabled(true);
@@ -123,7 +157,10 @@ public class AuthService {
     public void resendVerification(String email) {
         String normalizedEmail = normalizeEmail(email);
         userRepository.findByEmail(normalizedEmail).ifPresent(user -> {
-            if (Boolean.TRUE.equals(user.getEnabled())) {
+            // Chỉ cấp mã cho tài khoản ĐANG CHỜ xác thực. Tài khoản bị admin khóa cũng có
+            // enabled = false, nếu chỉ kiểm enabled thì người bị khóa xin được mã mới rồi
+            // tự kích hoạt lại — mở khóa chính mình.
+            if (!isAwaitingEmailVerification(user)) {
                 return;
             }
             String verificationCode = String.format("%06d", secureRandom.nextInt(1000000));
@@ -133,37 +170,53 @@ public class AuthService {
         });
     }
 
+    /**
+     * Gửi mã đặt lại mật khẩu. LUÔN thành công, kể cả khi email không tồn tại.
+     *
+     * Trước đây chỗ này ném "Không tìm thấy người dùng với email: X" kèm 400 — nghĩa là
+     * gõ một email bất kỳ vào form Quên mật khẩu là biết ngay email đó có trên hệ thống
+     * hay không. Không cần mật khẩu, không cần gì cả: một công cụ dò email hoàn chỉnh,
+     * và rò rỉ nặng hơn cả /register.
+     *
+     * Ở đây không phải đánh đổi gì: bản chất luồng này đã gửi thư đi rồi, nên sự thật
+     * ("email này có tài khoản") vẫn tới được đúng người — qua hộp thư của họ, kênh mà
+     * chỉ chủ email đọc được. Giống hệt cách resendVerification đang làm.
+     */
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng với email: " + request.getEmail()));
-        
-        // Tạo mã OTP 6 số
-        String otpCode = String.format("%06d", secureRandom.nextInt(1000000));
-        
-        user.setResetToken(otpCode);
-        user.setResetTokenExpiry(java.time.LocalDateTime.now().plusMinutes(15));
-        userRepository.save(user);
+        userRepository.findByEmail(normalizeEmail(request.getEmail())).ifPresent(user -> {
+            // Tạo mã OTP 6 số
+            String otpCode = String.format("%06d", secureRandom.nextInt(1000000));
 
-        try {
-            emailService.sendResetPasswordEmail(user.getEmail(), otpCode);
-        } catch (Exception e) {
-            log.error("Failed to send reset password email to {}", request.getEmail(), e);
-            log.warn("SMTP email sending failed. Please check email server configuration.");
-        }
+            user.setResetToken(otpCode);
+            user.setResetTokenExpiry(java.time.LocalDateTime.now().plusMinutes(15));
+            userRepository.save(user);
+
+            try {
+                emailService.sendResetPasswordEmail(user.getEmail(), otpCode);
+            } catch (Exception e) {
+                log.error("Failed to send reset password email to {}", user.getEmail(), e);
+                log.warn("SMTP email sending failed. Please check email server configuration.");
+            }
+        });
     }
 
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng với email: " + request.getEmail()));
+        // Cùng một câu cho "email không tồn tại", "sai mã" và "mã hết hạn": tách ra thì
+        // chỉ cần gửi một mã bừa là dò được email nào có trên hệ thống — đúng lỗ hổng vừa
+        // bịt ở forgotPassword ngay phía trên.
+        String genericError = "Mã OTP không chính xác hoặc đã hết hạn.";
+
+        User user = userRepository.findByEmail(normalizeEmail(request.getEmail()))
+                .orElseThrow(() -> new IllegalArgumentException(genericError));
 
         if (user.getResetToken() == null || !user.getResetToken().equals(request.getOtpCode())) {
-            throw new IllegalArgumentException("Mã OTP không chính xác.");
+            throw new IllegalArgumentException(genericError);
         }
 
         if (user.getResetTokenExpiry() == null || user.getResetTokenExpiry().isBefore(java.time.LocalDateTime.now())) {
-            throw new IllegalArgumentException("Mã OTP đã hết hạn.");
+            throw new IllegalArgumentException(genericError);
         }
 
         if (user.getPassword() != null && !user.getPassword().isEmpty()
@@ -238,6 +291,18 @@ public class AuthService {
     }
 
     /** Email không phân biệt hoa/thường — chuẩn hóa để một người chỉ có duy nhất một tài khoản. */
+    /**
+     * Phân biệt hai trạng thái cùng mang enabled = false:
+     *   - đang chờ xác thực email  -> verificationCode còn (do register/resend đặt vào)
+     *   - bị quản trị viên khóa    -> verificationCode = null
+     *
+     * Bất biến này được AdminService.toggleUserStatus giữ: mọi thao tác khóa/mở khóa đều
+     * xóa verificationCode, nên tài khoản bị khóa không bao giờ có mã treo sẵn.
+     */
+    private boolean isAwaitingEmailVerification(User user) {
+        return !Boolean.TRUE.equals(user.getEnabled()) && user.getVerificationCode() != null;
+    }
+
     private String normalizeEmail(String email) {
         return email == null ? null : email.trim().toLowerCase(java.util.Locale.ROOT);
     }
