@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../utils/contact";
 import { useTheme } from "../context/ThemeContext";
 import Visa from "../Picture/Visa.png";
 import GPay from "../Picture/GPay.png";
@@ -107,10 +108,15 @@ const Footer = () => {
                 <MdOutlinePhone style={{ color: "var(--primary)", fontSize: 17 }} />
                 <span>{t.hotlineLabel || "Hotline:"} <strong style={{ color: "var(--primary)" }}>{currentPhone}</strong> ({t.support === "CSKH" ? "24/7" : t.support === "Support" ? "24/7" : t.support === "サポート" ? "24時間" : "24小時"})</span>
               </a>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "14px", color: "var(--text-secondary)" }}>
+              <a
+                href={SUPPORT_MAILTO}
+                style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "14px", color: "var(--text-secondary)", textDecoration: "none" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--primary)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
+              >
                 <MdOutlineEmail style={{ color: "var(--primary)", fontSize: 17 }} />
-                <span>Email: support@vigotrip.vn</span>
-              </div>
+                <span>Email: {SUPPORT_EMAIL}</span>
+              </a>
             </div>
           </div>
 
@@ -128,17 +134,10 @@ const Footer = () => {
             </h4>
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               <li style={{ marginBottom: "12px" }}>
-                <a href="#" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }}
+                <a href={SUPPORT_MAILTO} style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }}
                   onMouseEnter={(e) => (e.target.style.color = "var(--primary)")}
                   onMouseLeave={(e) => (e.target.style.color = "var(--text-secondary)")}>
                   {t.customerCare || "Chăm Sóc Khách Hàng"}
-                </a>
-              </li>
-              <li style={{ marginBottom: "12px" }}>
-                <a href="#" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }}
-                  onMouseEnter={(e) => (e.target.style.color = "var(--primary)")}
-                  onMouseLeave={(e) => (e.target.style.color = "var(--text-secondary)")}>
-                  {t.serviceGuarantee || "Bảo Đảm Dịch Vụ"}
                 </a>
               </li>
               <li style={{ marginBottom: "12px" }}>

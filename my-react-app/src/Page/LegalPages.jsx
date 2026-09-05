@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { SUPPORT_EMAIL } from "../utils/contact";
 
 /**
  * Trang Điều khoản sử dụng và Chính sách quyền riêng tư.
@@ -15,7 +16,6 @@ import { Link } from "react-router-dom";
  */
 
 const LAST_UPDATED = "05/09/2026";
-const SUPPORT_EMAIL = "support@vigotrip.vn";
 
 // Header của app là position:fixed cao 64px — dùng padding cố định 40px thì link
 // "← VigoTrip" chui xuống dưới nó và biến mất. Các trang khác cũng chừa chỗ theo

@@ -53,7 +53,7 @@ const translations = {
     notYou: "Không phải bạn?",
     termsPrefix: "Bằng việc đăng nhập hoặc đăng ký, bạn được xem như đã đồng ý với",
     termsAndConditions: "Điều Kiện Và Điều Khoản",
-    privacyPolicy: "Tuyên Bố Quyền Riêng Tự",
+    privacyPolicy: "Tuyên Bố Quyền Riêng Tư",
     of: "của",
 
     // Language
