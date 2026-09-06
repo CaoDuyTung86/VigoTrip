@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { FaTag, FaPlus, FaEdit, FaTrash, FaSearch, FaTimes } from "react-icons/fa";
+import ModalPortal from "../components/ModalPortal";
 
 const API_BASE = "/api";
 
@@ -542,21 +543,7 @@ const AdminVouchers = () => {
 
       {/* Modal Chỉnh sửa */}
       {editModal.show && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backdropFilter: "blur(4px)",
-          }}
-        >
+        <ModalPortal closeOnBackdrop={false} onClose={() => setEditModal({ show: false, voucher: null, form: emptyForm, loading: false })}>
           <div
             style={{
               background: "var(--bg-card)",
@@ -717,26 +704,12 @@ const AdminVouchers = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Modal Xác nhận xóa */}
       {deleteModal.show && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backdropFilter: "blur(4px)",
-          }}
-        >
+        <ModalPortal onClose={() => setDeleteModal({ show: false, voucher: null, loading: false })}>
           <div
             style={{
               background: "var(--bg-card)",
@@ -776,7 +749,7 @@ const AdminVouchers = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

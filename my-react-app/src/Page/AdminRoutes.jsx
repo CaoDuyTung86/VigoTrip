@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { FaRoute, FaPlus, FaEdit, FaTrash, FaSearch, FaTimes } from "react-icons/fa";
+import ModalPortal from "../components/ModalPortal";
 
 const API_BASE = "/api";
 
@@ -473,21 +474,7 @@ const AdminRoutes = () => {
 
       {/* Modal Chỉnh Sửa */}
       {editModal.show && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backdropFilter: "blur(4px)",
-          }}
-        >
+        <ModalPortal closeOnBackdrop={false} onClose={() => setEditModal({ show: false, route: null, origin: "", destination: "", loading: false })}>
           <div
             style={{
               background: "var(--bg-card)",
@@ -582,26 +569,12 @@ const AdminRoutes = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Modal Xác nhận Xóa */}
       {deleteModal.show && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backdropFilter: "blur(4px)",
-          }}
-        >
+        <ModalPortal onClose={() => setDeleteModal({ show: false, route: null, loading: false })}>
           <div
             style={{
               background: "var(--bg-card)",
@@ -655,7 +628,7 @@ const AdminRoutes = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

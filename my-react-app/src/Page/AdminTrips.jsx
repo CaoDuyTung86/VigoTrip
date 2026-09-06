@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import { RiTimerLine } from "react-icons/ri";
 import { MdOutlineCancel } from "react-icons/md";
+import ModalPortal from "../components/ModalPortal";
 
 
 const API_BASE = "/api";
@@ -833,7 +834,7 @@ const AdminTrips = () => {
 
       {/* Modal Hoãn chuyến */}
       {delayModal.show && delayModal.trip && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, backdropFilter: "blur(4px)" }}>
+        <ModalPortal closeOnBackdrop={false} zIndex={1000} backdrop="rgba(0,0,0,0.65)" onClose={() => setDelayModal({ show: false, trip: null, newDeparture: "", newArrival: "", reason: "", loading: false })}>
           <div style={{ background: "var(--bg-card)", padding: 28, borderRadius: 20, width: 440, maxWidth: "95vw", border: "1px solid var(--border-light)", boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}>
             <h3 style={{ fontWeight: 800, color: "#fbbf24", marginBottom: 4, fontSize: 18 }}>⏰ {t.admDelayTitle}</h3>
             <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>{delayModal.trip.route?.origin} → {delayModal.trip.route?.destination}</p>
@@ -858,12 +859,12 @@ const AdminTrips = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Modal Hủy chuyến */}
       {cancelAdminModal.show && cancelAdminModal.trip && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, backdropFilter: "blur(4px)" }}>
+        <ModalPortal closeOnBackdrop={false} zIndex={1000} backdrop="rgba(0,0,0,0.65)" onClose={() => setCancelAdminModal({ show: false, trip: null, reason: "", loading: false })}>
           <div style={{ background: "var(--bg-card)", padding: 28, borderRadius: 20, width: 440, maxWidth: "95vw", border: "1px solid var(--border-light)", boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}>
             <h3 style={{ fontWeight: 800, color: "#f87171", marginBottom: 4, fontSize: 18 }}>❌ {t.admCancelTripTitle}</h3>
             <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 14 }}>{cancelAdminModal.trip.route?.origin} → {cancelAdminModal.trip.route?.destination}</p>
@@ -885,7 +886,7 @@ const AdminTrips = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

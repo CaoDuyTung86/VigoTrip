@@ -877,7 +877,12 @@ body.dark .home-wrap {
   min-width: 0;
   padding: var(--page-padding);
   transition: margin-left 0.3s;
-  animation: fadeInUp 0.4s ease-out forwards;
+  /* KHÔNG thêm 'forwards' vào animation này. fadeInUp có transform, mà fill-mode
+     forwards giữ nguyên transform sau khi chạy xong -> phần tử thành containing block
+     cho mọi con position:fixed, khiến modal/dropdown bị canh theo chiều dài cả trang
+     thay vì theo màn hình. Bỏ fill-mode thì transform trở về none khi animation kết
+     thúc; khung hình cuối của animation vốn đã trùng trạng thái nghỉ nên không nháy. */
+  animation: fadeInUp 0.4s ease-out;
 }
 .page-main.with-sidebar { margin-left: var(--sidebar-width); }
 @media (max-width: 768px) {
@@ -888,12 +893,23 @@ body.dark .home-wrap {
   padding: clamp(80px, 10vh, 100px) var(--gap-unit) var(--gap-unit);
   max-width: 1400px;
   margin: 0 auto;
-  animation: fadeInUp 0.4s ease-out forwards;
+  /* Xem ghi chú ở .page-main: cố tình không dùng fill-mode forwards. */
+  animation: fadeInUp 0.4s ease-out;
 }
 
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Hiệu ứng mở modal (dùng bởi components/ModalPortal.jsx) */
+@keyframes modalOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modalCardIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* ===== FOOTER ===== */

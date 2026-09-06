@@ -13,6 +13,7 @@ import {
 import {
   shiftAnchor, currentAnchor, isAtEarliestPeriod, isAtLatestPeriod,
 } from "../utils/reportPeriod";
+import ModalPortal from "../components/ModalPortal";
 
 /**
  * Màn hình BI doanh thu.
@@ -647,20 +648,12 @@ const KpiCard = ({ icon, label, value, growth, comparison, accent, highlight }) 
  * tối nhưng gần như chìm hẳn khi giao diện ở tông sáng. Giờ mọi màu đều lấy từ biến chủ đề.
  */
 const AiModal = ({ loading, content, periodLabel, onClose, tr }) => (
-  <div
-    onClick={onClose}
-    style={{
-      position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.55)",
-      backdropFilter: "blur(3px)", zIndex: 3000,
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
-    }}
-  >
+  <ModalPortal onClose={onClose} zIndex={3000} blur={3} backdrop="rgba(15, 23, 42, 0.55)">
     <div
-      onClick={(e) => e.stopPropagation()}
       style={{
         width: 720, maxWidth: "100%", maxHeight: "86vh", background: "var(--bg-modal)",
         borderRadius: 16, border: "1px solid var(--border-main)", boxShadow: "var(--shadow-lg)",
-        display: "flex", flexDirection: "column", animation: "modalFadeIn 0.22s ease",
+        display: "flex", flexDirection: "column",
       }}
     >
       <div style={{
@@ -708,7 +701,7 @@ const AiModal = ({ loading, content, periodLabel, onClose, tr }) => (
         }}>{tr("admUnderstoodBtn", "Đã hiểu")}</button>
       </div>
     </div>
-  </div>
+  </ModalPortal>
 );
 
 const renderBold = (str) => str.split(/\*\*(.*?)\*\*/g).map((part, i) =>

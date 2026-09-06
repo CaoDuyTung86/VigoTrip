@@ -11,10 +11,62 @@ import {
   FaTimes,
   FaCheckCircle,
   FaBan,
-  FaEnvelope
+  FaEnvelope,
+  FaSort,
+  FaSortUp,
+  FaSortDown
 } from "react-icons/fa";
+import ModalPortal from "../components/ModalPortal";
 
 const API_BASE = "/api";
+
+/* API trả danh sách tài khoản theo thứ tự của DB, không cam kết sắp xếp gì cả nên nhìn
+   rất lộn xộn (#4, #2, #6, #7...). Mặc định xếp lại theo ID tăng dần và cho admin đổi
+   tiêu chí bằng ô chọn hoặc bấm thẳng vào tiêu đề cột. */
+const SORT_FIELDS = [
+  { field: "id", asc: "ID tăng dần (#1 → #n)", desc: "Mới nhất (ID giảm dần)" },
+  { field: "name", asc: "Tên A → Z", desc: "Tên Z → A" },
+  { field: "email", asc: "Email A → Z", desc: "Email Z → A" },
+  { field: "role", asc: "Vai trò: Admin trước", desc: "Vai trò: Khách hàng trước" },
+  { field: "points", asc: "Điểm thưởng thấp nhất", desc: "Điểm thưởng cao nhất" },
+  { field: "status", asc: "Trạng thái: cần xử lý trước", desc: "Trạng thái: hoạt động trước" },
+];
+
+// Liệt kê đủ cả hai chiều của mọi cột, không cắt bớt: bấm tiêu đề cột cũng đổi sortBy,
+// nếu thiếu tổ hợp nào thì ô chọn sẽ hiện trống vì không khớp option nào.
+const SORT_OPTIONS = SORT_FIELDS.flatMap((f) => [
+  { value: `${f.field}_asc`, label: f.asc },
+  { value: `${f.field}_desc`, label: f.desc },
+]);
+
+const ROLE_RANK = { ROLE_ADMIN: 0, ROLE_PROVIDER: 1, ROLE_USER: 2 };
+// Khóa xếp trước, chờ xác thực email xếp giữa, đang hoạt động xếp cuối — admin nhìn
+// phát thấy ngay mấy tài khoản cần đụng tới.
+const statusRank = (u) => (u.enabled ? 2 : u.awaitingEmailVerification ? 1 : 0);
+const collator = new Intl.Collator("vi", { sensitivity: "base", numeric: true });
+
+const sortUsers = (list, sortBy) => {
+  const [field, dir] = sortBy.split("_");
+  const sign = dir === "desc" ? -1 : 1;
+  const cmp = (a, b) => {
+    switch (field) {
+      case "name":
+        return collator.compare(a.fullName || "", b.fullName || "");
+      case "email":
+        return collator.compare(a.email || "", b.email || "");
+      case "role":
+        return (ROLE_RANK[a.role] ?? 9) - (ROLE_RANK[b.role] ?? 9);
+      case "points":
+        return (a.points || 0) - (b.points || 0);
+      case "status":
+        return statusRank(a) - statusRank(b);
+      default:
+        return (a.id || 0) - (b.id || 0);
+    }
+  };
+  // Luôn phá hòa bằng ID để hai lần render cùng dữ liệu cho ra đúng một thứ tự.
+  return [...list].sort((a, b) => sign * cmp(a, b) || (a.id || 0) - (b.id || 0));
+};
 
 const AdminUsers = () => {
   const { token, user: currentUser } = useAuth();
@@ -25,6 +77,7 @@ const AdminUsers = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [sortBy, setSortBy] = useState("id_asc");
 
   // Modal đổi vai trò
   const [roleModal, setRoleModal] = useState({
@@ -163,6 +216,36 @@ const AdminUsers = () => {
     return matchSearch && matchRole && matchStatus;
   });
 
+  const visibleUsers = sortUsers(filteredUsers, sortBy);
+
+  // Bấm lại đúng cột đang xếp thì đảo chiều, bấm cột khác thì về chiều mặc định của cột đó.
+  const toggleSort = (field) => {
+    const defaultDir = field === "points" ? "desc" : "asc";
+    setSortBy((prev) => {
+      const [prevField, prevDir] = prev.split("_");
+      if (prevField !== field) return `${field}_${defaultDir}`;
+      return `${field}_${prevDir === "asc" ? "desc" : "asc"}`;
+    });
+  };
+
+  const sortHeader = (field, label, extraStyle = {}) => {
+    const [activeField, activeDir] = sortBy.split("_");
+    const isActive = activeField === field;
+    const Icon = !isActive ? FaSort : activeDir === "asc" ? FaSortUp : FaSortDown;
+    return (
+      <th
+        onClick={() => toggleSort(field)}
+        title={`Sắp xếp theo ${label}`}
+        style={{ padding: "14px 18px", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap", color: isActive ? "var(--primary)" : undefined, ...extraStyle }}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {label}
+          <Icon size={11} style={{ opacity: isActive ? 1 : 0.4 }} />
+        </span>
+      </th>
+    );
+  };
+
   const getRoleBadge = (role) => {
     switch (role) {
       case "ROLE_ADMIN":
@@ -238,6 +321,28 @@ const AdminUsers = () => {
             <option value="LOCKED">Bị khóa</option>
           </select>
 
+          {/* Sort */}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            title="Sắp xếp danh sách"
+            style={{
+              padding: "9px 12px",
+              borderRadius: 10,
+              border: "1px solid var(--border-input)",
+              backgroundColor: "var(--bg-card)",
+              color: "var(--text-main)",
+              fontSize: 13,
+              outline: "none",
+            }}
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                Sắp xếp: {o.label}
+              </option>
+            ))}
+          </select>
+
           {/* Search box */}
           <div style={{ position: "relative" }}>
             <FaSearch style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 13 }} />
@@ -273,7 +378,7 @@ const AdminUsers = () => {
       >
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontWeight: 600, fontSize: 15, color: "var(--text-heading)" }}>
-            Danh sách: {filteredUsers.length} tài khoản
+            Danh sách: {visibleUsers.length} tài khoản
           </span>
         </div>
 
@@ -281,7 +386,7 @@ const AdminUsers = () => {
           <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
             Đang tải dữ liệu người dùng...
           </div>
-        ) : filteredUsers.length === 0 ? (
+        ) : visibleUsers.length === 0 ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
             Không tìm thấy người dùng phù hợp.
           </div>
@@ -290,17 +395,17 @@ const AdminUsers = () => {
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14 }}>
               <thead>
                 <tr style={{ background: "var(--bg-hover)", borderBottom: "1px solid var(--border-light)", color: "var(--text-muted)" }}>
-                  <th style={{ padding: "14px 18px", width: 70 }}>ID</th>
-                  <th style={{ padding: "14px 18px" }}>Người dùng</th>
-                  <th style={{ padding: "14px 18px" }}>Email & SĐT</th>
-                  <th style={{ padding: "14px 18px" }}>Vai trò (Role)</th>
-                  <th style={{ padding: "14px 18px" }}>Điểm thưởng / Hạng</th>
-                  <th style={{ padding: "14px 18px" }}>Trạng thái</th>
+                  {sortHeader("id", "ID", { width: 70 })}
+                  {sortHeader("name", "Người dùng")}
+                  {sortHeader("email", "Email & SĐT")}
+                  {sortHeader("role", "Vai trò (Role)")}
+                  {sortHeader("points", "Điểm thưởng / Hạng")}
+                  {sortHeader("status", "Trạng thái")}
                   <th style={{ padding: "14px 18px", textAlign: "center", width: 170 }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((u) => {
+                {visibleUsers.map((u) => {
                   const roleBadge = getRoleBadge(u.role);
                   const isCurrent = currentUser?.email === u.email;
 
@@ -456,21 +561,7 @@ const AdminUsers = () => {
 
       {/* Modal Đổi Vai Trò (Role) */}
       {roleModal.show && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backdropFilter: "blur(4px)",
-          }}
-        >
+        <ModalPortal closeOnBackdrop={false} onClose={() => setRoleModal({ show: false, user: null, role: "ROLE_USER", loading: false })}>
           <div
             style={{
               background: "var(--bg-card)",
@@ -554,26 +645,12 @@ const AdminUsers = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Modal Khóa / Mở khóa */}
       {statusModal.show && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backdropFilter: "blur(4px)",
-          }}
-        >
+        <ModalPortal onClose={() => setStatusModal({ show: false, user: null, targetEnabled: true, loading: false })}>
           <div
             style={{
               background: "var(--bg-card)",
@@ -638,7 +715,7 @@ const AdminUsers = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );
