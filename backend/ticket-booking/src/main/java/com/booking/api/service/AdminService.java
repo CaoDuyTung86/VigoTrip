@@ -139,21 +139,32 @@ public class AdminService {
         return vehicleRepository.findByProviderIdWithProvider(providerId);
     }
 
+    /** Cùng lý do với {@link #loadRoute}: AdminMapper bỏ qua quan hệ provider. */
+    private Provider loadProvider(Long providerId) {
+        if (providerId == null) {
+            throw new IllegalArgumentException("Thiếu nhà cung cấp (providerId) cho phương tiện.");
+        }
+        return providerRepository.findById(providerId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy nhà cung cấp với ID: " + providerId));
+    }
+
     @Transactional
     @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
-    public Vehicle createVehicle(Vehicle vehicle) {
+    public Vehicle createVehicle(Long providerId, Vehicle vehicle) {
+        vehicle.setProvider(loadProvider(providerId));
         return vehicleRepository.save(vehicle);
     }
 
     @Transactional
     @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
-    public Vehicle updateVehicle(Long id, Vehicle vehicleData) {
+    public Vehicle updateVehicle(Long id, Long providerId, Vehicle vehicleData) {
         Vehicle vehicle = vehicleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phương tiện với ID: " + id));
         vehicle.setVehicleType(vehicleData.getVehicleType());
         vehicle.setTotalSeats(vehicleData.getTotalSeats());
-        if (vehicleData.getProvider() != null) {
-            vehicle.setProvider(vehicleData.getProvider());
+        // Bỏ trống providerId nghĩa là giữ nguyên hãng hiện tại.
+        if (providerId != null) {
+            vehicle.setProvider(loadProvider(providerId));
         }
         return vehicleRepository.save(vehicle);
     }
@@ -185,23 +196,64 @@ public class AdminService {
         return tripRepository.searchTripsForAdmin(vehicleType, keyword, pageable);
     }
 
+    /**
+     * Nạp Route/Vehicle từ ID do client gửi lên.
+     *
+     * AdminMapper cố tình {@code ignore} hai quan hệ này (MapStruct không dựng được
+     * entity từ một Long), nên nếu service không tự nạp thì Trip sẽ lưu với route/vehicle
+     * null — mà cả hai cột FK đều {@code nullable = false}, dẫn tới lỗi ràng buộc 500
+     * thay vì một thông báo rõ ràng cho admin.
+     */
+    private Route loadRoute(Long routeId) {
+        if (routeId == null) {
+            throw new IllegalArgumentException("Thiếu tuyến đường (routeId) cho chuyến đi.");
+        }
+        return routeRepository.findById(routeId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tuyến đường với ID: " + routeId));
+    }
+
+    private Vehicle loadVehicle(Long vehicleId) {
+        if (vehicleId == null) {
+            throw new IllegalArgumentException("Thiếu phương tiện (vehicleId) cho chuyến đi.");
+        }
+        return vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phương tiện với ID: " + vehicleId));
+    }
+
+    /**
+     * Giờ đến phải sau giờ đi. Form admin chỉ hỏi một ngày nên chuyến qua đêm rất dễ
+     * bị gửi lên với arrivalTime sớm hơn departureTime — khi đó Trip.getLateCheckInCutoff()
+     * và mọi phép tính thời lượng đều ra kết quả vô nghĩa.
+     */
+    private void validateTripTimes(Trip trip) {
+        if (trip.getDepartureTime() != null
+                && trip.getArrivalTime() != null
+                && !trip.getArrivalTime().isAfter(trip.getDepartureTime())) {
+            throw new IllegalArgumentException("Giờ đến phải sau giờ đi.");
+        }
+    }
+
     @Transactional
     @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
-    public Trip createTrip(Trip trip) {
+    public Trip createTrip(Long routeId, Long vehicleId, Trip trip) {
+        trip.setRoute(loadRoute(routeId));
+        trip.setVehicle(loadVehicle(vehicleId));
+        validateTripTimes(trip);
         return tripRepository.save(trip);
     }
 
     @Transactional
     @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
-    public Trip updateTrip(Long id, Trip tripData) {
+    public Trip updateTrip(Long id, Long routeId, Long vehicleId, Trip tripData) {
         Trip trip = tripRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + id));
 
-        if (tripData.getRoute() != null) {
-            trip.setRoute(tripData.getRoute());
+        // Chỉ đổi tuyến/phương tiện khi client thực sự gửi ID lên; bỏ trống nghĩa là giữ nguyên.
+        if (routeId != null) {
+            trip.setRoute(loadRoute(routeId));
         }
-        if (tripData.getVehicle() != null) {
-            trip.setVehicle(tripData.getVehicle());
+        if (vehicleId != null) {
+            trip.setVehicle(loadVehicle(vehicleId));
         }
         if (tripData.getDepartureTime() != null) {
             trip.setDepartureTime(tripData.getDepartureTime());
@@ -216,6 +268,7 @@ public class AdminService {
             trip.setStatus(tripData.getStatus());
         }
 
+        validateTripTimes(trip);
         return tripRepository.save(trip);
     }
 

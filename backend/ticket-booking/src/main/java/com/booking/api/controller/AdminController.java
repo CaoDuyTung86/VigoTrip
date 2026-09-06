@@ -91,14 +91,17 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getVehiclesByProvider(providerId));
     }
 
+    // providerId truyền riêng vì AdminMapper bỏ qua quan hệ provider — xem createTrip bên dưới.
     @PostMapping("/vehicles")
     public ResponseEntity<Vehicle> createVehicle(@RequestBody VehicleRequest request) {
-        return ResponseEntity.ok(adminService.createVehicle(adminMapper.toEntity(request)));
+        return ResponseEntity.ok(adminService.createVehicle(
+                request.getProviderId(), adminMapper.toEntity(request)));
     }
 
     @PutMapping("/vehicles/{id}")
     public ResponseEntity<Vehicle> updateVehicle(@PathVariable Long id, @RequestBody VehicleRequest request) {
-        return ResponseEntity.ok(adminService.updateVehicle(id, adminMapper.toEntity(request)));
+        return ResponseEntity.ok(adminService.updateVehicle(
+                id, request.getProviderId(), adminMapper.toEntity(request)));
     }
 
     @DeleteMapping("/vehicles/{id}")
@@ -118,14 +121,18 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getPaginatedTrips(type, search, page, size));
     }
 
+    // routeId/vehicleId phải truyền riêng: AdminMapper bỏ qua hai quan hệ này nên
+    // entity trả về từ toEntity() luôn có route/vehicle null.
     @PostMapping("/trips")
     public ResponseEntity<Trip> createTrip(@RequestBody TripRequest request) {
-        return ResponseEntity.ok(adminService.createTrip(adminMapper.toEntity(request)));
+        return ResponseEntity.ok(adminService.createTrip(
+                request.getRouteId(), request.getVehicleId(), adminMapper.toEntity(request)));
     }
 
     @PutMapping("/trips/{id}")
     public ResponseEntity<Trip> updateTrip(@PathVariable Long id, @RequestBody TripRequest request) {
-        return ResponseEntity.ok(adminService.updateTrip(id, adminMapper.toEntity(request)));
+        return ResponseEntity.ok(adminService.updateTrip(
+                id, request.getRouteId(), request.getVehicleId(), adminMapper.toEntity(request)));
     }
 
     @PutMapping("/trips/{id}/price")

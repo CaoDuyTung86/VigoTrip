@@ -35,6 +35,31 @@ const getCityLabel = (code) => {
   return name ? `${name} (${code})` : code;
 };
 
+/**
+ * Lấy thông báo lỗi thật từ response.
+ * GlobalExceptionHandler trả về JSON {status, error, message, timestamp} — hiển thị nguyên
+ * chuỗi JSON đó thì admin không đọc được, nên bóc lấy trường `message`; nếu body không
+ * phải JSON (proxy trả HTML chẳng hạn) thì dùng tạm text thô.
+ */
+const readErrorMessage = async (res) => {
+  const text = await res.text().catch(() => "");
+  if (!text) return `HTTP ${res.status}`;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed?.message || parsed?.error || text;
+  } catch {
+    return text;
+  }
+};
+
+/** Cộng ngày vào chuỗi 'YYYY-MM-DD', giữ nguyên múi giờ địa phương. */
+const addDays = (isoDate, days) => {
+  const d = new Date(`${isoDate}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 const formatFormattedDateTime = (isoString) => {
   if (!isoString) return "--:--";
   try {
@@ -250,10 +275,18 @@ const AdminTrips = () => {
     setCreating(true);
     try {
       const departureTime = `${createForm.departureDate}T${createForm.departureTime}:00`;
-      const arrivalTime = `${createForm.departureDate}T${createForm.arrivalTime}:00`;
+      // Form chỉ hỏi một ngày đi, nên chuyến qua đêm (đi 23:00, đến 05:00) sẽ sinh ra
+      // giờ đến sớm hơn giờ đi nếu dùng chung ngày. Giờ đến <= giờ đi => đã sang hôm sau.
+      // So sánh chuỗi "HH:MM" là an toàn vì luôn cùng độ dài và zero-pad.
+      const arrivalDate =
+        createForm.arrivalTime <= createForm.departureTime
+          ? addDays(createForm.departureDate, 1)
+          : createForm.departureDate;
+      const arrivalTime = `${arrivalDate}T${createForm.arrivalTime}:00`;
+      // TripRequest bên backend nhận ID phẳng, không nhận object lồng {route:{id}}.
       const body = {
-        route: { id: Number(createForm.routeId) },
-        vehicle: { id: Number(createForm.vehicleId) },
+        routeId: Number(createForm.routeId),
+        vehicleId: Number(createForm.vehicleId),
         departureTime,
         arrivalTime,
         price: Number(createForm.price),
@@ -268,8 +301,7 @@ const AdminTrips = () => {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
+        throw new Error(await readErrorMessage(res));
       }
       setCreateForm({
         routeId: "",
@@ -283,7 +315,7 @@ const AdminTrips = () => {
       await loadTrips();
     } catch (e) {
       console.error(e);
-      setError(t.admCreateError);
+      setError(e.message ? t.admCreateErrorDetail.replace("{msg}", e.message) : t.admCreateError);
     } finally {
       setCreating(false);
     }
@@ -301,7 +333,7 @@ const AdminTrips = () => {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readErrorMessage(res));
       setDelayModal({ show: false, trip: null, newDeparture: "", newArrival: "", reason: "", loading: false });
       await loadTrips();
     } catch (e) { setError(t.admDelayError.replace("{msg}", e.message)); setDelayModal(prev => ({ ...prev, loading: false })); }
@@ -316,7 +348,7 @@ const AdminTrips = () => {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ reason: cancelAdminModal.reason }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await readErrorMessage(res));
       setCancelAdminModal({ show: false, trip: null, reason: "", loading: false });
       await loadTrips();
     } catch (e) { setError(t.admCancelError.replace("{msg}", e.message)); setCancelAdminModal(prev => ({ ...prev, loading: false })); }
