@@ -98,6 +98,34 @@ nhiều lần, và lần bị trừ tiền không nhất thiết là lần cuố
 `INITIATED` **không phải** một khoản tiền đã thu. Nó tồn tại chỉ để giữ lại `vnp_TxnRef` và
 thời điểm mở phiên — hai thứ bắt buộc phải có mới hỏi lại cổng được về sau.
 
+### Chống trùng: ba lớp, lớp cuối nằm dưới cơ sở dữ liệu
+
+Cùng một giao dịch về hai lần là chuyện bình thường (Return và IPN), nên xử lý nó hai lần thì
+không. Ba thứ chặn việc đó, xếp từ trong ra ngoài:
+
+| Lớp | Cơ chế | Ở đâu |
+|---|---|---|
+| Khoá dòng đơn | `SELECT ... FOR UPDATE` xếp hàng hai luồng callback | `BookingRepository.findByIdForUpdate` |
+| Cờ đã xử lý | `vnp_TxnRef` đã có kết quả chưa (loại trừ `INITIATED`) | `existsByTransactionRefAndPaymentStatusNot` |
+| Index duy nhất | DB từ chối dòng thứ hai cùng `vnp_TxnRef` | `ux_thanh_toan_transaction_ref` |
+
+Hai lớp đầu là logic ứng dụng — chúng chỉ đúng **chừng nào code còn viết đúng**. Lớp thứ ba
+không phụ thuộc điều đó: nó chặn cả khi chạy nhiều instance, khi ai đó sửa dữ liệu bằng tay,
+hoặc khi một thay đổi sau này vô tình bỏ mất phép kiểm tra kia. §5.7 là bằng chứng lớp này cần
+thiết chứ không thừa.
+
+Index **không tự tạo** bằng `ddl-auto=update` (nó là index có điều kiện lọc). Script và hướng
+dẫn từng bước cho cả PostgreSQL lẫn SQL Server: `backend/migrations/2026-09-06__unique_transaction_ref.sql`.
+
+Mệnh đề `WHERE transaction_ref IS NOT NULL` là bắt buộc trên SQL Server: nơi đó các `NULL` bị
+coi là **trùng nhau**, nên một `UNIQUE` thường sẽ chỉ cho phép đúng một dòng có mã giao dịch
+rỗng trong cả bảng — mà cột này rỗng thật được.
+
+Khi index chặn một lượt ghi, lỗi **không được bắt bên trong** `PaymentService`: transaction đã
+bị đánh dấu rollback-only nên mọi giá trị trả về từ bên trong đều bị Spring lật lại thành
+`UnexpectedRollbackException` lúc commit. `PaymentController` — điểm đầu tiên nằm ngoài
+transaction — mới là nơi dịch nó thành `RspCode 02` cho IPN, hoặc trang kết quả cho Return.
+
 ---
 
 ## 5. Những gì đã hỏng, và vì sao
@@ -245,6 +273,37 @@ lỗi đã gặp:
    → `VNPayUtil.toGatewayDate` đổi ngược lại. Và cả hai mốc sinh ra từ **cùng một `Instant`**:
    gọi `now()` hai lần thì có thể lệch một giây, đủ để cổng không nhận ra.
 
+### 5.7 — Booking 49 và 52: một khoản thu, hai dòng `payment`
+
+**Triệu chứng.** Phát hiện ngày 06/09/2026 khi rà dữ liệu trước lúc tạo index chống trùng:
+`thanh_toan` có hai cặp dòng trùng `transaction_ref`.
+
+| Booking | `transaction_ref` | Hai dòng cách nhau | Trạng thái |
+|---|---|---|---|
+| 49 | `be76f754eb98` | **92 mili giây** | cả hai `SUCCESS`, cùng 4.952.950đ |
+| 52 | `e86bac3593af` | **199 mili giây** | cả hai `SUCCESS`, cùng 4.462.500đ |
+
+**Không mất tiền.** Dashboard VNPay sandbox xác nhận mỗi giao dịch chỉ thu **một lần**. Đây là
+một khoản thu bị ghi lại hai lần, không phải hai lần trừ tiền. Khách đã nhận vé.
+
+**Nguyên nhân.** Khoảng cách vài chục mili giây là chữ ký của việc Return và IPN về gần như
+cùng lúc: cả hai cùng tra `findByTransactionRef`, cùng thấy trống, cùng chèn một dòng mới.
+Cả hai cặp đều **không có dòng `INITIATED`** — dấu hiệu chúng ra đời trước khi có thay đổi ở
+§4 (ghi trước dòng `INITIATED` lúc mở phiên). Từ khi có dòng đó, `savePayment` tìm thấy và
+**cập nhật** nó thay vì chèn thêm.
+
+**Tác hại nếu để nguyên.** `PaymentRepository.findByTransactionRef` khai báo trả về đúng một
+kết quả. Hễ có callback nào tới cho một mã đang bị trùng là Spring ném
+`IncorrectResultSizeDataAccessException` và lượt xử lý chết giữa chừng.
+
+**Đã xử lý.** Xoá dòng thừa (giữ `payment_id` nhỏ hơn — hai dòng giống hệt nhau về nội dung),
+rồi tạo index chống trùng. Doanh thu không bị ảnh hưởng: báo cáo đọc từ `dat_ve` chứ không
+đọc `thanh_toan`, và không bảng nào có khoá ngoại trỏ vào `thanh_toan.payment_id`.
+
+**Bài học.** Khoá dòng đơn ở lớp một là đúng, nhưng nó chỉ bảo vệ được đoạn code đi qua nó.
+Dữ liệu sinh ra từ trước khi có lớp bảo vệ vẫn nằm nguyên trong bảng — và không có gì phát
+hiện ra chúng cho tới khi ai đó chủ động đi tìm.
+
 ---
 
 ## 6. Bốn mốc thời gian
@@ -268,6 +327,10 @@ phút hạn mức — mà đó đúng là loại đơn dễ đã bị trừ ti�
 
 ## 7. Chẩn đoán bằng log Render
 
+> **Trước khi đọc log Render, hãy tra bảng nhật ký giao dịch (§8).** Log container bị xoá mỗi
+> lần restart; bảng nhật ký giữ 180 ngày. Log Render vẫn hữu ích cho những gì bảng không ghi:
+> diễn biến của cleanup, và chi tiết chẩn đoán chữ ký.
+
 Lọc theo các chuỗi này, **theo thứ tự**:
 
 | Lọc | Trả lời câu hỏi gì |
@@ -289,7 +352,56 @@ từ chối" là toàn bộ giá trị của nó.
 
 ---
 
-## 8. Cấu hình
+## 8. Nhật ký giao dịch (`nhat_ky_thanh_toan`)
+
+**Vì sao cần một bảng, trong khi đã có `log.info`.** Log ứng dụng nằm trong container. Container
+restart, hoặc nhà cung cấp xoay vòng log, là chứng cứ biến mất — mà tranh chấp tiền nong thì
+thường nổ ra sau đó vài ngày. Chính §5.1 đã không truy được đến cùng vì lý do này.
+
+**Ghi gì.** Một dòng cho **mọi** lượt, kể cả lượt bị từ chối:
+
+| Kênh | Khi nào ghi |
+|---|---|
+| `RETURN` | Cổng chuyển hướng trình duyệt khách về backend |
+| `IPN` | Cổng gọi ngầm server-to-server |
+| `QUERYDR` | Ta chủ động hỏi cổng — **cả lúc không hỏi được** |
+| `REFUND_APPROVE` / `REFUND_REJECT` | Người vận hành quyết định hoàn tiền, kèm email người bấm |
+
+Cột đáng chú ý: `signature_valid` (chữ ký hợp lệ hay không), `outcome` (kết luận của lượt đó —
+`RspCode` với IPN, chuỗi kết quả với Return, verdict với querydr), `source_ip`, và hai cột
+payload giữ **nguyên văn** thứ nhận được / gửi đi.
+
+**Ba tính chất được thiết kế có chủ đích:**
+
+1. **Ghi bằng transaction riêng** (`REQUIRES_NEW`, xem `PaymentLogWriter`). Nếu dùng chung
+   transaction với luồng callback thì nó rollback cùng luồng hỏng — đúng những lượt cần bằng
+   chứng nhất lại là những lượt không để lại gì.
+2. **Không bao giờ ném lỗi ra ngoài.** Ghi chép hỏng thì mất một dòng bằng chứng; ném lỗi ra
+   ngoài là làm hỏng chính giao dịch nó sinh ra để bảo vệ.
+3. **Không lưu chữ ký.** `vnp_SecureHash` bị lọc khỏi cả hai chiều — kết luận về chữ ký đã nằm
+   ở cột riêng, còn bản thân chữ ký chỉ là mẫu HMAC của hash-secret đang dùng.
+
+**Tra cứu.** Hai đường, cùng dữ liệu:
+
+- **Tab admin** `/admin/payment-logs` (chỉ `ROLE_ADMIN`). Nhập mã giao dịch hoặc mã đơn.
+- **SQL trực tiếp**, khi cần lọc phức tạp hơn:
+  ```sql
+  SELECT * FROM nhat_ky_thanh_toan
+  WHERE transaction_ref = 'ma_khach_dua' ORDER BY created_at;
+  ```
+
+**Tab admin cố ý KHÔNG có danh sách để duyệt.** Đây là quyết định về bề mặt tấn công: trước khi
+có màn hình, đọc bảng này phải có thông tin đăng nhập cơ sở dữ liệu — một nhóm rất nhỏ. Mở ra
+web là hạ nó xuống thành "ai có phiên quản trị", cộng mọi đường mất phiên thường gặp. Bắt buộc
+biết trước mã (do chính khách khiếu nại cung cấp) là thứ giữ cho việc mở ra đó không thành một
+cái vòi tải dữ liệu. **Đừng thêm endpoint liệt kê vào đây vì "cho tiện".**
+
+Mỗi lượt tra cứu ghi một dòng `INFO` kèm email người tra — nếu tài khoản quản trị bị chiếm thì
+đó là chỗ duy nhất còn dấu.
+
+---
+
+## 9. Cấu hình
 
 | Biến | Mặc định | Ghi chú |
 |---|---|---|
@@ -298,6 +410,10 @@ từ chối" là toàn bộ giá trị của nó.
 | `VNP_RETURN_URL` | `localhost:8081/...` | Phải khớp Return Url trên portal |
 | `VNP_VERIFY_CALLBACK` | `true` | Tắt thì querydr trả `UNAVAILABLE` và luồng chạy như trước khi có lớp này. Chỉ tắt khi môi trường không có đường ra Internet (dev offline, CI) |
 | `ALLOWED_FRONTEND_ORIGINS` | 3 tên miền | Allowlist chống open redirect. Trả khách về sai tên miền là mất token trong `localStorage` |
+| `PAYMENT_AUDIT_ENABLED` | `true` | Công tắc nhật ký giao dịch (§8). Tắt là mất bằng chứng cho mọi tranh chấp sau đó |
+| `PAYMENT_AUDIT_RETENTION_DAYS` | `180` | Dài hơn hẳn lịch sử chat (30) vì đối soát ngân hàng tính bằng tháng |
+| `PAYMENT_AUDIT_CLEANUP_CRON` | `0 15 3 * * *` | Lệch khỏi các job dọn chat (3h00, 3h30, 3h45) để không có hai `DELETE` lớn chồng nhau |
+| `BOOKING_CLEANUP_SAFETY_SWEEP_MINUTES` | `30` | Lưới an toàn của `PendingBookingSignal`: dù cổng đang đóng thì cứ ngần này phút vẫn quét lại một lượt. Đặt `0` để tắt cổng, quét mỗi phút như trước |
 
 **IPN Url điền trên portal VNPay**, không phải biến môi trường:
 `https://<host>/api/payment/vnpay-ipn`, giao thức GET, HMACSHA512. Nhớ bấm **Hoàn thành** để
@@ -308,24 +424,63 @@ là cửa thoát hiểm chỉ nới cho lỗi *"khoá đã lộ"*, **không** n�
 
 ---
 
-## 9. Việc còn lại
+## 10. Việc còn lại
+
+> **Đã xong ngày 06/09/2026:** nhật ký giao dịch (§8), index chống trùng (§4), dọn hai cặp dòng
+> trùng của booking 49 và 52 (§5.7). Danh sách dưới đây là phần còn lại.
 
 1. **Xoay `VNP_HASH_SECRET`.** Giá trị đang dùng đã lộ công khai trong lịch sử Git. Đăng ký
    terminal sandbox mới là cách nhanh nhất. Xong thì **xoá `ALLOW_KNOWN_LEAKED_SECRETS`**.
 2. **Dò đúng thứ tự trường của chữ ký phản hồi querydr** (§5.3) — đã có sẵn bằng chứng thô
    trong log, làm offline được.
-3. **Đặt `spring.datasource.hikari.minimum-idle: 0`.** Hiện `idle-timeout: 30000` **không có
-   tác dụng** vì HikariCP mặc định `minimumIdle = maximumPoolSize`, và `idleTimeout` chỉ áp
-   dụng khi `minimumIdle < maximumPoolSize`. Pool giữ 10 kết nối mở vĩnh viễn nên Neon không
-   tự ngủ được lúc nào backend còn chạy, dù không ai dùng — và Neon tính tiền theo **thời gian
-   compute thức**, không theo lượng truy vấn.
+3. ~~Đặt `spring.datasource.hikari.minimum-idle: 0`.~~ **Đã làm.** Trước đó
+   `idle-timeout: 30000` không có tác dụng vì HikariCP mặc định `minimumIdle = maximumPoolSize`,
+   và `idleTimeout` chỉ áp dụng khi `minimumIdle < maximumPoolSize`; pool giữ 10 kết nối mở
+   vĩnh viễn. Một mình nó chưa đủ để Neon ngủ — nhịp quét mỗi 60 giây của
+   `BookingCleanupService` vẫn đánh thức compute — nhưng việc số 8 đã xử lý nốt phần đó.
 4. **Dọn đơn demo nếu cần số liệu doanh thu sạch.** `DemoBookingSeeder` đóng dấu
    `transaction_ref = 'DEMO<id>'` nên lọc ra được chính xác. Seeder mặc định tắt
    (`DEMO_SEED_BOOKINGS`), nhưng tắt cờ **không xoá** những dòng đã sinh.
+5. **Tách lời gọi `querydr` ra khỏi transaction.** *(~0,5–1 ngày, ưu tiên cao nhất trong ba
+   việc còn lại)* Hiện `VNPayQueryService.query` — 3 giây kết nối cộng 6 giây đọc — chạy **bên
+   trong** transaction của `handleVNPayIPN` và của `BookingCleanupService`. Mỗi giây chờ cổng
+   là một giây giữ một connection DB. `MAX_BOOKINGS_PER_RUN = 20` trong `BookingCleanupService`
+   là băng dán cho đúng vấn đề này và nên bỏ được sau khi tách. Cách làm: hỏi cổng **trước**,
+   ngoài transaction; mở một transaction ngắn **sau** chỉ để ghi kết quả.
+6. **ShedLock cho các job `@Scheduled`.** *(~2–3 giờ)* Hệ thống có 9 job chạy theo lịch, tất cả
+   đều giả định **chỉ có một tiến trình**. Chạy từ hai instance trở lên mà không có khoá phân
+   tán thì hai `BookingCleanupService` cùng quét một đơn, hai `TripReminderScheduler` cùng gửi
+   một mail nhắc. **Chưa cần làm chừng nào còn chạy một instance** — xem ghi chú dưới bảng.
+7. **API Refund tự động** (`vnp_Command=refund`). *(~2–3 ngày)* Hiện `approveRefund` chỉ đổi
+   trạng thái và gửi mail; tiền do người thật chuyển tay. **Kiểm tra quyền hoàn tiền của
+   merchant TRƯỚC khi viết code** — lệnh `refund` cần VNPay cấp quyền riêng và rất có thể không
+   bật được ở môi trường thật, build xong mới biết thì phí công. Nếu làm: chỉ tự động cho nhánh
+   `LATE_NEEDS_REFUND` (lỗi hệ thống, không cần con người phán xét); khách chủ động xin hủy vé
+   thì vẫn để người duyệt. Bắt buộc idempotent — một `vnp_TxnRef` chỉ được hoàn đúng một lần.
+8. ~~Để Neon thật sự ngủ được.~~ **Đã làm** — xem §12.
+
+### Khi nào mới cần chạy nhiều instance
+
+Không phải khi "muốn nhanh hơn". Chỉ có ba lý do thật:
+
+| Lý do | Dấu hiệu nhận biết |
+|---|---|
+| Một tiến trình không chịu nổi tải | CPU/RAM chạm trần liên tục, người dùng thấy chậm rõ rệt |
+| Cần không gián đoạn khi deploy | Không chấp nhận được vài chục giây chết lúc cập nhật |
+| Cần chịu được hỏng một máy | Một container chết là dịch vụ ngừng, không chấp nhận được |
+
+Không lý do nào áp dụng cho dự án này ở quy mô hiện tại, nên **một instance là lựa chọn đúng** —
+và còn tránh được cả một lớp lỗi (job chạy trùng, bộ đếm ngân sách AI và `SeatLockService` đều
+để trong RAM tiến trình). Việc số 6 chỉ trở nên bắt buộc vào ngày quyết định nhân bản backend.
+
+**Số instance backend không liên quan tới hoá đơn Neon.** Neon là *cơ sở dữ liệu*, tính tiền
+theo **thời gian compute thức**, không theo số truy vấn. Thứ đốt CU-hrs là những gì giữ compute
+thức — pool kết nối và các job chạy theo lịch chạm vào DB — chứ không phải số tiến trình gọi vào.
+Nhân đôi backend không làm hoá đơn Neon tăng gấp đôi. Chi tiết và những gì đã sửa: §12.
 
 ---
 
-## 10. Đọc thêm trong code
+## 11. Đọc thêm trong code
 
 Các lời giải thích chi tiết nhất nằm ngay tại chỗ, dưới dạng Javadoc — mỗi quyết định đánh đổi
 đều được ghi lý do tại nơi nó được thực hiện:
@@ -335,3 +490,63 @@ Các lời giải thích chi tiết nhất nằm ngay tại chỗ, dưới dạn
 - `VNPayQueryService` (Javadoc lớp) — vì sao fail-open
 - `VNPayUtil.validateHash` — vì sao chấp nhận cả hai cách mã hoá khoảng trắng
 - `PaymentRepository.existsByTransactionRefAndPaymentStatusNot` — cái bẫy ở §5.5
+- `PaymentLog` (Javadoc lớp) — vì sao cần một bảng chứ không chỉ log ứng dụng
+- `PaymentLogWriter` (Javadoc lớp) — vì sao phải ghi bằng transaction riêng, và cái giá của nó
+- `PaymentService.isDuplicateTransactionRef` — vì sao nhận diện lỗi trùng bằng **tên index**
+- `PaymentController.returnResult` — vì sao lỗi ràng buộc phải bắt ở controller, không bắt trong service
+- `AdminPaymentLogController` (Javadoc lớp) — vì sao chỉ tra cứu, không có danh sách để duyệt
+- `backend/migrations/2026-09-06__unique_transaction_ref.sql` — cách tạo index, và đường lùi
+- `PendingBookingSignal` (Javadoc lớp) — vì sao lượt dọn được phép ngủ, và khe hở phải bịt để ngủ an toàn
+
+---
+
+## 12. Vì sao hoá đơn Neon cao, và đã sửa những gì
+
+Neon tính tiền theo **thời gian compute thức**, không theo số truy vấn, và tự ngủ sau **5 phút**
+không có truy vấn nào. Nghĩa là chỉ cần một thứ chạm vào DB đều đặn dưới 5 phút một lần là hoá
+đơn bằng đúng hoá đơn của một máy chủ chạy 24/7, dù không có người dùng nào.
+
+Có ba thứ như vậy trong dự án này:
+
+| Thứ giữ compute thức | Nhịp | Tình trạng |
+|---|---|---|
+| HikariCP giữ 10 kết nối mở vĩnh viễn | liên tục | **Đã sửa** — `minimum-idle: 0` (§10 việc 3) |
+| `BookingCleanupService` quét đơn quá hạn | 60 giây | **Đã sửa** — `PendingBookingSignal` |
+| Render ping Health Check Path định kỳ | tuỳ Render, không chỉ lúc deploy | **Đã sửa** — `management.health.db.enabled: false` |
+
+### Lượt quét biết ngủ
+
+`BookingCleanupService.sweepExpiredBookingsIfNeeded` hỏi `PendingBookingSignal` trước khi chạm
+DB. Cổng chỉ đóng khi một lượt quét vừa nhìn thấy `countByStatus("PENDING") == 0`, và mở lại
+ngay khi `BookingService.createBooking` báo có đơn mới. Không còn đơn nào treo thì backend
+không gửi một câu truy vấn nào — Neon ngủ.
+
+Ba khe hở đã bịt, và mỗi cái đều là một đơn có thể nằm lại vĩnh viễn nếu bỏ qua:
+
+- **Đơn tạo giữa lúc quét.** Cổng so bằng *bộ đếm số đơn đã tạo*, không bằng cờ boolean: lượt
+  quét chỉ được đóng cổng nếu bộ đếm chưa nhích kể từ lúc nó bắt đầu.
+- **Đơn chưa commit.** Tín hiệu chỉ tính sau `afterCommit`. Tính sớm hơn thì lượt quét có thể
+  chốt "DB sạch" đúng vào lúc dòng chưa hiện ra, rồi dòng đó commit sau khi cổng đã đóng.
+- **Một đường tạo đơn mới mà quên báo tín hiệu.** Lưới an toàn
+  `BOOKING_CLEANUP_SAFETY_SWEEP_MINUTES` (mặc định 30) vẫn quét lại bất kể cổng: hậu quả tệ
+  nhất là dọn trễ 30 phút thay vì không bao giờ dọn. Giá phải trả là compute thức khoảng 5
+  phút mỗi 30 phút thay vì ngủ hẳn — vẫn cắt hơn 80% so với trước.
+
+Toàn bộ trạng thái này nằm trong RAM tiến trình, nên **chỉ đúng khi chạy một instance**, đúng
+như `SeatLockService`. Xem ghi chú cuối §10.
+
+### `/actuator/health` không còn chạm DB
+
+Health Check Path trên Render đang trỏ vào `/actuator/health` (`permitAll` trong
+`SecurityConfig`), và Render ping endpoint này định kỳ suốt vòng đời instance để quyết định có
+restart service hay không — không chỉ lúc deploy. Mặc định Spring Boot gắn
+`DataSourceHealthIndicator` vào đó, nên mỗi lần Render ping là một truy vấn xuống Neon, đều đặn
+hơn hẳn ngưỡng autosuspend 5 phút. Có ping này thì hai việc phía trên vô nghĩa — Neon vẫn thức
+24/7 bất kể có đơn PENDING nào hay không.
+
+Đã tắt riêng nhánh DB của health check (`management.health.db.enabled: false`
+trong `application.yml`); các chỉ báo khác (`mail` đã tắt từ trước, `disk`, `ping`...) vẫn chạy
+bình thường. Đổi lại, Render không còn tự phát hiện "DB chết" qua health check — chấp nhận
+được vì cleanup service và các lời gọi DB khác đã tự chịu lỗi tạm thời (`Verdict.UNAVAILABLE`
+fail-open, `TripSupplyScheduler` nuốt lỗi để không chết lịch), không dựa vào health check để
+phản ứng.

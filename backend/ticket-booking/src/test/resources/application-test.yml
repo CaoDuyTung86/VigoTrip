@@ -22,6 +22,13 @@ spring:
     username: test@example.com
     password: testpassword
 
+# Tắt cổng chặn lượt quét (PendingBookingSignal) trong test: cổng giữ trạng thái trong RAM và
+# dùng chung cho cả context, nên một test kết thúc với DB sạch sẽ đóng cổng và làm test sau bị
+# bỏ qua lượt quét. Bản thân logic của cổng được phủ riêng bởi PendingBookingSignalTest.
+booking:
+  cleanup:
+    safety-sweep-minutes: 0
+
 jwt:
   secret: dGVzdHNlY3JldGtleWZvcmp1bml0dGVzdGluZ3B1cnBvc2Vzb25seTEyMzQ1Njc4OTA=
   expiration: 86400000

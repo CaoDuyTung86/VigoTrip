@@ -3,8 +3,10 @@ package com.booking.api.integration;
 import com.booking.api.dto.PaymentRequest;
 import com.booking.api.dto.PaymentResponse;
 import com.booking.api.entity.Booking;
+import com.booking.api.entity.PaymentLog;
 import com.booking.api.entity.User;
 import com.booking.api.repository.BookingRepository;
+import com.booking.api.repository.PaymentLogRepository;
 import com.booking.api.repository.UserRepository;
 import com.booking.api.service.EmailService;
 import com.booking.api.service.PaymentService;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,6 +39,9 @@ class PaymentServiceIntegrationTest {
 
     @Autowired
     private BookingRepository bookingRepository;
+
+    @Autowired
+    private PaymentLogRepository paymentLogRepository;
 
     @MockitoBean
     private EmailService emailService;
@@ -84,9 +90,39 @@ class PaymentServiceIntegrationTest {
         params.put("vnp_ResponseCode", "00");
 
         // Mock hash validation via VNPayUtil inside spring context
-        String result = paymentService.handleVNPayReturn(params);
+        String result = paymentService.handleVNPayReturn(params, "203.0.113.7");
 
         // When hash validation fails (since dummy params), returns INVALID_SIGNATURE
         assertEquals("INVALID_SIGNATURE", result);
+    }
+
+    @Test
+    @DisplayName("Integration Test: callback chữ ký sai vẫn để lại một dòng nhật ký THẬT trong DB")
+    void integration_InvalidCallback_SurvivesInAuditLog() {
+        // Test này chạy trong một transaction bị rollback ở cuối (@Transactional trên lớp).
+        // Dòng nhật ký vẫn đọc được sau lời gọi, và đó chính là điều cần chứng minh: nó được
+        // ghi bằng một transaction riêng (REQUIRES_NEW), nên nó KHÔNG biến mất cùng với luồng
+        // xử lý hỏng. Một nhật ký rollback cùng lỗi thì đúng lúc cần nhất lại chẳng có gì.
+        Map<String, String> params = new HashMap<>();
+        params.put("vnp_OrderInfo", "Thanh_toan_booking_" + savedBooking.getId());
+        params.put("vnp_ResponseCode", "00");
+        params.put("vnp_TxnRef", "TXN_AUDIT_IT");
+        params.put("vnp_SecureHash", "chu_ky_bia_dat");
+
+        paymentService.handleVNPayReturn(params, "203.0.113.7");
+
+        List<PaymentLog> entries =
+                paymentLogRepository.findByTransactionRefOrderByCreatedAtAsc("TXN_AUDIT_IT");
+        assertEquals(1, entries.size(), "callback nào tới cũng phải để lại đúng một dòng");
+
+        PaymentLog entry = entries.get(0);
+        assertEquals(PaymentLog.Channel.RETURN, entry.getChannel());
+        assertEquals(Boolean.FALSE, entry.getSignatureValid());
+        assertEquals("INVALID_SIGNATURE", entry.getOutcome());
+        assertEquals("203.0.113.7", entry.getSourceIp());
+        assertTrue(entry.getRequestPayload().contains("vnp_ResponseCode=00"),
+                "phải giữ lại nguyên văn thứ cổng gửi sang");
+        assertFalse(entry.getRequestPayload().contains("chu_ky_bia_dat"),
+                "nhưng không bao giờ lưu chữ ký");
     }
 }

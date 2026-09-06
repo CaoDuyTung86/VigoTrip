@@ -32,6 +32,7 @@ public class RefundService {
     private final UserRepository userRepository;
     private final EmailService emailService;
     private final VoucherService voucherService;
+    private final PaymentLogService paymentLogService;
 
     /** User gửi yêu cầu hoàn tiền */
     @Transactional
@@ -111,9 +112,15 @@ public class RefundService {
                 .collect(Collectors.toList());
     }
 
-    /** Provider duyệt hoàn tiền */
+    /**
+     * Provider duyệt hoàn tiền.
+     *
+     * @param actorEmail người bấm nút. Bắt buộc phải truyền vào và được ghi vào nhật ký giao
+     *                   dịch: việc chuyển tiền hiện vẫn làm tay bên ngoài phần mềm, nên đây
+     *                   là dấu vết DUY NHẤT trả lời được "ai đã đồng ý chi khoản này".
+     */
     @Transactional
-    public RefundResponse approveRefund(Long refundId) {
+    public RefundResponse approveRefund(String actorEmail, Long refundId) {
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu hoàn tiền"));
 
@@ -146,13 +153,18 @@ public class RefundService {
         // Cố ý gửi về email TÀI KHOẢN, không phải người liên hệ của đơn: đây là chuyện
         // tiền nong với người đã trả tiền, còn người liên hệ chỉ là người cầm vé đi.
         emailService.sendRefundApprovedEmail(booking.getUser().getEmail(), saved.getId(), booking.getId(), saved.getRefundAmount());
-        
+
+        paymentLogService.recordRefundDecision(PaymentLog.Channel.REFUND_APPROVE, booking.getId(),
+                actorEmail, "APPROVED",
+                "refundId=" + saved.getId() + "&amount=" + saved.getRefundAmount()
+                        + "&reason=" + saved.getReason());
+
         return toResponse(saved);
     }
 
-    /** Provider từ chối hoàn tiền */
+    /** Provider từ chối hoàn tiền. Xem {@link #approveRefund} về vai trò của {@code actorEmail}. */
     @Transactional
-    public RefundResponse rejectRefund(Long refundId, String note) {
+    public RefundResponse rejectRefund(String actorEmail, Long refundId, String note) {
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu hoàn tiền"));
 
@@ -170,7 +182,12 @@ public class RefundService {
         // Cố ý gửi về email TÀI KHOẢN, không phải người liên hệ của đơn: đây là chuyện
         // tiền nong với người đã trả tiền, còn người liên hệ chỉ là người cầm vé đi.
         emailService.sendRefundRejectedEmail(refund.getBooking().getUser().getEmail(), saved.getId(), refund.getBooking().getId(), note);
-        
+
+        paymentLogService.recordRefundDecision(PaymentLog.Channel.REFUND_REJECT,
+                refund.getBooking().getId(), actorEmail, "REJECTED",
+                "refundId=" + saved.getId() + "&amount=" + saved.getRefundAmount()
+                        + "&note=" + note);
+
         return toResponse(saved);
     }
 

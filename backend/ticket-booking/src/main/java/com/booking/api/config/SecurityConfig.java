@@ -81,6 +81,11 @@ public class SecurityConfig {
                         // admin, scope=PROVIDER thu hẹp về đúng thương hiệu tài khoản đó sở hữu).
                         // Đặt luật ở đó thay vì ở đây vì nó phụ thuộc tham số, không phụ thuộc URL.
                         .requestMatchers("/api/analytics/**").hasAnyAuthority("ROLE_PROVIDER", "PROVIDER", "ROLE_ADMIN", "ADMIN")
+                        // Nhật ký giao dịch: khai báo riêng dù đã nằm dưới /api/admin/**. Dòng
+                        // chung ngay dưới có thể được nới ra cho vai trò khác vào một ngày nào
+                        // đó; bảng này giữ 180 ngày lịch sử tiền nong nên nó không được phép nới
+                        // theo mà không ai để ý. Đối tác KHÔNG có phần trong đó.
+                        .requestMatchers("/api/admin/payment-logs").hasAnyAuthority("ROLE_ADMIN", "ADMIN")
                         .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN", "ADMIN")
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session

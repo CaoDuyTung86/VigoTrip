@@ -106,4 +106,17 @@ class BookingCleanupServiceIntegrationTest {
 
         assertEquals("PENDING", statusOf(fresh));
     }
+
+    @Test
+    @DisplayName("Điểm vào theo lịch vẫn dọn được đơn — cổng chặn không cắt mất đường đi")
+    void scheduledEntryPointStillCancels() {
+        // Điểm vào thật của production là sweepExpiredBookingsIfNeeded, không phải
+        // cancelUnpaidBookings. Nó gọi ngược lại chính bean này qua proxy của Spring để giữ
+        // @Transactional; gọi tắt trong lớp thì transaction biến mất và releaseSeats sẽ nổ.
+        Booking expired = savePending(LocalDateTime.now().minusMinutes(10), null);
+
+        bookingCleanupService.sweepExpiredBookingsIfNeeded();
+
+        assertEquals("CANCELLED", statusOf(expired));
+    }
 }

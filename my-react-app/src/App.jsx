@@ -27,6 +27,7 @@ import AccountPage from "./Page/AccountPage";
 import AdminRevenue from "./Page/AdminRevenue";
 import AdminChatbot from "./Page/AdminChatbot";
 import ProviderRefunds from "./Page/ProviderRefunds";
+import AdminPaymentLogs from "./Page/AdminPaymentLogs";
 import ProviderCheckIn from "./Page/ProviderCheckIn";
 import Chatbot from "./components/Chatbot";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -78,6 +79,7 @@ function AppWrapper() {
           <Route path="/admin/reviews" element={<AdminReviews />} />
           <Route path="/admin/revenue" element={<AdminRevenue />} />
           <Route path="/admin/chatbot" element={<AdminChatbot />} />
+          <Route path="/admin/payment-logs" element={<AdminPaymentLogs />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/provider/refunds" element={<ProviderRefunds />} />
           <Route path="/provider/check-in" element={<ProviderCheckIn />} />

@@ -75,6 +75,7 @@ public class VNPayQueryService {
 
     private final VNPayConfig vnPayConfig;
     private final RestClient restClient;
+    private final PaymentLogService paymentLogService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -85,14 +86,15 @@ public class VNPayQueryService {
     private boolean verifyCallback;
 
     @Autowired
-    public VNPayQueryService(VNPayConfig vnPayConfig) {
-        this(vnPayConfig, defaultRestClient());
+    public VNPayQueryService(VNPayConfig vnPayConfig, PaymentLogService paymentLogService) {
+        this(vnPayConfig, defaultRestClient(), paymentLogService);
     }
 
     /** Dùng cho test: bơm RestClient đã gắn MockRestServiceServer. */
-    VNPayQueryService(VNPayConfig vnPayConfig, RestClient restClient) {
+    VNPayQueryService(VNPayConfig vnPayConfig, RestClient restClient, PaymentLogService paymentLogService) {
         this.vnPayConfig = vnPayConfig;
         this.restClient = restClient;
+        this.paymentLogService = paymentLogService;
     }
 
     /**
@@ -173,29 +175,48 @@ public class VNPayQueryService {
         return query(txnRef, payDate, expectedAmount, Purpose.CALLBACK);
     }
 
-    /** Một vòng gọi querydr: dựng payload, gửi, đọc kết luận. Dùng chung cho cả hai Purpose. */
+    /**
+     * Một vòng gọi querydr: dựng payload, gửi, đọc kết luận. Dùng chung cho cả hai Purpose.
+     *
+     * Mọi lối ra đều đi qua khối finally để lại một dòng trong nhật ký giao dịch — kể cả lối
+     * "không hỏi được cổng". Đó là chủ đích: về sau, "ĐÃ hỏi mà cổng không trả lời" và "chưa
+     * từng hỏi" đòi hai cách xử lý khác hẳn nhau, mà nếu chỉ ghi những lượt hỏi thành công
+     * thì hai trường hợp đó nhìn giống hệt nhau.
+     *
+     * Việc đọc và diễn giải phản hồi nằm TRONG khối try cùng với lời gọi mạng: một phản hồi
+     * dị dạng làm hỏng bước diễn giải cũng phải rơi về UNAVAILABLE như mọi trục trặc khác,
+     * theo đúng nguyên tắc fail-open ghi ở đầu lớp — chứ không được ném ngược lên và làm
+     * hỏng luồng thanh toán mà lớp này chỉ đóng vai kiểm chứng phụ.
+     */
     private Verdict query(String txnRef, String transactionDate, long expectedAmount, Purpose purpose) {
         Map<String, String> payload = buildQueryPayload(txnRef, transactionDate);
-        JsonNode body;
+        String raw = null;
+        Verdict verdict = Verdict.UNAVAILABLE;
         try {
-            String raw = restClient.post()
+            raw = restClient.post()
                     .uri(vnPayConfig.getApiUrl())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
                     .retrieve()
                     .body(String.class);
-            body = raw == null ? null : objectMapper.readTree(raw);
+            JsonNode body = raw == null ? null : objectMapper.readTree(raw);
+            if (body == null) {
+                log.warn("Cổng VNPay trả về phản hồi rỗng cho giao dịch {}", txnRef);
+            } else {
+                verdict = interpret(body, txnRef, expectedAmount, purpose);
+            }
         } catch (Exception e) {
             // Cổng lỗi / chậm / không với tới được: đó không phải bằng chứng chống lại giao dịch.
             log.warn("Không truy vấn được giao dịch {} tại cổng VNPay: {}", txnRef, e.toString());
-            return Verdict.UNAVAILABLE;
+            if (raw == null) {
+                // Lưu lại chính câu báo lỗi làm "phản hồi": đây là toàn bộ những gì ta biết
+                // về lượt hỏi này, và nó phân biệt được timeout với lỗi phía cổng.
+                raw = "LOI_KHI_GOI_CONG: " + e;
+            }
+        } finally {
+            paymentLogService.recordQuery(txnRef, verdict.name(), payload, raw);
         }
-
-        if (body == null) {
-            log.warn("Cổng VNPay trả về phản hồi rỗng cho giao dịch {}", txnRef);
-            return Verdict.UNAVAILABLE;
-        }
-        return interpret(body, txnRef, expectedAmount, purpose);
+        return verdict;
     }
 
     /**

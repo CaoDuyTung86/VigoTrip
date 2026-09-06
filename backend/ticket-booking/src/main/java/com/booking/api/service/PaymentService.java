@@ -6,6 +6,7 @@ import com.booking.api.dto.PaymentRequest;
 import com.booking.api.dto.PaymentResponse;
 import com.booking.api.entity.Booking;
 import com.booking.api.entity.Payment;
+import com.booking.api.entity.PaymentLog;
 import com.booking.api.entity.Refund;
 import com.booking.api.entity.User;
 import com.booking.api.event.BookingConfirmedEvent;
@@ -20,6 +21,7 @@ import com.booking.api.util.VNPayUtil;
 import com.booking.api.entity.Ticket;
 import com.booking.api.realtime.SeatStatusBroadcaster;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -79,6 +81,20 @@ public class PaymentService {
     /** Cổng đã khẳng định lần thử này không thành công — thôi hỏi lại về nó. */
     private static final String PAYMENT_ABANDONED = "ABANDONED";
 
+    /**
+     * Tên chốt chặn chống trùng ở tầng cơ sở dữ liệu (xem thư mục backend/migrations).
+     *
+     * Chống trùng callback vốn đã có ở tầng ứng dụng — khóa dòng đơn cộng phép kiểm tra
+     * vnp_TxnRef — và trong thực tế nó chặn được. Chốt chặn dưới DB là lớp cuối cùng, cho
+     * những đường mà logic kia không phủ tới: chạy nhiều instance, sửa dữ liệu bằng tay,
+     * hoặc một thay đổi code sau này vô tình bỏ mất phép kiểm tra. Tiền thì không có lần thứ
+     * hai để sửa, nên nó xứng đáng có một lớp không phụ thuộc vào việc code viết đúng.
+     */
+    public static final String UNIQUE_TXN_REF_INDEX = "ux_thanh_toan_transaction_ref";
+
+    /** Nhãn nhật ký cho lượt callback bị chính chốt chặn đó chặn lại. */
+    public static final String RESULT_DUPLICATE_TXN_REF = "DUPLICATE_TXN_REF";
+
     /** Kết quả rà một đơn PENDING quá hạn với cổng, trước khi cho phép hủy nó. */
     public enum SweepResult {
         /** Không có lần mở cổng nào, hoặc cổng khẳng định không khoản nào được thu. */
@@ -92,6 +108,22 @@ public class PaymentService {
     /** Kết quả của một lần cổng báo về, dùng chung cho cả Return lẫn IPN. */
     private enum PaymentOutcome { SUCCESS, FAILED, ALREADY_PROCESSED, LATE_NEEDS_REFUND, INVALID_AMOUNT, UNVERIFIED }
 
+    /**
+     * Chỗ ghi chép của một lượt callback, để khối finally ở vòng ngoài còn biết chuyện gì
+     * đã xảy ra bên trong — kể cả khi bên trong ném lỗi và không kịp trả về gì.
+     *
+     * Mang theo một đối tượng thay vì suy ngược từ chuỗi kết quả: "chữ ký có hợp lệ không"
+     * là một sự thật độc lập cần lưu đúng như nó vốn có, còn chuỗi kết quả thì ai đổi cách
+     * viết lúc nào cũng được — và hôm đó cột signature_valid sẽ âm thầm ghi sai.
+     */
+    private static final class CallbackAudit {
+        static final String UNHANDLED = "UNHANDLED";
+
+        Long bookingId;
+        Boolean signatureValid;
+        String outcome = UNHANDLED;
+    }
+
     private final BookingRepository bookingRepository;
     private final PaymentRepository paymentRepository;
     private final RefundRepository refundRepository;
@@ -102,6 +134,7 @@ public class PaymentService {
     private final SeatStatusBroadcaster seatStatusBroadcaster;
     private final VoucherService voucherService;
     private final VNPayQueryService vnPayQueryService;
+    private final PaymentLogService paymentLogService;
 
     /** Tên miền frontend mặc định, dùng khi không xác định được nơi khách bắt đầu trả tiền. */
     @org.springframework.beans.factory.annotation.Value("${app.frontend-url:http://localhost:5173}")
@@ -291,17 +324,42 @@ public class PaymentService {
 
     /**
      * Xử lý callback Return từ VNPay (trình duyệt người dùng quay về).
+     *
+     * Phần việc thật nằm ở {@code doHandleVNPayReturn}; lớp vỏ này chỉ để bảo đảm MỌI lối ra —
+     * kể cả lối ném lỗi — đều để lại một dòng trong nhật ký giao dịch.
+     *
+     * @param sourceIp IP đã gọi vào endpoint, chỉ dùng để ghi nhật ký
      */
     @Transactional
-    public String handleVNPayReturn(Map<String, String> params) {
+    public String handleVNPayReturn(Map<String, String> params, String sourceIp) {
+        CallbackAudit audit = new CallbackAudit();
+        try {
+            audit.outcome = doHandleVNPayReturn(params, audit);
+            return audit.outcome;
+        } catch (DataIntegrityViolationException e) {
+            audit.outcome = duplicateOutcome(e);
+            throw e;
+        } catch (RuntimeException e) {
+            audit.outcome = "ERROR_" + e.getClass().getSimpleName();
+            throw e;
+        } finally {
+            paymentLogService.recordCallback(PaymentLog.Channel.RETURN, audit.bookingId,
+                    params.get("vnp_TxnRef"), audit.signatureValid, audit.outcome,
+                    sourceIp, params, audit.outcome);
+        }
+    }
+
+    private String doHandleVNPayReturn(Map<String, String> params, CallbackAudit audit) {
         logCallbackReceived("Return", params);
-        if (!VNPayUtil.validateHash(params, vnPayConfig.getHashSecret())) {
+        audit.signatureValid = VNPayUtil.validateHash(params, vnPayConfig.getHashSecret());
+        if (!audit.signatureValid) {
             logInvalidSignature("Return", params);
             return "INVALID_SIGNATURE";
         }
 
         Long bookingId = parseBookingId(params.get("vnp_OrderInfo"));
         if (bookingId == null) return "INVALID_ORDER_INFO";
+        audit.bookingId = bookingId;
 
         // Khóa dòng đơn: Return và IPN của cùng một giao dịch thường về gần như cùng lúc,
         // không xếp hàng thì cả hai cùng xác nhận đơn và khách nhận hai mail giống hệt nhau.
@@ -325,10 +383,31 @@ public class PaymentService {
      * thanh toán; Return chỉ là điều hướng trình duyệt và có thể không bao giờ tới.
      */
     @Transactional
-    public Map<String, String> handleVNPayIPN(Map<String, String> params) {
+    public Map<String, String> handleVNPayIPN(Map<String, String> params, String sourceIp) {
+        CallbackAudit audit = new CallbackAudit();
+        Map<String, String> response = null;
+        try {
+            response = doHandleVNPayIPN(params, audit);
+            return response;
+        } catch (DataIntegrityViolationException e) {
+            audit.outcome = duplicateOutcome(e);
+            throw e;
+        } catch (RuntimeException e) {
+            audit.outcome = "ERROR_" + e.getClass().getSimpleName();
+            throw e;
+        } finally {
+            paymentLogService.recordCallback(PaymentLog.Channel.IPN, audit.bookingId,
+                    params.get("vnp_TxnRef"), audit.signatureValid,
+                    response == null ? audit.outcome : response.get("RspCode"),
+                    sourceIp, params, PaymentLogService.flatten(response));
+        }
+    }
+
+    private Map<String, String> doHandleVNPayIPN(Map<String, String> params, CallbackAudit audit) {
         try {
             logCallbackReceived("IPN", params);
-            if (!VNPayUtil.validateHash(params, vnPayConfig.getHashSecret())) {
+            audit.signatureValid = VNPayUtil.validateHash(params, vnPayConfig.getHashSecret());
+            if (!audit.signatureValid) {
                 logInvalidSignature("IPN", params);
                 return ipnResponse("97", "Invalid Signature");
             }
@@ -337,6 +416,7 @@ public class PaymentService {
             if (bookingId == null) {
                 return ipnResponse("01", "Order not found");
             }
+            audit.bookingId = bookingId;
 
             // Cùng lý do như ở handleVNPayReturn: khóa dòng để hai luồng callback nối đuôi
             // nhau, lượt sau nhìn thấy kết quả đã commit của lượt trước.
@@ -355,10 +435,60 @@ public class PaymentService {
                 // LATE_NEEDS_REFUND cũng là đã ghi nhận xong, báo "00" để cổng ngừng gọi lại
                 default -> ipnResponse("00", "Confirm Success");
             };
+        } catch (DataIntegrityViolationException e) {
+            // Chốt chặn chống trùng dưới DB vừa chặn một lượt ghi. KHÔNG nuốt lỗi ở đây:
+            // transaction này chắc chắn sẽ rollback, nên trả về "99" chỉ là tự lừa mình —
+            // Spring vẫn ném UnexpectedRollbackException lúc commit và cổng nhận một lỗi 500
+            // không tên. Ném tiếp để PaymentController, vốn nằm NGOÀI transaction, dịch nó
+            // thành "đơn này đã được xử lý rồi" đúng như sự thật.
+            throw e;
         } catch (Exception e) {
             log.error("Lỗi xử lý IPN VNPay: {}", params, e);
             return ipnResponse("99", "Unknown Error");
         }
+    }
+
+    /**
+     * Phản hồi IPN cho callback bị chốt chặn chống trùng chặn lại.
+     *
+     * Chỉ gọi từ NGOÀI transaction đã rollback. Tới được đây nghĩa là một luồng khác đã ghi
+     * xong và commit đúng mã giao dịch này, nên "đã xử lý rồi" không phải câu nói cho qua
+     * chuyện mà là mô tả đúng trạng thái hệ thống.
+     */
+    public Map<String, String> duplicateTransactionIpnResponse() {
+        return ipnResponse("02", "Order already confirmed");
+    }
+
+    /** Như trên nhưng cho luồng Return: kết quả đúng bằng kết quả mà lượt trước đã ghi nhận. */
+    public String duplicateTransactionReturnResult(Map<String, String> params) {
+        return isSuccessResponse(params) ? "SUCCESS" : "FAILED_" + params.get("vnp_ResponseCode");
+    }
+
+    /** Nhãn nhật ký cho một lỗi toàn vẹn dữ liệu: do chống trùng, hay do chuyện khác. */
+    private static String duplicateOutcome(DataIntegrityViolationException e) {
+        return isDuplicateTransactionRef(e) ? RESULT_DUPLICATE_TXN_REF : "ERROR_DataIntegrity";
+    }
+
+    /**
+     * Lỗi toàn vẹn dữ liệu này có phải do chốt chặn chống trùng vnp_TxnRef không?
+     *
+     * Phải soi chuỗi thông báo vì JDBC không có mã lỗi riêng cho "ràng buộc nào bị vi phạm".
+     * Cả SQL Server lẫn PostgreSQL đều nhét TÊN index vào thông báo, nên tên index là thứ duy
+     * nhất phân biệt được. Khớp đúng tên chứ không khớp mơ hồ theo tên cột: nhận nhầm một
+     * ràng buộc khác thành "trùng giao dịch" là báo cho cổng rằng đơn đã xử lý xong trong khi
+     * thực tế nó vừa hỏng.
+     */
+    public static boolean isDuplicateTransactionRef(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            String message = t.getMessage();
+            if (message != null && message.toLowerCase().contains(UNIQUE_TXN_REF_INDEX)) {
+                return true;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return false;
     }
 
     /**
@@ -564,7 +694,11 @@ public class PaymentService {
                 : booking.getTotalPrice());
         payment.setPaymentStatus(status);
         payment.setTransactionRef(txnRef);
-        paymentRepository.save(payment);
+        // saveAndFlush chứ không save: lệnh ghi phải chạm DB NGAY tại đây thì lỗi vi phạm
+        // chốt chặn chống trùng mới nổ ra ở đúng chỗ gây ra nó. Để JPA dồn tới lúc commit
+        // thì lỗi bật lên sau khi đã ra khỏi mọi khối catch, và stack trace không còn chỉ
+        // được vào giao dịch nào.
+        paymentRepository.saveAndFlush(payment);
         return payment;
     }
 

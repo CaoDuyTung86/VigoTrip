@@ -6,6 +6,7 @@ import com.booking.api.repository.BookingRepository;
 import com.booking.api.realtime.SeatStatusBroadcaster;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,17 +52,46 @@ public class BookingCleanupService {
     private final SeatStatusBroadcaster seatStatusBroadcaster;
     private final VoucherService voucherService;
     private final PaymentService paymentService;
+    private final PendingBookingSignal pendingBookingSignal;
 
-    // Chạy mỗi 1 phút một lần
+    /**
+     * Chính bean này, lấy qua proxy của Spring.
+     *
+     * Gọi thẳng {@code cancelUnpaidBookings()} từ trong lớp sẽ đi tắt qua proxy và
+     * {@code @Transactional} mất tác dụng — nghĩa là entity trả về bị detached và
+     * {@code releaseSeats} nổ LazyInitializationException. Cổng chặn phải nằm NGOÀI transaction
+     * (mở transaction rồi mới quay ra là đã có thể chạm DB), nên buộc phải tách làm hai hàm và
+     * đi vòng qua proxy. ObjectProvider tra cứu lười nên không tạo vòng phụ thuộc lúc khởi tạo.
+     */
+    private final ObjectProvider<BookingCleanupService> self;
+
+    /**
+     * Điểm vào theo lịch. Chạy mỗi 1 phút, nhưng chỉ chạm DB khi có thể còn việc để làm —
+     * xem {@link PendingBookingSignal} để biết vì sao một câu SELECT mỗi phút lại là tiền.
+     */
     @Scheduled(fixedRate = 60000)
+    public void sweepExpiredBookingsIfNeeded() {
+        if (!pendingBookingSignal.shouldSweep()) {
+            return;
+        }
+        long token = pendingBookingSignal.beginSweep();
+        if (!self.getObject().cancelUnpaidBookings()) {
+            pendingBookingSignal.markNoPendingLeft(token);
+        }
+    }
+
+    /**
+     * Một lượt dọn. Trả về {@code true} nếu DB VẪN còn ít nhất một đơn PENDING sau lượt này
+     * (kể cả đơn chưa quá hạn), tức là lượt sau vẫn còn việc.
+     */
     @Transactional
-    public void cancelUnpaidBookings() {
+    public boolean cancelUnpaidBookings() {
         LocalDateTime now = LocalDateTime.now();
         List<Booking> expiredBookings = bookingRepository.findExpiredPendingBookings(
                 now.minusMinutes(PENDING_HOLD_MINUTES), now);
 
         if (expiredBookings.isEmpty()) {
-            return;
+            return anyPendingLeft();
         }
 
         log.info("Found {} expired PENDING bookings. Canceling...", expiredBookings.size());
@@ -111,6 +141,17 @@ public class BookingCleanupService {
             cancelled.add(booking);
         }
         bookingRepository.saveAll(cancelled);
+        return anyPendingLeft();
+    }
+
+    /**
+     * Còn đơn PENDING nào trong DB không.
+     *
+     * Chạy trong cùng transaction với phần dọn ở trên nên Hibernate flush các đơn vừa chuyển
+     * sang CANCELLED trước khi đếm — số đếm không tính lại chính những đơn ta vừa xử lý.
+     */
+    private boolean anyPendingLeft() {
+        return bookingRepository.countByStatus("PENDING") > 0;
     }
 
     /**

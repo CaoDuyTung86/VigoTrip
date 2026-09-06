@@ -12,7 +12,7 @@ import { PiAirplaneTilt } from "react-icons/pi";
 import { MdOutlineTrain } from "react-icons/md";
 import { IoIosBus } from "react-icons/io";
 import { useNavigate, useLocation } from "react-router-dom";
-import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users, Tag, Menu, X } from "lucide-react";
+import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users, Tag, Menu, X, ScrollText } from "lucide-react";
 import BotAvatar from "../components/BotAvatar";
 
 const Header = () => {
@@ -57,6 +57,10 @@ const Header = () => {
     { label: t.providerReviews || "Đánh giá & Feedback", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },
     { label: t.adminChatbotTitle || "Vận hành chatbot", path: "/admin/chatbot", icon: <BotAvatar size={16} style={{ color: "#a78bfa" }} /> },
     { label: t.checkInQR || "Quét vé (Check-in)", path: "/provider/check-in", icon: <QrCode size={16} color="#10b981" /> },
+    // Chỉ có ở adminItems, cố ý không có ở providerItems: bảng nhật ký là dữ liệu tiền
+    // nong của toàn hệ thống. SecurityConfig cũng chặn ở phía sau nên đây không phải
+    // lớp bảo vệ duy nhất, chỉ là không bày ra một cánh cửa mà mở ra sẽ nhận 403.
+    { label: "Nhật ký giao dịch", path: "/admin/payment-logs", icon: <ScrollText size={16} color="#f472b6" /> },
   ];
 
   const providerItems = [

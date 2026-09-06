@@ -11,6 +11,13 @@ spring:
       connection-timeout: 60000
       maximum-pool-size: 10
       idle-timeout: 30000
+      # minimum-idle: 0 mới làm idle-timeout ở trên có tác dụng. Mặc định của HikariCP là
+      # minimumIdle = maximumPoolSize, và idleTimeout CHỈ được áp dụng khi minimumIdle nhỏ hơn
+      # maximumPoolSize — nghĩa là pool giữ đủ 10 kết nối mở vĩnh viễn kể cả lúc không ai dùng.
+      # Neon tính tiền theo thời gian compute THỨC, không theo số truy vấn, nên mỗi kết nối
+      # treo là tiền. Đổi lại: sau một quãng nghỉ, request đầu tiên phải mở kết nối mới
+      # (connection-timeout 60s đủ rộng cho cả lúc Neon phải tỉnh dậy).
+      minimum-idle: 0
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
@@ -68,6 +75,20 @@ vnpay:
   # người gửi biết hash-secret; lớp này chặn cả trường hợp hash-secret bị lộ.
   # Chỉ tắt khi môi trường không có đường ra Internet (dev offline, CI).
   verify-callback: ${VNP_VERIFY_CALLBACK:true}
+
+# Nhật ký giao dịch (bảng nhat_ky_thanh_toan).
+# Ghi lại nguyên văn mọi callback từ cổng, mọi lượt querydr và mọi quyết định hoàn tiền.
+# Log ứng dụng KHÔNG thay thế được: container restart là chứng cứ biến mất, mà tranh chấp
+# tiền nong thì thường nổ ra sau đó vài ngày.
+payment:
+  audit:
+    enabled: ${PAYMENT_AUDIT_ENABLED:true}
+    # Dài hơn hẳn lịch sử chat (180 so với 30 ngày): đối soát với ngân hàng và khiếu nại của
+    # khách đều tính bằng tháng. Một callback dài khoảng 600 ký tự nên chi phí lưu là nhỏ.
+    retention-days: ${PAYMENT_AUDIT_RETENTION_DAYS:180}
+    # 3h15 — lệch khỏi các job dọn chat (3h00, 3h30, 3h45) để không có hai lệnh DELETE lớn
+    # chạy chồng lên nhau.
+    cleanup-cron: ${PAYMENT_AUDIT_CLEANUP_CRON:0 15 3 * * *}
 
 # Frontend URL (dùng cho redirect sau thanh toán VNPay)
 app:
@@ -154,6 +175,15 @@ management:
         include: prometheus, health, info, metrics, caches
   health:
     mail:
+      enabled: false
+    # Render ping /actuator/health định kỳ suốt vòng đời instance (không chỉ lúc deploy) để
+    # quyết định có restart service hay không. Mặc định Spring Boot gắn DataSourceHealthIndicator
+    # vào đây, nên mỗi lần Render ping là một truy vấn xuống Neon — đủ dày để phá hỏng cả việc
+    # minimum-idle: 0 lẫn PendingBookingSignal (xem §12 docs/THANH_TOAN_VNPAY.md), vì Neon chỉ
+    # ngủ được sau 5 phút không có truy vấn nào. Tắt riêng nhánh DB, các chỉ báo khác (disk,
+    # ping...) vẫn chạy bình thường. Đánh đổi: Render không còn tự phát hiện "DB chết" qua
+    # health check — cleanup service và retry logic đã tự chịu được DB lỗi tạm thời.
+    db:
       enabled: false
   endpoint:
     prometheus:

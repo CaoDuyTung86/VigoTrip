@@ -62,6 +62,13 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                                              @Param("now") java.time.LocalDateTime now);
 
     /**
+     * Đếm mọi đơn đang ở một trạng thái. {@code countByStatus("PENDING")} là câu hỏi mà
+     * {@link com.booking.api.service.PendingBookingSignal} cần để biết có được phép ngừng quét
+     * hay không — hỏi cả đơn CHƯA quá hạn, khác hẳn findExpiredPendingBookings ở trên.
+     */
+    long countByStatus(String status);
+
+    /**
      * Ứng viên "có thể là no-show": đã thanh toán, chưa check-in, chưa bị đánh dấu no-show,
      * và chuyến đã khởi hành. Lọc thô theo departureTime ở đây, mốc chính xác
      * (Trip.getLateCheckInCutoff — có cộng thêm buffer theo giờ đến) được NoShowScheduler

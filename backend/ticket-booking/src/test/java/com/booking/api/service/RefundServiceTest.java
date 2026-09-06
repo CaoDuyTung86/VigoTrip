@@ -41,6 +41,8 @@ class RefundServiceTest {
     private EmailService emailService;
     @Mock
     private VoucherService voucherService;
+    @Mock
+    private PaymentLogService paymentLogService;
 
     @InjectMocks
     private RefundService refundService;

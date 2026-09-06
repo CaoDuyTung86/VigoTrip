@@ -43,16 +43,19 @@ public class RefundController {
 
     /** Provider duyệt yêu cầu hoàn tiền */
     @PutMapping("/{id}/approve")
-    public ResponseEntity<RefundResponse> approveRefund(@PathVariable Long id) {
-        return ResponseEntity.ok(refundService.approveRefund(id));
+    public ResponseEntity<RefundResponse> approveRefund(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(refundService.approveRefund(userDetails.getUsername(), id));
     }
 
     /** Provider từ chối yêu cầu hoàn tiền */
     @PutMapping("/{id}/reject")
     public ResponseEntity<RefundResponse> rejectRefund(
+            @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long id,
             @RequestBody Map<String, String> body) {
         String note = body.getOrDefault("note", "");
-        return ResponseEntity.ok(refundService.rejectRefund(id, note));
+        return ResponseEntity.ok(refundService.rejectRefund(userDetails.getUsername(), id, note));
     }
 }

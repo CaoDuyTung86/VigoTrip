@@ -14,6 +14,7 @@ import com.booking.api.event.BookingConfirmedEvent;
 import com.booking.api.exception.BookingException;
 import com.booking.api.exception.ResourceNotFoundException;
 import com.booking.api.entity.Payment;
+import com.booking.api.entity.PaymentLog;
 import com.booking.api.entity.Refund;
 import com.booking.api.repository.BookingRepository;
 import com.booking.api.repository.PaymentRepository;
@@ -31,9 +32,11 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -83,8 +86,14 @@ class PaymentServiceTest {
     @Mock
     private VNPayQueryService vnPayQueryService;
 
+    @Mock
+    private PaymentLogService paymentLogService;
+
     @InjectMocks
     private PaymentService paymentService;
+
+    /** IP giả của bên gọi vào endpoint callback — chỉ đi vào nhật ký, không ảnh hưởng xử lý. */
+    private static final String CLIENT_IP = "203.0.113.7";
 
     private Map<String, String> ipnParams;
     private Booking booking;
@@ -188,7 +197,7 @@ class PaymentServiceTest {
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
             when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-            String result = paymentService.handleVNPayReturn(ipnParams);
+            String result = paymentService.handleVNPayReturn(ipnParams, CLIENT_IP);
 
             assertEquals("SUCCESS", result);
             assertEquals("CONFIRMED", booking.getStatus());
@@ -209,7 +218,7 @@ class PaymentServiceTest {
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
             when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-            String result = paymentService.handleVNPayReturn(ipnParams);
+            String result = paymentService.handleVNPayReturn(ipnParams, CLIENT_IP);
 
             assertEquals("INVALID_AMOUNT", result);
             assertEquals("PENDING", booking.getStatus());
@@ -227,7 +236,7 @@ class PaymentServiceTest {
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
             when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-            String result = paymentService.handleVNPayReturn(ipnParams);
+            String result = paymentService.handleVNPayReturn(ipnParams, CLIENT_IP);
 
             assertEquals("INVALID_AMOUNT", result);
             assertEquals("PENDING", booking.getStatus());
@@ -244,7 +253,7 @@ class PaymentServiceTest {
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
             when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams);
+            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams, CLIENT_IP);
 
             assertEquals("04", result.get("RspCode"));
             assertEquals("PENDING", booking.getStatus());
@@ -268,7 +277,7 @@ class PaymentServiceTest {
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
             when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-            String result = paymentService.handleVNPayReturn(ipnParams);
+            String result = paymentService.handleVNPayReturn(ipnParams, CLIENT_IP);
 
             assertEquals("FAILED_24", result);
             assertEquals("FAILED", booking.getStatus());
@@ -283,7 +292,7 @@ class PaymentServiceTest {
             mockedVNPayUtil.when(() -> VNPayUtil.validateHash(any(), anyString())).thenReturn(false);
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
 
-            String result = paymentService.handleVNPayReturn(ipnParams);
+            String result = paymentService.handleVNPayReturn(ipnParams, CLIENT_IP);
 
             assertEquals("INVALID_SIGNATURE", result);
             verify(bookingRepository, never()).save(any());
@@ -298,7 +307,7 @@ class PaymentServiceTest {
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
             when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams);
+            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams, CLIENT_IP);
 
             assertEquals("00", result.get("RspCode"));
             assertEquals("Confirm Success", result.get("Message"));
@@ -338,7 +347,7 @@ class PaymentServiceTest {
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
             when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-            paymentService.handleVNPayIPN(ipnParams);
+            paymentService.handleVNPayIPN(ipnParams, CLIENT_IP);
 
             ArgumentCaptor<BookingConfirmedEvent> captor =
                     ArgumentCaptor.forClass(BookingConfirmedEvent.class);
@@ -361,7 +370,7 @@ class PaymentServiceTest {
             mockedVNPayUtil.when(() -> VNPayUtil.validateHash(any(), anyString())).thenReturn(false);
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
 
-            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams);
+            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams, CLIENT_IP);
 
             assertEquals("97", result.get("RspCode"));
             assertEquals("Invalid Signature", result.get("Message"));
@@ -377,7 +386,7 @@ class PaymentServiceTest {
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
             when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.empty());
 
-            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams);
+            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams, CLIENT_IP);
 
             assertEquals("01", result.get("RspCode"));
             assertEquals("Order not found", result.get("Message"));
@@ -394,7 +403,7 @@ class PaymentServiceTest {
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
             when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams);
+            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams, CLIENT_IP);
 
             assertEquals("04", result.get("RspCode"));
             assertEquals("Invalid Amount", result.get("Message"));
@@ -411,7 +420,7 @@ class PaymentServiceTest {
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
             when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams);
+            Map<String, String> result = paymentService.handleVNPayIPN(ipnParams, CLIENT_IP);
 
             assertEquals("02", result.get("RspCode"));
             assertEquals("Order already confirmed", result.get("Message"));
@@ -433,11 +442,11 @@ class PaymentServiceTest {
             when(vnPayConfig.getHashSecret()).thenReturn("secret");
             when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-            String result = paymentService.handleVNPayReturn(ipnParams);
+            String result = paymentService.handleVNPayReturn(ipnParams, CLIENT_IP);
 
             assertEquals("UNVERIFIED", result);
             assertEquals("PENDING", booking.getStatus(), "đơn phải giữ nguyên, không được xác nhận");
-            verify(paymentRepository, never()).save(any());
+            verify(paymentRepository, never()).saveAndFlush(any());
             verify(refundRepository, never()).save(any());
             verify(eventPublisher, never()).publishEvent(any(BookingConfirmedEvent.class));
         }
@@ -451,11 +460,11 @@ class PaymentServiceTest {
         when(vnPayConfig.getHashSecret()).thenReturn("secret");
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_FAKE"));
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_FAKE"), CLIENT_IP);
 
         assertEquals("99", result.get("RspCode"));
         assertEquals("PENDING", booking.getStatus());
-        verify(paymentRepository, never()).save(any());
+        verify(paymentRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -466,7 +475,7 @@ class PaymentServiceTest {
         when(vnPayConfig.getHashSecret()).thenReturn("secret");
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_REAL"));
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_REAL"), CLIENT_IP);
 
         assertEquals("00", result.get("RspCode"));
         assertEquals("CONFIRMED", booking.getStatus());
@@ -478,7 +487,7 @@ class PaymentServiceTest {
         when(vnPayConfig.getHashSecret()).thenReturn("secret");
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-        paymentService.handleVNPayIPN(signedCallback("24", "TXN_CANCELLED"));
+        paymentService.handleVNPayIPN(signedCallback("24", "TXN_CANCELLED"), CLIENT_IP);
 
         verify(vnPayQueryService, never()).verifySuccessfulCallback(any(), anyLong());
     }
@@ -584,14 +593,14 @@ class PaymentServiceTest {
         when(vnPayConfig.getHashSecret()).thenReturn("secret");
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_OK"));
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_OK"), CLIENT_IP);
 
         assertEquals("00", result.get("RspCode"));
         assertEquals("CONFIRMED", booking.getStatus());
         assertNull(booking.getPaymentExpiresAt(), "thanh toán xong thì đóng cửa sổ thanh toán");
 
         ArgumentCaptor<Payment> payment = ArgumentCaptor.forClass(Payment.class);
-        verify(paymentRepository).save(payment.capture());
+        verify(paymentRepository).saveAndFlush(payment.capture());
         assertEquals("SUCCESS", payment.getValue().getPaymentStatus());
         assertEquals("TXN_OK", payment.getValue().getTransactionRef());
         verify(refundRepository, never()).save(any());
@@ -604,12 +613,12 @@ class PaymentServiceTest {
         when(vnPayConfig.getHashSecret()).thenReturn("secret");
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_LATE"));
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_LATE"), CLIENT_IP);
 
         assertEquals("00", result.get("RspCode"), "phải nhận kết quả để cổng ngừng gọi lại");
 
         ArgumentCaptor<Payment> payment = ArgumentCaptor.forClass(Payment.class);
-        verify(paymentRepository).save(payment.capture());
+        verify(paymentRepository).saveAndFlush(payment.capture());
         assertEquals("SUCCESS_NEEDS_REFUND", payment.getValue().getPaymentStatus());
 
         ArgumentCaptor<Refund> refund = ArgumentCaptor.forClass(Refund.class);
@@ -627,10 +636,10 @@ class PaymentServiceTest {
         when(paymentRepository.existsByTransactionRefAndPaymentStatusNot(
                 "TXN_DUP", PaymentService.PAYMENT_INITIATED)).thenReturn(true);
 
-        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_DUP"));
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_DUP"), CLIENT_IP);
 
         assertEquals("02", result.get("RspCode"));
-        verify(paymentRepository, never()).save(any());
+        verify(paymentRepository, never()).saveAndFlush(any());
         verify(refundRepository, never()).save(any());
         assertEquals("PENDING", booking.getStatus(), "đơn phải giữ nguyên, không bị xử lý lần hai");
     }
@@ -642,7 +651,7 @@ class PaymentServiceTest {
         when(vnPayConfig.getHashSecret()).thenReturn("secret");
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("24", "TXN_FAIL"));
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("24", "TXN_FAIL"), CLIENT_IP);
 
         assertEquals("00", result.get("RspCode"));
         assertEquals("FAILED", booking.getStatus());
@@ -661,7 +670,7 @@ class PaymentServiceTest {
         when(paymentRepository.existsByTransactionRefAndPaymentStatusNot(
                 "TXN_NEW", PaymentService.PAYMENT_INITIATED)).thenReturn(false);
 
-        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_NEW"));
+        Map<String, String> result = paymentService.handleVNPayIPN(signedCallback("00", "TXN_NEW"), CLIENT_IP);
 
         assertEquals("00", result.get("RspCode"));
         assertEquals("CONFIRMED", booking.getStatus(), "callback đầu tiên phải xác nhận được đơn");
@@ -678,10 +687,10 @@ class PaymentServiceTest {
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
         when(paymentRepository.findByTransactionRef("TXN_NEW")).thenReturn(Optional.of(initiated));
 
-        paymentService.handleVNPayIPN(signedCallback("00", "TXN_NEW"));
+        paymentService.handleVNPayIPN(signedCallback("00", "TXN_NEW"), CLIENT_IP);
 
         ArgumentCaptor<Payment> saved = ArgumentCaptor.forClass(Payment.class);
-        verify(paymentRepository).save(saved.capture());
+        verify(paymentRepository).saveAndFlush(saved.capture());
         assertSame(initiated, saved.getValue(), "phải cập nhật lại đúng dòng cũ");
         assertEquals("SUCCESS", saved.getValue().getPaymentStatus());
     }
@@ -752,7 +761,7 @@ class PaymentServiceTest {
         when(vnPayConfig.getHashSecret()).thenReturn("secret");
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-        paymentService.handleVNPayReturn(signedCallback("00", "TXN_LOCK_RETURN"));
+        paymentService.handleVNPayReturn(signedCallback("00", "TXN_LOCK_RETURN"), CLIENT_IP);
 
         verify(bookingRepository).findByIdForUpdate(123L);
         // Không có khóa dòng thì Return và IPN của cùng giao dịch (chúng về gần như cùng
@@ -767,7 +776,7 @@ class PaymentServiceTest {
         when(vnPayConfig.getHashSecret()).thenReturn("secret");
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
-        paymentService.handleVNPayIPN(signedCallback("00", "TXN_LOCK_IPN"));
+        paymentService.handleVNPayIPN(signedCallback("00", "TXN_LOCK_IPN"), CLIENT_IP);
 
         verify(bookingRepository).findByIdForUpdate(123L);
         verify(bookingRepository, never()).findById(anyLong());
@@ -780,16 +789,80 @@ class PaymentServiceTest {
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
         Map<String, String> callback = signedCallback("00", "TXN_TWICE");
-        paymentService.handleVNPayIPN(callback);
+        paymentService.handleVNPayIPN(callback, CLIENT_IP);
 
         // Lượt đầu đã ghi xong dòng thanh toán; nhờ khóa dòng, lượt sau mới nhìn thấy nó.
         when(paymentRepository.existsByTransactionRefAndPaymentStatusNot(
                 "TXN_TWICE", PaymentService.PAYMENT_INITIATED)).thenReturn(true);
 
-        String second = paymentService.handleVNPayReturn(callback);
+        String second = paymentService.handleVNPayReturn(callback, CLIENT_IP);
 
         assertEquals("SUCCESS", second, "khách vẫn phải được đưa về trang thành công");
         verify(eventPublisher, times(1)).publishEvent(any(BookingConfirmedEvent.class));
+    }
+
+    @Test
+    @DisplayName("Mỗi callback IPN để lại một dòng nhật ký, kèm đúng mã kết quả đã trả cho cổng")
+    void handleVNPayIPN_WritesAuditLog() {
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
+
+        paymentService.handleVNPayIPN(signedCallback("00", "TXN_AUDIT"), CLIENT_IP);
+
+        verify(paymentLogService).recordCallback(eq(PaymentLog.Channel.IPN), eq(123L), eq("TXN_AUDIT"),
+                eq(Boolean.TRUE), eq("00"), eq(CLIENT_IP), any(), any());
+    }
+
+    @Test
+    @DisplayName("Callback chữ ký sai vẫn để lại dấu vết — đó mới là callback đáng ghi nhất")
+    void handleVNPayIPN_InvalidSignature_IsStillAudited() {
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+
+        Map<String, String> forged = signedCallback("00", "TXN_FORGED");
+        forged.put("vnp_SecureHash", "chu_ky_bia_dat");
+
+        paymentService.handleVNPayIPN(forged, CLIENT_IP);
+
+        // bookingId để trống: lượt xử lý dừng lại trước cả bước đọc mã đơn, và nhật ký phải
+        // phản ánh đúng chuyện đó thay vì đoán thêm.
+        verify(paymentLogService).recordCallback(eq(PaymentLog.Channel.IPN), isNull(), eq("TXN_FORGED"),
+                eq(Boolean.FALSE), eq("97"), eq(CLIENT_IP), any(), any());
+    }
+
+    @Test
+    @DisplayName("Chốt chặn chống trùng dưới DB nổ ra thì lỗi phải nổi lên tới controller, không bị nuốt")
+    void handleVNPayIPN_DuplicateInDatabase_PropagatesOutOfTransaction() {
+        // Nuốt lỗi ở trong sẽ vô nghĩa: transaction đã bị đánh dấu rollback-only, nên giá trị
+        // trả về không bao giờ tới được cổng. Chỉ controller — nằm ngoài transaction — mới
+        // trả lời được. Test này khoá lại đúng đường đi đó.
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
+        when(paymentRepository.saveAndFlush(any())).thenThrow(duplicateTxnRefViolation());
+
+        Map<String, String> callback = signedCallback("00", "TXN_RACE");
+
+        assertThrows(DataIntegrityViolationException.class,
+                () -> paymentService.handleVNPayIPN(callback, CLIENT_IP));
+
+        verify(paymentLogService).recordCallback(eq(PaymentLog.Channel.IPN), eq(123L), eq("TXN_RACE"),
+                eq(Boolean.TRUE), eq(PaymentService.RESULT_DUPLICATE_TXN_REF), eq(CLIENT_IP), any(), any());
+    }
+
+    @Test
+    @DisplayName("Chỉ nhận đúng lỗi của chốt chặn chống trùng, không vơ cả lỗi toàn vẹn khác")
+    void isDuplicateTransactionRef_OnlyMatchesTheAntiDuplicateIndex() {
+        assertTrue(PaymentService.isDuplicateTransactionRef(duplicateTxnRefViolation()));
+        // Nhận nhầm một ràng buộc khác thành "trùng giao dịch" là báo cho cổng rằng đơn đã
+        // xử lý xong trong khi thực tế nó vừa hỏng.
+        assertFalse(PaymentService.isDuplicateTransactionRef(new DataIntegrityViolationException(
+                "Violation of UNIQUE KEY constraint 'ux_don_hang_ma_don'")));
+    }
+
+    /** Lỗi SQL Server ném ra khi index chống trùng chặn một lượt ghi, gói đúng như Spring gói. */
+    private static DataIntegrityViolationException duplicateTxnRefViolation() {
+        return new DataIntegrityViolationException("could not execute statement",
+                new SQLException("Cannot insert duplicate key row in object 'dbo.thanh_toan' with "
+                        + "unique index '" + PaymentService.UNIQUE_TXN_REF_INDEX + "'."));
     }
 
     /** Một lần mở cổng đã ghi lại nhưng chưa có kết quả — đúng hình dạng của khoản tiền mất dấu. */

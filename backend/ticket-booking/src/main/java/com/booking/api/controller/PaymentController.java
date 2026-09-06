@@ -8,6 +8,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,6 +19,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/payment")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Payment", description = "API thanh toán qua VNPay")
 public class PaymentController {
 
@@ -51,8 +54,9 @@ public class PaymentController {
     @Operation(summary = "VNPay callback", description = "Endpoint VNPay gọi sau khi user thanh toán xong (public endpoint)")
     @GetMapping("/vnpay-return")
     public ResponseEntity<Void> vnPayReturn(
-            @RequestParam Map<String, String> params) {
-        String result = paymentService.handleVNPayReturn(params);
+            @RequestParam Map<String, String> params,
+            HttpServletRequest httpRequest) {
+        String result = returnResult(params, httpRequest);
 
         // Không dùng thẳng frontendUrl: khách phải quay về đúng tên miền họ đang mở,
         // nếu không token trong localStorage của tên miền kia coi như không tồn tại.
@@ -73,8 +77,45 @@ public class PaymentController {
 
     @Operation(summary = "VNPay IPN", description = "Endpoint VNPay gọi ngầm để cập nhật trạng thái thanh toán (server-to-server)")
     @GetMapping("/vnpay-ipn")
-    public Map<String, String> vnPayIPN(@RequestParam Map<String, String> params) {
-        return paymentService.handleVNPayIPN(params);
+    public Map<String, String> vnPayIPN(@RequestParam Map<String, String> params,
+                                        HttpServletRequest httpRequest) {
+        try {
+            return paymentService.handleVNPayIPN(params, getClientIpAddress(httpRequest));
+        } catch (DataIntegrityViolationException e) {
+            if (!PaymentService.isDuplicateTransactionRef(e)) {
+                throw e;
+            }
+            log.warn("IPN của giao dịch {} bị chốt chặn chống trùng dưới DB chặn lại — một luồng "
+                    + "khác đã ghi nhận xong giao dịch này. Trả mã 02 để cổng thôi gửi lại.",
+                    params.get("vnp_TxnRef"));
+            return paymentService.duplicateTransactionIpnResponse();
+        }
+    }
+
+    /**
+     * Chạy luồng Return, và dịch riêng trường hợp bị chốt chặn chống trùng dưới DB chặn lại.
+     *
+     * VÌ SAO BẮT Ở ĐÂY chứ không bắt trong PaymentService: một lỗi vi phạm ràng buộc khiến
+     * Hibernate đánh dấu transaction là rollback-only. Từ đó trở đi, mọi cố gắng "bắt lỗi rồi
+     * trả về bình thường" ở bên trong đều bị Spring lật lại thành UnexpectedRollbackException
+     * đúng lúc commit — giá trị vừa trả về không bao giờ tới được người gọi. Controller là
+     * điểm đầu tiên nằm NGOÀI transaction, nên cũng là điểm đầu tiên nói được một câu trả lời
+     * có hiệu lực.
+     *
+     * Chỉ nhận những lỗi đúng là do chống trùng; mọi lỗi toàn vẹn khác vẫn ném tiếp, vì báo
+     * "thành công" cho một lỗi thật còn tệ hơn nhiều so với một trang lỗi.
+     */
+    private String returnResult(Map<String, String> params, HttpServletRequest httpRequest) {
+        try {
+            return paymentService.handleVNPayReturn(params, getClientIpAddress(httpRequest));
+        } catch (DataIntegrityViolationException e) {
+            if (!PaymentService.isDuplicateTransactionRef(e)) {
+                throw e;
+            }
+            log.warn("Callback Return của giao dịch {} bị chốt chặn chống trùng dưới DB chặn lại — "
+                    + "một luồng khác đã ghi nhận xong giao dịch này.", params.get("vnp_TxnRef"));
+            return paymentService.duplicateTransactionReturnResult(params);
+        }
     }
 
     /**

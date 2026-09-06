@@ -42,6 +42,7 @@ public class BookingService {
     private final SeatLockService seatLockService;
     private final SeatStatusBroadcaster seatStatusBroadcaster;
     private final ReviewRepository reviewRepository;
+    private final PendingBookingSignal pendingBookingSignal;
 
     @Transactional
     @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
@@ -215,6 +216,11 @@ public class BookingService {
             }
             throw e;
         }
+
+        // Đơn PENDING chỉ sinh ra ở đây. Báo cho lượt dọn biết là có việc, nếu không nó đang
+        // ngủ thì sẽ ngủ tiếp và ghế của đơn này không bao giờ được trả lại.
+        // Tín hiệu chỉ được tính sau khi transaction commit — xem PendingBookingSignal.
+        pendingBookingSignal.bookingCreated();
 
         if (appliedVoucherId != null && !voucherService.useVoucher(appliedVoucherId)) {
             // Lượt cuối cùng vừa bị người khác dùng mất giữa lúc validate và lúc ghi đơn

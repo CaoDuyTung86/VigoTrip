@@ -50,6 +50,8 @@ class BookingServiceTest {
     private SeatStatusBroadcaster seatStatusBroadcaster;
     @Mock
     private com.booking.api.repository.ReviewRepository reviewRepository;
+    @Mock
+    private PendingBookingSignal pendingBookingSignal;
 
     @InjectMocks
     private BookingService bookingService;

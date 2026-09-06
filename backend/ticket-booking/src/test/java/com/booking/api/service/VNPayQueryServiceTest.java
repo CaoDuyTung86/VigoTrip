@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -48,7 +49,9 @@ class VNPayQueryServiceTest {
 
         RestClient.Builder builder = RestClient.builder();
         gateway = MockRestServiceServer.bindTo(builder).build();
-        service = new VNPayQueryService(config, builder.build());
+        // Nhật ký giao dịch không phải đối tượng của bộ test này; bơm mock để lớp
+        // kiểm chứng querydr vẫn đứng một mình.
+        service = new VNPayQueryService(config, builder.build(), mock(PaymentLogService.class));
         ReflectionTestUtils.setField(service, "verifyCallback", true);
     }
 
