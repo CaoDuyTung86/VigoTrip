@@ -7,6 +7,25 @@ import { useLanguage } from '../context/LanguageContext';
 // ─── Component sơ đồ ghế tàu hỏa "sống động" ─────────────────────────────────
 // Kiến trúc mirror AirplaneSeatMap: 3 pha 'train → zooming → interior',
 // canvas cảnh nền chạy RAF liên tục + DOM thẻ toa (dễ hover/click).
+
+// Nhãn/màu hạng chỗ gom về một chỗ cho tooltip toa, chip lọc và nhãn in trong ghế. Trước
+// đây mỗi nơi tự viết một chuỗi ternary riêng và tooltip bỏ sót VIP, nên toa toàn ghế VIP
+// lại được tooltip gọi là "Hạng Phổ thông".
+const BIZ_TYPES = ['BUSINESS', 'VIP'];
+
+const classLabelOf = (cls, t) => {
+  if (cls === 'SLEEPER') return t.smSleeper;
+  if (BIZ_TYPES.includes(cls)) return t.smBizClass;
+  if (cls === 'ECONOMY') return t.smEcoClass;
+  return cls;
+};
+
+const classColorOf = (cls) => {
+  if (cls === 'SLEEPER') return '#a78bfa';
+  if (BIZ_TYPES.includes(cls)) return '#818cf8';
+  return '#34d399';
+};
+
 const TrainSeatMap = ({
   seats = [],
   selectedSeatIds = [],
@@ -317,7 +336,7 @@ const TrainSeatMap = ({
     };
   }, []);
 
-  // ── Suy ra toa (carriage) client-side: chia đều 4 toa theo hàng ghế ─────────
+  // ── Suy ra toa (carriage) client-side: ~4 toa, mỗi toa thuần một hạng ghế ───
   const { toas } = useMemo(() => {
     const parse = sn => {
       const m = String(sn || '').match(/^(\d+)([A-Za-z])$/);
@@ -327,15 +346,47 @@ const TrainSeatMap = ({
       .map(s => { const p = parse(s.seatNumber); return p ? { ...s, ...p } : null; })
       .filter(Boolean);
     const rowList = [...new Set(items.map(i => i.row))].sort((a, b) => a - b);
-    if (rowList.length === 0) return { toas: [], classTypes: [] };
+    if (rowList.length === 0) return { toas: [] };
+
+    // Tàu thật xếp nguyên toa thương gia rồi mới tới toa phổ thông chứ không trộn hai hạng
+    // trong cùng một toa. Bản cũ cắt cứng mỗi toa rowsPerToa hàng, nên ranh giới hạng (hết
+    // hàng 3 sang hàng 4) rơi vào giữa toa 1: sơ đồ hiện ghế thương gia lẫn ghế phổ thông
+    // và tooltip đành báo "nhiều hạng ghế". Nay cắt theo cụm hàng cùng hạng trước, rồi mới
+    // chia đều từng cụm thành các toa con.
+    const typesOfRow = new Map();
+    items.forEach(it => {
+      const set = typesOfRow.get(it.row) || new Set();
+      set.add(it.seatType || 'ECONOMY');
+      typesOfRow.set(it.row, set);
+    });
+    const classOfRow = row => [...typesOfRow.get(row)].sort().join('+');
+
+    const runs = [];
+    rowList.forEach(row => {
+      const last = runs[runs.length - 1];
+      if (last && last.cls === classOfRow(row)) last.rows.push(row);
+      else runs.push({ cls: classOfRow(row), rows: [row] });
+    });
 
     const rowsPerToa = Math.max(1, Math.ceil(rowList.length / NUM_TOAS));
-    const minRow = rowList[0];
-    const groups = Array.from({ length: NUM_TOAS }, () => []);
-    items.forEach(it => {
-      const idx = Math.min(NUM_TOAS - 1, Math.floor((it.row - minRow) / rowsPerToa));
-      groups[idx].push(it);
+    const toaOfRow = new Map();
+    let toaCount = 0;
+    runs.forEach(run => {
+      // Chia đều số hàng trong cụm để không đẻ ra một toa lẻ loi chỉ có 1 hàng ở cuối.
+      const parts = Math.max(1, Math.ceil(run.rows.length / rowsPerToa));
+      const base = Math.floor(run.rows.length / parts);
+      const extra = run.rows.length % parts;
+      let cursor = 0;
+      for (let i = 0; i < parts; i++) {
+        const take = base + (i < extra ? 1 : 0);
+        run.rows.slice(cursor, cursor + take).forEach(row => toaOfRow.set(row, toaCount));
+        cursor += take;
+        toaCount += 1;
+      }
     });
+
+    const groups = Array.from({ length: toaCount }, () => []);
+    items.forEach(it => groups[toaOfRow.get(it.row)].push(it));
 
     const toaList = groups
       .map((list, idx) => {
@@ -406,7 +457,7 @@ const TrainSeatMap = ({
   function renderSeatBtn(s) {
     const sel    = selectedSeatIds.includes(s.id);
     const locked = isSeatLockedByOthers(s, ownerToken);
-    const isBiz  = ['BUSINESS', 'VIP'].includes(s.seatType);
+    const isBiz  = BIZ_TYPES.includes(s.seatType);
     const isSleeper = s.seatType === 'SLEEPER';
     const rip    = rippleSeatId === s.id;
 
@@ -473,7 +524,7 @@ const TrainSeatMap = ({
           {rip && <span style={{ position: 'absolute', width: 60, height: 60, borderRadius: '50%', background: 'rgba(255,255,255,0.4)', animation: 'rippleSeat 0.4s linear' }} />}
           {isSleeper && <span style={{ position: 'absolute', top: 3, left: 3, fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 4, background: 'rgba(255,255,255,0.18)' }}>{berthUpper ? t.smUpper : t.smLower}</span>}
           <span style={{ lineHeight: 1 }}>{s.booked ? '✕' : locked ? '🔒' : isSleeper ? '🛏' : s.seatNumber}</span>
-          {(isBiz || isSleeper) && !s.booked && !locked && <span style={{ fontSize: 8, opacity: 0.85, fontWeight: 700 }}>{isSleeper ? t.smLie : 'VIP'}</span>}
+          {(isBiz || isSleeper) && !s.booked && !locked && <span style={{ fontSize: 8, opacity: 0.85, fontWeight: 700 }}>{isSleeper ? t.smLie : t.seatClassBiz}</span>}
         </button>
 
         {/* Tooltip on hover */}
@@ -785,13 +836,9 @@ const TrainSeatMap = ({
       {hoveredToa !== null && tooltipPos && (() => {
         const toa = toas.find(x => x.idx === hoveredToa);
         if (!toa) return null;
-        const classLabel = toa.isMixed 
+        const classLabel = toa.isMixed
           ? (t.smMixedClass || 'Nhiều hạng')
-          : toa.hasSleeper 
-            ? t.smSleeper 
-            : toa.isBiz 
-              ? t.smBizClass 
-              : t.smEcoClass;
+          : classLabelOf(toa.types[0], t);
 
         return createPortal(
           <div style={{
@@ -822,9 +869,9 @@ const TrainSeatMap = ({
                     background: 'rgba(255,255,255,0.1)', 
                     padding: '1px 6px', 
                     borderRadius: 4,
-                    color: tp === 'BUSINESS' ? '#818cf8' : tp === 'SLEEPER' ? '#a78bfa' : '#34d399'
+                    color: classColorOf(tp)
                   }}>
-                    {tp === 'BUSINESS' ? t.smBizClass : tp === 'SLEEPER' ? t.smSleeper : t.smEcoClass}
+                    {classLabelOf(tp, t)}
                   </span>
                 ))}
               </div>
@@ -888,7 +935,7 @@ const TrainSeatMap = ({
               // Chip filter lấy theo hạng có thật trong toa đang mở
               const toaClassTypes = [...new Set(active.seats.map(s => s.seatType || 'ECONOMY'))];
               return toaClassTypes.map(cls => {
-                const biz = ['BUSINESS', 'VIP', 'SLEEPER'].includes(cls);
+                const biz = BIZ_TYPES.includes(cls) || cls === 'SLEEPER';
                 const act = selectedSeatClass === cls;
                 return (
                   <button
@@ -907,7 +954,7 @@ const TrainSeatMap = ({
                       color: act ? '#fff' : 'var(--text-secondary)',
                     }}
                   >
-                    {cls === 'SLEEPER' ? `🛏 ${t.smSleeper}` : cls === 'BUSINESS' || cls === 'VIP' ? `🔵 ${t.seatClassBiz}` : cls === 'ECONOMY' ? `🟢 ${t.seatClassEco}` : cls}
+                    {cls === 'SLEEPER' ? `🛏 ${t.smSleeper}` : biz ? `🔵 ${t.seatClassBiz}` : cls === 'ECONOMY' ? `🟢 ${t.seatClassEco}` : cls}
                   </button>
                 );
               });

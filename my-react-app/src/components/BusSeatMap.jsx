@@ -7,7 +7,15 @@ import { useLanguage } from '../context/LanguageContext';
 // ─── Component sơ đồ chỗ xe khách 2 tầng "sống động" ─────────────────────────
 // Kiến trúc mirror AirplaneSeatMap / TrainSeatMap: 3 pha 'bus → zooming → interior',
 // canvas cảnh ngày chạy RAF liên tục + DOM xe 2 tầng (click mở sơ đồ).
-// Tầng suy ra client-side: SLEEPER/BUSINESS → Tầng 1 (giường nằm), ECONOMY → Tầng 2 (ghế).
+// Tầng suy ra từ loại chỗ máy chủ trả về: hạng giường → Tầng 1, ECONOMY → Tầng 2 (ghế).
+
+// Hạng chỗ nằm ở tầng giường. VIP cũng nằm trong nhóm này vì trên xe khách đó là "giường
+// nằm VIP" chứ không phải ghế ngồi — bỏ sót thì những xe còn seed hạng VIP sẽ hiện tầng 1
+// trống trơn. Loại chỗ luôn lấy nguyên từ máy chủ: BookingService tính phụ thu theo đúng
+// chuỗi này nên mọi suy diễn phía client sẽ làm giá hiển thị lệch với tiền thu thật.
+const BED_TYPES = ['SLEEPER', 'BUSINESS', 'VIP'];
+const isBedSeat = (s) => BED_TYPES.includes(s?.seatType);
+
 const BusSeatMap = ({
   seats = [],
   selectedSeatIds = [],
@@ -338,14 +346,14 @@ const BusSeatMap = ({
     return () => window.removeEventListener('resize', measure);
   }, [phase]);
 
-  // ── Phân tầng: SLEEPER/BUSINESS → Tầng 1 (giường nằm), ECONOMY → Tầng 2 ────
-  const floorOf = (s) => (['SLEEPER', 'BUSINESS'].includes(s.seatType) ? 1 : 2);
+  // ── Phân tầng: hạng giường → Tầng 1 (giường nằm), ECONOMY → Tầng 2 (ghế) ───
+  const floorOf = (s) => (isBedSeat(s) ? 1 : 2);
 
   // Thống kê nhanh cho tooltip hover xe
   const busStats = useMemo(() => {
     const avail = s => !s.booked && !isSeatLockedByOthers(s, ownerToken);
-    const beds = seats.filter(s => ['SLEEPER', 'BUSINESS'].includes(s.seatType));
-    const chairs = seats.filter(s => !['SLEEPER', 'BUSINESS'].includes(s.seatType));
+    const beds = seats.filter(isBedSeat);
+    const chairs = seats.filter(s => !isBedSeat(s));
     return {
       total: seats.length,
       available: seats.filter(avail).length,
@@ -391,7 +399,7 @@ const BusSeatMap = ({
   function renderSeatBtn(s) {
     const sel    = selectedSeatIds.includes(s.id);
     const locked = isSeatLockedByOthers(s, ownerToken);
-    const isBed  = ['SLEEPER', 'BUSINESS'].includes(s.seatType);
+    const isBed  = isBedSeat(s);
     const rip    = rippleSeatId === s.id;
 
     let bg = 'linear-gradient(180deg,#10b981,#065f46)';
@@ -869,7 +877,7 @@ const BusSeatMap = ({
               {rows.map(row => {
                 const rowIsBed = [...leftCols, ...rightCols].some(col => {
                   const s = smap.get(`${row}${col}`);
-                  return s && ['SLEEPER', 'BUSINESS'].includes(s.seatType);
+                  return isBedSeat(s);
                 });
                 return (
                   <div key={row} className="seat-row" style={{

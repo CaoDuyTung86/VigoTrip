@@ -60,6 +60,11 @@ const getSeatPrice = (base, seat) => {
   return basePrice;
 };
 
+// Các hạng cao có thể xuất hiện trong sơ đồ chỗ, kèm nhãn hiển thị. Bảng giá tóm tắt đọc
+// hạng thật từ danh sách chỗ thay vì đoán, vì mỗi hạng một mức phụ thu khác nhau.
+const PREMIUM_SEAT_TYPES = ["SLEEPER", "BUSINESS", "VIP"];
+const premiumSeatLabel = (type, t) => (type === "SLEEPER" ? t.busSleeperVip : t.business);
+
 const PROVIDER_LOGOS = {
   "Phương Trang (FUTA)": {
     code: "FUTA",
@@ -601,18 +606,10 @@ const BusTickets = () => {
         throw new Error(text || `Lỗi HTTP ${res.status}`);
       }
       const data = await res.json();
-      const enrichedData = (data || []).map((s) => {
-        const rowMatch = String(s.seatNumber || "").match(/^(\d+)/);
-        const rowNum = rowMatch ? parseInt(rowMatch[1], 10) : 0;
-        if (!s.seatType || s.seatType === "ECONOMY") {
-          return {
-            ...s,
-            seatType: rowNum <= 4 ? "SLEEPER" : "ECONOMY",
-          };
-        }
-        return s;
-      });
-      setSeats(enrichedData);
+      // Loại chỗ giữ đúng như máy chủ trả về. Bản cũ tự gán "4 hàng đầu là giường nằm" cho
+      // những chỗ CSDL ghi ECONOMY: sơ đồ hiện ra giường nhưng BookingService lại tính phụ
+      // thu theo seat_type thật, nên giá hiển thị lệch hẳn với số tiền thu lúc thanh toán.
+      setSeats(data || []);
 
       setStep("seatClass");
     } catch (err) {
@@ -1648,10 +1645,12 @@ const BusTickets = () => {
                       <div style={{ fontSize: 12, color: "var(--summary-eco-title)", fontWeight: 700, marginBottom: 4 }}>🟢 {t.busEcoSeat} (ECO)</div>
                       <div style={{ fontWeight: 800, color: "var(--summary-eco-price)", fontSize: 16 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
                     </div>
-                    <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--summary-vip-bg)", borderRadius: 10, border: "1px solid var(--summary-vip-border)" }}>
-                      <div style={{ fontSize: 12, color: "var(--summary-vip-title)", fontWeight: 700, marginBottom: 4 }}>🔵 {t.busSleeperVip} (SLEEPER)</div>
-                      <div style={{ fontWeight: 800, color: "var(--summary-vip-price)", fontSize: 16 }}>{Number(getSeatPrice(selectedTrip.price, "SLEEPER")).toLocaleString("vi-VN")} đ</div>
-                    </div>
+                    {PREMIUM_SEAT_TYPES.filter(cls => seats.some(s => s.seatType === cls)).map(cls => (
+                      <div key={cls} style={{ marginTop: 8, padding: "10px 12px", background: "var(--summary-vip-bg)", borderRadius: 10, border: "1px solid var(--summary-vip-border)" }}>
+                        <div style={{ fontSize: 12, color: "var(--summary-vip-title)", fontWeight: 700, marginBottom: 4 }}>🔵 {premiumSeatLabel(cls, t)} ({cls})</div>
+                        <div style={{ fontWeight: 800, color: "var(--summary-vip-price)", fontSize: 16 }}>{Number(getSeatPrice(selectedTrip.price, cls)).toLocaleString("vi-VN")} đ</div>
+                      </div>
+                    ))}
                     <div style={{ marginTop: 12, color: selectedSeatIds.length >= (passengers || 1) ? "#22c55e" : "var(--text-muted)", fontWeight: 600 }}>{t.seatsSelectedCount.replace('{selected}', selectedSeatIds.length).replace('{total}', passengers || 1)}</div>
                   </div>
                 </div>
@@ -1746,7 +1745,7 @@ const BusTickets = () => {
                         {(() => {
                           const selSeats = seats.filter(s => selectedSeatIds.includes(s.id));
                           const basePrice = Number(selectedTrip.price || 0);
-                          const total = selSeats.reduce((sum, s) => sum + (s.seatType === "SLEEPER" || s.seatType === "BUSINESS" || s.seatType === "VIP" ? basePrice : basePrice), 0);
+                          const total = selSeats.reduce((sum, s) => sum + getSeatPrice(basePrice, s), 0);
                           return `${total.toLocaleString("vi-VN")} đ`;
                         })()}
                       </div>

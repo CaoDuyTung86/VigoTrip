@@ -271,10 +271,19 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 /* ===== HEADER ===== */
+/* Lưới 3 cột thay cho flex. Trước đây cụm tab là position:absolute;left:50%:
+   nằm ngoài luồng nên không đẩy được cụm nút bên phải — ngay ở 1280px cụm nút
+   đã đè lên tab "Ưu đãi" 135px, hẹp thêm là chữ chồng nhau rồi mất hẳn.
+   minmax(max-content, 1fr) cho hai cột biên là mấu chốt: khi màn đủ rộng, hai
+   cột chia đều phần trống nên bằng nhau và cột giữa nằm đúng tâm trang (thẳng
+   với tiêu đề "Khám phá thế giới cùng VigoTrip"); khi hẹp dần, cột nào cần
+   nhiều hơn thì lấy đúng max-content của nó — cụm tab lệch dần chứ không bao
+   giờ bị đè. Hết chỗ thật thì cả cụm nhường sân cho ngăn kéo (xem "Ngưỡng thu
+   gọn header" bên dưới). */
 .app-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
   align-items: center;
-  justify-content: space-between;
   padding: 0 clamp(16px, 3vw, 40px);
   background: var(--bg-header);
   box-shadow: 0 1px 0 var(--border-main), var(--shadow-sm);
@@ -283,29 +292,27 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   gap: 16px;
 }
 .app-header-left {
+  grid-column: 1;
+  justify-self: start;
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-shrink: 0;
 }
-/* Trước đây cụm này là position:absolute;left:50% để căn giữa tuyệt đối. Vì nằm
-   ngoài luồng flex, nó không đẩy được cụm nút bên phải: ngay ở 1280px cụm nút
-   đã đè lên tab "Ưu đãi" 135px, hẹp thêm nữa thì chữ chồng lên nhau rồi mất
-   hẳn. Giờ là một flex item bình thường — không bao giờ đè, và khi hết chỗ thì
-   cả cụm nhường sân cho ngăn kéo (xem "Ngưỡng thu gọn header" bên dưới). */
 .app-header-center {
+  grid-column: 2;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  flex: 1 1 auto;
-  min-width: 0;
 }
 .app-header-actions {
+  /* Cố định cột 3: khi cụm tab bị display:none (bản ngăn kéo), nếu không ghim
+     thì cụm nút tự nhảy sang cột 2 và không còn sát mép phải. */
+  grid-column: 3;
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
 }
 .header-nav-tab {
   display: flex;
@@ -353,6 +360,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   .header-username { max-width: 84px !important; }
 }
 @media (max-width: 1100px) {
+  /* Không còn cột giữa nên chỉ cần 2 cột; cột logo được phép co lại (min 0) để
+     tên thương hiệu cắt bớt thay vì đẩy nút hamburger ra ngoài mép phải. */
+  .app-header { grid-template-columns: minmax(0, 1fr) 0 auto; }
   .app-header-center { display: none; }
   .header-desktop-only { display: none !important; }
   .header-mobile-only { display: flex !important; }
@@ -755,6 +765,37 @@ body.dark .home-wrap {
 .promo-card:hover::before {
   opacity: 1;
 }
+/* Ô "sắp ra mắt": vẫn giữ nguyên khung để hàng bốn ô đều nhau, nhưng làm nhạt
+   đi, viền nét đứt và bỏ hiệu ứng nhấc lên khi rê chuột — nhìn là biết chưa
+   bấm vào được. */
+.promo-card.coming-soon {
+  cursor: default;
+  border-style: dashed;
+}
+.promo-card.coming-soon:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--border-light);
+}
+.promo-card.coming-soon:hover::before { opacity: 0; }
+.promo-card.coming-soon .promo-icon,
+.promo-card.coming-soon .promo-label,
+.promo-card.coming-soon .promo-desc { opacity: 0.55; }
+
+.promo-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
 .promo-icon { font-size: 28px; line-height: 1; }
 .promo-label { font-size: 13px; font-weight: 600; color: var(--text-heading); }
 .promo-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; }

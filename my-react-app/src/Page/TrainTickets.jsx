@@ -66,6 +66,11 @@ const getSeatPrice = (base, seat) => {
   return basePrice;
 };
 
+// Các hạng cao có thể xuất hiện trong sơ đồ chỗ, kèm nhãn hiển thị. Bảng giá tóm tắt đọc
+// hạng thật từ danh sách chỗ thay vì đoán, vì mỗi hạng một mức phụ thu khác nhau.
+const PREMIUM_SEAT_TYPES = ["BUSINESS", "VIP", "SLEEPER"];
+const premiumSeatLabel = (type, t) => (type === "SLEEPER" ? t.smSleeper : t.business);
+
 const PROVIDER_LOGOS = {
   "Đường Sắt VN (VNR)": {
     code: "VNR",
@@ -1645,12 +1650,14 @@ const TrainTickets = () => {
                       <div style={{ fontSize: 12, color: "var(--summary-eco-title)", fontWeight: 700, marginBottom: 4 }}>🟢 {t.economy} (ECO)</div>
                       <div style={{ fontWeight: 800, color: "var(--summary-eco-price)", fontSize: 16 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
                     </div>
-                    <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--summary-vip-bg)", borderRadius: 10, border: "1px solid var(--summary-vip-border)" }}>
-                      <div style={{ fontSize: 12, color: "var(--summary-vip-title)", fontWeight: 700, marginBottom: 4 }}>🔵 {t.business} (BUSINESS)</div>
-                      <div style={{ fontWeight: 800, color: "var(--summary-vip-price)", fontSize: 16 }}>
-                        {Number(getSeatPrice(selectedTrip.price, "BUSINESS")).toLocaleString("vi-VN")} đ
+                    {PREMIUM_SEAT_TYPES.filter(cls => seats.some(s => s.seatType === cls)).map(cls => (
+                      <div key={cls} style={{ marginTop: 8, padding: "10px 12px", background: "var(--summary-vip-bg)", borderRadius: 10, border: "1px solid var(--summary-vip-border)" }}>
+                        <div style={{ fontSize: 12, color: "var(--summary-vip-title)", fontWeight: 700, marginBottom: 4 }}>🔵 {premiumSeatLabel(cls, t)} ({cls})</div>
+                        <div style={{ fontWeight: 800, color: "var(--summary-vip-price)", fontSize: 16 }}>
+                          {Number(getSeatPrice(selectedTrip.price, cls)).toLocaleString("vi-VN")} đ
+                        </div>
                       </div>
-                    </div>
+                    ))}
                     <div style={{ marginTop: 12, color: selectedSeatIds.length >= (passengers || 1) ? "#22c55e" : "var(--text-muted)", fontWeight: 600 }}>{t.seatsSelectedCount.replace('{selected}', selectedSeatIds.length).replace('{total}', passengers || 1)}</div>
                   </div>
                 </div>
