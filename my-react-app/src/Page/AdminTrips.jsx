@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import { RiTimerLine } from "react-icons/ri";
@@ -99,6 +99,21 @@ const AdminTrips = () => {
   const [pageSize] = useState(20);
   const [searchInput, setSearchInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Mốc chặn ngày quá khứ. Cùng cách tính với todayISO ở FlightSearch/BusSearch/TrainSearch:
+  // trừ timezone offset trước khi toISOString() để không bị lùi một ngày ở múi giờ dương.
+  const todayISO = useMemo(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split("T")[0];
+  }, []);
+
+  // datetime-local cần dạng 'YYYY-MM-DDTHH:mm'.
+  const nowLocalISO = useMemo(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  }, []);
 
   // Delay modal state
   const [delayModal, setDelayModal] = useState({ show: false, trip: null, newDeparture: "", newArrival: "", reason: "", loading: false });
@@ -269,6 +284,10 @@ const AdminTrips = () => {
   const submitCreateTrip = async () => {
     if (!createForm.routeId || !createForm.vehicleId || !createForm.departureDate || !createForm.departureTime || !createForm.arrivalTime || !createForm.price) {
       setError(t.admCreateRequired);
+      return;
+    }
+    if (createForm.departureDate < todayISO) {
+      setError(t.admDepartureDatePast);
       return;
     }
     setError("");
@@ -539,6 +558,7 @@ const AdminTrips = () => {
             <input
               type="date"
               value={createForm.departureDate}
+              min={todayISO}
               onChange={(e) => handleCreateFieldChange("departureDate", e.target.value)}
               style={{
                 width: "100%",
@@ -872,7 +892,7 @@ const AdminTrips = () => {
             <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>{delayModal.trip.route?.origin} → {delayModal.trip.route?.destination}</p>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontWeight: 600, fontSize: 12, display: "block", marginBottom: 6, color: "var(--text-muted)" }}>{t.admNewDepartureLabel}</label>
-              <input type="datetime-local" value={delayModal.newDeparture}
+              <input type="datetime-local" value={delayModal.newDeparture} min={nowLocalISO}
                 onChange={e => setDelayModal(p => ({ ...p, newDeparture: e.target.value }))}
                 style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid var(--border-input)", backgroundColor: "var(--bg-main)", color: "var(--text-main)", boxSizing: "border-box", outline: "none" }} />
             </div>
