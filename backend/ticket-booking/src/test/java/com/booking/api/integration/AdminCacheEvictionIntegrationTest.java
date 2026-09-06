@@ -101,7 +101,8 @@ class AdminCacheEvictionIntegrationTest {
         Vehicle data = new Vehicle();
         data.setVehicleType("PLANE");
         data.setTotalSeats(200);
-        adminService.updateVehicle(vehicle.getId(), data);
+        // providerId = null: chỉ đổi số ghế, giữ nguyên hãng hiện tại.
+        adminService.updateVehicle(vehicle.getId(), null, data);
 
         assertTripCachesCleared();
     }
@@ -111,11 +112,11 @@ class AdminCacheEvictionIntegrationTest {
     void creatingVehicleClearsTripCaches() {
         seedTripCache();
 
+        // Hãng do service tự nạp từ providerId — mapper không dựng được quan hệ này.
         Vehicle vehicle = new Vehicle();
-        vehicle.setProvider(provider);
         vehicle.setVehicleType("PLANE");
         vehicle.setTotalSeats(180);
-        adminService.createVehicle(vehicle);
+        adminService.createVehicle(provider.getId(), vehicle);
 
         assertTripCachesCleared();
     }
