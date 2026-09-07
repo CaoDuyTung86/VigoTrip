@@ -5055,15 +5055,15 @@ export const translateVoucherDescription = (description, code, t) => {
   return description || "";
 };
 
+// Cố ý ném lỗi thay vì trả về một bộ mặc định: LanguageProvider bọc toàn bộ cây component
+// ở App.jsx, nên gọi được hook này ngoài provider chỉ xảy ra khi lắp sai chỗ. Trả về thầm
+// translations.vi thì lỗi lắp sai đó biến thành "màn hình luôn hiện tiếng Việt và nút đổi
+// ngôn ngữ bấm không ăn" — không có gì báo, và mất hàng giờ mới lần ra. Ném ở đây thì lỗi
+// hiện ngay tại component lắp sai, sửa mất một dòng.
 export const useLanguage = () => {
   const context = useContext(LanguageContext);
   if (!context) {
-    return {
-      currentLanguage: DEFAULT_LANGUAGE,
-      t: translations.vi,
-      changeLanguage: () => {},
-      translations,
-    };
+    throw new Error('useLanguage must be used within a LanguageProvider');
   }
   return context;
 };

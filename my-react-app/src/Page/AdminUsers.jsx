@@ -73,6 +73,10 @@ const AdminUsers = () => {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("id_asc");
 
+  /* API trả danh sách tài khoản theo thứ tự của DB, không cam kết sắp xếp gì cả nên nhìn
+     rất lộn xộn (#4, #2, #6, #7...). Mặc định xếp lại theo ID tăng dần và cho admin đổi
+     tiêu chí bằng ô chọn hoặc bấm thẳng vào tiêu đề cột.
+     Nằm trong component vì nhãn phải đổi theo ngôn ngữ đang chọn. */
   const sortFields = useMemo(() => [
     { field: "id", asc: t.sortIdAsc || "ID tăng dần (#1 → #n)", desc: t.sortIdDesc || "Mới nhất (ID giảm dần)" },
     { field: "name", asc: t.sortNameAsc || "Tên A → Z", desc: t.sortNameDesc || "Tên Z → A" },
@@ -82,6 +86,8 @@ const AdminUsers = () => {
     { field: "status", asc: t.sortStatusAsc || "Trạng thái: cần xử lý trước", desc: t.sortStatusDesc || "Trạng thái: hoạt động trước" },
   ], [t]);
 
+  // Liệt kê đủ cả hai chiều của mọi cột, không cắt bớt: bấm tiêu đề cột cũng đổi sortBy,
+  // nếu thiếu tổ hợp nào thì ô chọn sẽ hiện trống vì không khớp option nào.
   const sortOptions = useMemo(() => sortFields.flatMap((f) => [
     { value: `${f.field}_asc`, label: f.asc },
     { value: `${f.field}_desc`, label: f.desc },
@@ -213,6 +219,8 @@ const AdminUsers = () => {
       String(u.id).includes(q);
 
     const matchRole = roleFilter === "ALL" || u.role === roleFilter;
+    // enabled = false có HAI nghĩa khác hẳn nhau: đang chờ xác thực email, và bị khóa.
+    // Backend nay tách sẵn bằng cờ awaitingEmailVerification nên lọc được riêng từng loại.
     const matchStatus =
       statusFilter === "ALL" ||
       (statusFilter === "ACTIVE" && u.enabled) ||
@@ -224,6 +232,7 @@ const AdminUsers = () => {
 
   const visibleUsers = sortUsers(filteredUsers, sortBy);
 
+  // Bấm lại đúng cột đang xếp thì đảo chiều, bấm cột khác thì về chiều mặc định của cột đó.
   const toggleSort = (field) => {
     const defaultDir = field === "points" ? "desc" : "asc";
     setSortBy((prev) => {

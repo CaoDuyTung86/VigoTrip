@@ -1,5 +1,6 @@
 package com.booking.api.config;
 
+import com.booking.api.security.JwtSecretDecoder;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -88,6 +90,7 @@ public class StartupSecretsValidator {
 
         boolean allowLeaked = Boolean.TRUE.equals(env.getProperty(ALLOW_LEAKED_KEY, Boolean.class, false));
         List<String> fatal = new ArrayList<>(missing);
+        malformedJwtSecret(env.getProperty("jwt.secret")).ifPresent(fatal::add);
 
         if (!leaked.isEmpty()) {
             if (allowLeaked) {
@@ -112,6 +115,39 @@ public class StartupSecretsValidator {
             log.info("[StartupSecretsValidator] {} bí mật bắt buộc đã có mặt và không nằm trong danh sách đã lộ.",
                     REQUIRED.size());
         }
+    }
+
+    /**
+     * Có mặt là chưa đủ với JWT_SECRET: nó còn phải giải mã được thành khoá đủ dài.
+     *
+     * Trước đây một chuỗi gõ tay sai định dạng chỉ lộ ra dưới dạng
+     * {@code DecodingException: Illegal base64 character '-'} nằm sâu trong một stack trace
+     * dài của Spring, lúc khởi tạo bean — không nhắc tới tên biến môi trường nào, cũng không
+     * gợi ý phải làm gì. Còn chuỗi giải mã ra quá ngắn thì im lặng hoàn toàn cho tới khi
+     * người dùng đầu tiên bấm đăng nhập. Kiểm ở đây để cả hai trường hợp thành một thông báo
+     * nói rõ biến nào sai và sửa bằng lệnh gì.
+     *
+     * Chuỗi trống đã được nhánh "thiếu biến" lo, nên bỏ qua để không báo trùng hai lần.
+     */
+    private static Optional<String> malformedJwtSecret(String secret) {
+        if (secret == null || secret.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            JwtSecretDecoder.decode(secret);
+            return Optional.empty();
+        } catch (IllegalStateException e) {
+            return Optional.of(indentBlock(e.getMessage()));
+        }
+    }
+
+    /** Thụt lề khối thông báo nhiều dòng cho khớp với các dòng "  - ..." còn lại. */
+    private static String indentBlock(String message) {
+        List<String> lines = message.strip().lines().toList();
+        StringBuilder out = new StringBuilder("  - ").append(lines.get(0));
+        lines.subList(1, lines.size())
+                .forEach(line -> out.append('\n').append(line.isBlank() ? "" : "    " + line));
+        return out.toString();
     }
 
     private void warnRunningOnLeakedSecrets(List<String> leaked) {
