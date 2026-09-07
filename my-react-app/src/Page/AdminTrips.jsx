@@ -4,6 +4,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { RiTimerLine } from "react-icons/ri";
 import { MdOutlineCancel } from "react-icons/md";
 import ModalPortal from "../components/ModalPortal";
+import { useToast } from "../context/ToastContext";
 
 
 const API_BASE = "/api";
@@ -76,6 +77,9 @@ const formatFormattedDateTime = (isoString) => {
 const AdminTrips = () => {
   const { token, user } = useAuth();
   const { t } = useLanguage();
+  // Cùng dạng phòng hờ với AdminRoutes/AdminVouchers/AdminUsers: trang này được render trong
+  // test mà không có ToastProvider bọc ngoài, nên useToast phải hụt được mà không nổ.
+  const toast = useToast?.() || { showToast: () => {} };
   const [activeTab, setActiveTab] = useState("PLANE");
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -268,6 +272,7 @@ const AdminTrips = () => {
         throw new Error(text || `HTTP ${res.status}`);
       }
       await loadTrips();
+      toast.showToast?.(t.admTripPriceUpdated.replace("{id}", id), "success");
     } catch (e) {
       console.error(e);
       setError(t.admPriceUpdateError);
@@ -322,6 +327,12 @@ const AdminTrips = () => {
       if (!res.ok) {
         throw new Error(await readErrorMessage(res));
       }
+      // Đọc luôn chuyến server vừa trả về để thông báo nói rõ đã tạo ra cái gì.
+      // Danh sách xếp theo giờ khởi hành và chia 20 chuyến mỗi trang, nên chuyến mới gần như
+      // chẳng bao giờ xuất hiện ở trang đang mở — chỉ báo "thành công!" thì admin vẫn không
+      // biết nó có thật hay không. Body hỏng thì vẫn báo thành công, vì res.ok đã đủ chứng
+      // minh server ghi xong; chỉ là mất phần chi tiết.
+      const created = await res.json().catch(() => null);
       setCreateForm({
         routeId: "",
         vehicleId: "",
@@ -332,6 +343,18 @@ const AdminTrips = () => {
         status: "ACTIVE",
       });
       await loadTrips();
+      toast.showToast?.(
+        created?.id
+          ? t.admTripCreatedDetail
+              .replaceAll("{id}", created.id)
+              .replace(
+                "{route}",
+                `${getCityLabel(created.route?.origin)} → ${getCityLabel(created.route?.destination)}`
+              )
+              .replace("{time}", formatFormattedDateTime(created.departureTime))
+          : t.admTripCreated,
+        "success"
+      );
     } catch (e) {
       console.error(e);
       setError(e.message ? t.admCreateErrorDetail.replace("{msg}", e.message) : t.admCreateError);
@@ -343,11 +366,13 @@ const AdminTrips = () => {
   const handleDelay = async () => {
     if (!delayModal.reason.trim()) { setError(t.admDelayReasonRequired); return; }
     setDelayModal(prev => ({ ...prev, loading: true }));
+    // Giữ lại mã chuyến trước khi đóng modal — setDelayModal đặt trip về null.
+    const tripId = delayModal.trip.id;
     try {
       const body = { reason: delayModal.reason };
       if (delayModal.newDeparture) body.newDepartureTime = delayModal.newDeparture;
       if (delayModal.newArrival) body.newArrivalTime = delayModal.newArrival;
-      const res = await fetch(`${API_BASE}/admin/trips/${delayModal.trip.id}/delay`, {
+      const res = await fetch(`${API_BASE}/admin/trips/${tripId}/delay`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -355,14 +380,17 @@ const AdminTrips = () => {
       if (!res.ok) throw new Error(await readErrorMessage(res));
       setDelayModal({ show: false, trip: null, newDeparture: "", newArrival: "", reason: "", loading: false });
       await loadTrips();
+      toast.showToast?.(t.admTripDelayed.replace("{id}", tripId), "success");
     } catch (e) { setError(t.admDelayError.replace("{msg}", e.message)); setDelayModal(prev => ({ ...prev, loading: false })); }
   };
 
   const handleCancelTrip = async () => {
     if (!cancelAdminModal.reason.trim()) { setError(t.admCancelReasonRequired); return; }
     setCancelAdminModal(prev => ({ ...prev, loading: true }));
+    // Giữ lại mã chuyến trước khi đóng modal — setCancelAdminModal đặt trip về null.
+    const tripId = cancelAdminModal.trip.id;
     try {
-      const res = await fetch(`${API_BASE}/admin/trips/${cancelAdminModal.trip.id}/cancel`, {
+      const res = await fetch(`${API_BASE}/admin/trips/${tripId}/cancel`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ reason: cancelAdminModal.reason }),
@@ -370,6 +398,7 @@ const AdminTrips = () => {
       if (!res.ok) throw new Error(await readErrorMessage(res));
       setCancelAdminModal({ show: false, trip: null, reason: "", loading: false });
       await loadTrips();
+      toast.showToast?.(t.admTripCancelled.replace("{id}", tripId), "success");
     } catch (e) { setError(t.admCancelError.replace("{msg}", e.message)); setCancelAdminModal(prev => ({ ...prev, loading: false })); }
   };
 

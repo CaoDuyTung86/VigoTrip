@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
 
@@ -26,4 +27,12 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
 
     @Query("SELECT v FROM Vehicle v JOIN FETCH v.provider WHERE v.provider.id = :providerId")
     List<Vehicle> findByProviderIdWithProvider(@Param("providerId") Long providerId);
+
+    /**
+     * Một phương tiện kèm sẵn hãng. Cùng lý do với {@link #findAllWithProvider()}: chỗ gọi
+     * đem Vehicle này gắn vào Trip rồi trả thẳng ra JSON, nên hãng phải là entity thật chứ
+     * không được là proxy chưa nạp.
+     */
+    @Query("SELECT v FROM Vehicle v JOIN FETCH v.provider WHERE v.id = :id")
+    Optional<Vehicle> findByIdWithProvider(@Param("id") Long id);
 }

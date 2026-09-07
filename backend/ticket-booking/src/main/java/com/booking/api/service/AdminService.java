@@ -216,8 +216,24 @@ public class AdminService {
         if (vehicleId == null) {
             throw new IllegalArgumentException("Thiếu phương tiện (vehicleId) cho chuyến đi.");
         }
-        return vehicleRepository.findById(vehicleId)
+        // findByIdWithProvider chứ không phải findById: Vehicle.provider là LAZY, mà Trip trả về
+        // từ các hàm dưới đây đi thẳng ra JSON. Xem loadTrip để biết vì sao proxy ở đó là 500.
+        return vehicleRepository.findByIdWithProvider(vehicleId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phương tiện với ID: " + vehicleId));
+    }
+
+    /**
+     * Nạp chuyến kèm tuyến/phương tiện/hãng để kết quả trả về serialize được.
+     *
+     * Trip.route, Trip.vehicle và Vehicle.provider đều LAZY. Controller trả thẳng entity Trip
+     * ra JSON, nên nếu ba trường đó còn là proxy Hibernate thì việc serialize phụ thuộc vào
+     * session có còn mở hay không — tắt open-in-view là mọi endpoint ghi của màn quản lý chuyến
+     * cùng trả 500 "Đã có lỗi xảy ra trên hệ thống", trong khi endpoint đọc vẫn chạy vì
+     * searchTripsForAdmin đã JOIN FETCH sẵn. Nạp đủ ngay từ đây thì không còn chỗ nào hở.
+     */
+    private Trip loadTrip(Long id) {
+        return tripRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + id));
     }
 
     /**
@@ -245,8 +261,7 @@ public class AdminService {
     @Transactional
     @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Trip updateTrip(Long id, Long routeId, Long vehicleId, Trip tripData) {
-        Trip trip = tripRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + id));
+        Trip trip = loadTrip(id);
 
         // Chỉ đổi tuyến/phương tiện khi client thực sự gửi ID lên; bỏ trống nghĩa là giữ nguyên.
         if (routeId != null) {
@@ -275,8 +290,7 @@ public class AdminService {
     @Transactional
     @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Trip updateTripPrice(Long id, Double price) {
-        Trip trip = tripRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + id));
+        Trip trip = loadTrip(id);
         trip.setPrice(price != null ? java.math.BigDecimal.valueOf(price) : null);
         return tripRepository.save(trip);
     }
@@ -302,8 +316,7 @@ public class AdminService {
     @Transactional
     @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Trip delayTrip(Long tripId, TripUpdateRequest request) {
-        Trip trip = tripRepository.findById(tripId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + tripId));
+        Trip trip = loadTrip(tripId);
 
         String route = trip.getRoute().getOrigin() + " → " + trip.getRoute().getDestination();
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
@@ -338,8 +351,7 @@ public class AdminService {
     @Transactional
     @CacheEvict(value = {"trips", "calendar_prices"}, allEntries = true)
     public Trip cancelTripByAdmin(Long tripId, String reason) {
-        Trip trip = tripRepository.findById(tripId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy chuyến đi với ID: " + tripId));
+        Trip trip = loadTrip(tripId);
 
         String route = trip.getRoute().getOrigin() + " → " + trip.getRoute().getDestination();
         trip.setStatus("CANCELLED");

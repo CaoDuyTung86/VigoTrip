@@ -3,15 +3,31 @@ import axios from "axios";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useLanguage } from "../context/LanguageContext";
 import { FaGift, FaRegCopy, FaRegBookmark, FaBookmark, FaTag } from "react-icons/fa";
 
-const formatDate = (iso) => {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
-};
+// Ngôn ngữ giao diện -> locale dùng cho ngày/số. Không dùng thẳng mã ngôn ngữ vì
+// Intl cần locale đầy đủ ("vi" vẫn chạy nhưng "zh" thì ra giản thể, không khớp 繁體中文).
+const LOCALE_BY_LANG = { vi: "vi-VN", en: "en-GB", ja: "ja-JP", zh: "zh-TW" };
 
-const formatMoney = (n) => Number(n || 0).toLocaleString("vi-VN") + "đ";
+const fill = (template, values) =>
+  Object.entries(values).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, value), template ?? "");
+
+/**
+ * Lý do voucher chưa dùng được.
+ *
+ * Backend gửi kèm `unavailableReasonCode` (ALREADY_USED, EXPIRED, ...) chính là để chỗ này
+ * tự dựng câu theo ngôn ngữ đang chọn; `unavailableReason` là câu tiếng Việt dựng sẵn, chỉ
+ * dùng làm phương án dự phòng cho bản backend cũ chưa có mã lý do.
+ */
+const REASON_KEY_BY_CODE = {
+  ALREADY_USED: "vchReasonAlreadyUsed",
+  EXPIRED: "vchReasonExpired",
+  NOT_STARTED: "vchReasonNotStarted",
+  SOLD_OUT: "vchReasonSoldOut",
+  PROVIDER_ONLY: "vchReasonProviderOnly",
+  MIN_ORDER: "vchReasonMinOrder",
+};
 
 const cardBaseStyle = {
   borderRadius: 14,
@@ -25,8 +41,16 @@ const cardBaseStyle = {
   position: "relative",
 };
 
-function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy }) {
+function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy, t, formatDate, formatMoney }) {
   const remaining = voucher.maxUsage != null ? Math.max(voucher.maxUsage - (voucher.currentUsage || 0), 0) : null;
+
+  const reasonKey = REASON_KEY_BY_CODE[voucher.unavailableReasonCode];
+  const reasonText = reasonKey
+    ? fill(t[reasonKey], {
+        provider: voucher.providerName ?? "",
+        amount: voucher.minOrderAmount != null ? formatMoney(voucher.minOrderAmount) : "",
+      })
+    : voucher.unavailableReason;
 
   return (
     <div style={{ ...cardBaseStyle, opacity: voucher.available ? 1 : 0.65 }}>
@@ -51,7 +75,7 @@ function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy }) 
           <div>
             <div style={{ fontWeight: 800, fontSize: 16, color: "var(--primary)", letterSpacing: 0.3 }}>{voucher.code}</div>
             <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-              {voucher.providerName ? `Áp dụng: ${voucher.providerName}` : "Áp dụng cho tất cả các hãng"}
+              {voucher.providerName ? fill(t.vchAppliesTo, { provider: voucher.providerName }) : t.vchAppliesToAll}
             </div>
           </div>
         </div>
@@ -59,7 +83,7 @@ function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy }) 
         <button
           type="button"
           onClick={() => onToggleSave(voucher)}
-          title={!isAuthenticated ? "Đăng nhập để lưu voucher" : saved ? "Bỏ lưu" : "Lưu vào tài khoản"}
+          title={!isAuthenticated ? t.vchLoginToSaveHint : saved ? t.vchUnsaveHint : t.vchSaveHint}
           style={{
             background: "none",
             border: "none",
@@ -77,7 +101,9 @@ function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy }) 
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
         <span style={{ fontSize: 26, fontWeight: 800, color: "#f97316" }}>-{voucher.discountPercent}%</span>
         {voucher.maxDiscountAmount != null && (
-          <span style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>tối đa {formatMoney(voucher.maxDiscountAmount)}</span>
+          <span style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
+            {fill(t.vchMaxDiscount, { amount: formatMoney(voucher.maxDiscountAmount) })}
+          </span>
         )}
       </div>
 
@@ -86,12 +112,12 @@ function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy }) 
       )}
 
       <div style={{ fontSize: 12.5, color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: 3 }}>
-        {voucher.minOrderAmount != null && <div>Đơn hàng tối thiểu: {formatMoney(voucher.minOrderAmount)}</div>}
-        {voucher.expiryDate && <div>Hạn sử dụng: {formatDate(voucher.expiryDate)}</div>}
-        {remaining !== null && <div>Số lượt còn lại: {remaining}</div>}
+        {voucher.minOrderAmount != null && <div>{fill(t.vchMinOrder, { amount: formatMoney(voucher.minOrderAmount) })}</div>}
+        {voucher.expiryDate && <div>{fill(t.vchExpiry, { date: formatDate(voucher.expiryDate) })}</div>}
+        {remaining !== null && <div>{fill(t.vchRemaining, { count: remaining })}</div>}
       </div>
 
-      {!voucher.available && voucher.unavailableReason && (
+      {!voucher.available && reasonText && (
         <div
           style={{
             fontSize: 12.5,
@@ -102,7 +128,7 @@ function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy }) 
             padding: "6px 10px",
           }}
         >
-          {voucher.unavailableReason}
+          {reasonText}
         </div>
       )}
 
@@ -126,7 +152,7 @@ function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy }) 
           cursor: voucher.available ? "pointer" : "not-allowed",
         }}
       >
-        <FaRegCopy /> Sao chép mã
+        <FaRegCopy /> {t.vchCopyCode}
       </button>
     </div>
   );
@@ -135,6 +161,7 @@ function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy }) 
 const VoucherPromotions = () => {
   const { token, isAuthenticated } = useAuth();
   const toast = useToast();
+  const { t, currentLanguage } = useLanguage();
   const [searchParams] = useSearchParams();
 
   const providerId = searchParams.get("providerId") || null;
@@ -143,6 +170,27 @@ const VoucherPromotions = () => {
   const [vouchers, setVouchers] = useState([]);
   const [savedIds, setSavedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
+
+  const locale = LOCALE_BY_LANG[currentLanguage.code] || "vi-VN";
+
+  const formatDate = React.useCallback(
+    (iso) => {
+      if (!iso) return null;
+      const d = new Date(iso);
+      return d.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
+    },
+    [locale]
+  );
+
+  // Tiền vẫn luôn là VND, chỉ đổi cách nhóm chữ số và đơn vị: "đ" là ký hiệu quen thuộc với
+  // người Việt, còn các ngôn ngữ khác đọc "VND" rõ hơn nhiều.
+  const formatMoney = React.useCallback(
+    (n) => {
+      const amount = Number(n || 0).toLocaleString(locale);
+      return currentLanguage.code === "vi" ? `${amount}đ` : `${amount} VND`;
+    },
+    [locale, currentLanguage.code]
+  );
 
   const loadVouchers = async () => {
     setLoading(true);
@@ -158,7 +206,7 @@ const VoucherPromotions = () => {
       setVouchers(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
-      toast.showToast("Không thể tải danh sách ưu đãi", "error");
+      toast.showToast(t.vchLoadError, "error");
     } finally {
       setLoading(false);
     }
@@ -190,7 +238,7 @@ const VoucherPromotions = () => {
 
   const handleToggleSave = async (voucher) => {
     if (!isAuthenticated) {
-      toast.showToast("Vui lòng đăng nhập để lưu voucher vào tài khoản", "info");
+      toast.showToast(t.vchLoginToSave, "info");
       return;
     }
     const alreadySaved = savedIds.has(voucher.id);
@@ -202,22 +250,22 @@ const VoucherPromotions = () => {
           next.delete(voucher.id);
           return next;
         });
-        toast.showToast("Đã bỏ lưu voucher", "info");
+        toast.showToast(t.vchUnsaved, "info");
       } else {
         await axios.post(`/api/saved-vouchers/${voucher.id}`, null, { headers: { Authorization: `Bearer ${token}` } });
         setSavedIds((prev) => new Set(prev).add(voucher.id));
-        toast.showToast("Đã lưu voucher vào tài khoản", "success");
+        toast.showToast(t.vchSaved, "success");
       }
     } catch (err) {
       console.error(err);
-      toast.showToast("Không thể cập nhật voucher đã lưu", "error");
+      toast.showToast(t.vchSaveError, "error");
     }
   };
 
   const handleCopy = async (code) => {
     try {
       await navigator.clipboard.writeText(code);
-      toast.showToast(`Đã sao chép mã ${code}`, "success");
+      toast.showToast(fill(t.vchCopied, { code }), "success");
     } catch {
       toast.showToast(code, "info");
     }
@@ -228,6 +276,8 @@ const VoucherPromotions = () => {
     const un = vouchers.filter((v) => !v.available);
     return { availableVouchers: av, unavailableVouchers: un };
   }, [vouchers]);
+
+  const cardProps = { t, formatDate, formatMoney, isAuthenticated, onToggleSave: handleToggleSave, onCopy: handleCopy };
 
   return (
     <div
@@ -243,39 +293,30 @@ const VoucherPromotions = () => {
     >
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 10 }}>
-          <FaTag style={{ color: "var(--primary)" }} /> Ưu đãi & Voucher
+          <FaTag style={{ color: "var(--primary)" }} /> {t.vchPageTitle}
         </h2>
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-          {providerId
-            ? "Danh sách voucher áp dụng cho đơn hàng bạn đang đặt. Lưu mã yêu thích để dùng nhanh ở lần đặt vé tới."
-            : "Khám phá các mã giảm giá đang có. Lưu voucher vào tài khoản để mở nhanh khi nhập mã lúc đặt vé."}
+          {providerId ? t.vchSubtitleForOrder : t.vchSubtitleGeneral}
         </p>
       </div>
 
       {loading ? (
-        <div style={{ padding: 60, textAlign: "center", color: "var(--text-muted)" }}>Đang tải ưu đãi...</div>
+        <div style={{ padding: 60, textAlign: "center", color: "var(--text-muted)" }}>{t.vchLoading}</div>
       ) : vouchers.length === 0 ? (
-        <div style={{ padding: 60, textAlign: "center", color: "var(--text-muted)" }}>Hiện chưa có voucher nào.</div>
+        <div style={{ padding: 60, textAlign: "center", color: "var(--text-muted)" }}>{t.vchEmpty}</div>
       ) : (
         <>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, color: "var(--text-heading)" }}>
-            Đang khả dụng ({availableVouchers.length})
+            {fill(t.vchAvailableHeading, { count: availableVouchers.length })}
           </div>
           {availableVouchers.length === 0 ? (
             <div style={{ padding: "16px 4px", color: "var(--text-muted)", fontSize: 13.5, marginBottom: 24 }}>
-              Không có voucher nào khả dụng với đơn hàng hiện tại.
+              {t.vchNoneAvailable}
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 32 }}>
               {availableVouchers.map((v) => (
-                <VoucherCard
-                  key={v.id}
-                  voucher={v}
-                  saved={savedIds.has(v.id)}
-                  isAuthenticated={isAuthenticated}
-                  onToggleSave={handleToggleSave}
-                  onCopy={handleCopy}
-                />
+                <VoucherCard key={v.id} voucher={v} saved={savedIds.has(v.id)} {...cardProps} />
               ))}
             </div>
           )}
@@ -283,18 +324,11 @@ const VoucherPromotions = () => {
           {unavailableVouchers.length > 0 && (
             <>
               <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, color: "var(--text-heading)" }}>
-                Chưa thể sử dụng ({unavailableVouchers.length})
+                {fill(t.vchUnavailableHeading, { count: unavailableVouchers.length })}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
                 {unavailableVouchers.map((v) => (
-                  <VoucherCard
-                    key={v.id}
-                    voucher={v}
-                    saved={savedIds.has(v.id)}
-                    isAuthenticated={isAuthenticated}
-                    onToggleSave={handleToggleSave}
-                    onCopy={handleCopy}
-                  />
+                  <VoucherCard key={v.id} voucher={v} saved={savedIds.has(v.id)} {...cardProps} />
                 ))}
               </div>
             </>

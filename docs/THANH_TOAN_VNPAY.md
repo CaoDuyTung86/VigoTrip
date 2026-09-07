@@ -306,7 +306,7 @@ hiện ra chúng cho tới khi ai đó chủ động đi tìm.
 
 ---
 
-## 6. Bốn mốc thời gian
+## 6. Năm mốc thời gian
 
 | Giai đoạn | Hằng số | Giá trị | Đếm từ |
 |---|---|---|---|

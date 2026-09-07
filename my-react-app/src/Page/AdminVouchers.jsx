@@ -1,10 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useLanguage } from "../context/LanguageContext";
 import { FaTag, FaPlus, FaEdit, FaTrash, FaSearch, FaTimes } from "react-icons/fa";
 import ModalPortal from "../components/ModalPortal";
 
 const API_BASE = "/api";
+
+// Ngôn ngữ giao diện -> locale cho ngày/số. Xem chú thích cùng tên ở VoucherPromotions.jsx.
+const LOCALE_BY_LANG = { vi: "vi-VN", en: "en-GB", ja: "ja-JP", zh: "zh-TW" };
+
+const fill = (template, values) =>
+  Object.entries(values).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, value), template ?? "");
 
 const emptyForm = {
   code: "",
@@ -23,10 +30,22 @@ const emptyForm = {
 const toInputDate = (iso) => (iso ? iso.substring(0, 16) : "");
 const toPayloadDate = (val) => (val ? `${val}:00` : null);
 
-const formatDate = (iso) => {
+const formatDate = (iso, locale) => {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString(locale, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+};
+
+// Tiền luôn là VND, chỉ khác cách nhóm chữ số và đơn vị hiển thị.
+const formatMoney = (n, locale, langCode) => {
+  const amount = Number(n || 0).toLocaleString(locale);
+  return langCode === "vi" ? `${amount}đ` : `${amount} VND`;
+};
+
+const providerTypeLabel = (type, t) => {
+  if (type === "AIRLINE") return t.admVchVehiclePlane;
+  if (type === "TRAIN") return t.admVchVehicleTrain;
+  return t.admVchVehicleBus;
 };
 
 const buildPayload = (form) => ({
@@ -56,26 +75,26 @@ const inputStyle = {
 
 const labelStyle = { fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block", color: "var(--text-muted)" };
 
-function VoucherStatusBadge({ voucher }) {
+function VoucherStatusBadge({ voucher, t }) {
   const now = new Date();
   const start = voucher.startDate ? new Date(voucher.startDate) : null;
   const end = voucher.expiryDate ? new Date(voucher.expiryDate) : null;
   const soldOut = voucher.maxUsage != null && voucher.currentUsage >= voucher.maxUsage;
 
-  let label = "Đang hoạt động";
+  let label = t.admVchStatusActive;
   let color = "#10b981";
 
   if (!voucher.isActive) {
-    label = "Đã tắt";
+    label = t.admVchStatusDisabled;
     color = "#9ca3af";
   } else if (soldOut) {
-    label = "Hết lượt";
+    label = t.admVchStatusSoldOut;
     color = "#ef4444";
   } else if (end && now > end) {
-    label = "Hết hạn";
+    label = t.admVchStatusExpired;
     color = "#ef4444";
   } else if (start && now < start) {
-    label = "Chưa bắt đầu";
+    label = t.admVchStatusNotStarted;
     color = "#f59e0b";
   }
 
@@ -99,6 +118,9 @@ function VoucherStatusBadge({ voucher }) {
 const AdminVouchers = () => {
   const { token, user } = useAuth();
   const toast = useToast?.() || { showToast: () => {} };
+  const { t, currentLanguage } = useLanguage();
+  const locale = LOCALE_BY_LANG[currentLanguage.code] || "vi-VN";
+  const money = (n) => formatMoney(n, locale, currentLanguage.code);
   const isAdmin = user?.role === "ROLE_ADMIN";
   const isProvider = user?.role === "ROLE_PROVIDER";
 
@@ -147,26 +169,26 @@ const AdminVouchers = () => {
         const data = await res.json();
         setVouchers(Array.isArray(data) ? data : []);
       } else {
-        toast.showToast?.("Không thể tải danh sách voucher", "error");
+        toast.showToast?.(t.admVchLoadError, "error");
       }
     } catch (err) {
       console.error(err);
-      toast.showToast?.("Lỗi kết nối máy chủ", "error");
+      toast.showToast?.(t.admVchConnError, "error");
     } finally {
       setLoading(false);
     }
   };
 
   const validateForm = (f) => {
-    if (!f.code.trim()) return "Vui lòng nhập mã voucher";
+    if (!f.code.trim()) return t.admVchErrCodeRequired;
     if (f.discountPercent === "" || Number(f.discountPercent) <= 0 || Number(f.discountPercent) > 100) {
-      return "Phần trăm giảm giá phải trong khoảng 1-100";
+      return t.admVchErrPercentRange;
     }
     if (f.startDate && f.expiryDate && new Date(f.startDate) >= new Date(f.expiryDate)) {
-      return "Ngày bắt đầu phải trước ngày hết hạn";
+      return t.admVchErrDateOrder;
     }
     if (f.maxUsage !== "" && Number(f.maxUsage) <= 0) {
-      return "Số lượt sử dụng tối đa phải lớn hơn 0";
+      return t.admVchErrMaxUsage;
     }
     return null;
   };
@@ -188,14 +210,14 @@ const AdminVouchers = () => {
       if (res.ok) {
         setForm(emptyForm);
         loadVouchers();
-        toast.showToast?.("Tạo voucher thành công!", "success");
+        toast.showToast?.(t.admVchCreated, "success");
       } else {
         const text = await res.text();
-        alert(text || "Không thể tạo voucher");
+        alert(text || t.admVchCreateError);
       }
     } catch (err) {
       console.error(err);
-      alert("Lỗi kết nối máy chủ");
+      alert(t.admVchConnError);
     } finally {
       setSubmitting(false);
     }
@@ -237,14 +259,14 @@ const AdminVouchers = () => {
       if (res.ok) {
         setEditModal({ show: false, voucher: null, form: emptyForm, loading: false });
         loadVouchers();
-        toast.showToast?.("Cập nhật voucher thành công!", "success");
+        toast.showToast?.(t.admVchUpdated, "success");
       } else {
         const text = await res.text();
-        alert(text || "Không thể cập nhật voucher");
+        alert(text || t.admVchUpdateError);
       }
     } catch (err) {
       console.error(err);
-      alert("Lỗi kết nối máy chủ");
+      alert(t.admVchConnError);
     } finally {
       setEditModal((prev) => ({ ...prev, loading: false }));
     }
@@ -260,14 +282,14 @@ const AdminVouchers = () => {
       if (res.ok || res.status === 204) {
         setDeleteModal({ show: false, voucher: null, loading: false });
         loadVouchers();
-        toast.showToast?.("Xóa voucher thành công!", "success");
+        toast.showToast?.(t.admVchDeleted, "success");
       } else {
         const text = await res.text();
-        alert(text || "Không thể xóa voucher");
+        alert(text || t.admVchDeleteError);
       }
     } catch (err) {
       console.error(err);
-      alert("Lỗi kết nối máy chủ");
+      alert(t.admVchConnError);
     } finally {
       setDeleteModal((prev) => ({ ...prev, loading: false }));
     }
@@ -276,8 +298,8 @@ const AdminVouchers = () => {
   if (!isAdmin && !isProvider) {
     return (
       <div style={{ padding: 24, color: "var(--text-main)", textAlign: "center" }}>
-        <h2>Quản lý Voucher</h2>
-        <p>Tính năng chỉ dành cho Quản trị viên và Nhà cung cấp.</p>
+        <h2>{t.admVchTitle}</h2>
+        <p>{t.admVchNoAccess}</p>
       </div>
     );
   }
@@ -302,12 +324,10 @@ const AdminVouchers = () => {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
         <div>
           <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 10 }}>
-            <FaTag style={{ color: "var(--primary)" }} /> {isAdmin ? "Quản lý Voucher" : "Voucher đang hoạt động"}
+            <FaTag style={{ color: "var(--primary)" }} /> {isAdmin ? t.admVchTitle : t.admVchTitleProvider}
           </h2>
           <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-            {isAdmin
-              ? "Tạo, chỉnh sửa và theo dõi các mã giảm giá trong toàn hệ thống"
-              : "Danh sách các mã giảm giá đang còn hiệu lực áp dụng cho khách hàng"}
+            {isAdmin ? t.admVchSubtitle : t.admVchSubtitleProvider}
           </p>
         </div>
 
@@ -315,7 +335,7 @@ const AdminVouchers = () => {
           <FaSearch style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 13 }} />
           <input
             type="text"
-            placeholder="Tìm mã hoặc mô tả..."
+            placeholder={t.admVchSearchPlaceholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{ ...inputStyle, padding: "9px 14px 9px 34px", width: 240 }}
@@ -336,57 +356,57 @@ const AdminVouchers = () => {
         }}
       >
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 8 }}>
-          <FaPlus style={{ fontSize: 14, color: "var(--primary)" }} /> Thêm Voucher Mới
+          <FaPlus style={{ fontSize: 14, color: "var(--primary)" }} /> {t.admVchAddNew}
         </h3>
         <form className="grid-form" onSubmit={handleCreate} style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
           <div>
-            <label style={labelStyle}>Hãng phương tiện áp dụng</label>
+            <label style={labelStyle}>{t.admVchProviderLabel}</label>
             <select value={form.providerId} onChange={(e) => setForm((p) => ({ ...p, providerId: e.target.value }))} style={inputStyle}>
-              <option value="">Tất cả các hãng</option>
+              <option value="">{t.admVchAllProviders}</option>
               {providers.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.providerName} ({p.providerType === "AIRLINE" ? "Máy bay" : p.providerType === "TRAIN" ? "Tàu hỏa" : "Xe khách"})
+                  {p.providerName} ({providerTypeLabel(p.providerType, t)})
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Mã voucher <span style={{ color: "red" }}>*</span></label>
-            <input type="text" placeholder="VD: SUMMER2026" value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} style={inputStyle} />
+            <label style={labelStyle}>{t.admVchCode} <span style={{ color: "red" }}>*</span></label>
+            <input type="text" placeholder={t.admVchCodePlaceholder} value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>% Giảm giá <span style={{ color: "red" }}>*</span></label>
-            <input type="number" min="1" max="100" placeholder="VD: 15" value={form.discountPercent} onChange={(e) => setForm((p) => ({ ...p, discountPercent: e.target.value }))} style={inputStyle} />
+            <label style={labelStyle}>{t.admVchDiscountPercent} <span style={{ color: "red" }}>*</span></label>
+            <input type="number" min="1" max="100" placeholder={t.admVchDiscountPercentPlaceholder} value={form.discountPercent} onChange={(e) => setForm((p) => ({ ...p, discountPercent: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Giảm tối đa (VND)</label>
-            <input type="number" min="0" placeholder="VD: 100000" value={form.maxDiscountAmount} onChange={(e) => setForm((p) => ({ ...p, maxDiscountAmount: e.target.value }))} style={inputStyle} />
+            <label style={labelStyle}>{t.admVchMaxDiscount}</label>
+            <input type="number" min="0" placeholder={t.admVchMaxDiscountPlaceholder} value={form.maxDiscountAmount} onChange={(e) => setForm((p) => ({ ...p, maxDiscountAmount: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Đơn hàng tối thiểu (VND)</label>
-            <input type="number" min="0" placeholder="VD: 200000" value={form.minOrderAmount} onChange={(e) => setForm((p) => ({ ...p, minOrderAmount: e.target.value }))} style={inputStyle} />
+            <label style={labelStyle}>{t.admVchMinOrder}</label>
+            <input type="number" min="0" placeholder={t.admVchMinOrderPlaceholder} value={form.minOrderAmount} onChange={(e) => setForm((p) => ({ ...p, minOrderAmount: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Ngày bắt đầu</label>
+            <label style={labelStyle}>{t.admVchStartDate}</label>
             <input type="datetime-local" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Ngày hết hạn</label>
+            <label style={labelStyle}>{t.admVchExpiryDate}</label>
             <input type="datetime-local" value={form.expiryDate} onChange={(e) => setForm((p) => ({ ...p, expiryDate: e.target.value }))} style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Giới hạn lượt sử dụng</label>
-            <input type="number" min="1" placeholder="VD: 100 (để trống = không giới hạn)" value={form.maxUsage} onChange={(e) => setForm((p) => ({ ...p, maxUsage: e.target.value }))} style={inputStyle} />
+            <label style={labelStyle}>{t.admVchMaxUsage}</label>
+            <input type="number" min="1" placeholder={t.admVchMaxUsagePlaceholder} value={form.maxUsage} onChange={(e) => setForm((p) => ({ ...p, maxUsage: e.target.value }))} style={inputStyle} />
           </div>
           <div style={{ display: "flex", alignItems: "flex-end" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--text-main)", cursor: "pointer" }}>
               <input type="checkbox" checked={form.isActive} onChange={(e) => setForm((p) => ({ ...p, isActive: e.target.checked }))} />
-              Kích hoạt ngay
+              {t.admVchActivateNow}
             </label>
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
-            <label style={labelStyle}>Mô tả</label>
-            <input type="text" placeholder="VD: Ưu đãi mùa hè cho 100 khách đầu tiên" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} style={inputStyle} />
+            <label style={labelStyle}>{t.admVchDescription}</label>
+            <input type="text" placeholder={t.admVchDescriptionPlaceholder} value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} style={inputStyle} />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
             <button
@@ -404,7 +424,7 @@ const AdminVouchers = () => {
                 boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
               }}
             >
-              {submitting ? "Đang lưu..." : "Thêm Voucher"}
+              {submitting ? t.admVchSaving : t.admVchSubmit}
             </button>
           </div>
         </form>
@@ -423,26 +443,26 @@ const AdminVouchers = () => {
       >
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-light)" }}>
           <span style={{ fontWeight: 600, fontSize: 15, color: "var(--text-heading)" }}>
-            Tổng số: {filteredVouchers.length} voucher
+            {fill(t.admVchTotal, { count: filteredVouchers.length })}
           </span>
         </div>
 
         {loading ? (
-          <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>Đang tải danh sách voucher...</div>
+          <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>{t.admVchLoading}</div>
         ) : filteredVouchers.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>Không tìm thấy voucher nào.</div>
+          <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>{t.admVchEmpty}</div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14 }}>
               <thead>
                 <tr style={{ background: "var(--bg-hover)", borderBottom: "1px solid var(--border-light)", color: "var(--text-muted)" }}>
-                  <th style={{ padding: "14px 16px" }}>Mã</th>
-                  <th style={{ padding: "14px 16px" }}>Giảm giá</th>
-                  <th style={{ padding: "14px 16px" }}>Hãng áp dụng</th>
-                  <th style={{ padding: "14px 16px" }}>Thời hạn</th>
-                  <th style={{ padding: "14px 16px" }}>Lượt dùng</th>
-                  <th style={{ padding: "14px 16px" }}>Trạng thái</th>
-                  {isAdmin && <th style={{ padding: "14px 16px", textAlign: "center" }}>Thao tác</th>}
+                  <th style={{ padding: "14px 16px" }}>{t.admVchColCode}</th>
+                  <th style={{ padding: "14px 16px" }}>{t.admVchColDiscount}</th>
+                  <th style={{ padding: "14px 16px" }}>{t.admVchColProvider}</th>
+                  <th style={{ padding: "14px 16px" }}>{t.admVchColPeriod}</th>
+                  <th style={{ padding: "14px 16px" }}>{t.admVchColUsage}</th>
+                  <th style={{ padding: "14px 16px" }}>{t.admVchColStatus}</th>
+                  {isAdmin && <th style={{ padding: "14px 16px", textAlign: "center" }}>{t.admVchColActions}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -459,10 +479,10 @@ const AdminVouchers = () => {
                       <td style={{ padding: "14px 16px" }}>
                         <div style={{ fontWeight: 600 }}>{v.discountPercent}%</div>
                         {v.maxDiscountAmount != null && (
-                          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Tối đa {Number(v.maxDiscountAmount).toLocaleString("vi-VN")}đ</div>
+                          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{fill(t.admVchUpTo, { amount: money(v.maxDiscountAmount) })}</div>
                         )}
                         {v.minOrderAmount != null && (
-                          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Đơn tối thiểu {Number(v.minOrderAmount).toLocaleString("vi-VN")}đ</div>
+                          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{fill(t.admVchMinOrderShort, { amount: money(v.minOrderAmount) })}</div>
                         )}
                       </td>
                       <td style={{ padding: "14px 16px", fontSize: 13 }}>
@@ -471,31 +491,31 @@ const AdminVouchers = () => {
                             {v.provider.providerName}
                           </span>
                         ) : (
-                          <span style={{ color: "var(--text-muted)" }}>Tất cả các hãng</span>
+                          <span style={{ color: "var(--text-muted)" }}>{t.admVchAllProviders}</span>
                         )}
                       </td>
                       <td style={{ padding: "14px 16px", fontSize: 13 }}>
-                        <div>Từ: {formatDate(v.startDate)}</div>
-                        <div>Đến: {formatDate(v.expiryDate)}</div>
+                        <div>{fill(t.admVchFrom, { date: formatDate(v.startDate, locale) })}</div>
+                        <div>{fill(t.admVchTo, { date: formatDate(v.expiryDate, locale) })}</div>
                       </td>
                       <td style={{ padding: "14px 16px", fontSize: 13 }}>
-                        <div>Đã dùng: {v.currentUsage ?? 0}</div>
-                        <div>Giới hạn: {v.maxUsage ?? "Không giới hạn"}</div>
+                        <div>{fill(t.admVchUsed, { count: v.currentUsage ?? 0 })}</div>
+                        <div>{fill(t.admVchLimit, { value: v.maxUsage ?? t.admVchUnlimited })}</div>
                         {remaining !== null && (
                           <div style={{ fontWeight: 600, color: remaining === 0 ? "#ef4444" : "var(--text-main)" }}>
-                            Còn lại: {remaining}
+                            {fill(t.admVchLeft, { count: remaining })}
                           </div>
                         )}
                       </td>
                       <td style={{ padding: "14px 16px" }}>
-                        <VoucherStatusBadge voucher={v} />
+                        <VoucherStatusBadge voucher={v} t={t} />
                       </td>
                       {isAdmin && (
                       <td style={{ padding: "14px 16px", textAlign: "center" }}>
                         <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                           <button
                             onClick={() => openEditModal(v)}
-                            title="Chỉnh sửa"
+                            title={t.admVchEdit}
                             style={{
                               padding: "6px 10px",
                               borderRadius: 8,
@@ -509,11 +529,11 @@ const AdminVouchers = () => {
                               fontSize: 13,
                             }}
                           >
-                            <FaEdit /> Sửa
+                            <FaEdit /> {t.admVchEdit}
                           </button>
                           <button
                             onClick={() => setDeleteModal({ show: true, voucher: v, loading: false })}
-                            title="Xóa"
+                            title={t.admVchDelete}
                             style={{
                               padding: "6px 10px",
                               borderRadius: 8,
@@ -527,7 +547,7 @@ const AdminVouchers = () => {
                               fontSize: 13,
                             }}
                           >
-                            <FaTrash /> Xóa
+                            <FaTrash /> {t.admVchDelete}
                           </button>
                         </div>
                       </td>
@@ -559,7 +579,7 @@ const AdminVouchers = () => {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "var(--text-heading)" }}>
-                ✏️ Chỉnh sửa Voucher #{editModal.voucher?.id}
+                ✏️ {fill(t.admVchEditTitle, { id: editModal.voucher?.id })}
               </h3>
               <button
                 onClick={() => setEditModal({ show: false, voucher: null, form: emptyForm, loading: false })}
@@ -571,22 +591,22 @@ const AdminVouchers = () => {
 
             <div className="grid-form" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div style={{ gridColumn: "1 / -1" }}>
-                <label style={labelStyle}>Hãng phương tiện áp dụng</label>
+                <label style={labelStyle}>{t.admVchProviderLabel}</label>
                 <select
                   value={editModal.form.providerId}
                   onChange={(e) => setEditModal((p) => ({ ...p, form: { ...p.form, providerId: e.target.value } }))}
                   style={inputStyle}
                 >
-                  <option value="">Tất cả các hãng</option>
+                  <option value="">{t.admVchAllProviders}</option>
                   {providers.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.providerName} ({p.providerType === "AIRLINE" ? "Máy bay" : p.providerType === "TRAIN" ? "Tàu hỏa" : "Xe khách"})
+                      {p.providerName} ({providerTypeLabel(p.providerType, t)})
                     </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Mã voucher</label>
+                <label style={labelStyle}>{t.admVchCode}</label>
                 <input
                   type="text"
                   value={editModal.form.code}
@@ -595,7 +615,7 @@ const AdminVouchers = () => {
                 />
               </div>
               <div>
-                <label style={labelStyle}>% Giảm giá</label>
+                <label style={labelStyle}>{t.admVchDiscountPercent}</label>
                 <input
                   type="number"
                   min="1"
@@ -606,7 +626,7 @@ const AdminVouchers = () => {
                 />
               </div>
               <div>
-                <label style={labelStyle}>Giảm tối đa (VND)</label>
+                <label style={labelStyle}>{t.admVchMaxDiscount}</label>
                 <input
                   type="number"
                   min="0"
@@ -616,7 +636,7 @@ const AdminVouchers = () => {
                 />
               </div>
               <div>
-                <label style={labelStyle}>Đơn hàng tối thiểu (VND)</label>
+                <label style={labelStyle}>{t.admVchMinOrder}</label>
                 <input
                   type="number"
                   min="0"
@@ -626,7 +646,7 @@ const AdminVouchers = () => {
                 />
               </div>
               <div>
-                <label style={labelStyle}>Ngày bắt đầu</label>
+                <label style={labelStyle}>{t.admVchStartDate}</label>
                 <input
                   type="datetime-local"
                   value={editModal.form.startDate}
@@ -635,7 +655,7 @@ const AdminVouchers = () => {
                 />
               </div>
               <div>
-                <label style={labelStyle}>Ngày hết hạn</label>
+                <label style={labelStyle}>{t.admVchExpiryDate}</label>
                 <input
                   type="datetime-local"
                   value={editModal.form.expiryDate}
@@ -644,11 +664,11 @@ const AdminVouchers = () => {
                 />
               </div>
               <div>
-                <label style={labelStyle}>Giới hạn lượt sử dụng</label>
+                <label style={labelStyle}>{t.admVchMaxUsage}</label>
                 <input
                   type="number"
                   min="1"
-                  placeholder="Để trống = không giới hạn"
+                  placeholder={t.admVchMaxUsageBlankHint}
                   value={editModal.form.maxUsage}
                   onChange={(e) => setEditModal((p) => ({ ...p, form: { ...p.form, maxUsage: e.target.value } }))}
                   style={inputStyle}
@@ -661,11 +681,11 @@ const AdminVouchers = () => {
                     checked={editModal.form.isActive}
                     onChange={(e) => setEditModal((p) => ({ ...p, form: { ...p.form, isActive: e.target.checked } }))}
                   />
-                  Đang kích hoạt
+                  {t.admVchIsActive}
                 </label>
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
-                <label style={labelStyle}>Mô tả</label>
+                <label style={labelStyle}>{t.admVchDescription}</label>
                 <input
                   type="text"
                   value={editModal.form.description}
@@ -675,7 +695,7 @@ const AdminVouchers = () => {
               </div>
               {editModal.voucher && (
                 <div style={{ gridColumn: "1 / -1", fontSize: 13, color: "var(--text-muted)" }}>
-                  Đã sử dụng: {editModal.voucher.currentUsage ?? 0} lượt
+                  {fill(t.admVchUsageSoFar, { count: editModal.voucher.currentUsage ?? 0 })}
                 </div>
               )}
             </div>
@@ -685,7 +705,7 @@ const AdminVouchers = () => {
                 onClick={() => setEditModal({ show: false, voucher: null, form: emptyForm, loading: false })}
                 style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border-input)", background: "transparent", color: "var(--text-main)", cursor: "pointer" }}
               >
-                Hủy
+                {t.admVchCancel}
               </button>
               <button
                 onClick={handleEdit}
@@ -700,7 +720,7 @@ const AdminVouchers = () => {
                   cursor: editModal.loading ? "not-allowed" : "pointer",
                 }}
               >
-                {editModal.loading ? "Đang lưu..." : "Lưu thay đổi"}
+                {editModal.loading ? t.admVchSaving : t.admVchSaveChanges}
               </button>
             </div>
           </div>
@@ -721,16 +741,16 @@ const AdminVouchers = () => {
               boxShadow: "var(--shadow-xl)",
             }}
           >
-            <h3 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 700, color: "#ef4444" }}>⚠️ Xác nhận xóa voucher</h3>
+            <h3 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 700, color: "#ef4444" }}>⚠️ {t.admVchDeleteTitle}</h3>
             <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 20 }}>
-              Bạn có chắc chắn muốn xóa mã <strong>{deleteModal.voucher?.code}</strong> (ID: #{deleteModal.voucher?.id})?
+              {fill(t.admVchDeleteConfirm, { code: deleteModal.voucher?.code ?? "", id: deleteModal.voucher?.id ?? "" })}
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
               <button
                 onClick={() => setDeleteModal({ show: false, voucher: null, loading: false })}
                 style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border-input)", background: "transparent", color: "var(--text-main)", cursor: "pointer" }}
               >
-                Hủy
+                {t.admVchCancel}
               </button>
               <button
                 onClick={handleDelete}
@@ -745,7 +765,7 @@ const AdminVouchers = () => {
                   cursor: deleteModal.loading ? "not-allowed" : "pointer",
                 }}
               >
-                {deleteModal.loading ? "Đang xóa..." : "Xác nhận xóa"}
+                {deleteModal.loading ? t.admVchDeleting : t.admVchDeleteAction}
               </button>
             </div>
           </div>

@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface TripRepository extends JpaRepository<Trip, Long> {
 
@@ -57,6 +58,22 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     Page<Trip> searchTripsForAdmin(@Param("vehicleType") String vehicleType,
                                    @Param("keyword") String keyword,
                                    Pageable pageable);
+
+    /**
+     * Một chuyến kèm sẵn tuyến, phương tiện và hãng.
+     *
+     * Cùng lý do với {@link #searchTripsForAdmin}: các endpoint ghi của màn quản lý chuyến
+     * (sửa chuyến, đổi giá, hoãn, huỷ) trả thẳng entity Trip ra JSON. findById thường chỉ nạp
+     * hàng chuyen_di, còn route/vehicle nằm lại dưới dạng proxy — serialize proxy đó cần một
+     * session còn mở, và khi không có thì cả request thành 500 "Đã có lỗi xảy ra trên hệ thống".
+     * Nạp sẵn ở đây để kết quả trả về đứng độc lập, không phụ thuộc open-in-view.
+     */
+    @Query("SELECT t FROM Trip t "
+            + "LEFT JOIN FETCH t.route "
+            + "LEFT JOIN FETCH t.vehicle v "
+            + "LEFT JOIN FETCH v.provider "
+            + "WHERE t.id = :id")
+    Optional<Trip> findByIdWithDetails(@Param("id") Long id);
 
     /** Đếm chuyến đang gắn với một tuyến/phương tiện — dùng để chặn xóa danh mục còn được tham chiếu. */
     long countByRouteId(Long routeId);

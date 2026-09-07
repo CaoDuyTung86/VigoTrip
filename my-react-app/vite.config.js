@@ -18,6 +18,14 @@ export default defineConfig(({ mode }) => {
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['vite.svg'],
+      workbox: {
+        // Mac dinh cua workbox la 2 MiB, va bundle cua app dang o 2,09 MB - tuc la chi con
+        // vai KB truoc khi cham tran. Cham tran KHONG phai canh bao: generateSW nem loi va
+        // ca lenh `vite build` that bai, nen chi can them mot man hinh hay mot nhum khoa
+        // dich la deploy do. Nang tran de kich thuoc bundle khong am tham tro thanh gioi han
+        // cua viec them tinh nang; muon giam that su thi phai tach chunk, khong phai o day.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+      },
       manifest: {
         name: 'VigoTrip - Hệ Thống Đặt Vé Đa Phương Tiện',
         short_name: 'VigoTrip',

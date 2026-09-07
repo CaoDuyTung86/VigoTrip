@@ -42,7 +42,7 @@ const Header = () => {
     { icon: <PiAirplaneTilt />, label: t.flight, path: "/ve-may-bay" },
     { icon: <MdOutlineTrain />, label: t.train, path: "/ve-tau-hoa" },
     { icon: <IoIosBus />, label: t.bus, path: "/xe-khach" },
-    { icon: <Tag size={16} />, label: "Ưu đãi", path: "/uu-dai" },
+    { icon: <Tag size={16} />, label: t.navPromotions, path: "/uu-dai" },
   ];
 
   // Danh sách chức năng quản trị được tách ra khỏi JSX vì giờ có HAI nơi cùng
@@ -51,7 +51,7 @@ const Header = () => {
     { label: t.adminTrips || "Quản lý chuyến đi", path: "/admin/trips", icon: <Navigation size={16} color="#3b82f6" /> },
     { label: "Quản lý tuyến đường", path: "/admin/routes", icon: <MapPin size={16} color="#8b5cf6" /> },
     { label: "Quản lý người dùng", path: "/admin/users", icon: <Users size={16} color="#06b6d4" /> },
-    { label: "Quản lý voucher", path: "/admin/vouchers", icon: <Tag size={16} color="#f59e0b" /> },
+    { label: t.adminVouchers, path: "/admin/vouchers", icon: <Tag size={16} color="#f59e0b" /> },
     { label: t.refunds || "Hoàn tiền & Hủy vé", path: "/provider/refunds", icon: <Undo2 size={16} color="#ef4444" /> },
     { label: t.revenue || "Thống kê doanh thu", path: "/admin/revenue", icon: <DollarSign size={16} color="#fbbf24" /> },
     { label: t.providerReviews || "Đánh giá & Feedback", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },

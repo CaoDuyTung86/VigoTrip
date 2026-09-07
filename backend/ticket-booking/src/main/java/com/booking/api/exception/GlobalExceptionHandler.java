@@ -3,6 +3,7 @@ package com.booking.api.exception;
 import com.booking.api.dto.ErrorResponse;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -141,6 +142,27 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 LocalDateTime.now());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    /**
+     * Ràng buộc CSDL bị vi phạm (trùng khoá, thiếu cột NOT NULL, sai khoá ngoại).
+     *
+     * Trước đây rơi hết vào handleGeneral và ra đúng một câu "Đã có lỗi xảy ra trên hệ thống",
+     * nên admin bấm "Tạo chuyến đi mới" mà hỏng thì không có cách nào biết hỏng ở đâu nếu
+     * không mở được log máy chủ. Tách riêng ở đây để phía giao diện phân biệt được "dữ liệu
+     * đụng ràng buộc" với "lỗi lạ", còn chi tiết ràng buộc thì chỉ ghi vào log — tên constraint
+     * là thông tin nội bộ của lược đồ, không đẩy ra client.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.error("Vi phạm ràng buộc CSDL: ", ex);
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                "Conflict",
+                "Dữ liệu không hợp lệ hoặc đụng ràng buộc của cơ sở dữ liệu. "
+                        + "Kiểm tra lại các trường bắt buộc và bản ghi đã có trước khi thử lại.",
+                LocalDateTime.now());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
     @ExceptionHandler(Exception.class)

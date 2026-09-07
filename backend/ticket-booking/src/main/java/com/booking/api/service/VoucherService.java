@@ -229,27 +229,37 @@ public class VoucherService {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
         boolean available = true;
         String reason = null;
+        // Đi kèm `reason`: cùng một lý do, một bản cho người đọc và một mã cho máy đọc.
+        // Trang ưu đãi dựng câu từ mã này để dịch được sang ngôn ngữ đang chọn, còn chuỗi
+        // tiếng Việt bên dưới ở lại để client cũ (chưa biết mã) vẫn hiển thị được như trước.
+        String reasonCode = null;
 
         boolean alreadyUsed = usedCodes != null && usedCodes.contains(normalizeCode(v.getCode()));
 
         if (alreadyUsed) {
             available = false;
+            reasonCode = "ALREADY_USED";
             reason = "Bạn đã dùng mã này rồi (mỗi mã chỉ dùng được 1 lần).";
         } else if (v.getExpiryDate() != null && now.isAfter(v.getExpiryDate())) {
             available = false;
+            reasonCode = "EXPIRED";
             reason = "Mã đã hết hạn sử dụng.";
         } else if (v.getStartDate() != null && now.isBefore(v.getStartDate())) {
             available = false;
+            reasonCode = "NOT_STARTED";
             reason = "Mã chưa đến ngày áp dụng.";
         } else if (v.getMaxUsage() != null && v.getCurrentUsage() != null && v.getCurrentUsage() >= v.getMaxUsage()) {
             available = false;
+            reasonCode = "SOLD_OUT";
             reason = "Mã đã hết lượt sử dụng.";
         } else if (v.getProvider() != null && providerId != null && !v.getProvider().getId().equals(providerId)) {
             available = false;
+            reasonCode = "PROVIDER_ONLY";
             reason = "Chỉ áp dụng cho hãng \"" + v.getProvider().getProviderName() + "\".";
         } else if (v.getMinOrderAmount() != null && orderAmount != null
                 && orderAmount.compareTo(java.math.BigDecimal.valueOf(v.getMinOrderAmount())) < 0) {
             available = false;
+            reasonCode = "MIN_ORDER";
             reason = String.format("Đơn hàng tối thiểu %,.0f VND để áp dụng mã này.", v.getMinOrderAmount());
         }
 
@@ -268,6 +278,7 @@ public class VoucherService {
                 .providerName(v.getProvider() != null ? v.getProvider().getProviderName() : null)
                 .available(available)
                 .unavailableReason(reason)
+                .unavailableReasonCode(reasonCode)
                 .saved(saved)
                 .alreadyUsed(alreadyUsed)
                 .build();
