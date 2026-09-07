@@ -115,7 +115,8 @@ public class SecurityConfig {
                 "https://*.vercel.app",
                 "https://*.onrender.com"
         ));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // Có PATCH để khớp WebConfig — thiếu ở đây là preflight của PATCH bị chặn khi frontend khác origin.
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 

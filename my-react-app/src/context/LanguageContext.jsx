@@ -1233,6 +1233,21 @@ const translations = {
     admVchUpdateError: "Không thể cập nhật voucher",
     admVchDeleted: "Xóa voucher thành công!",
     admVchDeleteError: "Không thể xóa voucher",
+    admVchEnable: "Bật",
+    admVchDisable: "Tắt",
+    admVchEnabled: "Đã bật lại voucher.",
+    admVchDisabled: "Đã tắt voucher — voucher không còn hiện ở trang ưu đãi nữa.",
+    admVchToggleError: "Không thể đổi trạng thái voucher",
+    admVchFilterLabel: "Lọc theo trạng thái",
+    admVchFilterActive: "Đang dùng được",
+    admVchFilterRetired: "Đã nghỉ ({count})",
+    admVchFilterAll: "Tất cả",
+    admVchCheckingUsage: "Đang kiểm tra voucher đã dùng ở đơn nào chưa...",
+    admVchCannotDeleteTitle: "Voucher này không xóa được",
+    admVchCannotDeleteBody:
+      "Mã {code} đã được dùng ở {count} đơn. Xóa đi sẽ mất thông tin đối soát của những đơn đó, nên hệ thống giữ lại bản ghi.",
+    admVchDisableHint:
+      "Tắt voucher là đủ: voucher biến mất khỏi trang ưu đãi và không áp được cho đơn mới, nhưng đơn cũ vẫn tra được và bạn bật lại lúc nào cũng được.",
 
     // ==== Điều hướng ====
     navPromotions: "Ưu đãi",
@@ -2447,6 +2462,21 @@ const translations = {
     admVchUpdateError: "Could not update the voucher",
     admVchDeleted: "Voucher deleted successfully!",
     admVchDeleteError: "Could not delete the voucher",
+    admVchEnable: "Enable",
+    admVchDisable: "Disable",
+    admVchEnabled: "Voucher enabled again.",
+    admVchDisabled: "Voucher disabled — it no longer appears on the deals page.",
+    admVchToggleError: "Could not change the voucher status",
+    admVchFilterLabel: "Filter by status",
+    admVchFilterActive: "Still usable",
+    admVchFilterRetired: "Retired ({count})",
+    admVchFilterAll: "All",
+    admVchCheckingUsage: "Checking whether this voucher has been used on any booking...",
+    admVchCannotDeleteTitle: "This voucher cannot be deleted",
+    admVchCannotDeleteBody:
+      "Code {code} has been used on {count} booking(s). Deleting it would lose the reconciliation details for those bookings, so the record is kept.",
+    admVchDisableHint:
+      "Disabling is enough: the voucher disappears from the deals page and cannot be applied to new bookings, while old bookings stay traceable and you can re-enable it any time.",
 
     // ==== Navigation ====
     navPromotions: "Deals",
