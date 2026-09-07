@@ -131,4 +131,19 @@ public class Booking {
         }
         return user == null ? null : user.getEmail();
     }
+
+    /**
+     * Ngôn ngữ để soạn mail về đơn này.
+     *
+     * <p>Đơn của khách vãng lai không gắn với tài khoản nào, nên không có gì để hỏi — rơi
+     * về tiếng Việt. Đơn đặt hộ cũng lấy ngôn ngữ của người ĐẶT chứ không phải người nhận
+     * mail: người nhận có thể không có tài khoản, còn người đặt thì hệ thống biết chắc họ
+     * vừa đọc giao diện bằng thứ tiếng gì.
+     *
+     * <p>Cũng như resolveNotificationEmail, chỉ gọi được khi user còn nạp được (trong
+     * transaction) — thread gửi mail @Async không đọc được quan hệ LAZY này nữa.
+     */
+    public java.util.Locale resolveNotificationLocale() {
+        return user == null ? com.booking.api.i18n.SupportedLocales.DEFAULT : user.resolveLocale();
+    }
 }

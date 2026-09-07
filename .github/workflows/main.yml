@@ -67,6 +67,14 @@ jobs:
         npm install
         npm run build
 
+    # Chặn "dịch sót": khoá gọi trong code mà bảng dịch không có, bảng en thiếu khoá so
+    # với vi, hoặc chuỗi tiếng Việt viết cứng mới phát sinh. Nợ cũ đã đóng băng trong
+    # scripts/i18n-baseline.json nên bước này chỉ đỏ khi có người thêm chỗ sót MỚI.
+    - name: Check i18n
+      run: |
+        cd my-react-app
+        npm run i18n:check
+
     # Test đơn vị frontend (Vitest). Chạy sau build để lỗi build lộ ra trước,
     # nhưng vẫn chặn được job nếu logic vé/ghế/đếm ngược bị sửa hỏng.
     - name: Run Frontend Unit Tests

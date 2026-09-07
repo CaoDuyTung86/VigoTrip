@@ -146,7 +146,7 @@ const Auth = ({ isOpen, onClose }) => {
   const [forgotMessage, setForgotMessage] = useState("");
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const { loginSuccess } = useAuth();
   const navigate = useNavigate();
 
@@ -293,6 +293,10 @@ const Auth = ({ isOpen, onClose }) => {
             email: normalizedEmail(),
             password,
             phone: phone.trim(),
+            // Mail kích hoạt là lá thư đầu tiên hệ thống gửi, mà lúc đó tài khoản còn chưa
+            // tồn tại để lưu lựa chọn ngôn ngữ. Không gửi kèm ở đây thì người đang xem bản
+            // tiếng Anh nhận mail kích hoạt bằng tiếng Việt.
+            language: currentLanguage.code,
           }),
         },
         retryToast,

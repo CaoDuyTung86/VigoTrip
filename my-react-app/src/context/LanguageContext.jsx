@@ -104,6 +104,7 @@ const translations = {
     business: "Thương gia",
     first: "Hạng nhất",
     apply: "Áp dụng",
+    flightHotel: "Vé máy bay + Khách sạn",
     anywhere: "Mọi nơi",
     addFlight: "Thêm chuyến bay khác",
 
@@ -153,14 +154,14 @@ const translations = {
     customerCare: "Chăm Sóc Khách Hàng",
     serviceGuarantee: "Bảo Đảm Dịch Vụ",
     moreServiceInfo: "Xem thêm thông tin dịch vụ",
-    aboutTrip: "Về VigoTrip",
+    aboutUs: "Về VigoTrip",
     news: "Tin Tức",
     careers: "Tuyển dụng",
     termsConditions: "Điều Khoản & Điều Kiện",
     aboutGroup: "Giới Thiệu Về Tập Đoàn VigoTrip",
     otherServices: "Các Dịch Vụ Khác",
     investorRelations: "Quan Hệ Đầu Tư",
-    tripRewards: "Phần Thưởng VigoTrip",
+    rewards: "Phần Thưởng VigoTrip",
     affiliateProgram: "Chương trình đối tác liên kết",
     listProperty: "Đăng Cơ Sở Lưu Trú",
     security: "Bảo Mật",
@@ -1411,6 +1412,53 @@ const translations = {
     // ==== Điều hướng ====
     navPromotions: "Ưu đãi",
     adminVouchers: "Quản lý voucher",
+
+    // ==== Khoá bị sót, do scripts/i18n-check.mjs phát hiện ====
+    // Những khoá này đã được gọi trong code từ trước nhưng chưa bao giờ có mặt trong bảng,
+    // nên chỗ gọi luôn rơi về chuỗi tiếng Việt viết cứng — kể cả với người đang xem bản
+    // tiếng Anh. Chữ ở đây bê nguyên từ chuỗi dự phòng đó để giao diện tiếng Việt không đổi.
+    loading: "Đang tải…",
+    commonCancel: "Hủy",
+    errServerConnect: "Lỗi kết nối máy chủ",
+    saveChangesBtn: "Lưu thay đổi",
+    bookTicket: "Đặt vé",
+    chatbotClearConfirmTitle: "Xóa lịch sử hội thoại?",
+    chatbotClearConfirmYes: "Xóa",
+    acctChatPrivacyOffTitle: "Tắt lưu lịch sử trò chuyện?",
+    acctChatPrivacyOffYes: "Tắt và xóa",
+
+    // Trang doanh thu / BI (AdminRevenue) — trước đây chưa có khoá nào
+    biLoadError: "Không tải được số liệu doanh thu",
+    biAiError: "Không lấy được nhận định từ AI",
+    biScopeSystem: "Toàn hệ thống VigoTrip",
+    biScopeProvider: "Thương hiệu bạn vận hành",
+    biScopeNone: "Tài khoản chưa được gán thương hiệu nào",
+    biNoDataTitle: "Chưa có giao dịch trong kỳ này",
+    biNoDataHint: "Hãy chọn kỳ khác bằng mũi tên phía trên.",
+    biNoProviderHint: "Tài khoản chưa được gán thương hiệu nào để thống kê.",
+    biFallbackNote: "chưa có giao dịch nào. Đang hiển thị số liệu của",
+    biFallbackHint: "kỳ gần nhất có dữ liệu.",
+    biKpiRevenue: "Doanh thu thực thu",
+    biKpiBookings: "Số đơn đặt vé",
+    biKpiTickets: "Số vé bán ra",
+    biKpiTicketRevenue: "Doanh thu vé",
+    biTicketRevenueHint: "Phần quy được về từng hãng & tuyến",
+    biTicketsHint: "Vé đã xuất trong kỳ",
+    biVsPrev: "so với",
+    biTrendTitle: "Diễn biến doanh thu",
+    biMyBrands: "Doanh thu theo thương hiệu",
+    biTopRoutes: "Tuyến hiệu quả nhất trong kỳ",
+    biNoRoutes: "Chưa có vé nào được bán trong kỳ.",
+    biRoute: "Tuyến",
+    biRevenue: "Doanh thu vé",
+    biTickets: "Số vé",
+    biShareNote: "Tỷ trọng tính trên doanh thu vé",
+    biReconTitle: "Đối soát",
+    biServiceRevenue: "Dịch vụ bổ sung",
+    biDiscountTotal: "Giảm giá & voucher",
+    biRefundAdjust: "Điều chỉnh vé huỷ",
+    biFootnote:
+      "Doanh thu thực thu tính trên đơn đặt vé (đã gồm dịch vụ cộng thêm, đã trừ voucher) nên luôn lệch so với doanh thu vé — phần duy nhất quy được về từng hãng và từng tuyến.",
 
   },
 
@@ -2802,6 +2850,50 @@ const translations = {
 
     // ==== i18n gap fixes: en ====
     clearAirlineFilter: "Clear airline filter",
+
+    // ==== Khoá bị sót, do scripts/i18n-check.mjs phát hiện ====
+    loading: "Loading…",
+    commonCancel: "Cancel",
+    errServerConnect: "Could not reach the server",
+    saveChangesBtn: "Save changes",
+    bookTicket: "Book a ticket",
+    chatbotClearConfirmTitle: "Clear conversation history?",
+    chatbotClearConfirmYes: "Clear",
+    acctChatPrivacyOffTitle: "Stop saving chat history?",
+    acctChatPrivacyOffYes: "Turn off and delete",
+
+    // Revenue / BI page (AdminRevenue)
+    biLoadError: "Could not load revenue figures",
+    biAiError: "Could not get the AI summary",
+    biScopeSystem: "All of VigoTrip",
+    biScopeProvider: "Brands you operate",
+    biScopeNone: "This account is not assigned to any brand",
+    biNoDataTitle: "No transactions in this period",
+    biNoDataHint: "Pick another period with the arrows above.",
+    biNoProviderHint: "This account has no brand assigned to report on.",
+    biFallbackNote: "has no transactions yet. Showing figures for",
+    biFallbackHint: "the most recent period with data.",
+    biKpiRevenue: "Net revenue",
+    biKpiBookings: "Bookings",
+    biKpiTickets: "Tickets sold",
+    biKpiTicketRevenue: "Ticket revenue",
+    biTicketRevenueHint: "The part attributable to a carrier & route",
+    biTicketsHint: "Tickets issued in the period",
+    biVsPrev: "vs",
+    biTrendTitle: "Revenue over time",
+    biMyBrands: "Revenue by brand",
+    biTopRoutes: "Best performing routes this period",
+    biNoRoutes: "No tickets were sold in this period.",
+    biRoute: "Route",
+    biRevenue: "Ticket revenue",
+    biTickets: "Tickets",
+    biShareNote: "Share is calculated on ticket revenue",
+    biReconTitle: "Reconciliation",
+    biServiceRevenue: "Add-on services",
+    biDiscountTotal: "Discounts & vouchers",
+    biRefundAdjust: "Cancellation adjustments",
+    biFootnote:
+      "Net revenue is measured on bookings (add-on services included, vouchers deducted), so it never matches ticket revenue — the only figure that can be attributed to a specific carrier and route.",
 
   },
 
@@ -5008,6 +5100,65 @@ const translations = {
 
 const LanguageContext = createContext();
 
+/**
+ * Đánh dấu người dùng đã TỰ bấm đổi ngôn ngữ trong phiên làm việc này.
+ *
+ * Cần nó để trả lời một câu hỏi mà không có nó thì trả lời kiểu gì cũng sai: khách chọn
+ * English lúc chưa đăng nhập, rồi đăng nhập vào một tài khoản đang để tiếng Việt — nghe ai?
+ *
+ * - Luôn nghe server: vừa bấm English xong đăng nhập cái là giao diện nhảy ngược về tiếng
+ *   Việt, và mail cũng về tiếng Việt. Đúng cái kịch bản hay dùng để demo.
+ * - Luôn nghe máy này: máy nào đã từng đổi ngôn ngữ sẽ vĩnh viễn ghi đè lựa chọn mới đặt
+ *   từ máy khác, vì cờ trong localStorage thì không bao giờ mất.
+ *
+ * Để trong sessionStorage nên nó chỉ sống trong tab hiện tại: vừa bấm xong thì lựa chọn
+ * đó thắng, còn mở lại trình duyệt ngày hôm sau thì tài khoản là nguồn đúng.
+ */
+const TOUCHED_KEY = "languageTouchedThisSession";
+
+const markLanguageTouched = () => {
+  try {
+    sessionStorage.setItem(TOUCHED_KEY, "1");
+  } catch {
+    // Chế độ riêng tư chặn sessionStorage: mất cờ thì rơi về "server thắng", không sao.
+  }
+};
+
+const wasLanguageTouched = () => {
+  try {
+    return sessionStorage.getItem(TOUCHED_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Ghi lựa chọn ngôn ngữ xuống tài khoản.
+ *
+ * Đọc token thẳng từ localStorage thay vì gọi useAuth: AuthProvider nằm BÊN TRONG
+ * LanguageProvider (xem App.jsx), nên context này không với tới nó được — mà đảo thứ tự
+ * hai provider thì AuthContext mất `t` để dịch thông báo lỗi phiên đăng nhập.
+ *
+ * Lỗi ở đây cố tình nuốt: đổi ngôn ngữ giao diện phải ăn ngay kể cả khi mạng chập chờn
+ * hay backend đang ngủ. Lần đăng nhập sau, cờ "đã bấm trong phiên này" sẽ đẩy lại giá trị
+ * này lên server.
+ */
+const pushLanguageToServer = (code) => {
+  let token = null;
+  try {
+    token = localStorage.getItem("authToken");
+  } catch {
+    return;
+  }
+  if (!token) return;
+
+  fetch("/api/users/me/language", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ language: code }),
+  }).catch(() => {});
+};
+
 // Đọc mã ngôn ngữ đã lưu. Hỗ trợ cả dữ liệu cũ (lưu nguyên object kèm URL cờ đã hash).
 const readSavedLanguageCode = () => {
   try {
@@ -5029,6 +5180,12 @@ export const LanguageProvider = ({ children }) => {
 
   const currentLanguage = React.useMemo(() => getLanguageByCode(languageCode), [languageCode]);
 
+  // Đọc mã đang chọn qua ref chứ không qua dependency: syncLanguageFromProfile được
+  // AuthContext dùng làm dependency của effect nạp hồ sơ, nên nếu nó đổi danh tính mỗi lần
+  // đổi ngôn ngữ thì mỗi lần bấm cờ lại kéo theo một lần gọi lại /api/users/me.
+  const languageCodeRef = React.useRef(languageCode);
+  useEffect(() => { languageCodeRef.current = languageCode; }, [languageCode]);
+
   // Dự phòng theo TỪNG KHOÁ, không phải theo cả bảng.
   //
   // Trước đây `t` là nguyên bảng của ngôn ngữ đang chọn, nên một khoá mới chỉ kịp thêm cho
@@ -5047,18 +5204,51 @@ export const LanguageProvider = ({ children }) => {
     document.documentElement.lang = currentLanguage.code;
   }, [currentLanguage.code]);
 
-  // Nhận vào mã ngôn ngữ ('vi') hoặc cả object ngôn ngữ, chỉ lưu lại mã.
-  const changeLanguage = React.useCallback((language) => {
+  // Áp một mã ngôn ngữ lên giao diện. Không đụng tới server — dùng chung cho cả lúc người
+  // dùng tự bấm lẫn lúc đồng bộ ngược từ tài khoản xuống.
+  const applyLanguage = React.useCallback((language) => {
     const code = getLanguageByCode(typeof language === "string" ? language : language?.code).code;
     setLanguageCode(code);
     localStorage.setItem("language", code);
     document.documentElement.lang = code;
     globalThis.dispatchEvent(new CustomEvent('languageChange', { detail: { language: code } }));
+    return code;
   }, []);
 
+  /**
+   * Người dùng tự bấm đổi ngôn ngữ.
+   *
+   * Nút trên header CHÍNH LÀ cài đặt ngôn ngữ của tài khoản, không phải một thứ tạm thời
+   * chỉ có tác dụng trong tab này. Tách làm hai (một nút nhanh + một mục trong Cài đặt) thì
+   * sớm muộn cũng có lúc hai bên lệch nhau, và không ai trả lời được cái nào mới là thật.
+   */
+  const changeLanguage = React.useCallback((language) => {
+    const code = applyLanguage(language);
+    markLanguageTouched();
+    pushLanguageToServer(code);
+  }, [applyLanguage]);
+
+  /**
+   * Đồng bộ ngôn ngữ từ hồ sơ tài khoản vừa nạp về (AuthContext gọi sau khi đăng nhập).
+   *
+   * Ai thắng: xem chú thích ở TOUCHED_KEY. Vừa bấm đổi trong phiên này thì lựa chọn đó
+   * thắng và được đẩy ngược lên tài khoản; còn không thì tài khoản là nguồn đúng, để đăng
+   * nhập ở máy khác vẫn ra đúng thứ tiếng mình đã chọn.
+   */
+  const syncLanguageFromProfile = React.useCallback((serverLanguage) => {
+    const serverCode = LANGUAGES.find((lang) => lang.code === serverLanguage)?.code;
+    const current = languageCodeRef.current;
+
+    if (wasLanguageTouched()) {
+      if (serverCode !== current) pushLanguageToServer(current);
+      return;
+    }
+    if (serverCode && serverCode !== current) applyLanguage(serverCode);
+  }, [applyLanguage]);
+
   const value = React.useMemo(
-    () => ({ currentLanguage, t, changeLanguage, translations }),
-    [currentLanguage, t, changeLanguage]
+    () => ({ currentLanguage, t, changeLanguage, syncLanguageFromProfile, translations }),
+    [currentLanguage, t, changeLanguage, syncLanguageFromProfile]
   );
 
   return (

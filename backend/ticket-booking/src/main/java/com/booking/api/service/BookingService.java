@@ -434,7 +434,8 @@ public class BookingService {
         // KHÔNG tích điểm ở đây để tránh tích 2 lần cho cùng 1 booking.
 
         try {
-            emailService.sendSurveyEmail(booking.resolveNotificationEmail(), booking.getId());
+            emailService.sendSurveyEmail(booking.resolveNotificationEmail(), booking.getId(),
+                    booking.resolveNotificationLocale());
         } catch (Exception e) {
             log.error("Failed to send survey email for booking: {}", booking.getId(), e);
         }

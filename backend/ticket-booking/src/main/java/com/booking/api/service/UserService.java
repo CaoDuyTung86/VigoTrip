@@ -4,6 +4,7 @@ import com.booking.api.dto.UserResponse;
 import com.booking.api.dto.UserUpdateRequest;
 import com.booking.api.entity.User;
 import com.booking.api.exception.ResourceNotFoundException;
+import com.booking.api.i18n.SupportedLocales;
 import com.booking.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -60,6 +61,32 @@ public class UserService {
         return toResponse(user);
     }
 
+    /**
+     * Đổi ngôn ngữ của tài khoản.
+     *
+     * <p>Đây là nơi lựa chọn ngôn ngữ thoát ra khỏi trình duyệt. Nút đổi ngôn ngữ trên
+     * header vẫn đổi giao diện ngay lập tức bằng localStorage như trước; hàm này ghi thêm
+     * lựa chọn đó xuống DB để những thứ chạy KHÔNG có trình duyệt nào mở vẫn biết dùng
+     * tiếng gì — mail nhắc khởi hành lúc nửa đêm, mail báo hoãn chuyến do quản trị viên
+     * bấm từ máy khác.
+     *
+     * <p>Ném IllegalArgumentException với mã lạ thay vì lặng lẽ quy về tiếng Việt: lặng lẽ
+     * thì lỗi chính tả phía client biến thành "bấm đổi sang tiếng Nhật mà mail vẫn về tiếng
+     * Việt", không có dấu vết nào để lần.
+     */
+    @Transactional
+    public UserResponse setLanguage(String email, String language) {
+        if (!SupportedLocales.isSupported(language)) {
+            throw new IllegalArgumentException("Ngôn ngữ không được hỗ trợ: " + language);
+        }
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user với email: " + email));
+
+        user.setLanguage(SupportedLocales.normalize(language));
+        userRepository.save(user);
+        return toResponse(user);
+    }
+
     @Transactional
     public void changePassword(String email, String oldPassword, String newPassword) {
         User user = userRepository.findByEmail(email)
@@ -104,6 +131,7 @@ public class UserService {
                 // null = chưa từng chọn = đồng ý; quy về giá trị rõ ràng ngay tại biên,
                 // để phía client không phải đoán ý nghĩa của null.
                 .chatHistoryOptIn(user.getChatHistoryOptIn() == null || user.getChatHistoryOptIn())
+                .language(user.resolveLocale().getLanguage())
                 .build();
     }
 

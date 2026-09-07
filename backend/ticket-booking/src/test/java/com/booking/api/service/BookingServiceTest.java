@@ -587,7 +587,7 @@ class BookingServiceTest {
 
         // Điểm chỉ tích tại PaymentService khi VNPay xác nhận, KHÔNG tích tại completeBooking
         assertEquals("COMPLETED", booking.getStatus());
-        verify(emailService).sendSurveyEmail("test@example.com", 100L);
+        verify(emailService).sendSurveyEmail(eq("test@example.com"), eq(100L), any());
     }
 
     @Test

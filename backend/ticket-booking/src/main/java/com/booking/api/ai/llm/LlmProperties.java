@@ -61,8 +61,31 @@ public class LlmProperties {
     public static class CircuitBreaker {
         /** Số lần lỗi liên tiếp trước khi tạm loại nhà cung cấp. */
         private int failureThreshold = 3;
-        /** Thời gian tạm loại, tính bằng giây. */
+        /**
+         * Thời gian tạm loại cho lần mở mạch ĐẦU TIÊN, tính bằng giây. Hết hạn thì
+         * chuyển sang HALF_OPEN. Mỗi vòng mở mạch liên tiếp sau đó nhân đôi thời gian
+         * này, tới trần maxOpenSeconds.
+         */
         private long openSeconds = 60;
+        /**
+         * Trần thời gian tạm loại sau khi đã nhân đôi nhiều vòng.
+         *
+         * Nhà cung cấp chết 2 tiếng thì với 60 giây cố định ta ném 120 request thăm dò
+         * vô ích vào nó; nhân đôi dần thì chỉ còn khoảng 10. Đặt trần để một nhà đã hồi
+         * phục không phải chờ hàng giờ mới được thử lại — 15 phút là đủ thưa mà vẫn kịp
+         * nhận ra nhà chính sống lại.
+         */
+        private long maxOpenSeconds = 900;
+        /**
+         * Hạn chót cho một request thăm dò ở trạng thái HALF_OPEN.
+         *
+         * Không phải timeout của lời gọi HTTP (cái đó do llm.timeouts lo) mà là chốt
+         * chặn chống kẹt: nếu action ném ra một lỗi KHÔNG phải LlmProviderException
+         * thì LlmRouter không bắt, breaker không bao giờ nhận được kết quả thăm dò, và
+         * nếu thiếu hạn chót này thì nhà cung cấp đó bị bỏ qua vĩnh viễn. Phải dài hơn
+         * trường hợp chậm nhất có thật: stream 120s.
+         */
+        private long probeTimeoutSeconds = 180;
     }
 
     @Data

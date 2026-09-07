@@ -744,8 +744,29 @@ khác, thay vì mắc kẹt giữa chừng với các `tool_call_id` chỉ hợp
 
 Nếu Gemini đang chết, thử nó ở **mọi** request là lãng phí thời gian của mọi người dùng.
 
-**Circuit breaker** (cầu dao) đếm số lỗi liên tiếp. Đủ 3 lần → "mở mạch", tạm loại nhà cung
-cấp đó khỏi vòng chọn 60 giây. Hết thời gian thì lần gọi kế tiếp chính là phép thử.
+**Circuit breaker** (cầu dao) đếm số lỗi **liên tiếp** — không phải tỷ lệ lỗi, và một lần
+thành công là bộ đếm về 0. Đủ 3 lần → "mở mạch", tạm loại nhà cung cấp đó khỏi vòng chọn 60
+giây. Máy trạng thái có đủ ba trạng thái:
+
+```
+CLOSED    -- đủ 3 lỗi liên tiếp -->  OPEN
+OPEN      -- hết 60 giây -------->   HALF_OPEN
+HALF_OPEN -- thăm dò thành công ->   CLOSED
+HALF_OPEN -- thăm dò thất bại --->   OPEN      (mở lại ngay, không cần đủ 3 lỗi)
+```
+
+`HALF_OPEN` cho đi **đúng một** request thăm dò tại một thời điểm; mọi request khác vẫn đi
+nhà dự phòng cho tới khi biết kết quả. Nhà chính còn ốm thì chỉ một người dùng chịu độ trễ
+thăm dò, và một lần hỏng là đủ để đóng cửa lại — không phải ba.
+
+Thời gian tạm loại **nhân đôi** sau mỗi vòng mở mạch liên tiếp — 60s, 120s, 240s, 480s, rồi
+chặn ở trần 900s — và về lại 60s ngay khi có một lần thành công. Lý do: nhà cung cấp chết hẳn
+trong 2 tiếng thì mốc cố định 60 giây đốt khoảng 120 request thăm dò vô ích; nhân đôi dần thì
+chỉ còn khoảng 10. Trần 15 phút giữ cho một nhà đã hồi phục không phải chờ hàng giờ mới được
+thử lại.
+
+Không có luồng nền nào cả: mọi chuyển trạng thái xảy ra **lười**, ngay trong request đi qua
+`LlmRouter`. Không có traffic thì không có gì chạy, và cũng không tốn quota cho health-check.
 
 Ẩn dụ đúng như tên gọi: cầu dao điện nhảy khi quá tải, ngắt mạch một lúc, rồi bật lại thử.
 
@@ -974,6 +995,51 @@ Về `ANALYSIS_MODEL`: comment trong code ghi lại kết quả thử nghiệm t
 trả 503 ở **4/4 lần** với payload báo cáo BI lớn, còn `flash-lite` ổn định 4/4. Đây là ví dụ
 tốt về việc **chọn model dựa trên đo đạc, không dựa trên bảng benchmark của nhà cung cấp**:
 model "mạnh hơn" mà hay quá tải thì tệ hơn model "yếu hơn" mà luôn phản hồi.
+
+---
+
+### 8.9 Vì sao tự viết circuit breaker thay vì dùng Resilience4j
+
+Resilience4j là thư viện chịu lỗi tiêu chuẩn của hệ sinh thái Java, và với một dịch vụ doanh
+nghiệp gọi một backend nội bộ thì **dùng nó đúng hơn tự viết**. Ở đây bài toán khác, nên kết
+luận cũng khác.
+
+| Tiêu chí | Tự viết (`ProviderCircuitBreaker`, ~150 dòng) | Resilience4j |
+|---|---|---|
+| **Trạng thái** | CLOSED / OPEN / HALF_OPEN | Thêm DISABLED, FORCED_OPEN, METRICS_ONLY |
+| **Điều kiện mở mạch** | N lỗi **liên tiếp** | **Tỷ lệ lỗi** trên cửa sổ trượt (đếm hoặc theo thời gian) + tỷ lệ lời gọi chậm |
+| **Điểm mù** | Lỗi rải rác 40% xen kẽ thành công thì mạch không bao giờ mở | Bắt được, đây là ưu thế thật sự của thư viện |
+| **Thăm dò HALF_OPEN** | 1 request | Cấu hình `permittedNumberOfCallsInHalfOpenState`, mặc định 10 |
+| **Backoff khi mở lại** | Nhân đôi, có trần | Cấu hình được qua interval function |
+| **Chi phí bộ nhớ** | 2 mốc thời gian + 2 số nguyên cho mỗi nhà cung cấp | Cửa sổ trượt ~100 phép đo cho mỗi breaker — vẫn chỉ vài KB |
+| **Chi phí CPU** | `synchronized` trên object nhỏ, vài chục nanosecond | Cập nhật không khoá bằng atomic, cùng bậc |
+| **Phụ thuộc mới** | Không | `resilience4j-spring-boot3` + Spring AOP; bản 2.x cần Java 17 |
+| **Tính năng không dùng tới** | Không có | RateLimiter, Bulkhead, TimeLimiter, Cache — tránh được bằng cách chỉ lấy module `circuitbreaker` |
+| **Metrics** | Đang phải tự đăng ký | Có sẵn binding Micrometer |
+| **Độ chín** | 16 test, chưa qua production | Nhiều năm chạy thật, đã xử lý hết các ca biên về đồng thời |
+| **Giải thích khi bảo vệ** | Vẽ được máy trạng thái, biện luận từng tham số | Cơ chế nằm trong thư viện |
+
+Ba điểm quyết định:
+
+**1. Phần khó không phải cầu dao, mà là router.** Resilience4j bọc **một** lời gọi tới **một**
+dịch vụ. Cái hệ thống cần là chuỗi nhà cung cấp có thứ tự, retry riêng cho từng nhà, chuyển
+nhà khi hỏng, và metric gắn nhãn theo `task`/`provider`/`model`. Dùng Resilience4j thì
+`LlmRouter` vẫn phải tự viết nguyên vẹn — thư viện chỉ thay được `ProviderCircuitBreaker`,
+tức khoảng 150 trong hơn 400 dòng của tầng này.
+
+**2. Resilience4j không biết token là gì.** Ràng buộc thật của hệ thống này không phải "quá
+nhiều lời gọi đồng thời" mà là **quota free tier**. `RateLimiter` của Resilience4j đếm *số lời
+gọi* trên một đơn vị thời gian, `Bulkhead` đếm *số lời gọi đồng thời*; không thành phần nào
+đọc trường `usage` trong phản hồi hay phân biệt một câu chat 800 token với một báo cáo BI
+4000 token. Việc kiểm soát dòng chảy token vẫn phải tự làm — hiện là `LlmBudgetGuard`.
+
+**3. Đây là đồ án.** Giải thích được từng dòng của một máy trạng thái 150 dòng có giá trị hơn
+một annotation `@CircuitBreaker` mà bên trong là hộp đen.
+
+Ngưỡng đổi ý — nên chuyển sang Resilience4j khi có **một** trong các dấu hiệu sau: nhà cung
+cấp bắt đầu hỏng *rải rác* thay vì chết hẳn (lúc đó cần cửa sổ tỷ lệ lỗi); cần phát hiện lời
+gọi *chậm* chứ không chỉ lời gọi *lỗi*; hoặc số nhà cung cấp vượt quá 3–4 và cấu hình bắt đầu
+cần từng-nhà-một.
 
 ---
 

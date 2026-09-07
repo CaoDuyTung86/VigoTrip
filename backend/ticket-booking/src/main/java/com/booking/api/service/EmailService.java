@@ -10,6 +10,9 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.booking.api.dto.BookingConfirmationMail;
+import com.booking.api.i18n.Messages;
+
+import java.util.Locale;
 
 
 @Service
@@ -19,6 +22,21 @@ import com.booking.api.dto.BookingConfirmationMail;
 public class EmailService {
 
     private final JavaMailSender mailSender;
+    private final Messages messages;
+
+    /**
+     * Mọi hàm gửi mail đều nhận {@link Locale} từ bên gọi, không tự đi tra cứu.
+     *
+     * <p>Lý do giống hệt lý do {@code sendBookingConfirmation} nhận DTO đã phẳng hoá thay vì
+     * nhận entity: cả class này chạy trên thread {@code @Async}, nơi không còn Hibernate
+     * Session. Nếu ở đây tự gọi repository để hỏi "người này chọn ngôn ngữ gì", thì mỗi lá
+     * mail thành một truy vấn thừa chạy ngoài transaction, và với đơn của khách vãng lai
+     * (không có tài khoản) thì truy vấn đó còn không trả về gì. Việc đọc ngôn ngữ thuộc về
+     * phía gọi, nơi vẫn còn entity trong tay.
+     */
+    private String t(Locale locale, String key, Object... args) {
+        return messages.t(locale, key, args);
+    }
 
     /** URL gốc của chính backend, dùng để nhúng ảnh QR vào mail bằng <img src>. */
     @org.springframework.beans.factory.annotation.Value("${app.backend-url:http://localhost:8080}")
@@ -41,24 +59,22 @@ public class EmailService {
     private static final String ACCENT_RED = "#dc2626";
     private static final String ACCENT_SLATE = "#64748b";
 
-    public void sendResetPasswordEmail(String toEmail, String otpCode) {
+    public void sendResetPasswordEmail(String toEmail, String otpCode, Locale locale) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setTo(toEmail);
-            helper.setSubject("Yêu cầu khôi phục mật khẩu - VigoTrip");
+            helper.setSubject(t(locale, "mail.reset.subject"));
 
-            String content = heading("Khôi phục mật khẩu")
-                    + paragraph("Xin chào quý khách,")
-                    + paragraph("Quý khách đã yêu cầu đặt lại mật khẩu cho tài khoản tại "
-                            + strong("VigoTrip") + ". Vui lòng dùng mã xác thực (OTP) gồm 6 chữ số dưới đây để tiếp tục:")
+            String content = heading(t(locale, "mail.reset.heading"))
+                    + paragraph(t(locale, "mail.hello"))
+                    + paragraph(t(locale, "mail.reset.intro", strong("VigoTrip")))
                     + otpBox(otpCode)
-                    + alertBox("Mã OTP có hiệu lực trong vòng <b>15 phút</b>. Tuyệt đối không chia sẻ mã này cho bất kỳ ai.")
-                    + paragraph("Nếu quý khách không thực hiện yêu cầu này, vui lòng bỏ qua email "
-                            + "hoặc liên hệ bộ phận CSKH VigoTrip để bảo vệ tài khoản.");
+                    + alertBox(t(locale, "mail.reset.otpWarning"))
+                    + paragraph(t(locale, "mail.reset.ignore"));
 
-            helper.setText(emailShell(ACCENT_BLUE, "Bảo mật tài khoản", content), true);
+            helper.setText(emailShell(locale, ACCENT_BLUE, t(locale, "mail.reset.eyebrow"), content), true);
             mailSender.send(message);
 
             log.info("Reset password email sent successfully to {}", toEmail);
@@ -68,23 +84,21 @@ public class EmailService {
         }
     }
 
-    public void sendVerificationEmail(String toEmail, String otpCode) {
+    public void sendVerificationEmail(String toEmail, String otpCode, Locale locale) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setTo(toEmail);
-            helper.setSubject("Xác thực tài khoản của bạn - VigoTrip");
+            helper.setSubject(t(locale, "mail.verify.subject"));
 
-            String content = heading("Xác thực đăng ký tài khoản")
-                    + paragraph("Xin chào quý khách,")
-                    + paragraph("Cảm ơn quý khách đã đăng ký tài khoản tại " + strong("VigoTrip")
-                            + ". Vui lòng nhập mã xác minh dưới đây để kích hoạt tài khoản:")
+            String content = heading(t(locale, "mail.verify.heading"))
+                    + paragraph(t(locale, "mail.hello"))
+                    + paragraph(t(locale, "mail.verify.intro", strong("VigoTrip")))
                     + otpBox(otpCode)
-                    + paragraph("Mã xác nhận có hiệu lực trong vòng 24 giờ. Nếu quý khách không thực hiện "
-                            + "thao tác này, vui lòng bỏ qua email.");
+                    + paragraph(t(locale, "mail.verify.expiry"));
 
-            helper.setText(emailShell(ACCENT_GREEN, "Chào mừng thành viên mới", content), true);
+            helper.setText(emailShell(locale, ACCENT_GREEN, t(locale, "mail.verify.eyebrow"), content), true);
             mailSender.send(message);
             log.info("Verification email sent to {}", toEmail);
         } catch (Exception e) {
@@ -102,7 +116,7 @@ public class EmailService {
      * phần tử sẵn có: ở chế độ sáng chúng không đổi gì, còn ở chế độ tối chúng cho phép
      * khối &lt;style&gt; của khung mail đổi màu đúng chỗ thay vì để Gmail đảo màu cả trang.
      */
-    public void sendBookingConfirmation(String toEmail, BookingConfirmationMail data) {
+    public void sendBookingConfirmation(String toEmail, BookingConfirmationMail data, Locale locale) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -110,31 +124,30 @@ public class EmailService {
             Long bookingId = data.bookingId();
 
             helper.setTo(toEmail);
-            helper.setSubject("Xác nhận đặt vé thành công #" + bookingId + " - VigoTrip");
+            helper.setSubject(t(locale, "mail.booking.subject", String.valueOf(bookingId)));
 
             String qrUrl = backendUrl + "/api/public/qr/booking/" + bookingId;
 
-            String content = heading("Cảm ơn quý khách đã chọn VigoTrip")
-                    + paragraph("Yêu cầu đặt vé của quý khách đã được thanh toán thành công. "
-                            + "Dưới đây là thông tin chi tiết chuyến đi:")
+            String content = heading(t(locale, "mail.booking.heading"))
+                    + paragraph(t(locale, "mail.booking.intro"))
 
-                    + tripSummaryBlock(data)
-                    + bookingDetailBlock(data)
-                    + passengerBlock(data)
-                    + contactBlock(data)
+                    + tripSummaryBlock(data, locale)
+                    + bookingDetailBlock(data, locale)
+                    + passengerBlock(data, locale)
+                    + contactBlock(data, locale)
 
                     // vt-qr giữ khối này luôn nền trắng, kể cả khi phần còn lại của mail
                     // chuyển sang nền tối: mã QR phải nằm trên nền sáng kèm vùng lặng
                     // trắng quanh nó thì camera soát vé mới bắt được.
                     + "<div class='vt-qr' style='text-align: center; margin-bottom: 24px; padding: 20px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;'>"
-                    + "<p style='margin: 0 0 12px 0; font-size: 13.5px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;'>MÃ CHECK-IN ĐIỆN TỬ</p>"
+                    + "<p style='margin: 0 0 12px 0; font-size: 13.5px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;'>" + t(locale, "mail.booking.qrLabel") + "</p>"
                     // width/height đặt cả ở attribute lẫn style: Outlook đọc attribute, các
                     // client khác đọc style. Thiếu attribute thì Outlook giãn ảnh ra 660px thật.
-                    + "<img src='" + qrUrl + "' alt='Mã QR check-in đơn vé #" + bookingId + "' width='220' height='220' style='width: 220px; height: 220px; display: block; margin: 0 auto; border: 0;' />"
-                    + "<p style='margin: 12px 0 0 0; font-size: 12.5px; color: #94a3b8;'>Một mã QR dùng chung cho cả đơn. Nhân viên soát vé quét một lần là check-in toàn bộ hành khách phía trên.</p>"
+                    + "<img src='" + qrUrl + "' alt='" + esc(t(locale, "mail.booking.qrAlt", String.valueOf(bookingId))) + "' width='220' height='220' style='width: 220px; height: 220px; display: block; margin: 0 auto; border: 0;' />"
+                    + "<p style='margin: 12px 0 0 0; font-size: 12.5px; color: #94a3b8;'>" + t(locale, "mail.booking.qrNote") + "</p>"
                     + "</div>";
 
-            helper.setText(emailShell(ACCENT_BLUE, "Xác nhận đặt vé thành công", content), true);
+            helper.setText(emailShell(locale, ACCENT_BLUE, t(locale, "mail.booking.eyebrow"), content), true);
             mailSender.send(message);
             log.info("Booking confirmation email with QR code sent successfully to {}", toEmail);
         } catch (Exception e) {
@@ -146,13 +159,13 @@ public class EmailService {
     }
 
     /** Dải hành trình nổi bật ở đầu vé: điểm đi ➔ điểm đến, nhà xe/hãng, giờ đi - giờ đến. */
-    private String tripSummaryBlock(BookingConfirmationMail data) {
+    private String tripSummaryBlock(BookingConfirmationMail data, Locale locale) {
         return "<div class='vt-surface' style='background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 20px 24px; margin-bottom: 16px;'>"
                 + "<div class='vt-accent' style='font-size: 20px; font-weight: 800; color: #1d4ed8; margin-bottom: 6px;'>" + esc(data.route()) + "</div>"
                 + "<div class='vt-accent' style='font-size: 13px; color: #1e40af;'>" + esc(data.carrier()) + "</div>"
                 + "<div class='vt-accent' style='font-size: 13.5px; color: #1e3a8a; margin-top: 10px;'>"
-                + "Khởi hành: <strong>" + esc(data.departureTime()) + "</strong>"
-                + "<br/>Dự kiến đến: <strong>" + esc(data.arrivalTime()) + "</strong>"
+                + t(locale, "mail.booking.departs") + ": <strong>" + esc(data.departureTime()) + "</strong>"
+                + "<br/>" + t(locale, "mail.booking.arrives") + ": <strong>" + esc(data.arrivalTime()) + "</strong>"
                 + "</div>"
                 + "</div>";
     }
@@ -165,16 +178,16 @@ public class EmailService {
      * "Mã đơn vé:#48" lệch hết về trái. Table hai cột là cách duy nhất canh phải chạy
      * được ở mọi hòm thư.
      */
-    private String bookingDetailBlock(BookingConfirmationMail data) {
+    private String bookingDetailBlock(BookingConfirmationMail data, Locale locale) {
         return "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' class='vt-surface' style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; border-collapse: separate; margin-bottom: 16px;'>"
                 + "<tr><td style='padding: 20px 24px;'>"
                 + "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse: collapse;'>"
-                + detailRow("Mã đơn vé", "#" + data.bookingId(), "#2563eb", "vt-accent")
-                + detailRow("Tuyến đường", esc(data.route()), "#0f172a", "vt-ink")
-                + detailRow("Khởi hành", esc(data.departureTime()), "#dc2626", "vt-danger")
-                + detailRow("Ghế đã chọn", esc(data.seats()), "#0f172a", "vt-ink")
+                + detailRow(t(locale, "mail.booking.bookingId"), "#" + data.bookingId(), "#2563eb", "vt-accent")
+                + detailRow(t(locale, "mail.booking.route"), esc(data.route()), "#0f172a", "vt-ink")
+                + detailRow(t(locale, "mail.booking.departs"), esc(data.departureTime()), "#dc2626", "vt-danger")
+                + detailRow(t(locale, "mail.booking.seats"), esc(data.seats()), "#0f172a", "vt-ink")
                 + "<tr>"
-                + "<td class='vt-ink vt-hairline' style='padding: 12px 0 0 0; border-top: 1px dashed #cbd5e1; color: #0f172a; font-size: 14.5px; font-weight: 700;'>Tổng thanh toán</td>"
+                + "<td class='vt-ink vt-hairline' style='padding: 12px 0 0 0; border-top: 1px dashed #cbd5e1; color: #0f172a; font-size: 14.5px; font-weight: 700;'>" + t(locale, "mail.booking.total") + "</td>"
                 + "<td align='right' class='vt-warn vt-hairline' style='padding: 12px 0 0 0; border-top: 1px dashed #cbd5e1; text-align: right; color: #f97316; font-size: 18px; font-weight: 800; white-space: nowrap;'>"
                 + String.format("%,.0f đ", data.totalPrice()) + "</td>"
                 + "</tr>"
@@ -196,7 +209,7 @@ public class EmailService {
      * mã QR ở cuối mail — check-in là thuộc tính của cả đơn (Booking.isCheckedIn), không
      * phải của từng vé, nên gửi 5 mã cho 5 khách sẽ là 5 mã trỏ về đúng một trạng thái.
      */
-    private String passengerBlock(BookingConfirmationMail data) {
+    private String passengerBlock(BookingConfirmationMail data, Locale locale) {
         if (data.passengers() == null || data.passengers().isEmpty()) {
             return "";
         }
@@ -204,7 +217,9 @@ public class EmailService {
         StringBuilder rows = new StringBuilder();
         int index = 1;
         for (BookingConfirmationMail.Passenger p : data.passengers()) {
-            String name = p.name() == null || p.name().isBlank() ? "(CHƯA CÓ TÊN)" : esc(p.name());
+            String name = p.name() == null || p.name().isBlank()
+                    ? t(locale, "mail.booking.noName")
+                    : esc(p.name());
             rows.append("<tr>")
                     .append("<td class='vt-hairline vt-muted' style='padding: 10px 12px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 13px; width: 32px;'>").append(index++).append("</td>")
                     .append("<td class='vt-hairline vt-ink' style='padding: 10px 12px; border-top: 1px solid #e2e8f0; color: #0f172a; font-size: 14px; font-weight: 700; letter-spacing: 0.3px;'>").append(name).append("</td>")
@@ -214,8 +229,8 @@ public class EmailService {
 
         return "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' class='vt-hairline' style='border: 1px solid #e2e8f0; border-radius: 12px; border-collapse: collapse; margin-bottom: 24px;'>"
                 + "<tr>"
-                + "<td colspan='2' class='vt-surface vt-muted' style='padding: 12px 12px 10px 12px; background-color: #f8fafc; color: #64748b; font-size: 12.5px; font-weight: 700; letter-spacing: 0.5px;'>DANH SÁCH HÀNH KHÁCH (" + data.passengers().size() + ")</td>"
-                + "<td align='right' class='vt-surface vt-muted' style='padding: 12px 12px 10px 12px; background-color: #f8fafc; text-align: right; color: #64748b; font-size: 12.5px; font-weight: 700; letter-spacing: 0.5px;'>GHẾ</td>"
+                + "<td colspan='2' class='vt-surface vt-muted' style='padding: 12px 12px 10px 12px; background-color: #f8fafc; color: #64748b; font-size: 12.5px; font-weight: 700; letter-spacing: 0.5px;'>" + t(locale, "mail.booking.passengerList", String.valueOf(data.passengers().size())) + "</td>"
+                + "<td align='right' class='vt-surface vt-muted' style='padding: 12px 12px 10px 12px; background-color: #f8fafc; text-align: right; color: #64748b; font-size: 12.5px; font-weight: 700; letter-spacing: 0.5px;'>" + t(locale, "mail.booking.seatColumn") + "</td>"
                 + "</tr>"
                 + rows
                 + "</table>";
@@ -228,7 +243,7 @@ public class EmailService {
      * huỷ chuyến, nhắc khởi hành) đều đi tới đúng địa chỉ in ở đây. Nhìn thấy sai thì còn
      * kịp sửa trước ngày đi, thay vì phát hiện lúc không nhận được mail nào.
      */
-    private String contactBlock(BookingConfirmationMail data) {
+    private String contactBlock(BookingConfirmationMail data, Locale locale) {
         boolean hasEmail = data.contactEmail() != null && !data.contactEmail().isBlank();
         boolean hasPhone = data.contactPhone() != null && !data.contactPhone().isBlank();
         if (!hasEmail && !hasPhone) {
@@ -248,32 +263,29 @@ public class EmailService {
         }
 
         return "<div class='vt-surface' style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;'>"
-                + "<p class='vt-muted' style='margin: 0 0 8px 0; font-size: 12.5px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;'>NGƯỜI LIÊN HỆ</p>"
+                + "<p class='vt-muted' style='margin: 0 0 8px 0; font-size: 12.5px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;'>" + t(locale, "mail.booking.contactTitle") + "</p>"
                 + lines
-                + "<p class='vt-muted' style='margin: 8px 0 0 0; font-size: 12.5px; color: #94a3b8;'>Mọi thông báo về chuyến đi sẽ được gửi tới địa chỉ này.</p>"
+                + "<p class='vt-muted' style='margin: 8px 0 0 0; font-size: 12.5px; color: #94a3b8;'>" + t(locale, "mail.booking.contactNote") + "</p>"
                 + "</div>";
     }
 
-    public void sendSurveyEmail(String toEmail, Long bookingId) {
+    public void sendSurveyEmail(String toEmail, Long bookingId, Locale locale) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setTo(toEmail);
-            helper.setSubject("Đánh giá trải nghiệm chuyến đi #" + bookingId + " - VigoTrip");
+            helper.setSubject(t(locale, "mail.survey.subject", String.valueOf(bookingId)));
 
             String surveyUrl = frontendUrl + "/my-bookings?reviewBookingId=" + bookingId;
 
-            String content = heading("Cảm ơn bạn đã đồng hành cùng VigoTrip!")
-                    + paragraph("Xin chào quý khách,")
-                    + paragraph("Hy vọng quý khách đã có một chuyến đi an toàn và thoải mái (đơn vé "
-                            + accent("#" + bookingId) + "). Đánh giá chân thực của quý khách là động lực "
-                            + "rất lớn giúp VigoTrip cải thiện chất lượng dịch vụ mỗi ngày.")
-                    + button(surveyUrl, "Viết đánh giá chuyến đi", ACCENT_INDIGO)
-                    + paragraph("Bấm nút trên để quay về trang Lịch sử đặt vé và gửi nhận xét, "
-                            + "đánh giá số sao trực tiếp cho chuyến đi này.");
+            String content = heading(t(locale, "mail.survey.heading"))
+                    + paragraph(t(locale, "mail.hello"))
+                    + paragraph(t(locale, "mail.survey.intro", accent("#" + bookingId)))
+                    + button(surveyUrl, t(locale, "mail.survey.button"), ACCENT_INDIGO)
+                    + paragraph(t(locale, "mail.survey.outro"));
 
-            helper.setText(emailShell(ACCENT_INDIGO, "Khảo sát chất lượng dịch vụ", content), true);
+            helper.setText(emailShell(locale, ACCENT_INDIGO, t(locale, "mail.survey.eyebrow"), content), true);
             mailSender.send(message);
 
             log.info("Survey email sent successfully to {}", toEmail);
@@ -282,32 +294,30 @@ public class EmailService {
         }
     }
 
-    public void sendTripDelayEmail(String toEmail, String route, String oldDeparture, String newDeparture, String reason) {
+    public void sendTripDelayEmail(String toEmail, String route, String oldDeparture, String newDeparture,
+                                   String reason, Locale locale) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("Thông báo thay đổi giờ khởi hành - VigoTrip");
+            helper.setSubject(t(locale, "mail.delay.subject"));
 
             // Lý do hoãn là chữ do quản trị viên tự gõ. Không rào thì một dấu ngoặc nhọn
             // trong đó đủ bẻ gãy layout mail, và tệ hơn là nhét được thẻ tuỳ ý vào thư
             // gửi đi từ tên miền của chính mình.
-            String content = heading("Thông báo điều chỉnh giờ khởi hành")
-                    + paragraph("Xin chào quý khách,")
-                    + paragraph("Chuyến đi tuyến " + accent(esc(route))
-                            + " mà quý khách đã đặt vé có thay đổi về giờ khởi hành:")
+            String content = heading(t(locale, "mail.delay.heading"))
+                    + paragraph(t(locale, "mail.hello"))
+                    + paragraph(t(locale, "mail.delay.intro", accent(esc(route))))
                     + panel(
-                            panelRow("Giờ khởi hành cũ",
+                            panelRow(t(locale, "mail.delay.oldTime"),
                                     "<s class='vt-muted' style='color:#94a3b8;'>" + esc(oldDeparture) + "</s>", "vt-muted", "17px")
-                            + panelRow("Giờ khởi hành mới", esc(newDeparture), "vt-ok", "22px")
-                            + panelRow("Lý do điều chỉnh", esc(reason), "vt-ink", "15px"))
-                    + paragraph("Chúng tôi chân thành cáo lỗi cùng quý khách vì sự thay đổi này. "
-                            + "Vé của quý khách vẫn giữ nguyên giá trị sử dụng cho giờ khởi hành mới.")
-                    + paragraph("Nếu thời gian mới không phù hợp, quý khách có thể vào mục "
-                            + link(frontendUrl + "/my-bookings", "Quản lý vé")
-                            + " để gửi yêu cầu hoàn hủy miễn phí 100%.");
+                            + panelRow(t(locale, "mail.delay.newTime"), esc(newDeparture), "vt-ok", "22px")
+                            + panelRow(t(locale, "mail.delay.reason"), esc(reason), "vt-ink", "15px"))
+                    + paragraph(t(locale, "mail.delay.apology"))
+                    + paragraph(t(locale, "mail.delay.refundHint",
+                            link(frontendUrl + "/my-bookings", t(locale, "mail.delay.manageTickets"))));
 
-            helper.setText(emailShell(ACCENT_AMBER, "Cập nhật lịch trình chuyến đi", content), true);
+            helper.setText(emailShell(locale, ACCENT_AMBER, t(locale, "mail.delay.eyebrow"), content), true);
             mailSender.send(message);
             log.info("Trip delay email sent to {}", toEmail);
         } catch (Exception e) {
@@ -315,26 +325,22 @@ public class EmailService {
         }
     }
 
-    public void sendTripCancelledEmail(String toEmail, Long bookingId, String route, Double refundAmount) {
+    public void sendTripCancelledEmail(String toEmail, Long bookingId, String route, Double refundAmount, Locale locale) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("Thông báo hủy chuyến đi - VigoTrip");
+            helper.setSubject(t(locale, "mail.cancel.subject"));
 
-            String content = heading("Thông báo chuyến đi bị hủy")
-                    + paragraph("Xin chào quý khách,")
-                    + paragraph("Rất tiếc, chuyến đi tuyến " + accent(esc(route)) + " (đơn vé "
-                            + accent("#" + bookingId) + ") đã bị nhà vận hành thông báo hủy "
-                            + "do sự cố bất khả kháng.")
-                    + amountBox("Thông tin hoàn tiền", String.format("%,.0f đ", refundAmount),
-                            "Hoàn tiền 100% chi phí cho sự cố chuyến đi.")
-                    + paragraph("Số tiền trên sẽ được hệ thống xử lý hoàn trả tự động trong vòng "
-                            + strong("3 - 5 ngày làm việc") + ".")
-                    + paragraph("Quý khách có thể truy cập " + link(frontendUrl, "VigoTrip")
-                            + " để tìm kiếm và đặt chuyến đi thay thế khác.");
+            String content = heading(t(locale, "mail.cancel.heading"))
+                    + paragraph(t(locale, "mail.hello"))
+                    + paragraph(t(locale, "mail.cancel.intro", accent(esc(route)), accent("#" + bookingId)))
+                    + amountBox(t(locale, "mail.cancel.refundLabel"), String.format("%,.0f đ", refundAmount),
+                            t(locale, "mail.cancel.refundCaption"))
+                    + paragraph(t(locale, "mail.cancel.timeline", strong(t(locale, "mail.businessDays"))))
+                    + paragraph(t(locale, "mail.cancel.rebook", link(frontendUrl, "VigoTrip")));
 
-            helper.setText(emailShell(ACCENT_RED, "Thông báo sự cố lịch trình", content), true);
+            helper.setText(emailShell(locale, ACCENT_RED, t(locale, "mail.cancel.eyebrow"), content), true);
             mailSender.send(message);
             log.info("Trip cancelled email sent to {}", toEmail);
         } catch (Exception e) {
@@ -357,26 +363,24 @@ public class EmailService {
      *       giờ khởi hành bị ép thành ba cột chen nhau trên màn hình hẹp.</li>
      * </ul>
      */
-    public void sendTripReminderEmail(String toEmail, Long bookingId, String route, String departureTime) {
+    public void sendTripReminderEmail(String toEmail, Long bookingId, String route, String departureTime, Locale locale) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("Nhắc lịch: Chuyến đi của bạn sắp khởi hành - VigoTrip");
+            helper.setSubject(t(locale, "mail.reminder.subject"));
 
-            String content = heading("Chuyến đi của bạn sắp khởi hành")
-                    + paragraph("Xin chào quý khách, chuyến đi của quý khách sẽ khởi hành "
-                            + strong("trong vòng 12 giờ tới") + ".")
+            String content = heading(t(locale, "mail.reminder.heading"))
+                    + paragraph(t(locale, "mail.reminder.intro", strong(t(locale, "mail.reminder.within12h"))))
                     + panel(
-                            panelRow("Mã đơn vé", "#" + bookingId, "vt-ink", "17px")
-                            + panelRow("Tuyến đường", esc(route), "vt-ink", "17px")
-                            + panelRow("Giờ khởi hành", esc(departureTime), "vt-danger", "22px"))
-                    + noteBox("<b>Lưu ý:</b> Quý khách vui lòng có mặt tại điểm đón / bến trước "
-                            + "ít nhất 30 phút để hoàn tất thủ tục check-in.")
-                    + button(frontendUrl + "/my-bookings", "Xem vé của tôi", ACCENT_BLUE)
-                    + paragraph("Kính chúc quý khách một chuyến đi an toàn và thượng lộ bình an!");
+                            panelRow(t(locale, "mail.booking.bookingId"), "#" + bookingId, "vt-ink", "17px")
+                            + panelRow(t(locale, "mail.booking.route"), esc(route), "vt-ink", "17px")
+                            + panelRow(t(locale, "mail.reminder.departTime"), esc(departureTime), "vt-danger", "22px"))
+                    + noteBox(t(locale, "mail.reminder.note"))
+                    + button(frontendUrl + "/my-bookings", t(locale, "mail.reminder.button"), ACCENT_BLUE)
+                    + paragraph(t(locale, "mail.reminder.wish"));
 
-            helper.setText(emailShell(ACCENT_BLUE, "Nhắc lịch khởi hành", content), true);
+            helper.setText(emailShell(locale, ACCENT_BLUE, t(locale, "mail.reminder.eyebrow"), content), true);
             mailSender.send(message);
             log.info("Trip reminder email sent to {}", toEmail);
         } catch (Exception e) {
@@ -384,24 +388,24 @@ public class EmailService {
         }
     }
 
-    public void sendRefundApprovedEmail(String toEmail, Long refundId, Long bookingId, java.math.BigDecimal amount) {
+    public void sendRefundApprovedEmail(String toEmail, Long refundId, Long bookingId,
+                                        java.math.BigDecimal amount, Locale locale) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("Yêu cầu hoàn vé đã được chấp nhận - VigoTrip");
+            helper.setSubject(t(locale, "mail.refundOk.subject"));
 
-            String content = heading("Yêu cầu hoàn vé thành công")
-                    + paragraph("Xin chào quý khách,")
-                    + paragraph("Yêu cầu hoàn vé của quý khách cho đơn vé " + accent("#" + bookingId)
-                            + " đã được nhà cung cấp kiểm tra và " + strong("chấp nhận hoàn tiền") + ".")
-                    + amountBox("Số tiền hoàn lại", String.format("%,.0f đ", amount),
-                            "Mã yêu cầu hoàn vé: #" + refundId)
-                    + paragraph("Số tiền này sẽ được hoàn về phương thức thanh toán ban đầu trong vòng "
-                            + strong("3 - 5 ngày làm việc") + " (tùy chính sách xử lý của ngân hàng).")
-                    + paragraph("Cảm ơn quý khách đã tin tưởng đồng hành cùng VigoTrip.");
+            String content = heading(t(locale, "mail.refundOk.heading"))
+                    + paragraph(t(locale, "mail.hello"))
+                    + paragraph(t(locale, "mail.refundOk.intro",
+                            accent("#" + bookingId), strong(t(locale, "mail.refundOk.accepted"))))
+                    + amountBox(t(locale, "mail.refundOk.amountLabel"), String.format("%,.0f đ", amount),
+                            t(locale, "mail.refundOk.refundId", String.valueOf(refundId)))
+                    + paragraph(t(locale, "mail.refundOk.timeline", strong(t(locale, "mail.businessDays"))))
+                    + paragraph(t(locale, "mail.refundOk.thanks"));
 
-            helper.setText(emailShell("#16a34a", "Xử lý yêu cầu hoàn vé", content), true);
+            helper.setText(emailShell(locale, "#16a34a", t(locale, "mail.refundOk.eyebrow"), content), true);
             mailSender.send(message);
             log.info("Refund approved email sent to {}", toEmail);
         } catch (Exception e) {
@@ -409,27 +413,24 @@ public class EmailService {
         }
     }
 
-    public void sendRefundRejectedEmail(String toEmail, Long refundId, Long bookingId, String note) {
+    public void sendRefundRejectedEmail(String toEmail, Long refundId, Long bookingId, String note, Locale locale) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setTo(toEmail);
-            helper.setSubject("Thông báo về yêu cầu hoàn vé - VigoTrip");
+            helper.setSubject(t(locale, "mail.refundNo.subject"));
 
             String reason = note != null && !note.trim().isEmpty()
                     ? esc(note)
-                    : "Không đáp ứng điều kiện theo quy định chính sách hoàn hủy của nhà cung cấp.";
+                    : t(locale, "mail.refundNo.defaultReason");
 
-            String content = heading("Thông báo yêu cầu hoàn vé")
-                    + paragraph("Xin chào quý khách,")
-                    + paragraph("Rất tiếc, yêu cầu hoàn vé " + accent("#" + refundId) + " của quý khách "
-                            + "cho đơn vé " + accent("#" + bookingId) + " chưa thể phê duyệt "
-                            + "do nhà cung cấp từ chối.")
-                    + alertBox("<b>Lý do từ chối:</b><br/>" + reason)
-                    + paragraph("Vé của quý khách hiện vẫn giữ nguyên giá trị sử dụng bình thường. "
-                            + "Vui lòng liên hệ bộ phận CSKH VigoTrip nếu cần hỗ trợ thêm thông tin.");
+            String content = heading(t(locale, "mail.refundNo.heading"))
+                    + paragraph(t(locale, "mail.hello"))
+                    + paragraph(t(locale, "mail.refundNo.intro", accent("#" + refundId), accent("#" + bookingId)))
+                    + alertBox("<b>" + t(locale, "mail.refundNo.reasonLabel") + "</b><br/>" + reason)
+                    + paragraph(t(locale, "mail.refundNo.stillValid"));
 
-            helper.setText(emailShell(ACCENT_SLATE, "Xử lý yêu cầu hoàn vé", content), true);
+            helper.setText(emailShell(locale, ACCENT_SLATE, t(locale, "mail.refundOk.eyebrow"), content), true);
             mailSender.send(message);
             log.info("Refund rejected email sent to {}", toEmail);
         } catch (Exception e) {
@@ -466,17 +467,24 @@ public class EmailService {
      * @param eyebrow     dòng chữ nhỏ dưới tên thương hiệu
      * @param content     các khối nội dung, dựng bằng heading()/paragraph()/panel()...
      */
-    private String emailShell(String accentColor, String eyebrow, String content) {
+    private String emailShell(Locale locale, String accentColor, String eyebrow, String content) {
+        // lang trên thẻ <html> không chỉ để cho đẹp: nó là thứ trình đọc màn hình dựa vào
+        // để chọn giọng đọc, và là gợi ý để Gmail biết có nên mời dịch lá thư hay không.
+        // Để cứng lang='vi' trong một lá thư tiếng Anh là sai ở cả hai chỗ đó.
         return SHELL_OPEN
+                .replace("{{LANG}}", locale == null ? "vi" : locale.getLanguage())
                 .replace("{{ACCENT}}", accentColor)
                 .replace("{{EYEBROW}}", eyebrow)
                 + content
-                + SHELL_CLOSE;
+                + SHELL_CLOSE
+                .replace("{{REGARDS}}", t(locale, "mail.regards"))
+                .replace("{{TEAM}}", t(locale, "mail.team"))
+                .replace("{{AUTO_NOTICE}}", t(locale, "mail.autoNotice"));
     }
 
     private static final String SHELL_OPEN = """
             <!DOCTYPE html>
-            <html lang='vi'>
+            <html lang='{{LANG}}'>
             <head>
             <meta charset='UTF-8'>
             <meta name='viewport' content='width=device-width, initial-scale=1'>
@@ -552,14 +560,14 @@ public class EmailService {
 
     private static final String SHELL_CLOSE = """
                         <div class='vt-hairline' style='border-top:1px solid #e6ecf5; margin-top:20px; padding-top:16px;'>
-                          <div class='vt-muted' style='font-size:13px; line-height:1.6; color:#7c8aa0;'>Trân trọng,</div>
-                          <div class='vt-ink' style='font-size:14px; font-weight:700; color:#334155; padding-top:2px;'>Đội ngũ VigoTrip</div>
+                          <div class='vt-muted' style='font-size:13px; line-height:1.6; color:#7c8aa0;'>{{REGARDS}}</div>
+                          <div class='vt-ink' style='font-size:14px; font-weight:700; color:#334155; padding-top:2px;'>{{TEAM}}</div>
                         </div>
                       </td>
                     </tr>
                   </table>
                   <div class='vt-muted' style='max-width:600px; padding:16px 12px 0 12px; font-family:-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:12px; line-height:1.6; color:#8a97a8; text-align:center;'>
-                    Đây là email tự động từ hệ thống VigoTrip, vui lòng không trả lời email này.
+                    {{AUTO_NOTICE}}
                   </div>
                 </td>
               </tr>

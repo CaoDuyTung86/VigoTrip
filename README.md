@@ -81,6 +81,20 @@ Hệ thống hỗ trợ 2 kiến trúc triển khai điện toán đám mây lin
 
 ---
 
+## Đa Ngôn Ngữ (i18n)
+
+Hỗ trợ 4 ngôn ngữ (`vi`, `en`, `ja`, `zh`). Nút cờ trên header chính là cài đặt ngôn ngữ của tài khoản: đổi ở đó thì giao diện đổi ngay, và từ đó về sau **thư gửi về hòm thư cũng đổi theo** — kể cả mail nhắc chuyến do bộ lập lịch gửi lúc không có trình duyệt nào mở.
+
+Hàng rào chống dịch sót chạy trong CI:
+
+```bash
+npm run i18n:check --prefix my-react-app
+```
+
+Chi tiết đầy đủ — quy tắc "ai thắng" giữa client và server, chuỗi dự phòng của chữ trong mail, cơ chế bánh cóc cho nợ cũ, và những gì còn lại — xem [docs/DA_NGON_NGU.md](./docs/DA_NGON_NGU.md).
+
+---
+
 ## Hướng Dẫn Cài Đặt
 
 1. **Yêu cầu hệ thống:** Đã cài đặt Docker và Docker Compose.

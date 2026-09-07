@@ -152,7 +152,8 @@ public class RefundService {
         
         // Cố ý gửi về email TÀI KHOẢN, không phải người liên hệ của đơn: đây là chuyện
         // tiền nong với người đã trả tiền, còn người liên hệ chỉ là người cầm vé đi.
-        emailService.sendRefundApprovedEmail(booking.getUser().getEmail(), saved.getId(), booking.getId(), saved.getRefundAmount());
+        emailService.sendRefundApprovedEmail(booking.getUser().getEmail(), saved.getId(), booking.getId(),
+                saved.getRefundAmount(), booking.getUser().resolveLocale());
 
         paymentLogService.recordRefundDecision(PaymentLog.Channel.REFUND_APPROVE, booking.getId(),
                 actorEmail, "APPROVED",
@@ -181,7 +182,8 @@ public class RefundService {
         
         // Cố ý gửi về email TÀI KHOẢN, không phải người liên hệ của đơn: đây là chuyện
         // tiền nong với người đã trả tiền, còn người liên hệ chỉ là người cầm vé đi.
-        emailService.sendRefundRejectedEmail(refund.getBooking().getUser().getEmail(), saved.getId(), refund.getBooking().getId(), note);
+        emailService.sendRefundRejectedEmail(refund.getBooking().getUser().getEmail(), saved.getId(),
+                refund.getBooking().getId(), note, refund.getBooking().getUser().resolveLocale());
 
         paymentLogService.recordRefundDecision(PaymentLog.Channel.REFUND_REJECT,
                 refund.getBooking().getId(), actorEmail, "REJECTED",

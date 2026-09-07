@@ -811,7 +811,8 @@ public class PaymentService {
         // thể đặt hộ cả đoàn và người cầm vé mới là người cần nhận mã check-in.
         eventPublisher.publishEvent(new BookingConfirmedEvent(
                 booking.resolveNotificationEmail(),
-                BookingConfirmationMail.from(booking)
+                BookingConfirmationMail.from(booking),
+                booking.resolveNotificationLocale()
         ));
     }
 

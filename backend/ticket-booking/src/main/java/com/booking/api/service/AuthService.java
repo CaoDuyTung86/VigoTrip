@@ -54,6 +54,7 @@ public class AuthService {
         user.setPhone(request.getPhone());
         user.setRole("ROLE_USER");
         user.setEnabled(false); // Bắt buộc xác thực email
+        user.setLanguage(com.booking.api.i18n.SupportedLocales.normalize(request.getLanguage()));
 
         // Tạo mã xác thực 6 số
         String verificationCode = String.format("%06d", secureRandom.nextInt(1000000));
@@ -67,7 +68,7 @@ public class AuthService {
         }
 
         // Gửi email xác thực
-        emailService.sendVerificationEmail(user.getEmail(), verificationCode);
+        emailService.sendVerificationEmail(user.getEmail(), verificationCode, user.resolveLocale());
 
         return new AuthResponse(null, user.getEmail(), user.getFullName(), user.getRole()); // Không trả về token ngay
     }
@@ -166,7 +167,7 @@ public class AuthService {
             String verificationCode = String.format("%06d", secureRandom.nextInt(1000000));
             user.setVerificationCode(verificationCode);
             userRepository.save(user);
-            emailService.sendVerificationEmail(user.getEmail(), verificationCode);
+            emailService.sendVerificationEmail(user.getEmail(), verificationCode, user.resolveLocale());
         });
     }
 
@@ -193,7 +194,7 @@ public class AuthService {
             userRepository.save(user);
 
             try {
-                emailService.sendResetPasswordEmail(user.getEmail(), otpCode);
+                emailService.sendResetPasswordEmail(user.getEmail(), otpCode, user.resolveLocale());
             } catch (Exception e) {
                 log.error("Failed to send reset password email to {}", user.getEmail(), e);
                 log.warn("SMTP email sending failed. Please check email server configuration.");

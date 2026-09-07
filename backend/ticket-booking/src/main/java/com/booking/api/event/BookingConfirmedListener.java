@@ -21,6 +21,6 @@ public class BookingConfirmedListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onBookingConfirmed(BookingConfirmedEvent event) {
-        emailService.sendBookingConfirmation(event.toEmail(), event.mail());
+        emailService.sendBookingConfirmation(event.toEmail(), event.mail(), event.locale());
     }
 }

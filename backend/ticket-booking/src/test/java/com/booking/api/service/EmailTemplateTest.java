@@ -1,6 +1,8 @@
 package com.booking.api.service;
 
 import com.booking.api.dto.BookingConfirmationMail;
+import com.booking.api.i18n.Messages;
+import com.booking.api.i18n.SupportedLocales;
 import jakarta.mail.BodyPart;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -21,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 
@@ -50,11 +54,22 @@ class EmailTemplateTest {
     @Mock
     private JavaMailSender mailSender;
 
+    private static final Locale VI = SupportedLocales.DEFAULT;
+    private static final Locale EN = Locale.forLanguageTag("en");
+
     private EmailService emailService;
 
     @BeforeEach
     void setUp() {
-        emailService = new EmailService(mailSender);
+        // MessageSource thật, không phải mock: nửa giá trị của bộ test này là chứng minh
+        // messages*.properties dựng ra được lá thư hoàn chỉnh, mà mock thì không chứng minh
+        // được điều đó — nó chỉ trả về đúng cái mình đã bảo nó trả về.
+        ReloadableResourceBundleMessageSource source = new ReloadableResourceBundleMessageSource();
+        source.setBasename("classpath:messages");
+        source.setDefaultEncoding("UTF-8");
+        source.setFallbackToSystemLocale(false);
+
+        emailService = new EmailService(mailSender, new Messages(source));
         ReflectionTestUtils.setField(emailService, "backendUrl", "https://api.vigotrip.test");
         ReflectionTestUtils.setField(emailService, "frontendUrl", "https://vigotrip.test");
 
@@ -114,8 +129,8 @@ class EmailTemplateTest {
         String payload = "<script>alert(1)</script>";
 
         emailService.sendTripDelayEmail("khach@example.com", "HAN → SGN",
-                "06:00 01/01/2026", "09:00 01/01/2026", payload);
-        emailService.sendRefundRejectedEmail("khach@example.com", 7L, 52L, payload);
+                "06:00 01/01/2026", "09:00 01/01/2026", payload, VI);
+        emailService.sendRefundRejectedEmail("khach@example.com", 7L, 52L, payload, VI);
 
         for (String html : capturedHtml()) {
             assertThat(html).doesNotContain(payload);
@@ -131,7 +146,7 @@ class EmailTemplateTest {
     @Test
     @DisplayName("Khối mã QR giữ nền trắng cả ở chế độ tối, và ảnh trỏ đúng endpoint")
     void qrBlockStaysLightAndPointsAtTheServedImage() throws Exception {
-        emailService.sendBookingConfirmation("khach@example.com", sampleBooking());
+        emailService.sendBookingConfirmation("khach@example.com", sampleBooking(), VI);
 
         String html = capturedHtml().get(0);
 
@@ -141,18 +156,56 @@ class EmailTemplateTest {
         assertThat(html).contains(".vt-qr { background-color:#ffffff !important;");
     }
 
+    /**
+     * Cùng một lá thư, đổi ngôn ngữ của người nhận thì đổi theo — kể cả chữ ở khung chung.
+     *
+     * <p>Đây là điều kiện để nút đổi ngôn ngữ có ý nghĩa ngoài phạm vi trình duyệt: mail
+     * nhắc khởi hành do bộ lập lịch gửi lúc nửa đêm không có request nào để đọc header
+     * Accept-Language, nó chỉ có ngôn ngữ đã lưu trên tài khoản.
+     */
+    @Test
+    @DisplayName("Ngôn ngữ người nhận đổi thì cả tiêu đề, nội dung và chân thư đổi theo")
+    void mailFollowsRecipientLanguage() throws Exception {
+        emailService.sendTripReminderEmail("khach@example.com", 52L, "HAN → CXR", "06:00", VI);
+        emailService.sendTripReminderEmail("khach@example.com", 52L, "HAN → CXR", "06:00", EN);
+
+        List<String> htmls = capturedHtml();
+        String vietnamese = htmls.get(0);
+        String english = htmls.get(1);
+
+        assertThat(vietnamese)
+                .contains("<html lang='vi'>")
+                .contains("Chuyến đi của bạn sắp khởi hành")
+                .contains("Đội ngũ VigoTrip");
+
+        assertThat(english)
+                .contains("<html lang='en'>")
+                .contains("Your trip departs soon")
+                .contains("The VigoTrip Team")
+                // Chân thư nằm trong khung chung — chỗ dễ quên nhất khi thêm mail mới.
+                .contains("This is an automated message from VigoTrip")
+                .doesNotContain("Đội ngũ VigoTrip")
+                .doesNotContain("Trân trọng,");
+    }
+
+    /**
+     * ja/zh chưa dịch nên rơi về bản mặc định. Điều phải bảo đảm là nó rơi về TIẾNG ANH,
+     * không phải rơi về locale của máy chủ — thứ mỗi nơi deploy một khác.
+     */
+    @Test
+    @DisplayName("Ngôn ngữ chưa dịch rơi về tiếng Anh chứ không phải theo máy chủ")
+    void untranslatedLanguageFallsBackToEnglish() throws Exception {
+        emailService.sendTripReminderEmail("khach@example.com", 52L, "HAN → CXR", "06:00",
+                Locale.forLanguageTag("ja"));
+
+        assertThat(capturedHtml().get(0))
+                .contains("<html lang='ja'>")
+                .contains("Your trip departs soon");
+    }
+
     /** Dựng đủ một lượt tất cả các mail và trả về HTML của từng cái, kèm bản đổ ra đĩa. */
     private Map<String, String> renderAllMails() throws Exception {
-        emailService.sendVerificationEmail("khach@example.com", "123456");
-        emailService.sendResetPasswordEmail("khach@example.com", "654321");
-        emailService.sendBookingConfirmation("khach@example.com", sampleBooking());
-        emailService.sendTripReminderEmail("khach@example.com", 52L, "HAN → CXR", "06:00 ngày 02/09/2026");
-        emailService.sendSurveyEmail("khach@example.com", 52L);
-        emailService.sendTripDelayEmail("khach@example.com", "HAN → CXR",
-                "06:00 ngày 02/09/2026", "09:30 ngày 02/09/2026", "Xe gặp sự cố kỹ thuật");
-        emailService.sendTripCancelledEmail("khach@example.com", 52L, "HAN → CXR", 4_952_950d);
-        emailService.sendRefundApprovedEmail("khach@example.com", 7L, 52L, new BigDecimal("4952950"));
-        emailService.sendRefundRejectedEmail("khach@example.com", 7L, 52L, "Yêu cầu gửi sau giờ khởi hành");
+        renderAllMailsIn(VI);
 
         List<String> htmls = capturedHtml();
         String[] names = {
@@ -169,6 +222,20 @@ class EmailTemplateTest {
                     htmls.get(i).getBytes(StandardCharsets.UTF_8));
         }
         return mails;
+    }
+
+    /** Một lượt gửi cho mỗi loại mail, bằng ngôn ngữ chỉ định. */
+    private void renderAllMailsIn(Locale locale) {
+        emailService.sendVerificationEmail("khach@example.com", "123456", locale);
+        emailService.sendResetPasswordEmail("khach@example.com", "654321", locale);
+        emailService.sendBookingConfirmation("khach@example.com", sampleBooking(), locale);
+        emailService.sendTripReminderEmail("khach@example.com", 52L, "HAN → CXR", "06:00 ngày 02/09/2026", locale);
+        emailService.sendSurveyEmail("khach@example.com", 52L, locale);
+        emailService.sendTripDelayEmail("khach@example.com", "HAN → CXR",
+                "06:00 ngày 02/09/2026", "09:30 ngày 02/09/2026", "Xe gặp sự cố kỹ thuật", locale);
+        emailService.sendTripCancelledEmail("khach@example.com", 52L, "HAN → CXR", 4_952_950d, locale);
+        emailService.sendRefundApprovedEmail("khach@example.com", 7L, 52L, new BigDecimal("4952950"), locale);
+        emailService.sendRefundRejectedEmail("khach@example.com", 7L, 52L, "Yêu cầu gửi sau giờ khởi hành", locale);
     }
 
     private List<String> capturedHtml() throws Exception {

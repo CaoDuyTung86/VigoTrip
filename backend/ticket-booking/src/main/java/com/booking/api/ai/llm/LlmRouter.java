@@ -95,8 +95,11 @@ public class LlmRouter {
         boolean allCircuitsOpen = true;
 
         for (LlmProvider provider : providers) {
-            if (circuitBreaker.isOpen(provider.name())) {
-                log.debug("[LlmRouter] Bỏ qua {} — mạch đang mở.", provider.name());
+            // tryAcquire, không phải isOpen: ở trạng thái HALF_OPEN lời gọi này có thể
+            // giành được suất thăm dò, nên phải hỏi đúng một lần rồi báo lại kết quả.
+            if (!circuitBreaker.tryAcquire(provider.name())) {
+                log.debug("[LlmRouter] Bỏ qua {} — mạch {}.",
+                        provider.name(), circuitBreaker.stateOf(provider.name()));
                 continue;
             }
             allCircuitsOpen = false;
@@ -132,6 +135,8 @@ public class LlmRouter {
         String reason = allCircuitsOpen
                 ? "mọi nhà cung cấp AI đều đang bị tạm loại do lỗi liên tiếp"
                 : "mọi nhà cung cấp AI đều thất bại";
+        // allCircuitsOpen cũng đúng khi một nhà đang HALF_OPEN và suất thăm dò đã bị
+        // request khác giành mất — với người dùng thì kết quả như nhau: không đi được.
         throw new LlmUnavailableException(reason, lastError);
     }
 

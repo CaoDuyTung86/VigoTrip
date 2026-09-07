@@ -62,7 +62,8 @@ public class TripReminderScheduler {
             }
 
             try {
-                emailService.sendTripReminderEmail(email, booking.getId(), route, departureStr);
+                emailService.sendTripReminderEmail(email, booking.getId(), route, departureStr,
+                        booking.resolveNotificationLocale());
                 sent++;
             } catch (Exception e) {
                 log.error("[Scheduler] Error sending reminder email for booking ID: {}", booking.getId(), e);

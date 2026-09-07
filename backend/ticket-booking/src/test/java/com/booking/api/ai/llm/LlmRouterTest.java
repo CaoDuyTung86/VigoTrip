@@ -147,6 +147,28 @@ class LlmRouterTest {
                 .hasValue(1);
     }
 
+    /** Ép primary lỗi đủ ngưỡng (secondary luôn trả lời được nên execute không ném). */
+    private void tripPrimary() {
+        for (int i = 0; i < properties.getCircuitBreaker().getFailureThreshold(); i++) {
+            router.execute(LlmTask.CHAT, p -> {
+                if ("primary".equals(p.name())) {
+                    throw retryable(p.name());
+                }
+                return "ok";
+            });
+        }
+    }
+
+    /** Một lượt execute mà primary lỗi, secondary đỡ. */
+    private void failPrimaryOnce() {
+        router.execute(LlmTask.CHAT, p -> {
+            if ("primary".equals(p.name())) {
+                throw retryable(p.name());
+            }
+            return "ok";
+        });
+    }
+
     @Test
     @DisplayName("Sau đủ số lần lỗi liên tiếp, nhà cung cấp bị tạm loại khỏi vòng chọn")
     void opensCircuitAfterConsecutiveFailures() {
@@ -265,5 +287,109 @@ class LlmRouterTest {
             });
         }
         assertThat(circuitBreaker.isOpen("primary")).isFalse();
+    }
+
+    @Test
+    @DisplayName("Hết thời gian mở mạch → HALF_OPEN, request kế tiếp là phép thử trên nhà chính")
+    void halfOpenSendsOneProbeToPrimary() {
+        properties.getCircuitBreaker().setOpenSeconds(0);   // hết hạn tức thì, khỏi phải chờ thật
+        tripPrimary();
+        assertThat(circuitBreaker.stateOf("primary")).isEqualTo(ProviderCircuitBreaker.State.HALF_OPEN);
+
+        List<String> attempted = new ArrayList<>();
+        router.execute(LlmTask.CHAT, p -> {
+            attempted.add(p.name());
+            return "ok";
+        });
+
+        assertThat(attempted).as("phép thử phải đi vào nhà chính").containsExactly("primary");
+        assertThat(circuitBreaker.stateOf("primary"))
+                .as("thăm dò thành công thì đóng mạch")
+                .isEqualTo(ProviderCircuitBreaker.State.CLOSED);
+    }
+
+    @Test
+    @DisplayName("HALF_OPEN chỉ cho đi MỘT request thăm dò, phần còn lại vẫn đi nhà dự phòng")
+    void halfOpenAdmitsOnlyOneProbe() {
+        properties.getCircuitBreaker().setOpenSeconds(0);
+        tripPrimary();
+
+        assertThat(circuitBreaker.tryAcquire("primary")).isTrue();
+        assertThat(circuitBreaker.tryAcquire("primary"))
+                .as("suất thăm dò đã có người giữ, chưa biết kết quả")
+                .isFalse();
+
+        List<String> attempted = new ArrayList<>();
+        router.execute(LlmTask.CHAT, p -> {
+            attempted.add(p.name());
+            return "ok";
+        });
+        assertThat(attempted).containsExactly("secondary");
+    }
+
+    @Test
+    @DisplayName("Thăm dò thất bại → mở lại mạch NGAY, không cần đủ ngưỡng lỗi lần nữa")
+    void failedProbeReopensCircuitImmediately() {
+        properties.getCircuitBreaker().setOpenSeconds(0);
+        tripPrimary();
+        assertThat(circuitBreaker.stateOf("primary")).isEqualTo(ProviderCircuitBreaker.State.HALF_OPEN);
+
+        properties.getCircuitBreaker().setOpenSeconds(60);
+        router.execute(LlmTask.CHAT, p -> {
+            if ("primary".equals(p.name())) {
+                throw retryable(p.name());
+            }
+            return "ok";
+        });
+
+        assertThat(circuitBreaker.stateOf("primary"))
+                .as("một lần thăm dò hỏng là đủ, không phải %d lần",
+                        properties.getCircuitBreaker().getFailureThreshold())
+                .isEqualTo(ProviderCircuitBreaker.State.OPEN);
+    }
+
+    @Test
+    @DisplayName("Thời gian tạm loại nhân đôi mỗi vòng mở mạch, chặn ở trần")
+    void openDurationDoublesEachCycleUpToCap() {
+        properties.getCircuitBreaker().setOpenSeconds(60);
+        properties.getCircuitBreaker().setMaxOpenSeconds(900);
+
+        assertThat(circuitBreaker.openSecondsForCycle(1)).isEqualTo(60);
+        assertThat(circuitBreaker.openSecondsForCycle(2)).isEqualTo(120);
+        assertThat(circuitBreaker.openSecondsForCycle(3)).isEqualTo(240);
+        assertThat(circuitBreaker.openSecondsForCycle(4)).isEqualTo(480);
+        assertThat(circuitBreaker.openSecondsForCycle(5)).as("960 > trần").isEqualTo(900);
+        assertThat(circuitBreaker.openSecondsForCycle(500)).as("không tràn số").isEqualTo(900);
+    }
+
+    @Test
+    @DisplayName("Thăm dò hỏng làm vòng mở mạch kế tiếp dài gấp đôi")
+    void failedProbeDoublesNextOpenWindow() {
+        properties.getCircuitBreaker().setOpenSeconds(0);
+        tripPrimary();                                       // vòng 1: 0 giây → HALF_OPEN ngay
+
+        properties.getCircuitBreaker().setOpenSeconds(60);
+        failPrimaryOnce();                                   // thăm dò hỏng → vòng 2
+
+        assertThat(circuitBreaker.secondsUntilRetry("primary"))
+                .as("vòng 2 phải là 60 x 2, không phải 60")
+                .isBetween(115L, 120L);
+    }
+
+    @Test
+    @DisplayName("Một lần thành công đưa thời gian tạm loại về lại mốc đầu")
+    void successResetsBackoffLadder() {
+        properties.getCircuitBreaker().setOpenSeconds(0);
+        tripPrimary();                                       // vòng 1 → HALF_OPEN
+
+        router.execute(LlmTask.CHAT, p -> "ok");             // thăm dò thành công → CLOSED
+        assertThat(circuitBreaker.stateOf("primary")).isEqualTo(ProviderCircuitBreaker.State.CLOSED);
+
+        properties.getCircuitBreaker().setOpenSeconds(60);
+        tripPrimary();
+
+        assertThat(circuitBreaker.secondsUntilRetry("primary"))
+                .as("bậc thang đã reset nên phải là 60, không phải 120")
+                .isBetween(55L, 60L);
     }
 }

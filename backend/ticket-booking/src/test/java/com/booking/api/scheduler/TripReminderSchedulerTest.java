@@ -76,7 +76,7 @@ class TripReminderSchedulerTest {
         scheduler.sendTripReminders();
 
         verify(emailService).sendTripReminderEmail(
-                eq("khach@example.com"), eq(52L), eq("HAN → CXR"), anyString());
+                eq("khach@example.com"), eq(52L), eq("HAN → CXR"), anyString(), any());
     }
 
     /**
@@ -91,7 +91,7 @@ class TripReminderSchedulerTest {
 
         scheduler.sendTripReminders();
 
-        verify(emailService, never()).sendTripReminderEmail(anyString(), anyLong(), anyString(), anyString());
+        verify(emailService, never()).sendTripReminderEmail(anyString(), anyLong(), anyString(), anyString(), any());
         verify(bookingRepository, never()).save(any());
     }
 
@@ -100,7 +100,7 @@ class TripReminderSchedulerTest {
     void releasesClaimWhenQueueingFails() {
         when(bookingRepository.claimReminder(52L)).thenReturn(1);
         org.mockito.Mockito.doThrow(new java.util.concurrent.RejectedExecutionException("pool đầy"))
-                .when(emailService).sendTripReminderEmail(anyString(), anyLong(), anyString(), anyString());
+                .when(emailService).sendTripReminderEmail(anyString(), anyLong(), anyString(), anyString(), any());
 
         scheduler.sendTripReminders();
 

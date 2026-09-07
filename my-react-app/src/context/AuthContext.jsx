@@ -21,7 +21,7 @@ const AUTH_ONLY_PREFIXES = ["/admin", "/account", "/my-bookings", "/provider"];
 export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { t } = useLanguage();
+  const { t, syncLanguageFromProfile } = useLanguage();
 
   const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem("authUser");
@@ -68,11 +68,12 @@ export const AuthProvider = ({ children }) => {
       );
       if (!ok || !data) return null;
       setProfile(data);
+      syncLanguageFromProfile(data.language);
       return data;
     } catch {
       return null;
     }
-  }, []);
+  }, [syncLanguageFromProfile]);
 
   // Nạp hồ sơ mỗi khi đăng nhập lại. Khi đăng xuất, profile đã được xóa trong logout/forceLogout.
   //
@@ -90,12 +91,15 @@ export const AuthProvider = ({ children }) => {
         );
         if (!ok || !data || cancelled) return;
         setProfile(data);
+        // Ngôn ngữ của tài khoản chỉ biết được sau khi hồ sơ về tới nơi. Đồng bộ ở đây thay
+        // vì ngay trong loginSuccess: phản hồi đăng nhập chỉ có token, tên và vai trò.
+        syncLanguageFromProfile(data.language);
       } catch {
         // giữ nguyên profile hiện tại, lần điều hướng sau sẽ thử lại
       }
     })();
     return () => { cancelled = true; };
-  }, [token]);
+  }, [token, syncLanguageFromProfile]);
 
   const loginSuccess = useCallback((authData) => {
     if (!authData) return;

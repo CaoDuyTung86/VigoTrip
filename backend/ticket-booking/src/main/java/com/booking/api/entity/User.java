@@ -74,4 +74,28 @@ public class User {
      */
     @Column(name = "luu_lich_su_chat")
     private Boolean chatHistoryOptIn = true;
+
+    /**
+     * Ngôn ngữ người dùng đã chọn ('vi', 'en', 'ja', 'zh').
+     *
+     * Sống trong cơ sở dữ liệu chứ không chỉ trong localStorage vì nó phải dùng được ở
+     * những nơi không có trình duyệt nào đang mở: mail nhắc khởi hành do bộ lập lịch gửi
+     * lúc nửa đêm, mail báo hoãn/huỷ chuyến do quản trị viên bấm từ máy khác. Đọc ngôn ngữ
+     * từ header Accept-Language của request thì mấy luồng đó không có request nào để mà
+     * đọc — nên nơi duy nhất trả lời được "người này đọc tiếng gì" là chính bản ghi này.
+     *
+     * null = chưa từng chọn: hiểu là tiếng Việt (xem resolveLocale).
+     */
+    @Column(name = "ngon_ngu", length = 5)
+    private String language;
+
+    /**
+     * Ngôn ngữ để soạn thư gửi cho người này. Không bao giờ trả về null.
+     *
+     * Đặt ở entity thay vì rải if-else tại từng chỗ gọi EmailService: có 11 chỗ gửi mail,
+     * và chỗ nào quên xử lý null thì lỗi chỉ lộ ra trong hòm thư của khách.
+     */
+    public java.util.Locale resolveLocale() {
+        return com.booking.api.i18n.SupportedLocales.parse(language);
+    }
 }

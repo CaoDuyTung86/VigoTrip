@@ -1,6 +1,16 @@
 spring:
   application:
     name: booking-service
+  # Chữ trong mail gửi đi (messages*.properties).
+  #
+  # fallback-to-system-locale: false là bắt buộc, không phải tuỳ chọn. Để true thì khi
+  # người nhận chọn ja/zh (chưa dịch), Spring lấy locale CỦA MÁY CHỦ làm bản dự phòng —
+  # tức là chữ trong mail phụ thuộc vào cấu hình của cái container đang chạy, mỗi nơi
+  # deploy một kiểu. Để false thì bản dự phòng luôn là messages.properties (tiếng Anh).
+  messages:
+    basename: messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
   datasource:
     # Cấu hình MS SQL Server 
     url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=ticket_booking_db;encrypt=true;trustServerCertificate=true;}
@@ -244,7 +254,16 @@ llm:
 
   circuit-breaker:
     failure-threshold: ${LLM_CIRCUIT_FAILURE_THRESHOLD:3}
+    # Hết ngần này giây thì mạch chuyển HALF_OPEN: đúng MỘT request được dùng làm phép
+    # thử, phần còn lại vẫn đi nhà dự phòng cho tới khi biết kết quả.
+    # Mỗi vòng mở mạch liên tiếp nhân đôi con số này (60 → 120 → 240...), về lại 60 khi
+    # có một lần thành công.
     open-seconds: ${LLM_CIRCUIT_OPEN_SECONDS:60}
+    # Trần sau khi nhân đôi. 15 phút: đủ thưa để không đốt request vô ích vào nhà đang
+    # chết, vẫn đủ dày để nhận ra nó sống lại.
+    max-open-seconds: ${LLM_CIRCUIT_MAX_OPEN_SECONDS:900}
+    # Chốt chặn chống kẹt suất thăm dò, không phải timeout HTTP. Dài hơn stream 120s.
+    probe-timeout-seconds: ${LLM_CIRCUIT_PROBE_TIMEOUT_SECONDS:180}
 
   retry:
     # Cố tình để thấp: khi đã có nhà cung cấp dự phòng thì chuyển nhà nhanh hơn

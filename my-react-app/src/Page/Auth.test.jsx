@@ -17,7 +17,11 @@ vi.mock('../context/ToastContext', () => ({
 }));
 // t.<bất kỳ key nào> trả về chính tên key -> khỏi phụ thuộc câu chữ tiếng Việt
 vi.mock('../context/LanguageContext', () => ({
-  useLanguage: () => ({ t: new Proxy({}, { get: (_, key) => String(key) }) }),
+  useLanguage: () => ({
+    t: new Proxy({}, { get: (_, key) => String(key) }),
+    // Form đăng ký gửi kèm ngôn ngữ đang xem để mail kích hoạt về đúng thứ tiếng.
+    currentLanguage: { code: 'vi' },
+  }),
 }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => mocks.navigate }));
 vi.mock('@react-oauth/google', () => ({ GoogleLogin: () => null }));

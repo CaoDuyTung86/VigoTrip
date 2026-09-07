@@ -49,6 +49,24 @@ public class UserController {
         return ResponseEntity.ok(userService.setChatHistoryOptIn(userDetails.getUsername(), optIn));
     }
 
+    /**
+     * Ghi lại ngôn ngữ tài khoản đang dùng.
+     *
+     * <p>Endpoint riêng, cùng lý do với /me/chat-consent: nút đổi ngôn ngữ trên header bấm
+     * phát ăn ngay, không nằm trong form "lưu thông tin cá nhân" — nhét vào PUT /me thì mỗi
+     * lần đổi cờ tiếng lại phải gửi kèm cả họ tên và số điện thoại.
+     */
+    @PutMapping("/me/language")
+    public ResponseEntity<UserResponse> setLanguage(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, String> body) {
+        String language = body.get("language");
+        if (language == null || language.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(userService.setLanguage(userDetails.getUsername(), language));
+    }
+
     @PutMapping("/me/password")
     public ResponseEntity<Map<String, String>> changePassword(
             @AuthenticationPrincipal UserDetails userDetails,
