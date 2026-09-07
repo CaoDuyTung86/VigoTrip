@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useLanguage } from "../context/LanguageContext";
 import { 
   FaUsers, 
   FaUserShield, 
@@ -19,25 +20,6 @@ import {
 import ModalPortal from "../components/ModalPortal";
 
 const API_BASE = "/api";
-
-/* API trả danh sách tài khoản theo thứ tự của DB, không cam kết sắp xếp gì cả nên nhìn
-   rất lộn xộn (#4, #2, #6, #7...). Mặc định xếp lại theo ID tăng dần và cho admin đổi
-   tiêu chí bằng ô chọn hoặc bấm thẳng vào tiêu đề cột. */
-const SORT_FIELDS = [
-  { field: "id", asc: "ID tăng dần (#1 → #n)", desc: "Mới nhất (ID giảm dần)" },
-  { field: "name", asc: "Tên A → Z", desc: "Tên Z → A" },
-  { field: "email", asc: "Email A → Z", desc: "Email Z → A" },
-  { field: "role", asc: "Vai trò: Admin trước", desc: "Vai trò: Khách hàng trước" },
-  { field: "points", asc: "Điểm thưởng thấp nhất", desc: "Điểm thưởng cao nhất" },
-  { field: "status", asc: "Trạng thái: cần xử lý trước", desc: "Trạng thái: hoạt động trước" },
-];
-
-// Liệt kê đủ cả hai chiều của mọi cột, không cắt bớt: bấm tiêu đề cột cũng đổi sortBy,
-// nếu thiếu tổ hợp nào thì ô chọn sẽ hiện trống vì không khớp option nào.
-const SORT_OPTIONS = SORT_FIELDS.flatMap((f) => [
-  { value: `${f.field}_asc`, label: f.asc },
-  { value: `${f.field}_desc`, label: f.desc },
-]);
 
 const ROLE_RANK = { ROLE_ADMIN: 0, ROLE_PROVIDER: 1, ROLE_USER: 2 };
 // Khóa xếp trước, chờ xác thực email xếp giữa, đang hoạt động xếp cuối — admin nhìn
@@ -68,9 +50,21 @@ const sortUsers = (list, sortBy) => {
   return [...list].sort((a, b) => sign * cmp(a, b) || (a.id || 0) - (b.id || 0));
 };
 
+const getMembershipName = (level, t) => {
+  if (!level) return t.tierBronze || "Đồng";
+  const map = {
+    "Đồng": t.tierBronze || "Đồng",
+    "Bạc": t.tierSilver || "Bạc",
+    "Vàng": t.tierGold || "Vàng",
+    "Kim Cương": t.tierDiamond || "Kim Cương",
+  };
+  return map[level] || level;
+};
+
 const AdminUsers = () => {
   const { token, user: currentUser } = useAuth();
   const toast = useToast?.() || { showToast: () => {} };
+  const { t } = useLanguage();
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -78,6 +72,26 @@ const AdminUsers = () => {
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("id_asc");
+
+  /* API trả danh sách tài khoản theo thứ tự của DB, không cam kết sắp xếp gì cả nên nhìn
+     rất lộn xộn (#4, #2, #6, #7...). Mặc định xếp lại theo ID tăng dần và cho admin đổi
+     tiêu chí bằng ô chọn hoặc bấm thẳng vào tiêu đề cột.
+     Nằm trong component vì nhãn phải đổi theo ngôn ngữ đang chọn. */
+  const sortFields = useMemo(() => [
+    { field: "id", asc: t.sortIdAsc || "ID tăng dần (#1 → #n)", desc: t.sortIdDesc || "Mới nhất (ID giảm dần)" },
+    { field: "name", asc: t.sortNameAsc || "Tên A → Z", desc: t.sortNameDesc || "Tên Z → A" },
+    { field: "email", asc: t.sortEmailAsc || "Email A → Z", desc: t.sortEmailDesc || "Email Z → A" },
+    { field: "role", asc: t.sortRoleAsc || "Vai trò: Admin trước", desc: t.sortRoleDesc || "Vai trò: Khách hàng trước" },
+    { field: "points", asc: t.sortPointsAsc || "Điểm thưởng thấp nhất", desc: t.sortPointsDesc || "Điểm thưởng cao nhất" },
+    { field: "status", asc: t.sortStatusAsc || "Trạng thái: cần xử lý trước", desc: t.sortStatusDesc || "Trạng thái: hoạt động trước" },
+  ], [t]);
+
+  // Liệt kê đủ cả hai chiều của mọi cột, không cắt bớt: bấm tiêu đề cột cũng đổi sortBy,
+  // nếu thiếu tổ hợp nào thì ô chọn sẽ hiện trống vì không khớp option nào.
+  const sortOptions = useMemo(() => sortFields.flatMap((f) => [
+    { value: `${f.field}_asc`, label: f.asc },
+    { value: `${f.field}_desc`, label: f.desc },
+  ]), [sortFields]);
 
   // Modal đổi vai trò
   const [roleModal, setRoleModal] = useState({
@@ -113,11 +127,11 @@ const AdminUsers = () => {
         const data = await res.json();
         setUsers(Array.isArray(data) ? data : []);
       } else {
-        toast.showToast?.("Không thể tải danh sách tài khoản", "error");
+        toast.showToast?.(t.errLoadUsers || "Không thể tải danh sách tài khoản", "error");
       }
     } catch (err) {
       console.error(err);
-      toast.showToast?.("Lỗi kết nối máy chủ", "error");
+      toast.showToast?.(t.errServerConnect || "Lỗi kết nối máy chủ", "error");
     } finally {
       setLoading(false);
     }
@@ -137,16 +151,16 @@ const AdminUsers = () => {
       });
 
       if (res.ok) {
-        toast.showToast?.("Cập nhật vai trò thành công!", "success");
+        toast.showToast?.(t.roleUpdatedSuccess || "Cập nhật vai trò thành công!", "success");
         setRoleModal({ show: false, user: null, role: "ROLE_USER", loading: false });
         loadUsers();
       } else {
         const text = await res.text();
-        toast.showToast?.(text || "Không thể đổi vai trò", "error");
+        toast.showToast?.(text || t.errUpdateRole || "Không thể đổi vai trò", "error");
       }
     } catch (err) {
       console.error(err);
-      toast.showToast?.("Lỗi kết nối máy chủ", "error");
+      toast.showToast?.(t.errServerConnect || "Lỗi kết nối máy chủ", "error");
     } finally {
       setRoleModal((prev) => ({ ...prev, loading: false }));
     }
@@ -168,19 +182,19 @@ const AdminUsers = () => {
       if (res.ok) {
         toast.showToast?.(
           statusModal.targetEnabled
-            ? "Đã kích hoạt / mở khóa tài khoản thành công!"
-            : "Đã khóa tài khoản thành công!",
+            ? (t.accountUnlockedSuccess || "Đã kích hoạt / mở khóa tài khoản thành công!")
+            : (t.accountLockedSuccess || "Đã khóa tài khoản thành công!"),
           "success"
         );
         setStatusModal({ show: false, user: null, targetEnabled: true, loading: false });
         loadUsers();
       } else {
         const text = await res.text();
-        toast.showToast?.(text || "Không thể cập nhật trạng thái", "error");
+        toast.showToast?.(text || t.errUpdateStatus || "Không thể cập nhật trạng thái", "error");
       }
     } catch (err) {
       console.error(err);
-      toast.showToast?.("Lỗi kết nối máy chủ", "error");
+      toast.showToast?.(t.errServerConnect || "Lỗi kết nối máy chủ", "error");
     } finally {
       setStatusModal((prev) => ({ ...prev, loading: false }));
     }
@@ -189,8 +203,8 @@ const AdminUsers = () => {
   if (!currentUser || currentUser.role !== "ROLE_ADMIN") {
     return (
       <div style={{ padding: 24, color: "var(--text-main)", textAlign: "center" }}>
-        <h2>Quản lý Tài khoản</h2>
-        <p>Tính năng chỉ dành cho Quản trị viên (Admin).</p>
+        <h2>{t.userManagementTitle || "Quản lý Người dùng & Phân quyền"}</h2>
+        <p>{t.admAdminOnly || "Tính năng chỉ dành cho Quản trị viên (Admin)."}</p>
       </div>
     );
   }
@@ -232,10 +246,11 @@ const AdminUsers = () => {
     const [activeField, activeDir] = sortBy.split("_");
     const isActive = activeField === field;
     const Icon = !isActive ? FaSort : activeDir === "asc" ? FaSortUp : FaSortDown;
+    const headerTitle = (t.sortByColTitle || "Sắp xếp theo {label}").replace("{label}", label);
     return (
       <th
         onClick={() => toggleSort(field)}
-        title={`Sắp xếp theo ${label}`}
+        title={headerTitle}
         style={{ padding: "14px 18px", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap", color: isActive ? "var(--primary)" : undefined, ...extraStyle }}
       >
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -249,11 +264,11 @@ const AdminUsers = () => {
   const getRoleBadge = (role) => {
     switch (role) {
       case "ROLE_ADMIN":
-        return { label: "Admin", bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444", border: "rgba(239, 68, 68, 0.3)" };
+        return { label: t.roleBadgeAdmin || "Admin", bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444", border: "rgba(239, 68, 68, 0.3)" };
       case "ROLE_PROVIDER":
-        return { label: "Nhà xe / Tàu / Bay", bg: "rgba(245, 158, 11, 0.15)", color: "#f59e0b", border: "rgba(245, 158, 11, 0.3)" };
+        return { label: t.roleBadgeProvider || "Nhà xe / Tàu / Bay", bg: "rgba(245, 158, 11, 0.15)", color: "#f59e0b", border: "rgba(245, 158, 11, 0.3)" };
       default:
-        return { label: "Khách hàng", bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", border: "rgba(59, 130, 246, 0.3)" };
+        return { label: t.roleBadgeUser || "Khách hàng", bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", border: "rgba(59, 130, 246, 0.3)" };
     }
   };
 
@@ -272,10 +287,10 @@ const AdminUsers = () => {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
         <div>
           <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 10 }}>
-            <FaUsers style={{ color: "var(--primary)" }} /> Quản lý Người dùng & Phân quyền
+            <FaUsers style={{ color: "var(--primary)" }} /> {t.userManagementTitle || "Quản lý Người dùng & Phân quyền"}
           </h2>
           <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-            Kiểm soát tài khoản, cấp quyền Admin/Nhà cung cấp, khóa/mở khóa và kích hoạt email hộ người dùng
+            {t.userManagementSubtitle || "Kiểm soát tài khoản, cấp quyền Admin/Nhà cung cấp, khóa/mở khóa và kích hoạt email hộ người dùng"}
           </p>
         </div>
 
@@ -295,10 +310,10 @@ const AdminUsers = () => {
               outline: "none",
             }}
           >
-            <option value="ALL">Tất cả vai trò</option>
-            <option value="ROLE_USER">Khách hàng (User)</option>
-            <option value="ROLE_PROVIDER">Nhà cung cấp (Provider)</option>
-            <option value="ROLE_ADMIN">Quản trị viên (Admin)</option>
+            <option value="ALL">{t.allRoles || "Tất cả vai trò"}</option>
+            <option value="ROLE_USER">{t.roleUserOption || "Khách hàng (User)"}</option>
+            <option value="ROLE_PROVIDER">{t.roleProviderOption || "Nhà cung cấp (Provider)"}</option>
+            <option value="ROLE_ADMIN">{t.roleAdminOption || "Quản trị viên (Admin)"}</option>
           </select>
 
           {/* Status filter */}
@@ -315,10 +330,10 @@ const AdminUsers = () => {
               outline: "none",
             }}
           >
-            <option value="ALL">Tất cả trạng thái</option>
-            <option value="ACTIVE">Đang hoạt động</option>
-            <option value="UNVERIFIED">Chưa xác thực email</option>
-            <option value="LOCKED">Bị khóa</option>
+            <option value="ALL">{t.allStatuses || "Tất cả trạng thái"}</option>
+            <option value="ACTIVE">{t.statusActive || "Đang hoạt động"}</option>
+            <option value="UNVERIFIED">{t.statusUnverified || "Chưa xác thực email"}</option>
+            <option value="LOCKED">{t.statusLocked || "Bị khóa"}</option>
           </select>
 
           {/* Sort */}
@@ -336,9 +351,9 @@ const AdminUsers = () => {
               outline: "none",
             }}
           >
-            {SORT_OPTIONS.map((o) => (
+            {sortOptions.map((o) => (
               <option key={o.value} value={o.value}>
-                Sắp xếp: {o.label}
+                {(t.sortByPrefix || "Sắp xếp: ")}{o.label}
               </option>
             ))}
           </select>
@@ -348,7 +363,7 @@ const AdminUsers = () => {
             <FaSearch style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 13 }} />
             <input
               type="text"
-              placeholder="Tìm tên, email, sđt..."
+              placeholder={t.searchUserPlaceholder || "Tìm tên, email, sđt..."}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
@@ -378,30 +393,30 @@ const AdminUsers = () => {
       >
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontWeight: 600, fontSize: 15, color: "var(--text-heading)" }}>
-            Danh sách: {visibleUsers.length} tài khoản
+            {(t.userListCount || "Danh sách: {count} tài khoản").replace("{count}", visibleUsers.length)}
           </span>
         </div>
 
         {loading ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
-            Đang tải dữ liệu người dùng...
+            {t.loadingUsers || "Đang tải dữ liệu người dùng..."}
           </div>
         ) : visibleUsers.length === 0 ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
-            Không tìm thấy người dùng phù hợp.
+            {t.noUsersFound || "Không tìm thấy người dùng phù hợp."}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14 }}>
               <thead>
                 <tr style={{ background: "var(--bg-hover)", borderBottom: "1px solid var(--border-light)", color: "var(--text-muted)" }}>
-                  {sortHeader("id", "ID", { width: 70 })}
-                  {sortHeader("name", "Người dùng")}
-                  {sortHeader("email", "Email & SĐT")}
-                  {sortHeader("role", "Vai trò (Role)")}
-                  {sortHeader("points", "Điểm thưởng / Hạng")}
-                  {sortHeader("status", "Trạng thái")}
-                  <th style={{ padding: "14px 18px", textAlign: "center", width: 170 }}>Thao tác</th>
+                  {sortHeader("id", t.colRouteId || "ID", { width: 70 })}
+                  {sortHeader("name", t.colUser || "Người dùng")}
+                  {sortHeader("email", t.colEmailPhone || "Email & SĐT")}
+                  {sortHeader("role", t.colRole || "Vai trò (Role)")}
+                  {sortHeader("points", t.colPointsTier || "Điểm thưởng / Hạng")}
+                  {sortHeader("status", t.colStatus || "Trạng thái")}
+                  <th style={{ padding: "14px 18px", textAlign: "center", width: 170 }}>{t.colActions || "Thao tác"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -416,12 +431,12 @@ const AdminUsers = () => {
                       </td>
                       <td style={{ padding: "14px 18px" }}>
                         <div style={{ fontWeight: 600, color: "var(--text-main)" }}>
-                          {u.fullName || "Chưa đặt tên"} {isCurrent && <span style={{ fontSize: 11, color: "var(--primary)" }}>(Bạn)</span>}
+                          {u.fullName || (t.unnamedUser || "Chưa đặt tên")} {isCurrent && <span style={{ fontSize: 11, color: "var(--primary)" }}>{t.youBadge || "(Bạn)"}</span>}
                         </div>
                       </td>
                       <td style={{ padding: "14px 18px" }}>
                         <div style={{ fontSize: 13, color: "var(--text-main)" }}>{u.email}</div>
-                        <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{u.phone || "Chưa có SĐT"}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{u.phone || (t.noPhone || "Chưa có SĐT")}</div>
                       </td>
                       <td style={{ padding: "14px 18px" }}>
                         <span
@@ -440,26 +455,24 @@ const AdminUsers = () => {
                       </td>
                       <td style={{ padding: "14px 18px" }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)" }}>
-                          {u.points || 0} xu
+                          {(t.userPointsUnit || "{points} xu").replace("{points}", u.points || 0)}
                         </div>
                         <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                          Hạng {u.membershipLevel || "Đồng"}
+                          {(t.membershipTierPrefix || "Hạng {tier}").replace("{tier}", getMembershipName(u.membershipLevel, t))}
                         </div>
                       </td>
                       <td style={{ padding: "14px 18px" }}>
                         {u.enabled ? (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#10b981", fontSize: 13, fontWeight: 600 }}>
-                            <FaCheckCircle size={14} /> Hoạt động
+                            <FaCheckCircle size={14} /> {t.statusActiveBadge || "Hoạt động"}
                           </span>
                         ) : u.awaitingEmailVerification ? (
-                          /* Người dùng tự đăng ký nhưng chưa nhập mã — họ tự xử lý được,
-                             admin không cần làm gì. Khác hẳn với tài khoản bị khóa. */
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#f59e0b", fontSize: 13, fontWeight: 600 }}>
-                            <FaEnvelope size={13} /> Chưa xác thực email
+                            <FaEnvelope size={13} /> {t.statusUnverifiedBadge || "Chưa xác thực email"}
                           </span>
                         ) : (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#ef4444", fontSize: 13, fontWeight: 600 }}>
-                            <FaBan size={14} /> Đã khóa
+                            <FaBan size={14} /> {t.statusLockedBadge || "Đã khóa"}
                           </span>
                         )}
                       </td>
@@ -475,7 +488,7 @@ const AdminUsers = () => {
                                 loading: false,
                               })
                             }
-                            title="Phân quyền tài khoản"
+                            title={t.btnAssignRoleTitle || "Phân quyền tài khoản"}
                             disabled={isCurrent}
                             style={{
                               padding: "6px 9px",
@@ -490,7 +503,7 @@ const AdminUsers = () => {
                               fontSize: 12.5,
                             }}
                           >
-                            <FaUserEdit /> Quyền
+                            <FaUserEdit /> {t.btnRole || "Quyền"}
                           </button>
 
                           {/* Nút Khóa / Mở khóa / Kích hoạt hộ */}
@@ -504,7 +517,7 @@ const AdminUsers = () => {
                                   loading: false,
                                 })
                               }
-                              title="Khóa tài khoản này"
+                              title={t.btnLockAccountTitle || "Khóa tài khoản này"}
                               disabled={isCurrent}
                               style={{
                                 padding: "6px 9px",
@@ -519,7 +532,7 @@ const AdminUsers = () => {
                                 fontSize: 12.5,
                               }}
                             >
-                              <FaUserLock /> Khóa
+                              <FaUserLock /> {t.btnLock || "Khóa"}
                             </button>
                           ) : (
                             <button
@@ -531,7 +544,7 @@ const AdminUsers = () => {
                                   loading: false,
                                 })
                               }
-                              title={u.awaitingEmailVerification ? "Kích hoạt hộ (bỏ qua bước xác thực email)" : "Mở khóa tài khoản"}
+                              title={u.awaitingEmailVerification ? (t.btnActivateSkipOtp || "Kích hoạt hộ (bỏ qua bước xác thực email)") : (t.btnUnlockAccount || "Mở khóa tài khoản")}
                               style={{
                                 padding: "6px 9px",
                                 borderRadius: 8,
@@ -545,7 +558,7 @@ const AdminUsers = () => {
                                 fontSize: 12.5,
                               }}
                             >
-                              <FaUserCheck /> Kích hoạt
+                              <FaUserCheck /> {t.btnActivate || "Kích hoạt"}
                             </button>
                           )}
                         </div>
@@ -575,7 +588,7 @@ const AdminUsers = () => {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 8 }}>
-                <FaUserShield style={{ color: "var(--primary)" }} /> Đổi vai trò tài khoản
+                <FaUserShield style={{ color: "var(--primary)" }} /> {t.changeRoleModalTitle || "Đổi vai trò tài khoản"}
               </h3>
               <button
                 onClick={() => setRoleModal({ show: false, user: null, role: "ROLE_USER", loading: false })}
@@ -586,12 +599,12 @@ const AdminUsers = () => {
             </div>
 
             <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 16 }}>
-              Người dùng: <strong>{roleModal.user?.fullName || roleModal.user?.email}</strong> (#{roleModal.user?.id})
+              {t.changeRoleUserLabel || "Người dùng:"} <strong>{roleModal.user?.fullName || roleModal.user?.email}</strong> (#{roleModal.user?.id})
             </p>
 
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, display: "block", color: "var(--text-muted)" }}>
-                Chọn vai trò mới:
+                {t.selectNewRoleLabel || "Chọn vai trò mới:"}
               </label>
               <select
                 value={roleModal.role}
@@ -608,9 +621,9 @@ const AdminUsers = () => {
                   boxSizing: "border-box",
                 }}
               >
-                <option value="ROLE_USER">Khách hàng (ROLE_USER) - Đặt vé, tích điểm, đánh giá</option>
-                <option value="ROLE_PROVIDER">Nhà cung cấp (ROLE_PROVIDER) - Quét vé, xem doanh thu</option>
-                <option value="ROLE_ADMIN">Quản trị viên (ROLE_ADMIN) - Toàn quyền quản trị hệ thống</option>
+                <option value="ROLE_USER">{t.roleDescUser || "Khách hàng (ROLE_USER) - Đặt vé, tích điểm, đánh giá"}</option>
+                <option value="ROLE_PROVIDER">{t.roleDescProvider || "Nhà cung cấp (ROLE_PROVIDER) - Quét vé, xem doanh thu"}</option>
+                <option value="ROLE_ADMIN">{t.roleDescAdmin || "Quản trị viên (ROLE_ADMIN) - Toàn quyền quản trị hệ thống"}</option>
               </select>
             </div>
 
@@ -626,7 +639,7 @@ const AdminUsers = () => {
                   cursor: "pointer",
                 }}
               >
-                Hủy
+                {t.cancelBtn || "Hủy"}
               </button>
               <button
                 onClick={handleUpdateRole}
@@ -641,7 +654,7 @@ const AdminUsers = () => {
                   cursor: roleModal.loading ? "not-allowed" : "pointer",
                 }}
               >
-                {roleModal.loading ? "Đang lưu..." : "Cập nhật"}
+                {roleModal.loading ? (t.savingRoute || "Đang lưu...") : (t.btnUpdate || "Cập nhật")}
               </button>
             </div>
           </div>
@@ -670,18 +683,13 @@ const AdminUsers = () => {
                 color: statusModal.targetEnabled ? "#10b981" : "#ef4444",
               }}
             >
-              {statusModal.targetEnabled ? "✓ Kích hoạt / Mở khóa tài khoản" : "⚠️ Xác nhận khóa tài khoản"}
+              {statusModal.targetEnabled ? (t.modalUnlockTitle || "✓ Kích hoạt / Mở khóa tài khoản") : (t.modalLockTitle || "⚠️ Xác nhận khóa tài khoản")}
             </h3>
             <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 20 }}>
-              {statusModal.targetEnabled ? (
-                <>
-                  Bạn có muốn kích hoạt tài khoản cho <strong>{statusModal.user?.email}</strong> không? Tài khoản này sẽ có thể đăng nhập ngay mà không cần nhập mã xác thực OTP.
-                </>
-              ) : (
-                <>
-                  Bạn có chắc chắn muốn khóa tài khoản <strong>{statusModal.user?.email}</strong>? Người dùng sẽ không thể đăng nhập vào hệ thống cho tới khi được mở khóa lại.
-                </>
-              )}
+              {statusModal.targetEnabled
+                ? (t.confirmActivateMsg || "Bạn có muốn kích hoạt tài khoản cho {email} không? Tài khoản này sẽ có thể đăng nhập ngay mà không cần nhập mã xác thực OTP.").replace("{email}", statusModal.user?.email)
+                : (t.confirmLockMsg || "Bạn có chắc chắn muốn khóa tài khoản {email}? Người dùng sẽ không thể đăng nhập vào hệ thống cho tới khi được mở khóa lại.").replace("{email}", statusModal.user?.email)
+              }
             </p>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -696,7 +704,7 @@ const AdminUsers = () => {
                   cursor: "pointer",
                 }}
               >
-                Hủy
+                {t.cancelBtn || "Hủy"}
               </button>
               <button
                 onClick={handleToggleStatus}
@@ -711,7 +719,7 @@ const AdminUsers = () => {
                   cursor: statusModal.loading ? "not-allowed" : "pointer",
                 }}
               >
-                {statusModal.loading ? "Đang xử lý..." : statusModal.targetEnabled ? "Xác nhận kích hoạt" : "Khóa tài khoản"}
+                {statusModal.loading ? (t.btnProcessing || "Đang xử lý...") : statusModal.targetEnabled ? (t.btnConfirmActivate || "Xác nhận kích hoạt") : (t.btnLockAccount || "Khóa tài khoản")}
               </button>
             </div>
           </div>

@@ -119,6 +119,33 @@ class StartupSecretsValidatorTest {
     }
 
     @Test
+    @DisplayName("JWT_SECRET gõ tay sai định dạng bị chặn ngay lúc khởi động")
+    void rejectsJwtSecretThatIsNotBase64() {
+        // Ca có thật: một thành viên tự gõ chuỗi ngẫu nhiên có dấu '-' vào .env. Trước đây
+        // lỗi chỉ lộ ra dưới dạng DecodingException nằm giữa một stack trace dài của Spring,
+        // không nhắc tên biến nào. Giờ phải nói thẳng là JWT_SECRET và sửa bằng lệnh gì.
+        MockEnvironment env = validEnv();
+        env.setProperty("jwt.secret", "khoa-ngau-nhien-tu-go#2026");
+
+        assertThatThrownBy(() -> new StartupSecretsValidator(env).validate())
+                .isInstanceOf(IllegalStateException.class)
+                .satisfies(e -> assertThat(e.getMessage())
+                        .contains("JWT_SECRET")
+                        .contains("openssl rand -base64 48"));
+    }
+
+    @Test
+    @DisplayName("JWT_SECRET quá ngắn bị chặn, không đợi tới lần đăng nhập đầu tiên")
+    void rejectsJwtSecretShorterThanTheHmacMinimum() {
+        MockEnvironment env = validEnv();
+        env.setProperty("jwt.secret", "cXVhLW5nYW4=");  // "qua-ngan", 8 byte
+
+        assertThatThrownBy(() -> new StartupSecretsValidator(env).validate())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("cần tối thiểu 32 byte");
+    }
+
+    @Test
     @DisplayName("Mật khẩu admin demo cũ cũng nằm trong danh sách đã lộ")
     void rejectsLeakedAdminPassword() {
         MockEnvironment env = validEnv();

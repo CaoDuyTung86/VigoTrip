@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import AdminUsers from './AdminUsers';
+import { LanguageProvider } from '../context/LanguageContext';
 
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({ token: 'fake-token', user: { email: 'admin@vigotrip.vn', role: 'ROLE_ADMIN' } }),
@@ -25,8 +26,15 @@ beforeEach(() => {
 });
 afterEach(() => { vi.restoreAllMocks(); });
 
+// AdminUsers lấy nhãn cột và nhãn sắp xếp qua useLanguage, nên phải render trong provider
+// thật. Bọc ở đây thay vì nới useLanguage cho phép chạy ngoài provider: cái giá của việc
+// nới là mọi component lắp sai chỗ trong ứng dụng đều âm thầm hiện tiếng Việt.
 const renderPage = async () => {
-  render(<AdminUsers />);
+  render(
+    <LanguageProvider>
+      <AdminUsers />
+    </LanguageProvider>
+  );
   await screen.findByText('#4');
 };
 

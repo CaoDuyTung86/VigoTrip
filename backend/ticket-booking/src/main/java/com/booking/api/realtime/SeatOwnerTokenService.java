@@ -1,6 +1,6 @@
 package com.booking.api.realtime;
 
-import io.jsonwebtoken.io.Decoders;
+import com.booking.api.security.JwtSecretDecoder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -36,7 +36,7 @@ public class SeatOwnerTokenService {
     private final SecretKeySpec key;
 
     public SeatOwnerTokenService(@Value("${jwt.secret}") String secret) {
-        this.key = new SecretKeySpec(Decoders.BASE64.decode(secret), HMAC_ALGORITHM);
+        this.key = new SecretKeySpec(JwtSecretDecoder.decode(secret), HMAC_ALGORITHM);
     }
 
     /** Mã ẩn danh của một danh tính. Trả null nếu không có chủ (ghế trống). */

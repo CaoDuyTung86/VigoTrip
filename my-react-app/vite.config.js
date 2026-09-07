@@ -66,11 +66,27 @@ export default defineConfig(({ mode }) => {
       '/api': {
         target: apiTarget,
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err, req, res) => {
+            if (err.code === 'ECONNREFUSED' && res && !res.headersSent && typeof res.writeHead === 'function') {
+              res.writeHead(503, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Backend chưa khởi động hoặc không phản hồi (ECONNREFUSED).' }));
+            }
+          });
+        },
       },
       '/ws': {
         target: apiTarget,
         ws: true,
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err, req, res) => {
+            if (err.code === 'ECONNREFUSED' && res && !res.headersSent && typeof res.writeHead === 'function') {
+              res.writeHead(503, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'WebSocket proxy chưa kết nối được tới backend.' }));
+            }
+          });
+        },
       },
       // Dùng cho warm-up ping lúc mở trang (xem utils/apiClient.js).
       // Trên production, vercel.json rewrite đường dẫn này sang backend Render.
