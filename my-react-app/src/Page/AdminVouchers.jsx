@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useLanguage, translateVoucherDescription } from "../context/LanguageContext";
-import { FaTag, FaPlus, FaEdit, FaTrash, FaSearch, FaTimes } from "react-icons/fa";
+import { FaTag, FaPlus, FaEdit, FaTrash, FaSearch, FaTimes, FaToggleOn, FaToggleOff } from "react-icons/fa";
 import ModalPortal from "../components/ModalPortal";
 
 const API_BASE = "/api";
@@ -12,6 +12,23 @@ const LOCALE_BY_LANG = { vi: "vi-VN", en: "en-GB", ja: "ja-JP", zh: "zh-TW" };
 
 const fill = (template, values) =>
   Object.entries(values).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, value), template ?? "");
+
+// Backend trả lỗi dạng { status, error, message, ... }. Trước đây chỗ này alert nguyên
+// chuỗi JSON nên admin nhìn thấy cả dấu ngoặc và timestamp; lấy đúng trường message ra.
+const readErrorMessage = async (res, fallback) => {
+  try {
+    const text = await res.text();
+    if (!text) return fallback;
+    try {
+      const data = JSON.parse(text);
+      return data?.message || data?.error || fallback;
+    } catch {
+      return text;
+    }
+  } catch {
+    return fallback;
+  }
+};
 
 const emptyForm = {
   code: "",
@@ -75,28 +92,36 @@ const inputStyle = {
 
 const labelStyle = { fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block", color: "var(--text-muted)" };
 
-function VoucherStatusBadge({ voucher, t }) {
+// Trạng thái rút gọn của một voucher. Tách khỏi badge vì bộ lọc "còn hiệu lực / đã nghỉ"
+// phải phân loại y hệt những gì admin đọc được trên bảng.
+const STATUS_STYLE = {
+  active: { color: "#10b981", labelKey: "admVchStatusActive" },
+  disabled: { color: "#9ca3af", labelKey: "admVchStatusDisabled" },
+  soldOut: { color: "#ef4444", labelKey: "admVchStatusSoldOut" },
+  expired: { color: "#ef4444", labelKey: "admVchStatusExpired" },
+  notStarted: { color: "#f59e0b", labelKey: "admVchStatusNotStarted" },
+};
+
+// Voucher "đã nghỉ": không còn phát hành được nữa và cũng không tự sống lại.
+// notStarted không nằm ở đây vì nó sẽ tự chạy khi tới ngày bắt đầu.
+const RETIRED_STATUSES = ["disabled", "soldOut", "expired"];
+
+function voucherStatus(voucher) {
   const now = new Date();
   const start = voucher.startDate ? new Date(voucher.startDate) : null;
   const end = voucher.expiryDate ? new Date(voucher.expiryDate) : null;
   const soldOut = voucher.maxUsage != null && voucher.currentUsage >= voucher.maxUsage;
 
-  let label = t.admVchStatusActive;
-  let color = "#10b981";
+  if (!voucher.isActive) return "disabled";
+  if (soldOut) return "soldOut";
+  if (end && now > end) return "expired";
+  if (start && now < start) return "notStarted";
+  return "active";
+}
 
-  if (!voucher.isActive) {
-    label = t.admVchStatusDisabled;
-    color = "#9ca3af";
-  } else if (soldOut) {
-    label = t.admVchStatusSoldOut;
-    color = "#ef4444";
-  } else if (end && now > end) {
-    label = t.admVchStatusExpired;
-    color = "#ef4444";
-  } else if (start && now < start) {
-    label = t.admVchStatusNotStarted;
-    color = "#f59e0b";
-  }
+function VoucherStatusBadge({ voucher, t }) {
+  const { color, labelKey } = STATUS_STYLE[voucherStatus(voucher)];
+  const label = t[labelKey];
 
   return (
     <span
@@ -128,12 +153,17 @@ const AdminVouchers = () => {
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  // "active" = chỉ voucher còn dùng được, "retired" = đã tắt/hết hạn/hết lượt, "all" = tất cả.
+  // Mặc định giấu voucher đã nghỉ để bảng không phình ra theo thời gian — đó là cách xử lý
+  // "voucher cũ nằm lại mãi" thay vì xóa dữ liệu đi.
+  const [statusFilter, setStatusFilter] = useState("active");
+  const [togglingId, setTogglingId] = useState(null);
 
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
 
   const [editModal, setEditModal] = useState({ show: false, voucher: null, form: emptyForm, loading: false });
-  const [deleteModal, setDeleteModal] = useState({ show: false, voucher: null, loading: false });
+  const [deleteModal, setDeleteModal] = useState({ show: false, voucher: null, loading: false, bookingCount: null });
 
   useEffect(() => {
     if (token) loadVouchers();
@@ -212,8 +242,7 @@ const AdminVouchers = () => {
         loadVouchers();
         toast.showToast?.(t.admVchCreated, "success");
       } else {
-        const text = await res.text();
-        alert(text || t.admVchCreateError);
+        alert(await readErrorMessage(res, t.admVchCreateError));
       }
     } catch (err) {
       console.error(err);
@@ -261,8 +290,7 @@ const AdminVouchers = () => {
         loadVouchers();
         toast.showToast?.(t.admVchUpdated, "success");
       } else {
-        const text = await res.text();
-        alert(text || t.admVchUpdateError);
+        alert(await readErrorMessage(res, t.admVchUpdateError));
       }
     } catch (err) {
       console.error(err);
@@ -272,6 +300,51 @@ const AdminVouchers = () => {
     }
   };
 
+  // Bật/tắt voucher — thao tác "gỡ" mặc định. Giữ nguyên bản ghi nên không mất dữ liệu
+  // đối soát của các đơn cũ, và bật lại được bất cứ lúc nào.
+  const handleToggleActive = async (voucher) => {
+    setTogglingId(voucher.id);
+    const nextActive = !voucher.isActive;
+    try {
+      const res = await fetch(`${API_BASE}/admin/vouchers/${voucher.id}/active?active=${nextActive}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        loadVouchers();
+        toast.showToast?.(nextActive ? t.admVchEnabled : t.admVchDisabled, "success");
+      } else {
+        alert(await readErrorMessage(res, t.admVchToggleError));
+      }
+    } catch (err) {
+      console.error(err);
+      alert(t.admVchConnError);
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  // Hỏi backend voucher đã nằm trên bao nhiêu đơn TRƯỚC khi mở hộp thoại, để hiện đúng
+  // lựa chọn: chưa đơn nào thì cho xóa hẳn, đã có đơn thì chỉ mời tắt.
+  const openDeleteModal = async (voucher) => {
+    setDeleteModal({ show: true, voucher, loading: false, bookingCount: null });
+    try {
+      const res = await fetch(`${API_BASE}/admin/vouchers/${voucher.id}/usage`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDeleteModal((prev) =>
+          prev.voucher?.id === voucher.id ? { ...prev, bookingCount: data.bookingCount ?? 0 } : prev);
+      }
+    } catch (err) {
+      // Không đọc được số đơn thì vẫn cho bấm — backend còn một lớp chặn nữa.
+      console.error(err);
+    }
+  };
+
+  const closeDeleteModal = () => setDeleteModal({ show: false, voucher: null, loading: false, bookingCount: null });
+
   const handleDelete = async () => {
     setDeleteModal((prev) => ({ ...prev, loading: true }));
     try {
@@ -280,12 +353,11 @@ const AdminVouchers = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok || res.status === 204) {
-        setDeleteModal({ show: false, voucher: null, loading: false });
+        closeDeleteModal();
         loadVouchers();
         toast.showToast?.(t.admVchDeleted, "success");
       } else {
-        const text = await res.text();
-        alert(text || t.admVchDeleteError);
+        alert(await readErrorMessage(res, t.admVchDeleteError));
       }
     } catch (err) {
       console.error(err);
@@ -293,6 +365,14 @@ const AdminVouchers = () => {
     } finally {
       setDeleteModal((prev) => ({ ...prev, loading: false }));
     }
+  };
+
+  // Tắt ngay từ trong hộp thoại xóa, cho trường hợp voucher đã có đơn nên không xóa được.
+  const handleDisableFromDeleteModal = async () => {
+    const voucher = deleteModal.voucher;
+    setDeleteModal((prev) => ({ ...prev, loading: true }));
+    await handleToggleActive(voucher);
+    closeDeleteModal();
   };
 
   if (!isAdmin && !isProvider) {
@@ -305,10 +385,16 @@ const AdminVouchers = () => {
   }
 
   const filteredVouchers = vouchers.filter((v) => {
+    const retired = RETIRED_STATUSES.includes(voucherStatus(v));
+    if (statusFilter === "active" && retired) return false;
+    if (statusFilter === "retired" && !retired) return false;
+
     const q = searchTerm.toLowerCase().trim();
     if (!q) return true;
     return (v.code || "").toLowerCase().includes(q) || (v.description || "").toLowerCase().includes(q);
   });
+
+  const retiredCount = vouchers.filter((v) => RETIRED_STATUSES.includes(voucherStatus(v))).length;
 
   return (
     <div
@@ -331,15 +417,28 @@ const AdminVouchers = () => {
           </p>
         </div>
 
-        <div style={{ position: "relative" }}>
-          <FaSearch style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 13 }} />
-          <input
-            type="text"
-            placeholder={t.admVchSearchPlaceholder}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ ...inputStyle, padding: "9px 14px 9px 34px", width: 240 }}
-          />
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            title={t.admVchFilterLabel}
+            style={{ ...inputStyle, padding: "9px 12px", width: "auto" }}
+          >
+            <option value="active">{t.admVchFilterActive}</option>
+            <option value="retired">{fill(t.admVchFilterRetired, { count: retiredCount })}</option>
+            <option value="all">{t.admVchFilterAll}</option>
+          </select>
+
+          <div style={{ position: "relative" }}>
+            <FaSearch style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 13 }} />
+            <input
+              type="text"
+              placeholder={t.admVchSearchPlaceholder}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ ...inputStyle, padding: "9px 14px 9px 34px", width: 240 }}
+            />
+          </div>
         </div>
       </div>
 
@@ -534,7 +633,28 @@ const AdminVouchers = () => {
                             <FaEdit /> {t.admVchEdit}
                           </button>
                           <button
-                            onClick={() => setDeleteModal({ show: true, voucher: v, loading: false })}
+                            onClick={() => handleToggleActive(v)}
+                            disabled={togglingId === v.id}
+                            title={v.isActive ? t.admVchDisable : t.admVchEnable}
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: 8,
+                              border: "1px solid var(--border-input)",
+                              background: "transparent",
+                              color: v.isActive ? "#f59e0b" : "#10b981",
+                              cursor: togglingId === v.id ? "not-allowed" : "pointer",
+                              opacity: togglingId === v.id ? 0.6 : 1,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                              fontSize: 13,
+                            }}
+                          >
+                            {v.isActive ? <FaToggleOff /> : <FaToggleOn />}
+                            {v.isActive ? t.admVchDisable : t.admVchEnable}
+                          </button>
+                          <button
+                            onClick={() => openDeleteModal(v)}
                             title={t.admVchDelete}
                             style={{
                               padding: "6px 10px",
@@ -731,45 +851,88 @@ const AdminVouchers = () => {
 
       {/* Modal Xác nhận xóa */}
       {deleteModal.show && (
-        <ModalPortal onClose={() => setDeleteModal({ show: false, voucher: null, loading: false })}>
+        <ModalPortal onClose={closeDeleteModal}>
           <div
             style={{
               background: "var(--bg-card)",
               borderRadius: 16,
               padding: 24,
               width: "100%",
-              maxWidth: 420,
+              maxWidth: 460,
               border: "1px solid var(--border-light)",
               boxShadow: "var(--shadow-xl)",
             }}
           >
-            <h3 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 700, color: "#ef4444" }}>⚠️ {t.admVchDeleteTitle}</h3>
-            <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 20 }}>
-              {fill(t.admVchDeleteConfirm, { code: deleteModal.voucher?.code ?? "", id: deleteModal.voucher?.id ?? "" })}
-            </p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setDeleteModal({ show: false, voucher: null, loading: false })}
-                style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border-input)", background: "transparent", color: "var(--text-main)", cursor: "pointer" }}
-              >
-                {t.admVchCancel}
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleteModal.loading}
-                style={{
-                  padding: "9px 20px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "#ef4444",
-                  color: "#fff",
-                  fontWeight: 600,
-                  cursor: deleteModal.loading ? "not-allowed" : "pointer",
-                }}
-              >
-                {deleteModal.loading ? t.admVchDeleting : t.admVchDeleteAction}
-              </button>
-            </div>
+            {/* bookingCount === null nghĩa là chưa hỏi xong backend — chưa biết thì chưa cho bấm nút đỏ. */}
+            {(() => {
+              const count = deleteModal.bookingCount;
+              const used = count != null && count > 0;
+              const code = deleteModal.voucher?.code ?? "";
+              const id = deleteModal.voucher?.id ?? "";
+              return (
+                <>
+                  <h3 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 700, color: used ? "#f59e0b" : "#ef4444" }}>
+                    {used ? "🔒" : "⚠️"} {used ? t.admVchCannotDeleteTitle : t.admVchDeleteTitle}
+                  </h3>
+                  <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: used ? 12 : 20 }}>
+                    {count == null
+                      ? t.admVchCheckingUsage
+                      : used
+                        ? fill(t.admVchCannotDeleteBody, { code, count })
+                        : fill(t.admVchDeleteConfirm, { code, id })}
+                  </p>
+                  {used && deleteModal.voucher?.isActive && (
+                    <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5, marginBottom: 20 }}>
+                      {t.admVchDisableHint}
+                    </p>
+                  )}
+                  <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                    <button
+                      onClick={closeDeleteModal}
+                      style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border-input)", background: "transparent", color: "var(--text-main)", cursor: "pointer" }}
+                    >
+                      {t.admVchCancel}
+                    </button>
+                    {used ? (
+                      deleteModal.voucher?.isActive && (
+                        <button
+                          onClick={handleDisableFromDeleteModal}
+                          disabled={deleteModal.loading}
+                          style={{
+                            padding: "9px 20px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: "#f59e0b",
+                            color: "#fff",
+                            fontWeight: 600,
+                            cursor: deleteModal.loading ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          {t.admVchDisable}
+                        </button>
+                      )
+                    ) : (
+                      <button
+                        onClick={handleDelete}
+                        disabled={deleteModal.loading || count == null}
+                        style={{
+                          padding: "9px 20px",
+                          borderRadius: 8,
+                          border: "none",
+                          background: "#ef4444",
+                          color: "#fff",
+                          fontWeight: 600,
+                          opacity: count == null ? 0.6 : 1,
+                          cursor: deleteModal.loading || count == null ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {deleteModal.loading ? t.admVchDeleting : t.admVchDeleteAction}
+                      </button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </ModalPortal>
       )}

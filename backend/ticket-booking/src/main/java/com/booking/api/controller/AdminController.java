@@ -222,6 +222,25 @@ public class AdminController {
         return ResponseEntity.ok(voucherService.updateVoucher(id, adminMapper.toEntity(request), request.getProviderId()));
     }
 
+    /**
+     * Bật/tắt voucher — cách "gỡ" voucher mặc định. Giữ lại bản ghi để đơn cũ còn tra được,
+     * khác với DELETE bên dưới là xóa hẳn.
+     */
+    @PatchMapping("/vouchers/{id}/active")
+    public ResponseEntity<Voucher> setVoucherActive(@PathVariable Long id, @RequestParam boolean active) {
+        return ResponseEntity.ok(voucherService.setVoucherActive(id, active));
+    }
+
+    /**
+     * Số đơn đã gắn mã của voucher. Giao diện hỏi trước khi mở hộp thoại xóa để biết nên mời
+     * admin xóa hẳn hay chỉ tắt.
+     */
+    @GetMapping("/vouchers/{id}/usage")
+    public ResponseEntity<Map<String, Object>> getVoucherUsage(@PathVariable Long id) {
+        long bookings = voucherService.countBookingsUsingVoucher(id);
+        return ResponseEntity.ok(Map.of("bookingCount", bookings, "deletable", bookings == 0));
+    }
+
     @DeleteMapping("/vouchers/{id}")
     public ResponseEntity<Void> deleteVoucher(@PathVariable Long id) {
         voucherService.deleteVoucher(id);

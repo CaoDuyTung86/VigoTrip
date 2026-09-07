@@ -97,6 +97,14 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     boolean existsByUserIdAndVoucherCodeAndStatusNotIn(Long userId, String voucherCode, List<String> statuses);
 
     /**
+     * Số đơn từng gắn mã này, tính cả đơn đã hủy. Dùng để chặn xóa cứng voucher:
+     * dat_ve chỉ lưu voucher_code dạng chuỗi nên database không tự bảo vệ được, xóa voucher
+     * đi là mất luôn thông tin "mã đó giảm bao nhiêu" khi cần đối soát hay khách khiếu nại.
+     * Đơn đã hủy vẫn tính vì nó cũng là bản ghi lịch sử.
+     */
+    long countByVoucherCodeIgnoreCase(String voucherCode);
+
+    /**
      * Các mã giảm giá người dùng đang thực sự chiếm ở những đơn còn hiệu lực — dùng để chặn
      * dùng lại cùng một mã cho chuyến khác (mỗi mã chỉ dùng được 1 lần / tài khoản).
      */

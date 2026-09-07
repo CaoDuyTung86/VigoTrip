@@ -5,9 +5,11 @@ import com.booking.api.entity.Provider;
 import com.booking.api.entity.Voucher;
 import com.booking.api.repository.BookingRepository;
 import com.booking.api.repository.ProviderRepository;
+import com.booking.api.repository.SavedVoucherRepository;
 import com.booking.api.repository.UserRepository;
 import com.booking.api.repository.VoucherRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class VoucherService {
@@ -30,6 +33,7 @@ public class VoucherService {
     private final ProviderRepository providerRepository;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
+    private final SavedVoucherRepository savedVoucherRepository;
 
     /**
      * Chuẩn hóa mã giảm giá (bỏ khoảng trắng + viết hoa) để mọi nơi so sánh/lưu trữ đều thống nhất.
@@ -345,11 +349,63 @@ public class VoucherService {
         return voucherRepository.save(voucher);
     }
 
+    /**
+     * Bật/tắt một voucher — đây là cách "gỡ" voucher mặc định thay cho xóa cứng.
+     *
+     * Voucher đã tắt biến mất khỏi trang ưu đãi và không áp được cho đơn mới, nhưng bản ghi
+     * vẫn còn nên các đơn cũ tra ngược lại được và admin bật lại lúc nào cũng được.
+     */
+    @Transactional
+    @CacheEvict(value = "vouchers", allEntries = true)
+    public Voucher setVoucherActive(Long id, boolean active) {
+        Voucher voucher = voucherRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy voucher với ID: " + id));
+        voucher.setIsActive(active);
+        return voucherRepository.save(voucher);
+    }
+
+    /**
+     * Đếm số đơn từng gắn mã của voucher này. 0 nghĩa là voucher chưa đi vào lịch sử giao dịch
+     * nên xóa cứng được.
+     *
+     * Không dùng currentUsage để kiểm tra: trường đó bị trừ lại khi khách hủy đơn
+     * (xem VoucherRepository.decrementUsageByCode), nên một voucher đã dùng rồi hủy sẽ về 0
+     * và lọt qua cửa. Phải đếm thẳng trên dat_ve mới đúng.
+     */
+    @Transactional(readOnly = true)
+    public long countBookingsUsingVoucher(Long id) {
+        Voucher voucher = voucherRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy voucher với ID: " + id));
+        return bookingRepository.countByVoucherCodeIgnoreCase(voucher.getCode());
+    }
+
+    /**
+     * Xóa hẳn một voucher. Chỉ dành cho voucher tạo nhầm/tạo thử — voucher đã từng nằm trên
+     * một đơn nào đó thì bị chặn, admin phải dùng {@link #setVoucherActive} để tắt.
+     *
+     * Hai thứ phải xử lý trước khi gọi deleteById:
+     *  - saved_vouchers.voucher_id là khóa ngoại NOT NULL không cascade, còn dòng nào trỏ tới
+     *    là database chặn và người dùng chỉ thấy lỗi 409 chung chung → phải dọn trước.
+     *  - dat_ve.voucher_code chỉ là chuỗi nên database KHÔNG chặn, mất dữ liệu âm thầm
+     *    → phải tự kiểm tra ở đây.
+     */
     @Transactional
     @CacheEvict(value = "vouchers", allEntries = true)
     public void deleteVoucher(Long id) {
-        if (!voucherRepository.existsById(id)) {
-            throw new IllegalArgumentException("Không tìm thấy voucher với ID: " + id);
+        Voucher voucher = voucherRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy voucher với ID: " + id));
+
+        long usedInBookings = bookingRepository.countByVoucherCodeIgnoreCase(voucher.getCode());
+        if (usedInBookings > 0) {
+            throw new IllegalArgumentException(
+                    "Voucher \"" + voucher.getCode() + "\" đã được dùng ở " + usedInBookings
+                            + " đơn nên không xóa được — xóa đi sẽ mất thông tin đối soát của các đơn đó. "
+                            + "Hãy tắt voucher để ngừng phát hành thay vì xóa.");
+        }
+
+        int removedFromWallets = savedVoucherRepository.deleteByVoucherId(id);
+        if (removedFromWallets > 0) {
+            log.info("Xóa voucher {} kèm {} lượt đã lưu trong ví người dùng.", id, removedFromWallets);
         }
         voucherRepository.deleteById(id);
     }

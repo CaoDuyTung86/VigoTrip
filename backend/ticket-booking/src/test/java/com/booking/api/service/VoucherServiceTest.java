@@ -3,6 +3,7 @@ package com.booking.api.service;
 import com.booking.api.entity.User;
 import com.booking.api.entity.Voucher;
 import com.booking.api.repository.BookingRepository;
+import com.booking.api.repository.SavedVoucherRepository;
 import com.booking.api.repository.UserRepository;
 import com.booking.api.repository.VoucherRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +33,9 @@ class VoucherServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private SavedVoucherRepository savedVoucherRepository;
 
     @InjectMocks
     private VoucherService voucherService; // Tiêm Repository giả vào Service thật
@@ -139,5 +144,84 @@ class VoucherServiceTest {
                 "DISCOUNT10", java.math.BigDecimal.valueOf(100000), null, null);
 
         assertTrue((Boolean) result.get("valid"));
+    }
+
+    @Test
+    @DisplayName("Xóa voucher chưa ai dùng thì gỡ khỏi ví người dùng trước rồi mới xóa bản ghi")
+    void shouldClearSavedVouchersBeforeDeletingVoucher() {
+        when(voucherRepository.findById(1L)).thenReturn(Optional.of(mockVoucher));
+        when(bookingRepository.countByVoucherCodeIgnoreCase("DISCOUNT10")).thenReturn(0L);
+        when(savedVoucherRepository.deleteByVoucherId(1L)).thenReturn(3);
+
+        voucherService.deleteVoucher(1L);
+
+        // Đúng thứ tự mới tránh được lỗi khóa ngoại (409) từ saved_vouchers.
+        org.mockito.InOrder order = inOrder(savedVoucherRepository, voucherRepository);
+        order.verify(savedVoucherRepository).deleteByVoucherId(1L);
+        order.verify(voucherRepository).deleteById(1L);
+    }
+
+    @Test
+    @DisplayName("Voucher đã nằm trên đơn thì chặn xóa cứng và mời admin tắt thay vì xóa")
+    void shouldRejectDeletingVoucherUsedInBookings() {
+        when(voucherRepository.findById(1L)).thenReturn(Optional.of(mockVoucher));
+        when(bookingRepository.countByVoucherCodeIgnoreCase("DISCOUNT10")).thenReturn(4L);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> voucherService.deleteVoucher(1L));
+
+        assertTrue(ex.getMessage().contains("4 đơn"));
+        assertTrue(ex.getMessage().contains("tắt"));
+        // Không được đụng vào ví người dùng khi đã quyết định chặn.
+        org.mockito.Mockito.verifyNoInteractions(savedVoucherRepository);
+        org.mockito.Mockito.verify(voucherRepository, org.mockito.Mockito.never()).deleteById(1L);
+    }
+
+    @Test
+    @DisplayName("currentUsage về 0 do khách hủy đơn vẫn không cho xóa cứng")
+    void shouldStillBlockDeleteWhenUsageCounterWasRolledBack() {
+        // Voucher từng được dùng rồi khách hủy: decrementUsageByCode đã kéo currentUsage về 0,
+        // nhưng đơn cũ vẫn còn trong dat_ve nên xóa đi là mất dữ liệu đối soát.
+        mockVoucher.setCurrentUsage(0);
+        when(voucherRepository.findById(1L)).thenReturn(Optional.of(mockVoucher));
+        when(bookingRepository.countByVoucherCodeIgnoreCase("DISCOUNT10")).thenReturn(1L);
+
+        assertThrows(IllegalArgumentException.class, () -> voucherService.deleteVoucher(1L));
+
+        org.mockito.Mockito.verify(voucherRepository, org.mockito.Mockito.never()).deleteById(1L);
+    }
+
+    @Test
+    @DisplayName("Xóa voucher không tồn tại thì báo lỗi và không đụng vào ví người dùng")
+    void shouldRejectDeletingUnknownVoucher() {
+        when(voucherRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class, () -> voucherService.deleteVoucher(99L));
+
+        org.mockito.Mockito.verifyNoInteractions(savedVoucherRepository);
+        org.mockito.Mockito.verify(voucherRepository, org.mockito.Mockito.never()).deleteById(99L);
+    }
+
+    @Test
+    @DisplayName("Tắt voucher chỉ đổi cờ isActive, không xóa bản ghi")
+    void shouldDisableVoucherWithoutDeleting() {
+        when(voucherRepository.findById(1L)).thenReturn(Optional.of(mockVoucher));
+        when(voucherRepository.save(mockVoucher)).thenReturn(mockVoucher);
+
+        Voucher result = voucherService.setVoucherActive(1L, false);
+
+        assertFalse(result.getIsActive());
+        org.mockito.Mockito.verify(voucherRepository, org.mockito.Mockito.never()).deleteById(1L);
+        org.mockito.Mockito.verifyNoInteractions(savedVoucherRepository);
+    }
+
+    @Test
+    @DisplayName("Bật lại voucher đã tắt")
+    void shouldReEnableDisabledVoucher() {
+        mockVoucher.setIsActive(false);
+        when(voucherRepository.findById(1L)).thenReturn(Optional.of(mockVoucher));
+        when(voucherRepository.save(mockVoucher)).thenReturn(mockVoucher);
+
+        assertTrue(voucherService.setVoucherActive(1L, true).getIsActive());
     }
 }
