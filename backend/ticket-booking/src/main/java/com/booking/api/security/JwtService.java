@@ -67,8 +67,32 @@ public class JwtService {
                 .getPayload();
     }
 
+    public static byte[] decodeKeyBytes(String secret) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalArgumentException("JWT secret cannot be null or blank");
+        }
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secret);
+        } catch (Exception e1) {
+            try {
+                keyBytes = Decoders.BASE64URL.decode(secret);
+            } catch (Exception e2) {
+                keyBytes = secret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
+        if (keyBytes.length < 32) {
+            try {
+                keyBytes = java.security.MessageDigest.getInstance("SHA-256").digest(keyBytes);
+            } catch (java.security.NoSuchAlgorithmException e) {
+                throw new IllegalStateException("SHA-256 algorithm not available", e);
+            }
+        }
+        return keyBytes;
+    }
+
     private SecretKey getSignInKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        byte[] keyBytes = decodeKeyBytes(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 }

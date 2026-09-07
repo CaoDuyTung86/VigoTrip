@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 import Sidebar from "../components/Sidebar";
 import { FaSearch, FaShieldAlt, FaExclamationTriangle } from "react-icons/fa";
 
@@ -12,16 +13,26 @@ import { FaSearch, FaShieldAlt, FaExclamationTriangle } from "react-icons/fa";
  * hình "bất tiện vì không xem được tất cả" thì đó là thiết kế đang hoạt động đúng, đừng
  * thêm nút "xem tất cả".
  */
-const CHANNEL_STYLE = {
-  IPN: { bg: "rgba(59, 130, 246, 0.18)", color: "#60a5fa", label: "IPN (server→server)" },
-  RETURN: { bg: "rgba(168, 85, 247, 0.18)", color: "#c084fc", label: "Return (trình duyệt)" },
-  QUERYDR: { bg: "rgba(245, 158, 11, 0.18)", color: "#fbbf24", label: "QueryDR (ta hỏi cổng)" },
-  REFUND_APPROVE: { bg: "rgba(34, 197, 94, 0.18)", color: "#4ade80", label: "Duyệt hoàn tiền" },
-  REFUND_REJECT: { bg: "rgba(239, 68, 68, 0.18)", color: "#fca5a5", label: "Từ chối hoàn tiền" },
+const getChannelStyle = (channel, t) => {
+  switch (channel) {
+    case "IPN":
+      return { bg: "rgba(59, 130, 246, 0.18)", color: "#60a5fa", label: t.chIpn || "IPN (server→server)" };
+    case "RETURN":
+      return { bg: "rgba(168, 85, 247, 0.18)", color: "#c084fc", label: t.chReturn || "Return (trình duyệt)" };
+    case "QUERYDR":
+      return { bg: "rgba(245, 158, 11, 0.18)", color: "#fbbf24", label: t.chQueryDr || "QueryDR (ta hỏi cổng)" };
+    case "REFUND_APPROVE":
+      return { bg: "rgba(34, 197, 94, 0.18)", color: "#4ade80", label: t.chRefundApprove || "Duyệt hoàn tiền" };
+    case "REFUND_REJECT":
+      return { bg: "rgba(239, 68, 68, 0.18)", color: "#fca5a5", label: t.chRefundReject || "Từ chối hoàn tiền" };
+    default:
+      return { bg: "var(--bg-input)", color: "var(--text-muted)", label: channel };
+  }
 };
 
 const AdminPaymentLogs = () => {
   const { user, token, isAuthenticated } = useAuth();
+  const { t } = useLanguage();
 
   const [mode, setMode] = useState("transactionRef");
   const [keyword, setKeyword] = useState("");
@@ -47,7 +58,7 @@ const AdminPaymentLogs = () => {
       setEntries(res.data);
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || "Không tra cứu được nhật ký giao dịch.");
+      setError(err.response?.data?.message || t.errLookupTxnFailed || "Không tra cứu được nhật ký giao dịch.");
       setEntries(null);
     } finally {
       setLoading(false);
@@ -55,9 +66,9 @@ const AdminPaymentLogs = () => {
   };
 
   const signatureBadge = (value) => {
-    if (value === true) return { bg: "rgba(34, 197, 94, 0.18)", color: "#4ade80", text: "Chữ ký hợp lệ" };
-    if (value === false) return { bg: "rgba(239, 68, 68, 0.2)", color: "#fca5a5", text: "CHỮ KÝ SAI" };
-    return { bg: "var(--bg-input)", color: "var(--text-muted)", text: "Không có chữ ký" };
+    if (value === true) return { bg: "rgba(34, 197, 94, 0.18)", color: "#4ade80", text: t.sigValid || "Chữ ký hợp lệ" };
+    if (value === false) return { bg: "rgba(239, 68, 68, 0.2)", color: "#fca5a5", text: t.sigInvalid || "CHỮ KÝ SAI" };
+    return { bg: "var(--bg-input)", color: "var(--text-muted)", text: t.sigNone || "Không có chữ ký" };
   };
 
   const cardStyle = {
@@ -91,17 +102,16 @@ const AdminPaymentLogs = () => {
           <div style={{ maxWidth: 1100, margin: "0 auto" }}>
 
             <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, color: "var(--text-heading)" }}>
-              Nhật ký giao dịch
+              {t.transactionLogTitle || "Nhật ký giao dịch"}
             </h1>
             <p style={{ color: "var(--text-secondary)", marginBottom: 24, fontSize: 14 }}>
-              Dấu vết thô của mọi lần cổng thanh toán gọi về, mọi lần hệ thống hỏi lại cổng, và
-              mọi quyết định hoàn tiền. Dùng khi khách khiếu nại đã trả tiền mà đơn chưa được xác nhận.
+              {t.transactionLogSubtitle || "Dấu vết thô của mọi lần cổng thanh toán gọi về, mọi lần hệ thống hỏi lại cổng, và mọi quyết định hoàn tiền. Dùng khi khách khiếu nại đã trả tiền mà đơn chưa được xác nhận."}
             </p>
 
             {!isAdmin ? (
               <div style={{ ...cardStyle, textAlign: "center", color: "#fca5a5" }}>
                 <FaExclamationTriangle style={{ marginRight: 8 }} />
-                Vui lòng đăng nhập bằng tài khoản Admin.
+                {t.admAdminOnly || "Vui lòng đăng nhập bằng tài khoản Admin."}
               </div>
             ) : (
               <>
@@ -114,14 +124,14 @@ const AdminPaymentLogs = () => {
                       background: "var(--bg-input)", color: "var(--text-main)", fontSize: 14, fontWeight: 600,
                     }}
                   >
-                    <option value="transactionRef">Mã giao dịch</option>
-                    <option value="bookingId">Mã đơn</option>
+                    <option value="transactionRef">{t.transactionRef || "Mã giao dịch"}</option>
+                    <option value="bookingId">{t.bookingIdCode || "Mã đơn"}</option>
                   </select>
 
                   <input
                     value={keyword}
                     onChange={(e) => setKeyword(e.target.value)}
-                    placeholder={mode === "bookingId" ? "Ví dụ: 49" : "Ví dụ: be76f754eb98"}
+                    placeholder={mode === "bookingId" ? (t.plhBookingId || "Ví dụ: 49") : (t.plhTxnRef || "Ví dụ: be76f754eb98")}
                     style={{
                       flex: 1, minWidth: 220, padding: "10px 12px", borderRadius: 8,
                       border: "1px solid var(--border-main)", background: "var(--bg-input)",
@@ -142,7 +152,7 @@ const AdminPaymentLogs = () => {
                     }}
                   >
                     <FaSearch size={13} />
-                    {loading ? "Đang tra..." : "Tra cứu"}
+                    {loading ? (t.searchingTxn || "Đang tra...") : (t.lookupButton || "Tra cứu")}
                   </button>
                 </form>
 
@@ -155,29 +165,24 @@ const AdminPaymentLogs = () => {
                 {entries === null && !error && (
                   <div style={{ ...cardStyle, color: "var(--text-secondary)", fontSize: 14, lineHeight: 1.7 }}>
                     <FaShieldAlt style={{ marginRight: 8, color: "var(--primary)" }} />
-                    Màn hình này chỉ tra theo mã, không có danh sách để duyệt — đó là chủ ý, nhằm
-                    hạn chế thiệt hại nếu một tài khoản quản trị bị chiếm. Mã giao dịch là chuỗi
-                    khách đọc được trong ứng dụng ngân hàng hoặc trong email xác nhận.
+                    {t.transactionLogNote || "Màn hình này chỉ tra theo mã, không có danh sách để duyệt — đó là chủ ý, nhằm hạn chế thiệt hại nếu một tài khoản quản trị bị chiếm. Mã giao dịch là chuỗi khách đọc được trong ứng dụng ngân hàng hoặc trong email xác nhận."}
                   </div>
                 )}
 
                 {entries !== null && entries.length === 0 && (
                   <div style={{ ...cardStyle, textAlign: "center", color: "var(--text-secondary)" }}>
-                    Không có dòng nào khớp. Nếu khách khẳng định đã trả tiền mà ở đây trống, nghĩa là
-                    cổng chưa từng gọi về — hãy đối chiếu với sao kê phía VNPay.
+                    {t.noTxnLogsMatch || "Không có dòng nào khớp. Nếu khách khẳng định đã trả tiền mà ở đây trống, nghĩa là cổng chưa từng gọi về — hãy đối chiếu với sao kê phía VNPay."}
                   </div>
                 )}
 
                 {entries !== null && entries.length > 0 && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     <div style={{ color: "var(--text-secondary)", fontSize: 13 }}>
-                      {entries.length} dòng, theo thứ tự đã xảy ra.
+                      {(t.txnRowsCount || "{count} dòng, theo thứ tự đã xảy ra.").replace("{count}", entries.length)}
                     </div>
 
                     {entries.map((entry) => {
-                      const channel = CHANNEL_STYLE[entry.channel] || {
-                        bg: "var(--bg-input)", color: "var(--text-muted)", label: entry.channel,
-                      };
+                      const channel = getChannelStyle(entry.channel, t);
                       const sig = signatureBadge(entry.signatureValid);
 
                       return (
@@ -195,17 +200,17 @@ const AdminPaymentLogs = () => {
                           </div>
 
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 14 }}>
-                            <Field label="Kết luận" value={entry.outcome} strong />
-                            <Field label="Mã đơn" value={entry.bookingId ?? "—"} />
-                            <Field label="Mã giao dịch" value={entry.transactionRef ?? "—"} />
-                            <Field label="IP gọi vào" value={entry.sourceIp ?? "—"} />
-                            {entry.actor && <Field label="Người thực hiện" value={entry.actor} />}
+                            <Field label={t.colOutcome || "Kết luận"} value={entry.outcome} strong />
+                            <Field label={t.colBookingId || "Mã đơn"} value={entry.bookingId ?? "—"} />
+                            <Field label={t.colTxnRef || "Mã giao dịch"} value={entry.transactionRef ?? "—"} />
+                            <Field label={t.colSourceIp || "IP gọi vào"} value={entry.sourceIp ?? "—"} />
+                            {entry.actor && <Field label={t.colActor || "Người thực hiện"} value={entry.actor} />}
                           </div>
 
                           {entry.requestPayload && (
                             <div style={{ marginBottom: 10 }}>
                               <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 5 }}>
-                                Nhận được / gửi đi
+                                {t.payloadReceivedSent || "Nhận được / gửi đi"}
                               </div>
                               <pre style={payloadStyle}>{entry.requestPayload}</pre>
                             </div>
@@ -214,7 +219,7 @@ const AdminPaymentLogs = () => {
                           {entry.responsePayload && (
                             <div>
                               <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 5 }}>
-                                Phản hồi
+                                {t.payloadResponse || "Phản hồi"}
                               </div>
                               <pre style={payloadStyle}>{entry.responsePayload}</pre>
                             </div>

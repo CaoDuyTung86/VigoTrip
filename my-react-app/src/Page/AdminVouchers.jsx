@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { useLanguage } from "../context/LanguageContext";
+import { useLanguage, translateVoucherDescription } from "../context/LanguageContext";
 import { FaTag, FaPlus, FaEdit, FaTrash, FaSearch, FaTimes } from "react-icons/fa";
 import ModalPortal from "../components/ModalPortal";
 
@@ -473,7 +473,9 @@ const AdminVouchers = () => {
                       <td style={{ padding: "14px 16px" }}>
                         <div style={{ fontWeight: 700, color: "var(--primary)" }}>{v.code}</div>
                         {v.description && (
-                          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, maxWidth: 220 }}>{v.description}</div>
+                          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, maxWidth: 220 }}>
+                            {translateVoucherDescription(v.description, v.code, t)}
+                          </div>
                         )}
                       </td>
                       <td style={{ padding: "14px 16px" }}>

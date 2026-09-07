@@ -3,7 +3,7 @@ import axios from "axios";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { useLanguage } from "../context/LanguageContext";
+import { useLanguage, translateVoucherDescription } from "../context/LanguageContext";
 import { FaGift, FaRegCopy, FaRegBookmark, FaBookmark, FaTag } from "react-icons/fa";
 
 // Ngôn ngữ giao diện -> locale dùng cho ngày/số. Không dùng thẳng mã ngôn ngữ vì
@@ -108,7 +108,9 @@ function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy, t,
       </div>
 
       {voucher.description && (
-        <div style={{ fontSize: 13, color: "var(--text-main)", lineHeight: 1.5 }}>{voucher.description}</div>
+        <div style={{ fontSize: 13, color: "var(--text-main)", lineHeight: 1.5 }}>
+          {translateVoucherDescription(voucher.description, voucher.code, t)}
+        </div>
       )}
 
       <div style={{ fontSize: 12.5, color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: 3 }}>

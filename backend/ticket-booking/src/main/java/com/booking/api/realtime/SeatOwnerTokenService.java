@@ -36,7 +36,7 @@ public class SeatOwnerTokenService {
     private final SecretKeySpec key;
 
     public SeatOwnerTokenService(@Value("${jwt.secret}") String secret) {
-        this.key = new SecretKeySpec(Decoders.BASE64.decode(secret), HMAC_ALGORITHM);
+        this.key = new SecretKeySpec(com.booking.api.security.JwtService.decodeKeyBytes(secret), HMAC_ALGORITHM);
     }
 
     /** Mã ẩn danh của một danh tính. Trả null nếu không có chủ (ghế trống). */

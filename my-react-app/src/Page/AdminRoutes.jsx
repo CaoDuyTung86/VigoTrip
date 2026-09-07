@@ -1,43 +1,99 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useLanguage } from "../context/LanguageContext";
 import { FaRoute, FaPlus, FaEdit, FaTrash, FaSearch, FaTimes } from "react-icons/fa";
 import ModalPortal from "../components/ModalPortal";
 
 const API_BASE = "/api";
 
 const CITY_NAME_MAP = {
-  HAN: "Hà Nội",
-  SGN: "TP. Hồ Chí Minh",
-  DAD: "Đà Nẵng",
-  HPH: "Hải Phòng",
-  HUI: "Huế",
-  HUE: "Huế",
-  VII: "Vinh",
-  VIN: "Vinh",
-  SAP: "Sapa",
-  // QNH = Quảng Ninh (Ga Hạ Long / BX Bãi Cháy), khớp với TrainTickets.jsx và
-  // BusTickets.jsx. Chỗ này từng ghi nhầm "Quy Nhơn" — lệch gần 900km so với
-  // điểm thật, nên mã trong tuyen_duong và tên hiển thị cho admin nói hai chuyện
-  // khác nhau; càng phải đúng vì đây sẽ là toạ độ cắm lên bản đồ sau này.
-  QNH: "Quảng Ninh",
-  CXR: "Nha Trang (Cam Ranh)",
-  NTR: "Nha Trang",
-  DLI: "Đà Lạt",
-  DLT: "Đà Lạt",
-  PQC: "Phú Quốc",
-  VCL: "Chu Lai / Quảng Nam",
+  vi: {
+    HAN: "Hà Nội",
+    SGN: "TP. Hồ Chí Minh",
+    DAD: "Đà Nẵng",
+    HPH: "Hải Phòng",
+    HUI: "Huế",
+    HUE: "Huế",
+    VII: "Vinh",
+    VIN: "Vinh",
+    SAP: "Sapa",
+    QNH: "Quảng Ninh",
+    CXR: "Nha Trang (Cam Ranh)",
+    NTR: "Nha Trang",
+    DLI: "Đà Lạt",
+    DLT: "Đà Lạt",
+    PQC: "Phú Quốc",
+    VCL: "Chu Lai / Quảng Nam",
+  },
+  en: {
+    HAN: "Hanoi",
+    SGN: "Ho Chi Minh City",
+    DAD: "Da Nang",
+    HPH: "Hai Phong",
+    HUI: "Hue",
+    HUE: "Hue",
+    VII: "Vinh",
+    VIN: "Vinh",
+    SAP: "Sapa",
+    QNH: "Quang Ninh",
+    CXR: "Nha Trang (Cam Ranh)",
+    NTR: "Nha Trang",
+    DLI: "Da Lat",
+    DLT: "Da Lat",
+    PQC: "Phu Quoc",
+    VCL: "Chu Lai / Quang Nam",
+  },
+  ja: {
+    HAN: "ハノイ",
+    SGN: "ホーチミン",
+    DAD: "ダナン",
+    HPH: "ハイフォン",
+    HUI: "フエ",
+    HUE: "フエ",
+    VII: "ヴィン",
+    VIN: "ヴィン",
+    SAP: "サパ",
+    QNH: "クアンニン",
+    CXR: "ニャチャン",
+    NTR: "ニャチャン",
+    DLI: "ダラット",
+    DLT: "ダラット",
+    PQC: "フーコック",
+    VCL: "チュライ",
+  },
+  zh: {
+    HAN: "河內",
+    SGN: "胡志明市",
+    DAD: "峴港",
+    HPH: "海防",
+    HUI: "順化",
+    HUE: "順化",
+    VII: "榮市",
+    VIN: "榮市",
+    SAP: "沙壩",
+    QNH: "廣寧",
+    CXR: "芽莊",
+    NTR: "芽莊",
+    DLI: "大叻",
+    DLT: "大叻",
+    PQC: "富國島",
+    VCL: "朱萊",
+  },
 };
 
-const getCityLabel = (code) => {
+const getCityLabel = (code, lang = "vi") => {
   if (!code) return "";
-  const name = CITY_NAME_MAP[code.toUpperCase()];
+  const dict = CITY_NAME_MAP[lang] || CITY_NAME_MAP.vi;
+  const name = dict[code.toUpperCase()] || CITY_NAME_MAP.vi[code.toUpperCase()];
   return name ? `${name} (${code})` : code;
 };
 
 const AdminRoutes = () => {
   const { token, user } = useAuth();
   const toast = useToast?.() || { showToast: () => {} };
+  const { t, currentLanguage } = useLanguage();
+  const lang = currentLanguage?.code || "vi";
 
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -82,11 +138,11 @@ const AdminRoutes = () => {
         const data = await res.json();
         setRoutes(Array.isArray(data) ? data : []);
       } else {
-        toast.showToast?.("Không thể tải danh sách tuyến đường", "error");
+        toast.showToast?.(t.errLoadRoutes || "Không thể tải danh sách tuyến đường", "error");
       }
     } catch (err) {
       console.error(err);
-      toast.showToast?.("Lỗi kết nối máy chủ", "error");
+      toast.showToast?.(t.errServerConnect || "Lỗi kết nối máy chủ", "error");
     } finally {
       setLoading(false);
     }
@@ -95,11 +151,11 @@ const AdminRoutes = () => {
   const handleCreateRoute = async (e) => {
     e.preventDefault();
     if (!origin.trim() || !destination.trim()) {
-      alert("Vui lòng nhập đầy đủ Điểm đi và Điểm đến");
+      alert(t.errFillOriginDest || "Vui lòng nhập đầy đủ Điểm đi và Điểm đến");
       return;
     }
     if (origin.trim().toUpperCase() === destination.trim().toUpperCase()) {
-      alert("Điểm đi và điểm đến không được trùng nhau");
+      alert(t.errSameOriginDest || "Điểm đi và điểm đến không được trùng nhau");
       return;
     }
 
@@ -121,14 +177,14 @@ const AdminRoutes = () => {
         setOrigin("");
         setDestination("");
         loadRoutes();
-        if (toast.showToast) toast.showToast("Tạo tuyến đường thành công!", "success");
+        if (toast.showToast) toast.showToast(t.routeCreatedSuccess || "Tạo tuyến đường thành công!", "success");
       } else {
         const text = await res.text();
-        alert(text || "Không thể tạo tuyến đường");
+        alert(text || t.errCreateRoute || "Không thể tạo tuyến đường");
       }
     } catch (err) {
       console.error(err);
-      alert("Lỗi kết nối máy chủ");
+      alert(t.errServerConnect || "Lỗi kết nối máy chủ");
     } finally {
       setSubmitting(false);
     }
@@ -136,11 +192,11 @@ const AdminRoutes = () => {
 
   const handleEditRoute = async () => {
     if (!editModal.origin.trim() || !editModal.destination.trim()) {
-      alert("Vui lòng nhập đầy đủ Điểm đi và Điểm đến");
+      alert(t.errFillOriginDest || "Vui lòng nhập đầy đủ Điểm đi và Điểm đến");
       return;
     }
     if (editModal.origin.trim().toUpperCase() === editModal.destination.trim().toUpperCase()) {
-      alert("Điểm đi và điểm đến không được trùng nhau");
+      alert(t.errSameOriginDest || "Điểm đi và điểm đến không được trùng nhau");
       return;
     }
 
@@ -161,14 +217,14 @@ const AdminRoutes = () => {
       if (res.ok) {
         setEditModal({ show: false, route: null, origin: "", destination: "", loading: false });
         loadRoutes();
-        if (toast.showToast) toast.showToast("Cập nhật tuyến đường thành công!", "success");
+        if (toast.showToast) toast.showToast(t.routeUpdatedSuccess || "Cập nhật tuyến đường thành công!", "success");
       } else {
         const text = await res.text();
-        alert(text || "Không thể cập nhật tuyến đường");
+        alert(text || t.errUpdateRoute || "Không thể cập nhật tuyến đường");
       }
     } catch (err) {
       console.error(err);
-      alert("Lỗi kết nối máy chủ");
+      alert(t.errServerConnect || "Lỗi kết nối máy chủ");
     } finally {
       setEditModal((prev) => ({ ...prev, loading: false }));
     }
@@ -187,14 +243,14 @@ const AdminRoutes = () => {
       if (res.ok || res.status === 204) {
         setDeleteModal({ show: false, route: null, loading: false });
         loadRoutes();
-        if (toast.showToast) toast.showToast("Xóa tuyến đường thành công!", "success");
+        if (toast.showToast) toast.showToast(t.routeDeletedSuccess || "Xóa tuyến đường thành công!", "success");
       } else {
         const text = await res.text();
-        alert(text || "Không thể xóa tuyến đường (có thể tuyến đang có chuyến đi hoạt động)");
+        alert(text || t.errDeleteRoute || "Không thể xóa tuyến đường (có thể tuyến đang có chuyến đi hoạt động)");
       }
     } catch (err) {
       console.error(err);
-      alert("Lỗi kết nối máy chủ");
+      alert(t.errServerConnect || "Lỗi kết nối máy chủ");
     } finally {
       setDeleteModal((prev) => ({ ...prev, loading: false }));
     }
@@ -203,19 +259,20 @@ const AdminRoutes = () => {
   if (!user || user.role !== "ROLE_ADMIN") {
     return (
       <div style={{ padding: 24, color: "var(--text-main)", textAlign: "center" }}>
-        <h2>Quản lý Tuyến đường</h2>
-        <p>Tính năng chỉ dành cho Quản trị viên.</p>
+        <h2>{t.routeManagementTitle || "Quản lý Tuyến đường"}</h2>
+        <p>{t.admAdminOnly || "Tính năng chỉ dành cho Quản trị viên."}</p>
       </div>
     );
   }
 
+  const dict = CITY_NAME_MAP[lang] || CITY_NAME_MAP.vi;
   const filteredRoutes = routes.filter((r) => {
     const q = searchTerm.toLowerCase().trim();
     if (!q) return true;
     const orig = (r.origin || "").toLowerCase();
     const dest = (r.destination || "").toLowerCase();
-    const origName = (CITY_NAME_MAP[r.origin] || "").toLowerCase();
-    const destName = (CITY_NAME_MAP[r.destination] || "").toLowerCase();
+    const origName = (dict[r.origin] || CITY_NAME_MAP.vi[r.origin] || "").toLowerCase();
+    const destName = (dict[r.destination] || CITY_NAME_MAP.vi[r.destination] || "").toLowerCase();
     return orig.includes(q) || dest.includes(q) || origName.includes(q) || destName.includes(q);
   });
 
@@ -234,10 +291,10 @@ const AdminRoutes = () => {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
         <div>
           <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 10 }}>
-            <FaRoute style={{ color: "var(--primary)" }} /> Quản lý Tuyến đường
+            <FaRoute style={{ color: "var(--primary)" }} /> {t.routeManagementTitle || "Quản lý Tuyến đường"}
           </h2>
           <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-            Danh sách và cấu hình các tuyến khởi hành / điểm đến trong toàn hệ thống
+            {t.routeManagementSubtitle || "Danh sách và cấu hình các tuyến khởi hành / điểm đến trong toàn hệ thống"}
           </p>
         </div>
 
@@ -247,7 +304,7 @@ const AdminRoutes = () => {
             <FaSearch style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: 13 }} />
             <input
               type="text"
-              placeholder="Tìm mã hoặc tên địa điểm..."
+              placeholder={t.searchRoutePlaceholder || "Tìm mã hoặc tên địa điểm..."}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
@@ -277,16 +334,16 @@ const AdminRoutes = () => {
         }}
       >
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: "var(--text-heading)", display: "flex", alignItems: "center", gap: 8 }}>
-          <FaPlus style={{ fontSize: 14, color: "var(--primary)" }} /> Thêm Tuyến đường Mới
+          <FaPlus style={{ fontSize: 14, color: "var(--primary)" }} /> {t.addRoute || "Thêm Tuyến đường Mới"}
         </h3>
         <form className="grid-form" onSubmit={handleCreateRoute} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 16, alignItems: "flex-end" }}>
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, display: "block", color: "var(--text-muted)" }}>
-              Điểm đi (Mã TP / Sân bay / Bến) <span style={{ color: "red" }}>*</span>
+              {t.departurePointLabel || "Điểm đi (Mã TP / Sân bay / Bến)"} <span style={{ color: "red" }}>*</span>
             </label>
             <input
               type="text"
-              placeholder="Ví dụ: HAN hoặc Hà Nội"
+              placeholder={t.departurePointPlaceholder || "Ví dụ: HAN hoặc Hà Nội"}
               value={origin}
               onChange={(e) => setOrigin(e.target.value)}
               style={{
@@ -305,11 +362,11 @@ const AdminRoutes = () => {
 
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, display: "block", color: "var(--text-muted)" }}>
-              Điểm đến (Mã TP / Sân bay / Bến) <span style={{ color: "red" }}>*</span>
+              {t.arrivalPointLabel || "Điểm đến (Mã TP / Sân bay / Bến)"} <span style={{ color: "red" }}>*</span>
             </label>
             <input
               type="text"
-              placeholder="Ví dụ: SGN hoặc TP. Hồ Chí Minh"
+              placeholder={t.arrivalPointPlaceholder || "Ví dụ: SGN hoặc TP. Hồ Chí Minh"}
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
               style={{
@@ -344,7 +401,7 @@ const AdminRoutes = () => {
               whiteSpace: "nowrap",
             }}
           >
-            {submitting ? "Đang lưu..." : "Thêm Tuyến"}
+            {submitting ? (t.savingRoute || "Đang lưu...") : (t.addRouteButton || "Thêm Tuyến")}
           </button>
         </form>
       </div>
@@ -361,28 +418,28 @@ const AdminRoutes = () => {
       >
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontWeight: 600, fontSize: 15, color: "var(--text-heading)" }}>
-            Tổng số: {filteredRoutes.length} tuyến
+            {(t.totalRoutes || "Tổng số: {count} tuyến").replace("{count}", filteredRoutes.length)}
           </span>
         </div>
 
         {loading ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
-            Đang tải danh sách tuyến đường...
+            {t.loadingRoutes || "Đang tải danh sách tuyến đường..."}
           </div>
         ) : filteredRoutes.length === 0 ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
-            Không tìm thấy tuyến đường nào.
+            {t.noRoutesFound || "Không tìm thấy tuyến đường nào."}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 14 }}>
               <thead>
                 <tr style={{ background: "var(--bg-hover)", borderBottom: "1px solid var(--border-light)", color: "var(--text-muted)" }}>
-                  <th style={{ padding: "14px 18px", width: 80 }}>ID</th>
-                  <th style={{ padding: "14px 18px" }}>Điểm đi (Origin)</th>
-                  <th style={{ padding: "14px 18px" }}>Điểm đến (Destination)</th>
-                  <th style={{ padding: "14px 18px" }}>Hành trình hiển thị</th>
-                  <th style={{ padding: "14px 18px", textAlign: "center", width: 140 }}>Thao tác</th>
+                  <th style={{ padding: "14px 18px", width: 80 }}>{t.colRouteId || "ID"}</th>
+                  <th style={{ padding: "14px 18px" }}>{t.colOrigin || "Điểm đi (Origin)"}</th>
+                  <th style={{ padding: "14px 18px" }}>{t.colDestination || "Điểm đến (Destination)"}</th>
+                  <th style={{ padding: "14px 18px" }}>{t.colDisplayJourney || "Hành trình hiển thị"}</th>
+                  <th style={{ padding: "14px 18px", textAlign: "center", width: 140 }}>{t.colActions || "Thao tác"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -396,7 +453,7 @@ const AdminRoutes = () => {
                         {route.origin}
                       </span>
                       <span style={{ marginLeft: 8, color: "var(--text-secondary)", fontSize: 13 }}>
-                        {CITY_NAME_MAP[route.origin] || ""}
+                        {dict[route.origin] || CITY_NAME_MAP.vi[route.origin] || ""}
                       </span>
                     </td>
                     <td style={{ padding: "14px 18px" }}>
@@ -404,11 +461,11 @@ const AdminRoutes = () => {
                         {route.destination}
                       </span>
                       <span style={{ marginLeft: 8, color: "var(--text-secondary)", fontSize: 13 }}>
-                        {CITY_NAME_MAP[route.destination] || ""}
+                        {dict[route.destination] || CITY_NAME_MAP.vi[route.destination] || ""}
                       </span>
                     </td>
                     <td style={{ padding: "14px 18px", fontWeight: 500, color: "var(--text-main)" }}>
-                      {getCityLabel(route.origin)} ➔ {getCityLabel(route.destination)}
+                      {getCityLabel(route.origin, lang)} ➔ {getCityLabel(route.destination, lang)}
                     </td>
                     <td style={{ padding: "14px 18px", textAlign: "center" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
@@ -422,7 +479,7 @@ const AdminRoutes = () => {
                               loading: false,
                             })
                           }
-                          title="Chỉnh sửa"
+                          title={t.editAction || "Chỉnh sửa"}
                           style={{
                             padding: "6px 10px",
                             borderRadius: 8,
@@ -436,7 +493,7 @@ const AdminRoutes = () => {
                             fontSize: 13,
                           }}
                         >
-                          <FaEdit /> Sửa
+                          <FaEdit /> {t.editAction || "Sửa"}
                         </button>
                         <button
                           onClick={() =>
@@ -446,7 +503,7 @@ const AdminRoutes = () => {
                               loading: false,
                             })
                           }
-                          title="Xóa"
+                          title={t.deleteAction || "Xóa"}
                           style={{
                             padding: "6px 10px",
                             borderRadius: 8,
@@ -460,7 +517,7 @@ const AdminRoutes = () => {
                             fontSize: 13,
                           }}
                         >
-                          <FaTrash /> Xóa
+                          <FaTrash /> {t.deleteAction || "Xóa"}
                         </button>
                       </div>
                     </td>
@@ -488,7 +545,7 @@ const AdminRoutes = () => {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "var(--text-heading)" }}>
-                ✏️ Chỉnh sửa Tuyến đường #{editModal.route?.id}
+                {(t.editRouteTitle || "✏️ Chỉnh sửa Tuyến đường #{id}").replace("{id}", editModal.route?.id)}
               </h3>
               <button
                 onClick={() => setEditModal({ show: false, route: null, origin: "", destination: "", loading: false })}
@@ -500,7 +557,7 @@ const AdminRoutes = () => {
 
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block", color: "var(--text-muted)" }}>
-                Điểm đi:
+                {t.editOriginLabel || "Điểm đi:"}
               </label>
               <input
                 type="text"
@@ -520,7 +577,7 @@ const AdminRoutes = () => {
 
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: "block", color: "var(--text-muted)" }}>
-                Điểm đến:
+                {t.editDestinationLabel || "Điểm đến:"}
               </label>
               <input
                 type="text"
@@ -550,7 +607,7 @@ const AdminRoutes = () => {
                   cursor: "pointer",
                 }}
               >
-                Hủy
+                {t.cancelBtn || "Hủy"}
               </button>
               <button
                 onClick={handleEditRoute}
@@ -565,7 +622,7 @@ const AdminRoutes = () => {
                   cursor: editModal.loading ? "not-allowed" : "pointer",
                 }}
               >
-                {editModal.loading ? "Đang lưu..." : "Lưu thay đổi"}
+                {editModal.loading ? (t.savingRoute || "Đang lưu...") : (t.saveChangesBtn || "Lưu thay đổi")}
               </button>
             </div>
           </div>
@@ -587,14 +644,12 @@ const AdminRoutes = () => {
             }}
           >
             <h3 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 700, color: "#ef4444" }}>
-              ⚠️ Xác nhận xóa tuyến đường
+              {t.confirmDeleteRouteTitle || "⚠️ Xác nhận xóa tuyến đường"}
             </h3>
             <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 20 }}>
-              Bạn có chắc chắn muốn xóa tuyến{" "}
-              <strong>
-                {deleteModal.route?.origin} ➔ {deleteModal.route?.destination}
-              </strong>{" "}
-              (ID: #{deleteModal.route?.id})?
+              {(t.confirmDeleteRouteMsg || "Bạn có chắc chắn muốn xóa tuyến {route} (ID: #{id})?")
+                .replace("{route}", `${deleteModal.route?.origin} ➔ ${deleteModal.route?.destination}`)
+                .replace("{id}", deleteModal.route?.id)}
             </p>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -609,7 +664,7 @@ const AdminRoutes = () => {
                   cursor: "pointer",
                 }}
               >
-                Hủy
+                {t.cancelBtn || "Hủy"}
               </button>
               <button
                 onClick={handleDeleteRoute}
@@ -624,7 +679,7 @@ const AdminRoutes = () => {
                   cursor: deleteModal.loading ? "not-allowed" : "pointer",
                 }}
               >
-                {deleteModal.loading ? "Đang xóa..." : "Xác nhận xóa"}
+                {deleteModal.loading ? (t.deletingBtn || "Đang xóa...") : (t.confirmDeleteBtn || "Xác nhận xóa")}
               </button>
             </div>
           </div>
