@@ -72,7 +72,7 @@ trong khi log máy chủ sạch bong.
 
 ---
 
-## 2. Bốn lỗ hổng đã vá
+## 2. Năm lỗ hổng đã vá
 
 ### 2.1. Kênh STOMP không hề xác thực
 
@@ -155,9 +155,37 @@ là đọc được toàn bộ luồng chọn ghế kèm email, và nhả ghế 
 deploy xem trước Vercel lại cấp một tên miền mới — chặn cứng sẽ khiến bản xem trước gãy rồi
 lại bị nới về `"*"` cho xong.
 
+### 2.5. Đường REST vẫn phát danh tính thô sau khi kênh WebSocket đã được vá
+
+Mục 2.2 mới bịt một nửa. Sơ đồ ghế còn một đường thứ hai: `GET /api/trips/{tripId}/seats`,
+endpoint **công khai** mà giao diện gọi mỗi lần mở một chuyến. Đường đó trả
+`tempLockedBy` lấy thẳng từ `SeatLockService.getLockedBy(...)` — tức `user:<email>` hoặc
+`guest:<khoá thiết bị>`, đúng thứ mà `SeatOwnerTokenService` sinh ra để giấu đi.
+
+Hỏng thêm một chuyện nữa, và chuyện này người dùng gặp hằng ngày. Giao diện chỉ có **một**
+phép so để biết "ghế này của tôi hay của người khác":
+
+```js
+seat.tempLockedBy !== ownerToken   // utils/seatBookingHelpers.js
+```
+
+`ownerToken` là HMAC 16 ký tự do `/app/whoami` cấp. Đặt danh tính thô vào vế trái thì phép
+so **luôn** lệch. Hệ quả: tải lại trang giữa luồng đặt vé — lúc chỉ có đường REST chạy,
+chưa có sự kiện WebSocket nào — ghế người dùng đang **tự giữ** hiện ra như ghế người khác
+giữ, và `toggleSeat` chặn luôn không cho bấm lại. Kẹt đúng 10 phút cho tới khi lock hết
+hạn. Cả ba luồng xe/tàu/máy bay đều dính vì dùng chung endpoint.
+
+**Sau.** `TripService.getSeatsForTrip` bọc qua `seatOwnerTokenService.tokenFor(...)`, cùng
+lớp mà `SeatStatusBroadcaster` đang dùng. Hai đường nói chung một hệ quy chiếu; frontend
+không phải đổi gì.
+
+`TripServiceSeatMapTest` khoá lại đúng điều đó, và cố ý dùng `SeatOwnerTokenService`
+**thật** chứ không mock: thứ cần bảo vệ là "chuỗi REST trả ra khớp đúng chuỗi WebSocket
+phát ra", mock đi thì test vẫn xanh kể cả khi hai đường lại lệch nhau lần nữa.
+
 ---
 
-## 3. Ba cải tiến đi kèm
+## 3. Bốn cải tiến đi kèm
 
 ### 3.1. Hai trần khác nhau, chặn hai thứ khác nhau
 
@@ -204,6 +232,46 @@ Giờ là một thao tác phía máy chủ (`/app/seat-handover` → `SeatLockSe
 không còn khoảng trống nào. Phiên được phép nhận vì chính nó đã khai khoá thiết bị đó ở
 frame CONNECT — tức nó vốn là phiên khách đang giữ mấy ghế này, chỉ vừa đăng nhập xong.
 
+### 3.4. Giữ tiến trình đặt vé qua một lần tải lại trang
+
+Toàn bộ luồng đặt vé từng nằm trong `useState` thuần, nên F5 giữa chừng là về thẳng bước
+tìm chuyến: mất chuyến đã chọn, mất ghế đã chọn, mất sạch thông tin hành khách vừa gõ —
+trong khi ghế thì vẫn đang bị chính họ giữ ở máy chủ thêm 10 phút nữa. Cộng với 2.5 thì
+thành hỏng đôi: ghế còn đó nhưng nhìn như của người khác nên không lấy lại được.
+
+Bản nháp lưu ở `utils/bookingDraft.js` + `hooks/useBookingDraft.js`. Bốn quyết định đáng
+ghi lại:
+
+**`sessionStorage`, không phải `localStorage`.** Bản nháp chụp mọi thứ đang gõ dở, trong đó
+có **CCCD/hộ chiếu và ngày sinh**, và chụp *tự động* — không ai bấm nút nào. Khác hẳn
+`guestSavedPassengers` (`SavedPassengersContext`): sổ đó do người dùng chủ động tick "Lưu
+thông tin", và nhánh khách vãng lai còn cố ý chỉ giữ tên/email/điện thoại. Thứ chụp âm thầm
+dữ liệu định danh thì không được nằm lại trên máy sau khi người ta rời đi. `sessionStorage`
+chết theo tab nhưng sống qua F5 — mà F5 chính là tình huống cần cứu. Trên máy dùng chung,
+đây là khác biệt thật sự.
+
+**Không tin bản nháp — đối chiếu lại với máy chủ.** Bản nháp chỉ là lời khai của trình
+duyệt; bảng lock thì nằm trong RAM của tiến trình (xem mục 4) nên backend restart là mất
+sạch lock trong khi bản nháp vẫn nằm nguyên đó. Khôi phục xong phải fetch lại sơ đồ ghế và
+bắt buộc **mọi** ghế đã chọn có `tempLockedBy === ownerToken` (`verifyHeldSeats`). Lệch một
+ghế là dừng ở bước chọn ghế kèm thông báo, thay vì thả người dùng đi tiếp để hỏng ở bước
+tạo đơn — sau khi họ đã điền xong tất cả.
+
+**Chờ có `ownerToken` rồi mới đối chiếu.** Không có mã thì không phân biệt được ghế nào của
+mình, và `verifyHeldSeats` sẽ coi như mất sạch — đá người dùng về bước chọn ghế chỉ vì
+WebSocket nối chậm hơn REST một nhịp. Quá 12 giây chưa có mã thì bỏ việc khôi phục, vì để
+màn hình kẹt ở trạng thái đang tải còn hỏng nặng hơn mất bản nháp.
+
+**Không khôi phục các bước sau khi đã tạo đơn.** Lúc đó ghế đã do đơn `PENDING` giữ chứ
+không còn là lock tạm, và trang "Vé của tôi" đã có sẵn nút thanh toán lại cho đơn đó —
+đường ấy dựa vào CSDL nên dùng được cả từ máy khác. Dựng lại màn thanh toán từ bản nháp
+vừa thừa, vừa dễ ra một màn hình đã hết hiệu lực.
+
+Mã giảm giá cũng chỉ trả lại **chữ trong ô nhập**, không trả lại khoản đã giảm: voucher
+phải được máy chủ duyệt lại theo đúng số tiền của đơn (có thể đã hết lượt, hết hạn, hoặc
+không còn đủ điều kiện). Hiện sẵn một khoản giảm chưa ai duyệt lại là hứa với khách một con
+số mà bước tạo đơn có thể không thực hiện được.
+
 ---
 
 ## 4. Giới hạn còn nguyên, và vì sao chấp nhận được
@@ -241,6 +309,7 @@ thiếu sót.
 | `/topic/seat-status/{tripId}` | server → cả phòng | `{tripId, seatId, status, ownerToken}` với status ∈ `SELECTED`/`BOOKED`/`AVAILABLE` |
 | `/user/queue/seat-status` | server → một phiên | `LOCK_FAILED` — giữ hụt ghế nào |
 | `/user/queue/identity` | server → một phiên | `{ownerToken, authenticated}` |
+| `GET /api/trips/{tripId}/seats` | HTTP, công khai | sơ đồ ghế kèm `tempLockedBy` — **cùng hệ quy chiếu `ownerToken`** với bảng trên, xem 2.5 |
 
 **Header của frame CONNECT:** `Authorization: Bearer <jwt>` (nếu đã đăng nhập) và
 `X-Guest-Key: sess_...` (luôn gửi, kể cả khi đã đăng nhập, để phục vụ seat-handover).
@@ -257,8 +326,10 @@ thiếu sót.
 ./mvnw test -Dtest=StompRateLimitChannelInterceptorTest  # trần tần suất frame
 ./mvnw test -Dtest=SeatDoubleBookingIntegrationTest  # lớp 2 giữ được bất biến khi lớp 1 mất
 ./mvnw test -Dtest=SeatWebSocketIntegrationTest       # đầu-cuối trên máy chủ thật, cổng ngẫu nhiên
+./mvnw test -Dtest=TripServiceSeatMapTest            # sơ đồ ghế REST cùng hệ quy chiếu với WebSocket
 
 # Frontend
 npm run test:run -- src/context/WebSocketContext.test.jsx
 npm run test:run -- src/hooks/useSeatLockRekey.test.jsx
+npm run test:run -- src/utils/bookingDraft.test.js       # bản nháp: hạn dùng, đối chiếu ghế
 ```

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { useLanguage } from "../context/LanguageContext";
 import { useSavedPassengers } from "../context/SavedPassengersContext";
@@ -14,6 +14,9 @@ import { useToast } from "../context/ToastContext";
 import { useWebSocket } from "../context/WebSocketContext";
 import useCountdown from "../hooks/useCountdown";
 import useSeatLockRekey from "../hooks/useSeatLockRekey";
+import useBookingDraft from "../hooks/useBookingDraft";
+import { RESTORABLE_STEPS, readDraft, verifyHeldSeats } from "../utils/bookingDraft";
+
 import HoldCountdownBanner from "../components/HoldCountdownBanner";
 import {
   canSelectSeats,
@@ -31,6 +34,19 @@ import { IoMdSearch } from "react-icons/io";
 import { FiChevronDown, FiSearch } from "react-icons/fi";
 import { CgSandClock } from "react-icons/cg";
 import { CiCreditCard1 } from "react-icons/ci";
+
+
+/** Khoá lưu bản nháp, tách riêng cho từng luồng phương tiện. */
+const DRAFT_MODE = "train";
+
+/**
+ * Quá hạn này mà WebSocket vẫn chưa cấp mã chủ sở hữu thì bỏ việc khôi phục.
+ *
+ * Không có mã thì không đối chiếu được ghế, mà chờ mãi thì nút tìm chuyến kẹt vĩnh viễn
+ * ở trạng thái đang tải — hỏng nặng hơn hẳn so với việc mất bản nháp. Đặt dài hơn hạn chờ
+ * danh tính bên trong WebSocketContext (8 giây) để lần thử của nó kết thúc trước.
+ */
+const DRAFT_RESTORE_TIMEOUT_MS = 12000;
 
 /**
  * Thời gian giữ chỗ của một đơn PENDING chưa bấm thanh toán.
@@ -175,6 +191,15 @@ const TrainTickets = () => {
   const passengerCountLocked = Boolean(selectedTrip) && ["seatClass", "passenger", "extras", "review"].includes(step);
   const [lockDeadline, setLockDeadline] = useState(null);
   const [paymentDeadline, setPaymentDeadline] = useState(null);
+
+  /**
+   * Bản nháp của lượt đặt vé còn dở từ trước khi tải lại trang, hoặc null.
+   *
+   * Đọc ĐỒNG BỘ ngay lúc dựng component chứ không trong effect: effect đọc tham số URL
+   * bên dưới cần biết ngay ở nhịp render đầu tiên là có bản nháp hay không, để nhường
+   * đường thay vì tự chạy tìm chuyến. Xem readDraft trong utils/bookingDraft.
+   */
+  const [pendingDraft] = useState(() => readDraft(DRAFT_MODE));
 
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -387,7 +412,11 @@ const TrainTickets = () => {
 
   const [submitLoading, setSubmitLoading] = useState(false);
   const [bookingResult, setBookingResult] = useState(null);
-  const [loading, setLoading] = useState(false);
+  // Bật sẵn khi có bản nháp: từ lúc mở trang tới lúc khôi phục xong mất chừng một giây
+  // (chờ WebSocket cấp mã chủ sở hữu rồi mới đối chiếu ghế được). Để nút tìm chuyến bấm
+  // được trong quãng đó thì một lần bấm sẽ xoá chuyến và ghế mà việc khôi phục đang dựng
+  // lại dở dang.
+  const [loading, setLoading] = useState(Boolean(pendingDraft));
   // Lỗi thao tác hiển thị bằng toast trượt từ bên phải thay vì một dòng chữ đỏ chèn giữa
   // form: ở các bước dài, dòng đó thường nằm ngoài tầm nhìn nên người dùng bấm tiếp mà
   // không hề biết vừa có lỗi. Giữ nguyên tên setError để 35 chỗ gọi không phải sửa —
@@ -458,6 +487,11 @@ const TrainTickets = () => {
       else if (qTimeSlot === "EVENING") setTimeRange([18, 24]);
       else if (qTimeSlot === "EARLY_MORNING") setTimeRange([0, 5]);
     }
+
+    // Có bản nháp thì không tự tìm chuyến nữa. performSearch xoá chuyến và ghế đang chọn,
+    // chạy song song với việc khôi phục sẽ thành cuộc đua mà bên nào về sau thì bên đó
+    // thắng — tức là thỉnh thoảng người dùng mất tiến trình, không đoán trước được.
+    if (pendingDraft) return;
 
     if (qFrom && qTo && qPassengers && mode === "calendar") {
       setTimeout(() => {
@@ -593,6 +627,136 @@ const TrainTickets = () => {
       setServicesLoading(false);
     }
   };
+
+  /**
+   * Bản nháp được lưu lại sau mỗi thay đổi, để tải lại trang không mất tiến trình.
+   *
+   * Cố ý KHÔNG lưu `bookingResult` và `paymentDeadline`: sau khi tạo đơn thì ghế đã do đơn
+   * PENDING giữ chứ không còn là lock tạm, và trang "Vé của tôi" đã có sẵn nút thanh toán
+   * lại cho đơn đó — đường ấy dựa vào CSDL nên dùng được cả từ máy khác, tốt hơn hẳn một
+   * màn thanh toán dựng lại từ bản nháp và có thể đã hết hiệu lực.
+   */
+  const bookingDraft = useMemo(() => ({
+    step,
+    tripId: selectedTrip?.id ?? null,
+    selectedTrip,
+    selectedSeatIds,
+    lockDeadline,
+    from,
+    to,
+    date,
+    passengerCounts,
+    contactInfo,
+    passengerInfoList,
+    globalContact,
+    selectedServiceIds,
+    selectedSeatClass,
+    promoCode,
+  }), [step, selectedTrip, selectedSeatIds, lockDeadline, from, to, date, passengerCounts,
+    contactInfo, passengerInfoList, globalContact, selectedServiceIds, selectedSeatClass, promoCode]);
+
+  const forgetDraft = useBookingDraft({
+    mode: DRAFT_MODE,
+    enabled: Boolean(selectedTrip) && RESTORABLE_STEPS.includes(step) && !bookingResult,
+    draft: bookingDraft,
+  });
+
+  /**
+   * Dựng lại lượt đặt vé còn dở sau khi tải lại trang.
+   *
+   * Chờ có ownerToken rồi mới chạy. Đó là mã ẩn danh của chính phiên này; không có nó thì
+   * không phân biệt được ghế nào còn là của mình, và verifyHeldSeats sẽ coi như mất sạch rồi
+   * đá người dùng về bước chọn ghế chỉ vì WebSocket nối chậm hơn REST một nhịp.
+   *
+   * Không tin bản nháp: sơ đồ ghế lấy lại từ máy chủ rồi mới đối chiếu. Bản nháp chỉ là lời
+   * khai của trình duyệt, còn SeatLockService giữ bảng lock trong RAM — backend restart
+   * (Render gói miễn phí ngủ khi vắng request) là mất sạch lock trong khi bản nháp vẫn nằm
+   * nguyên đó. Tin nó thì người dùng điền xong hết mọi thứ mới vỡ ở bước tạo đơn, tức hỏng
+   * vào đúng lúc tệ nhất.
+   */
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (!pendingDraft || restoredRef.current) return;
+
+    if (!ownerToken) {
+      const giveUp = setTimeout(() => {
+        restoredRef.current = true;
+        forgetDraft();
+        setLoading(false);
+        setError(t.draftRestoreFailed);
+      }, DRAFT_RESTORE_TIMEOUT_MS);
+      return () => clearTimeout(giveUp);
+    }
+
+    restoredRef.current = true;
+
+    (async () => {
+      try {
+        // Trả lại ngay phần không phụ thuộc vào ghế. Đây mới là thứ đắt giá nhất với người
+        // dùng: bấm lại vài cái ghế thì nhanh, gõ lại cả form hành khách mới là thứ khiến
+        // người ta bỏ cuộc giữa chừng.
+        setFrom(pendingDraft.from);
+        setTo(pendingDraft.to);
+        setDate(pendingDraft.date);
+        setPassengerCounts(pendingDraft.passengerCounts);
+        setSelectedTrip(pendingDraft.selectedTrip);
+        setContactInfo(pendingDraft.contactInfo);
+        setPassengerInfoList(pendingDraft.passengerInfoList);
+        setGlobalContact(pendingDraft.globalContact);
+        setSelectedServiceIds(pendingDraft.selectedServiceIds);
+        setSelectedSeatClass(pendingDraft.selectedSeatClass);
+        // Chỉ trả lại chữ trong ô mã giảm giá, KHÔNG trả lại khoản đã giảm: voucher phải
+        // được máy chủ duyệt lại theo đúng số tiền của đơn (nó có thể đã hết lượt, hết hạn,
+        // hoặc không còn đủ điều kiện). Hiện sẵn một khoản giảm chưa ai duyệt lại là hứa với
+        // khách một con số mà bước tạo đơn có thể không thực hiện được.
+        setPromoCode(pendingDraft.promoCode || "");
+
+        const res = await fetch(`${API_BASE}/trips/${pendingDraft.tripId}/seats`);
+        if (!res.ok) throw new Error(`Lỗi HTTP ${res.status}`);
+        const freshSeats = (await res.json()) || [];
+        setSeats(freshSeats);
+
+        const { ok, keptSeatIds } = verifyHeldSeats({
+          seats: freshSeats,
+          selectedSeatIds: pendingDraft.selectedSeatIds,
+          ownerToken,
+          lockDeadline: pendingDraft.lockDeadline,
+        });
+        setSelectedSeatIds(keptSeatIds);
+
+        if (!ok) {
+          // Ghế không còn nguyên vẹn thì dừng lại ở bước chọn ghế. Cho đi tiếp là đẩy người
+          // dùng tới bước tạo đơn để hỏng ở đó, sau khi họ đã điền xong tất cả.
+          setLockDeadline(null);
+          setStep("seatClass");
+          setError(t.draftSeatsLost);
+          return;
+        }
+
+        setLockDeadline(pendingDraft.lockDeadline);
+        // Từ bước "extras" trở đi tổng tiền có cộng dịch vụ đi kèm. Không nạp lại danh sách
+        // dịch vụ thì màn hình hiện ra thiếu hẳn khoản đó — số tiền sai, và sai theo hướng
+        // thấp hơn số thực thu, tức là hứa rẻ rồi thu đắt.
+        if (pendingDraft.step === "extras" || pendingDraft.step === "review") {
+          await loadServices();
+        }
+        setStep(pendingDraft.step);
+        showToast(t.draftRestored, "info");
+      } catch (err) {
+        console.error(err);
+        // Không dựng lại được thì trả về màn hình tìm chuyến sạch sẽ, đừng để lại một bước
+        // chọn ghế không có ghế nào để chọn.
+        forgetDraft();
+        setSelectedTrip(null);
+        setSelectedSeatIds([]);
+        setStep("search");
+        setError(t.draftRestoreFailed);
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownerToken, pendingDraft]);
 
   const handleSelectTrip = async (trip) => {
     setSelectedTrip(trip);
@@ -1608,7 +1772,13 @@ const TrainTickets = () => {
                   {!loading && seats.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: 14 }}>{t.noSeatData}</p>}
 
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
-                    <button type="button" onClick={() => setStep("chooseTrip")} style={{
+                    <button type="button" onClick={() => {
+                      // Khôi phục bản nháp xong thì danh sách chuyến rỗng: lần tìm kiếm đó
+                      // thuộc về trang trước khi tải lại. Quay về mà không tìm lại thì người
+                      // dùng nhìn thấy một màn hình trống trơn không giải thích được.
+                      if (trips.length === 0) performSearch(from, to, date, null);
+                      else setStep("chooseTrip");
+                    }} style={{
                       padding: "12px 26px", borderRadius: 10, border: "1px solid var(--border-main)",
                       background: "var(--bg-input)", color: "var(--text-main)", fontWeight: 700, cursor: "pointer", fontSize: 14
                     }}>← {t.goBack}</button>

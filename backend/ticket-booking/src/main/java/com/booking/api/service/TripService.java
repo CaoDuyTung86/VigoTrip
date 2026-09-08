@@ -7,6 +7,7 @@ import com.booking.api.entity.Seat;
 import com.booking.api.entity.Trip;
 import com.booking.api.exception.ResourceNotFoundException;
 import com.booking.api.mapper.TripMapper;
+import com.booking.api.realtime.SeatOwnerTokenService;
 import com.booking.api.repository.SeatRepository;
 import com.booking.api.repository.TicketRepository;
 import com.booking.api.repository.TripRepository;
@@ -31,6 +32,7 @@ public class TripService {
         private final TicketRepository ticketRepository;
         private final TripMapper tripMapper;
         private final SeatLockService seatLockService;
+        private final SeatOwnerTokenService seatOwnerTokenService;
 
         @Transactional(readOnly = true)
         @Cacheable(value = "trips", key = "#from + #to + #date.toString() + #type + #passengers")
@@ -83,7 +85,22 @@ public class TripService {
                 return seats.stream()
                                 .map(seat -> {
                                         boolean booked = ticketRepository.existsByTripIdAndSeatId(tripId, seat.getId());
-                                        String tempLockedBy = seatLockService.getLockedBy(seat.getId());
+                                        // Phát mã ẩn danh, KHÔNG phát danh tính thô.
+                                        //
+                                        // Hai lí do, cả hai đều đã cắn thật:
+                                        //
+                                        // 1. Trả về "user:<email>" ở đây là rò email của mọi người đang chọn ghế
+                                        //    cho bất kỳ ai gọi endpoint công khai này — đúng lỗ hổng mà
+                                        //    SeatOwnerTokenService sinh ra để bịt trên kênh WebSocket, nhưng đường
+                                        //    REST thì chưa từng đổi theo.
+                                        // 2. Giao diện so `seat.tempLockedBy` với ownerToken (HMAC) của chính nó
+                                        //    để biết "ghế này của tôi không". Trả chuỗi khác hệ quy chiếu thì phép
+                                        //    so LUÔN lệch, nên sau khi tải lại trang — lúc chỉ có đường REST chạy,
+                                        //    chưa có sự kiện WebSocket nào — ghế người dùng đang tự giữ hiện ra
+                                        //    như ghế người khác giữ, và họ bị chặn bấm lại suốt 10 phút tới khi
+                                        //    lock hết hạn.
+                                        String tempLockedBy = seatOwnerTokenService
+                                                        .tokenFor(seatLockService.getLockedBy(seat.getId()));
                                         return new SeatResponse(
                                                          seat.getId(),
                                                          seat.getSeatNumber(),
