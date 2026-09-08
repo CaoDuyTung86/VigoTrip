@@ -36,9 +36,18 @@ public record BookingConfirmationMail(
         BigDecimal totalPrice
 ) {
 
-    private static final DateTimeFormatter DEPARTURE_FORMAT =
+    /**
+     * Giờ khởi hành/đến, viết theo quy ước đọc được của từng thứ tiếng.
+     *
+     * <p>Không dùng chung một mẫu {@code dd/MM/yyyy} cho mọi ngôn ngữ: người đọc tiếng Anh
+     * mặc định hiểu số đầu là THÁNG, nên "09/12/2026" của một chuyến ngày 9 tháng 12 sẽ được
+     * đọc thành 12 tháng 9 — sai ba tháng, và sai một cách im lặng vì cả hai ngày đều có
+     * thật. Viết tháng bằng chữ ("09 Dec 2026") thì không còn cách hiểu thứ hai.
+     */
+    private static final DateTimeFormatter DEPARTURE_FORMAT_VI =
             DateTimeFormatter.ofPattern("HH:mm - dd/MM/yyyy");
-    private static final String PENDING = "Đang cập nhật";
+    private static final DateTimeFormatter DEPARTURE_FORMAT_INTL =
+            DateTimeFormatter.ofPattern("HH:mm - dd MMM yyyy", Locale.ENGLISH);
 
     /**
      * Một dòng hành khách trên vé: tên đã in hoa + ghế đã gán.
@@ -51,8 +60,18 @@ public record BookingConfirmationMail(
     public record Passenger(String name, String seat) {
     }
 
-    /** Bắt buộc gọi trong transaction đang mở, nếu không các quan hệ LAZY sẽ không nạp được. */
-    public static BookingConfirmationMail from(Booking booking) {
+    /**
+     * Bắt buộc gọi trong transaction đang mở, nếu không các quan hệ LAZY sẽ không nạp được.
+     *
+     * <p>Nhận {@link Locale} vì bản ghi này chứa ngày giờ đã định dạng sẵn. Chỗ nào chưa có
+     * dữ liệu thì để {@code null} chứ không tự điền chữ "Đang cập nhật": câu chữ hiển thị
+     * thuộc về EmailService (nơi có bảng dịch), còn ở đây mà điền cứng tiếng Việt thì lá mail
+     * tiếng Anh của một đơn thiếu dữ liệu sẽ lẫn đúng một dòng tiếng Việt.
+     */
+    public static BookingConfirmationMail from(Booking booking, Locale locale) {
+        DateTimeFormatter format = "vi".equals(locale == null ? null : locale.getLanguage())
+                ? DEPARTURE_FORMAT_VI
+                : DEPARTURE_FORMAT_INTL;
         List<Ticket> tickets = booking.getTickets() == null ? List.of() : booking.getTickets();
 
         String seats = tickets.stream()
@@ -63,10 +82,10 @@ public record BookingConfirmationMail(
                 .map(t -> new Passenger(upper(t.getPassengerName()), t.getSeat().getSeatNumber()))
                 .toList();
 
-        String route = PENDING;
-        String departureTime = PENDING;
-        String arrivalTime = PENDING;
-        String carrier = PENDING;
+        String route = null;
+        String departureTime = null;
+        String arrivalTime = null;
+        String carrier = null;
         if (!tickets.isEmpty()) {
             Trip trip = tickets.get(0).getTrip();
             if (trip != null) {
@@ -74,10 +93,10 @@ public record BookingConfirmationMail(
                     route = trip.getRoute().getOrigin() + " ➔ " + trip.getRoute().getDestination();
                 }
                 if (trip.getDepartureTime() != null) {
-                    departureTime = trip.getDepartureTime().format(DEPARTURE_FORMAT);
+                    departureTime = trip.getDepartureTime().format(format);
                 }
                 if (trip.getArrivalTime() != null) {
-                    arrivalTime = trip.getArrivalTime().format(DEPARTURE_FORMAT);
+                    arrivalTime = trip.getArrivalTime().format(format);
                 }
                 if (trip.getVehicle() != null && trip.getVehicle().getProvider() != null) {
                     carrier = trip.getVehicle().getProvider().getProviderName();
@@ -91,7 +110,7 @@ public record BookingConfirmationMail(
                 departureTime,
                 arrivalTime,
                 carrier,
-                seats.isEmpty() ? PENDING : seats,
+                seats.isEmpty() ? null : seats,
                 passengers,
                 upper(booking.getContactName()),
                 booking.getContactEmail(),

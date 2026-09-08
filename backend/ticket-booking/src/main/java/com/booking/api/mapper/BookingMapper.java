@@ -30,7 +30,7 @@ public interface BookingMapper {
     @Mapping(target = "contactPhone", source = "booking.contactPhone")
     @Mapping(target = "seatNumbers", source = "booking.tickets", qualifiedByName = "ticketsToSeatNumbers")
     @Mapping(target = "ticketDetails", source = "booking.tickets", qualifiedByName = "ticketsToDetails")
-    @Mapping(target = "additionalServices", source = "booking.additionalServices", qualifiedByName = "servicesToNames")
+    @Mapping(target = "additionalServices", source = "booking.additionalServices", qualifiedByName = "servicesToRefs")
     @Mapping(target = "refundAmount", source = "booking.refunds", qualifiedByName = "calculateRefundAmount")
     @Mapping(target = "refundStatus", source = "booking.refunds", qualifiedByName = "getRefundStatus")
     @Mapping(target = "isCheckedIn", source = "booking.isCheckedIn")
@@ -63,13 +63,13 @@ public interface BookingMapper {
                 .toList();
     }
 
-    @Named("servicesToNames")
-    default List<String> servicesToNames(List<AdditionalService> services) {
+    @Named("servicesToRefs")
+    default List<BookingResponse.ServiceRef> servicesToRefs(List<AdditionalService> services) {
         if (services == null) {
             return null;
         }
         return services.stream()
-                .map(AdditionalService::getServiceName)
+                .map(s -> new BookingResponse.ServiceRef(s.getServiceCode(), s.getServiceName()))
                 .toList();
     }
 

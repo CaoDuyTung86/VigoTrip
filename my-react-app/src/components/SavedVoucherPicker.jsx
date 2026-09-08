@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useLanguage } from "../context/LanguageContext";
+import { formatMoney } from "../utils/money";
 import { FaGift, FaChevronDown, FaRegBookmark, FaBookmark, FaExternalLinkAlt } from "react-icons/fa";
 
 /**
@@ -17,6 +19,7 @@ import { FaGift, FaChevronDown, FaRegBookmark, FaBookmark, FaExternalLinkAlt } f
  */
 const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
   const { token, isAuthenticated } = useAuth();
+  const { t, currentLanguage } = useLanguage();
   const { showToast } = useToast();
   const containerRef = useRef(null);
 
@@ -57,7 +60,7 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
       setVouchers(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
-      showToast("Không tải được voucher đã lưu. Vui lòng thử lại.", "error");
+      showToast(t.svpLoadSavedFailed, "error");
     } finally {
       setLoading(false);
     }
@@ -71,7 +74,7 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
       setAllVouchers(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
-      showToast("Không tải được danh sách ưu đãi. Vui lòng thử lại.", "error");
+      showToast(t.svpLoadOffersFailed, "error");
     } finally {
       setLoading(false);
     }
@@ -111,10 +114,10 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
     try {
       if (voucher.saved) {
         await axios.delete(`/api/saved-vouchers/${voucher.id}`, { headers: authHeaders() });
-        showToast(`Đã bỏ lưu mã ${voucher.code}`, "info");
+        showToast(t.svpUnsavedToast.replace("{code}", voucher.code), "info");
       } else {
         await axios.post(`/api/saved-vouchers/${voucher.id}`, null, { headers: authHeaders() });
-        showToast(`Đã lưu mã ${voucher.code} vào tài khoản`, "success");
+        showToast(t.svpSavedToast.replace("{code}", voucher.code), "success");
       }
       setAllVouchers((prev) =>
         prev.map((v) => (v.id === voucher.id ? { ...v, saved: !voucher.saved } : v)),
@@ -123,7 +126,7 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
       loadSavedVouchers();
     } catch (err) {
       console.error(err);
-      showToast("Không thể cập nhật voucher đã lưu. Vui lòng thử lại.", "error");
+      showToast(t.svpSaveFailed, "error");
     } finally {
       setSavingId(null);
     }
@@ -160,21 +163,21 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
 
   const renderSavedList = () => {
     if (loading) {
-      return <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", padding: "12px 4px" }}>Đang tải...</div>;
+      return <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", padding: "12px 4px" }}>{t.svpLoading}</div>;
     }
     if (vouchers.length === 0) {
       return (
         <div style={{ textAlign: "center", padding: "6px 4px" }}>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 10 }}>Bạn chưa lưu voucher nào.</div>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 10 }}>{t.svpNoSaved}</div>
           <button
             type="button"
             onClick={() => switchTab("discover")}
             style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
           >
-            Khám phá ưu đãi
+            {t.svpTabDiscover}
           </button>
           <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>
-            Xem ngay tại đây, không mất tiến trình đặt vé.
+            {t.svpNoProgressLost}
           </div>
         </div>
       );
@@ -211,7 +214,9 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: "#f97316", whiteSpace: "nowrap" }}>-{v.discountPercent}%</span>
                 </div>
                 {v.minOrderAmount != null && (
-                  <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>Đơn tối thiểu {Number(v.minOrderAmount).toLocaleString("vi-VN")}đ</div>
+                  <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+                    {t.svpMinOrder.replace("{amount}", formatMoney(v.minOrderAmount, currentLanguage?.code))}
+                  </div>
                 )}
                 {!v.available && (
                   <div style={{ fontSize: 11.5, color: "#ef4444", marginTop: 2 }}>{v.unavailableReason}</div>
@@ -237,7 +242,7 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
             cursor: selectedCode ? "pointer" : "not-allowed",
           }}
         >
-          Đồng ý, áp dụng mã
+          {t.svpConfirmApply}
         </button>
       </>
     );
@@ -245,12 +250,12 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
 
   const renderDiscoverList = () => {
     if (loading) {
-      return <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", padding: "12px 4px" }}>Đang tải ưu đãi...</div>;
+      return <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", padding: "12px 4px" }}>{t.svpLoadingOffers}</div>;
     }
     if (allVouchers.length === 0) {
       return (
         <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", padding: "12px 4px" }}>
-          Hiện chưa có ưu đãi nào phù hợp với đơn hàng này.
+          {t.svpNoOffers}
         </div>
       );
     }
@@ -270,7 +275,7 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
               <div style={{ minWidth: 0 }}>
                 <b style={{ fontSize: 13, color: "var(--primary)" }}>{v.code}</b>
                 <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-                  {v.providerName ? `Áp dụng: ${v.providerName}` : "Áp dụng cho tất cả các hãng"}
+                  {v.providerName ? t.svpAppliesTo.replace("{provider}", v.providerName) : t.svpAppliesAll}
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
@@ -279,7 +284,7 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
                   type="button"
                   onClick={() => handleSave(v)}
                   disabled={savingId === v.id}
-                  title={v.saved ? "Bỏ lưu" : "Lưu vào tài khoản"}
+                  title={v.saved ? t.svpUnsave : t.svpSave}
                   style={{
                     background: "none",
                     border: "none",
@@ -296,7 +301,7 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
 
             {v.minOrderAmount != null && (
               <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 3 }}>
-                Đơn tối thiểu {Number(v.minOrderAmount).toLocaleString("vi-VN")}đ
+                {t.svpMinOrder.replace("{amount}", formatMoney(v.minOrderAmount, currentLanguage?.code))}
               </div>
             )}
             {!v.available && v.unavailableReason && (
@@ -320,7 +325,7 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
                 cursor: v.available ? "pointer" : "not-allowed",
               }}
             >
-              Áp dụng ngay
+              {t.svpApplyNow}
             </button>
           </div>
         ))}
@@ -347,7 +352,7 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
           cursor: "pointer",
         }}
       >
-        <FaGift /> Voucher đã lưu
+        <FaGift /> {t.svpButton}
         <FaChevronDown style={{ fontSize: 10, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
       </button>
 
@@ -369,16 +374,16 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
         >
           {!isAuthenticated ? (
             <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", padding: "8px 4px" }}>
-              Đăng nhập để lưu và áp dụng nhanh voucher yêu thích.
+              {t.svpLoginPrompt}
             </div>
           ) : (
             <>
               <div style={{ display: "flex", gap: 4, marginBottom: 10, padding: 3, background: "var(--bg-hover)", borderRadius: 9 }}>
                 <button type="button" onClick={() => switchTab("saved")} style={tabButtonStyle(tab === "saved")}>
-                  Đã lưu
+                  {t.svpTabSaved}
                 </button>
                 <button type="button" onClick={() => switchTab("discover")} style={tabButtonStyle(tab === "discover")}>
-                  Khám phá ưu đãi
+                  {t.svpTabDiscover}
                 </button>
               </div>
 
@@ -387,7 +392,7 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
               <button
                 type="button"
                 onClick={openPromotionsInNewTab}
-                title="Mở ở tab mới — tiến trình đặt vé của bạn được giữ nguyên"
+                title={t.svpOpenNewTabTitle}
                 style={{
                   marginTop: 10,
                   width: "100%",
@@ -405,7 +410,7 @@ const SavedVoucherPicker = ({ providerId, orderAmount, onApply }) => {
                   cursor: "pointer",
                 }}
               >
-                <FaExternalLinkAlt style={{ fontSize: 10 }} /> Mở trang ưu đãi ở tab mới
+                <FaExternalLinkAlt style={{ fontSize: 10 }} /> {t.svpOpenNewTab}
               </button>
             </>
           )}

@@ -64,6 +64,28 @@ class MailLocalizationTest {
         assertTrue(subject.contains("#1234"), "Mã đơn phải giữ nguyên, không thành #1.234: " + subject);
     }
 
+    /**
+     * Số tiền trong mail phải viết theo quy ước của NGƯỜI NHẬN, không theo locale của máy chủ.
+     *
+     * <p>Bản cũ gọi {@code String.format("%,.0f đ", x)} — không truyền Locale nên dấu phân
+     * nhóm lấy theo JVM (trên Render là en), và chữ "đ" thì viết cứng. Kết quả là lá mail
+     * tiếng Anh hiện "1,500,000 đ", còn mail tiếng Việt cũng hiện "1,500,000 đ" thay vì
+     * "1.500.000 đ". Test này khoá lại cả hai vế: dấu phân nhóm VÀ ký hiệu tiền tệ.
+     */
+    @Test
+    @DisplayName("Số tiền theo quy ước của người nhận: dấu phân nhóm và ký hiệu tiền đều đổi")
+    void formatsMoneyPerRecipientLocale() {
+        Messages messages = messages();
+
+        String vi = messages.t(Locale.forLanguageTag("vi"), "mail.currency",
+                String.format(Locale.forLanguageTag("vi"), "%,.0f", 1_500_000d));
+        String en = messages.t(Locale.ENGLISH, "mail.currency",
+                String.format(Locale.ENGLISH, "%,.0f", 1_500_000d));
+
+        assertEquals("1.500.000 đ", vi);
+        assertEquals("1,500,000 VND", en);
+    }
+
     @Test
     @DisplayName("Mã ngôn ngữ lạ hoặc rỗng đều quy về tiếng Việt")
     void unknownCodesFallBackToVietnamese() {

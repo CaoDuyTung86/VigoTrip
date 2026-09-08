@@ -38,6 +38,34 @@ public class EmailService {
         return messages.t(locale, key, args);
     }
 
+    /**
+     * Số tiền trong mail, viết theo quy ước của ngôn ngữ người nhận.
+     *
+     * <p>Trước đây là {@code String.format("%,.0f đ", x)}: chữ "đ" viết cứng, và không truyền
+     * Locale nên dấu phân nhóm lấy theo locale MẶC ĐỊNH CỦA MÁY CHỦ. Hai lỗi cộng lại cho ra
+     * "1,500,000 đ" trong lá mail tiếng Anh gửi từ container Render (locale en) — vừa lẫn chữ
+     * Việt, vừa không phải cách viết số của tiếng Việt.
+     *
+     * <p>Truyền chuỗi đã định dạng vào {@code mail.currency} thay vì truyền số: MessageFormat
+     * nhận đối số kiểu Number sẽ tự định dạng lại theo locale của bảng dịch và ghi đè mất
+     * phần trên.
+     */
+    private String money(Locale locale, Number amount) {
+        String digits = String.format(locale, "%,.0f", amount == null ? 0d : amount.doubleValue());
+        return t(locale, "mail.currency", digits);
+    }
+
+    /**
+     * Giá trị lấy từ đơn, hoặc chữ "đang cập nhật" nếu đơn chưa có dữ liệu đó.
+     *
+     * <p>{@link BookingConfirmationMail} cố tình để {@code null} ở những ô chưa có dữ liệu để
+     * không phải nhúng câu chữ tiếng Việt vào tầng dữ liệu — chỗ điền vào nằm ở đây, nơi đã
+     * có locale trong tay.
+     */
+    private String orPending(Locale locale, String value) {
+        return value == null || value.isBlank() ? t(locale, "mail.booking.pending") : value;
+    }
+
     /** URL gốc của chính backend, dùng để nhúng ảnh QR vào mail bằng <img src>. */
     @org.springframework.beans.factory.annotation.Value("${app.backend-url:http://localhost:8080}")
     private String backendUrl;
@@ -161,11 +189,11 @@ public class EmailService {
     /** Dải hành trình nổi bật ở đầu vé: điểm đi ➔ điểm đến, nhà xe/hãng, giờ đi - giờ đến. */
     private String tripSummaryBlock(BookingConfirmationMail data, Locale locale) {
         return "<div class='vt-surface' style='background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 20px 24px; margin-bottom: 16px;'>"
-                + "<div class='vt-accent' style='font-size: 20px; font-weight: 800; color: #1d4ed8; margin-bottom: 6px;'>" + esc(data.route()) + "</div>"
-                + "<div class='vt-accent' style='font-size: 13px; color: #1e40af;'>" + esc(data.carrier()) + "</div>"
+                + "<div class='vt-accent' style='font-size: 20px; font-weight: 800; color: #1d4ed8; margin-bottom: 6px;'>" + esc(orPending(locale, data.route())) + "</div>"
+                + "<div class='vt-accent' style='font-size: 13px; color: #1e40af;'>" + esc(orPending(locale, data.carrier())) + "</div>"
                 + "<div class='vt-accent' style='font-size: 13.5px; color: #1e3a8a; margin-top: 10px;'>"
-                + t(locale, "mail.booking.departs") + ": <strong>" + esc(data.departureTime()) + "</strong>"
-                + "<br/>" + t(locale, "mail.booking.arrives") + ": <strong>" + esc(data.arrivalTime()) + "</strong>"
+                + t(locale, "mail.booking.departs") + ": <strong>" + esc(orPending(locale, data.departureTime())) + "</strong>"
+                + "<br/>" + t(locale, "mail.booking.arrives") + ": <strong>" + esc(orPending(locale, data.arrivalTime())) + "</strong>"
                 + "</div>"
                 + "</div>";
     }
@@ -183,13 +211,13 @@ public class EmailService {
                 + "<tr><td style='padding: 20px 24px;'>"
                 + "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse: collapse;'>"
                 + detailRow(t(locale, "mail.booking.bookingId"), "#" + data.bookingId(), "#2563eb", "vt-accent")
-                + detailRow(t(locale, "mail.booking.route"), esc(data.route()), "#0f172a", "vt-ink")
-                + detailRow(t(locale, "mail.booking.departs"), esc(data.departureTime()), "#dc2626", "vt-danger")
-                + detailRow(t(locale, "mail.booking.seats"), esc(data.seats()), "#0f172a", "vt-ink")
+                + detailRow(t(locale, "mail.booking.route"), esc(orPending(locale, data.route())), "#0f172a", "vt-ink")
+                + detailRow(t(locale, "mail.booking.departs"), esc(orPending(locale, data.departureTime())), "#dc2626", "vt-danger")
+                + detailRow(t(locale, "mail.booking.seats"), esc(orPending(locale, data.seats())), "#0f172a", "vt-ink")
                 + "<tr>"
                 + "<td class='vt-ink vt-hairline' style='padding: 12px 0 0 0; border-top: 1px dashed #cbd5e1; color: #0f172a; font-size: 14.5px; font-weight: 700;'>" + t(locale, "mail.booking.total") + "</td>"
                 + "<td align='right' class='vt-warn vt-hairline' style='padding: 12px 0 0 0; border-top: 1px dashed #cbd5e1; text-align: right; color: #f97316; font-size: 18px; font-weight: 800; white-space: nowrap;'>"
-                + String.format("%,.0f đ", data.totalPrice()) + "</td>"
+                + money(locale, data.totalPrice()) + "</td>"
                 + "</tr>"
                 + "</table>"
                 + "</td></tr></table>";
@@ -335,7 +363,7 @@ public class EmailService {
             String content = heading(t(locale, "mail.cancel.heading"))
                     + paragraph(t(locale, "mail.hello"))
                     + paragraph(t(locale, "mail.cancel.intro", accent(esc(route)), accent("#" + bookingId)))
-                    + amountBox(t(locale, "mail.cancel.refundLabel"), String.format("%,.0f đ", refundAmount),
+                    + amountBox(t(locale, "mail.cancel.refundLabel"), money(locale, refundAmount),
                             t(locale, "mail.cancel.refundCaption"))
                     + paragraph(t(locale, "mail.cancel.timeline", strong(t(locale, "mail.businessDays"))))
                     + paragraph(t(locale, "mail.cancel.rebook", link(frontendUrl, "VigoTrip")));
@@ -400,7 +428,7 @@ public class EmailService {
                     + paragraph(t(locale, "mail.hello"))
                     + paragraph(t(locale, "mail.refundOk.intro",
                             accent("#" + bookingId), strong(t(locale, "mail.refundOk.accepted"))))
-                    + amountBox(t(locale, "mail.refundOk.amountLabel"), String.format("%,.0f đ", amount),
+                    + amountBox(t(locale, "mail.refundOk.amountLabel"), money(locale, amount),
                             t(locale, "mail.refundOk.refundId", String.valueOf(refundId)))
                     + paragraph(t(locale, "mail.refundOk.timeline", strong(t(locale, "mail.businessDays"))))
                     + paragraph(t(locale, "mail.refundOk.thanks"));

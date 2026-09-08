@@ -13,11 +13,16 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BookingConfirmationMailTest {
+
+    private static final Locale VI = Locale.forLanguageTag("vi");
+    private static final Locale EN = Locale.ENGLISH;
 
     @Test
     @DisplayName("Gom đủ hành khách của đơn, mỗi ghế một dòng, tên đã in hoa")
@@ -27,7 +32,7 @@ class BookingConfirmationMailTest {
                 ticket(trip, "2C", "Nguyễn Văn A"),
                 ticket(trip, "2D", "trần thị bích"));
 
-        BookingConfirmationMail mail = BookingConfirmationMail.from(booking);
+        BookingConfirmationMail mail = BookingConfirmationMail.from(booking, VI);
 
         assertEquals(2, mail.passengers().size());
         assertEquals("NGUYỄN VĂN A", mail.passengers().get(0).name());
@@ -45,7 +50,7 @@ class BookingConfirmationMailTest {
                 ticket(trip, "1A", "  le van c  "),
                 ticket(trip, "1B", null));
 
-        BookingConfirmationMail mail = BookingConfirmationMail.from(booking);
+        BookingConfirmationMail mail = BookingConfirmationMail.from(booking, VI);
 
         assertEquals("LE VAN C", mail.passengers().get(0).name());
         assertEquals("", mail.passengers().get(1).name());
@@ -55,7 +60,7 @@ class BookingConfirmationMailTest {
     @DisplayName("Đọc kèm hãng vận chuyển và giờ đến cho phần tóm tắt hành trình")
     void from_readsCarrierAndArrival() {
         Trip trip = trip("Hà Nội", "Vinh", "VigoTrip Express");
-        BookingConfirmationMail mail = BookingConfirmationMail.from(booking(trip, ticket(trip, "2C", "A")));
+        BookingConfirmationMail mail = BookingConfirmationMail.from(booking(trip, ticket(trip, "2C", "A")), VI);
 
         assertEquals("Hà Nội ➔ Vinh", mail.route());
         assertEquals("VigoTrip Express", mail.carrier());
@@ -71,11 +76,21 @@ class BookingConfirmationMailTest {
         booking.setTotalPrice(BigDecimal.ZERO);
         booking.setTickets(null);
 
-        BookingConfirmationMail mail = BookingConfirmationMail.from(booking);
+        BookingConfirmationMail mail = BookingConfirmationMail.from(booking, VI);
 
         assertTrue(mail.passengers().isEmpty());
-        assertEquals("Đang cập nhật", mail.route());
-        assertEquals("Đang cập nhật", mail.seats());
+        // null chứ không phải "Đang cập nhật": câu chữ thuộc về EmailService, nơi có bảng dịch.
+        assertNull(mail.route());
+        assertNull(mail.seats());
+    }
+
+    @Test
+    @DisplayName("Mail tiếng Anh viết tháng bằng chữ để không đọc nhầm ngày với tháng")
+    void from_writesMonthNameForNonVietnamese() {
+        Trip trip = trip("Hà Nội", "Vinh", "VigoTrip Express");
+        BookingConfirmationMail mail = BookingConfirmationMail.from(booking(trip, ticket(trip, "2C", "A")), EN);
+
+        assertEquals("09:00 - 08 Sep 2026", mail.departureTime());
     }
 
     private Booking booking(Trip trip, Ticket... tickets) {

@@ -114,12 +114,6 @@
       "Hủy",
       "Xác nhận"
     ],
-    "src/components/SavedVoucherPicker.jsx": [
-      "Bạn chưa lưu voucher nào.",
-      "Đang tải ưu đãi...",
-      "Đang tải...",
-      "Mở ở tab mới — tiến trình đặt vé của bạn được giữ nguyên"
-    ],
     "src/context/ToastContext.jsx": [
       "Đóng thông báo"
     ]

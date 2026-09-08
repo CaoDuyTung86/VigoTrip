@@ -37,8 +37,15 @@ public class BookingResponse {
     // Ticket details (passenger name + seat)
     private List<TicketDetail> ticketDetails;
 
-    // Additional services
-    private List<String> additionalServices;
+    /**
+     * Dịch vụ bổ sung của đơn: mỗi phần tử gồm MÃ và tên tiếng Việt.
+     *
+     * <p>Trước đây chỉ là {@code List<String>} tên tiếng Việt, nên màn hình "Vé của tôi" chỉ
+     * có chữ Việt để hiển thị: khách xem bản English đọc được mọi thứ trừ đúng dòng
+     * "Services: Bảo hiểm du lịch cao cấp, Taxi đưa đón sân bay (Xanh SM)...". Có mã thì
+     * frontend tra được bảng dịch, và vẫn còn tên để rơi về khi gặp dòng chưa có mã.
+     */
+    private List<ServiceRef> additionalServices;
 
     // Refund
     private BigDecimal refundAmount;
@@ -50,6 +57,15 @@ public class BookingResponse {
     private LocalDateTime checkInDate;
     private Boolean noShow;
     private Boolean hasReviewed;
+
+    /** Một dịch vụ bổ sung đã mua. {@code code} có thể null với dòng ngoài danh mục seed. */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ServiceRef {
+        private String code;
+        private String name;
+    }
 
     @Data
     @NoArgsConstructor

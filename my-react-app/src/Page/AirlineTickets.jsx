@@ -20,6 +20,9 @@ import {
   isSeatLockedByOthers,
 } from "../utils/seatBookingHelpers";
 import { getMealImage } from "../utils/mealImages";
+import { formatMoney } from "../utils/money";
+import { formatTripDateTime } from "../utils/datetime";
+import { groupServices, translateServiceName } from "../utils/serviceCatalog";
 import { useLocation } from "react-router-dom";
 import { CgSandClock } from "react-icons/cg";
 import { IoMdSearch } from "react-icons/io";
@@ -77,6 +80,10 @@ const PROVIDER_LOGOS = {
 
 const AirlineTickets = () => {
   const { t, currentLanguage } = useLanguage();
+  // Mọi số tiền trên trang này đi qua đây. Trước đây từng chỗ tự viết
+  // `toLocaleString("vi-VN") + " đ"`, nên bản English hiện "677.450 đ" — dấu chấm ở
+  // đúng vị trí mà người đọc tiếng Anh hiểu là dấu thập phân.
+  const money = (amount) => formatMoney(amount, currentLanguage?.code);
   const { token, isAuthenticated, user, membershipDiscountPercent } = useAuth();
   const { showToast } = useToast();
   const { isConnected, ownerToken, subscribeToTrip, lockSeats, unlockSeats, handoverSeats } =
@@ -578,7 +585,7 @@ const AirlineTickets = () => {
       // Món ăn mặc định kèm ảnh địa phương trong /suat an/
       // Suất ăn lấy thẳng từ cơ sở dữ liệu (AdditionalServiceSeeder) để id gửi lên khi đặt vé
       // là id có thật; ảnh minh hoạ tra theo tên trong utils/mealImages.js.
-      setServices(loadedServices.map(s => ({ ...s, img: s.img || getMealImage(s.serviceName) })));
+      setServices(loadedServices.map(s => ({ ...s, img: s.img || getMealImage(s) })));
     } catch (err) {
       console.error(err);
       setError(t.errServicesFailed);
@@ -641,16 +648,9 @@ const AirlineTickets = () => {
     setSelectedSeatIds((prev) => [...prev, seat.id]);
   };
 
-  const categories = useMemo(() => {
-    const byName = (prefix) => services.filter((s) => (s.serviceName || "").startsWith(prefix));
-    return {
-      seat: byName("Chọn chỗ"),
-      baggage: byName("Hành lý"),
-      meal: byName("Suất ăn"),
-      insurance: services.filter((s) => (s.serviceName || "").includes("Bảo hiểm")),
-      taxi: services.filter((s) => (s.serviceName || "").includes("Taxi")),
-    };
-  }, [services]);
+  // Xếp nhóm theo `category` backend trả về, không theo tiền tố chữ tiếng Việt trong tên nữa.
+  // Xem utils/serviceCatalog.js để biết ba lỗi mà cách cũ gây ra trên bản deploy.
+  const categories = useMemo(() => groupServices(services), [services]);
 
   const setSingleServiceInCategory = (serviceId, categoryServices) => {
     const categoryIds = categoryServices.map((s) => s.id);
@@ -1155,7 +1155,7 @@ const AirlineTickets = () => {
                       >
                         <div style={{ fontWeight: 700, color: "var(--text-main)" }}>{d.date}</div>
                         <div style={{ marginTop: 6, color: "#f97316", fontWeight: 700 }}>
-                          {d.minPrice != null ? `${Number(d.minPrice).toLocaleString("vi-VN")} đ` : "—"}
+                          {d.minPrice != null ? `${money(Number(d.minPrice))}` : "—"}
                         </div>
                       </button>
                     ))}
@@ -1555,7 +1555,7 @@ const AirlineTickets = () => {
                                 whiteSpace: "nowrap",
                                 marginBottom: 8,
                               }}>
-                                {trip.price?.toLocaleString("vi-VN")}đ
+                                {money(trip.price)}
                               </div>
                               <button
                                 onClick={e => { e.stopPropagation(); handleSelectTrip(trip); }}
@@ -1683,11 +1683,11 @@ const AirlineTickets = () => {
                     </div>
                     <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--summary-eco-bg)", borderRadius: 8, border: "1px solid var(--summary-eco-border)" }}>
                       <div style={{ fontSize: 12, color: "var(--summary-eco-title)", fontWeight: 600, marginBottom: 4 }}>🟢 {t.economy} (ECO)</div>
-                      <div style={{ fontWeight: 800, color: "var(--summary-eco-price)", fontSize: 15 }}>{Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ</div>
+                      <div style={{ fontWeight: 800, color: "var(--summary-eco-price)", fontSize: 15 }}>{money(Number(selectedTrip.price || 0))}</div>
                     </div>
                     <div style={{ marginTop: 6, padding: "8px 10px", background: "var(--summary-vip-bg)", borderRadius: 8, border: "1px solid var(--summary-vip-border)" }}>
                       <div style={{ fontSize: 12, color: "var(--summary-vip-title)", fontWeight: 600, marginBottom: 4 }}>🔵 {t.business} (BUSINESS)</div>
-                      <div style={{ fontWeight: 800, color: "var(--summary-vip-price)", fontSize: 15 }}>{Number((selectedTrip.price || 0) * 2.5).toLocaleString("vi-VN")} đ</div>
+                      <div style={{ fontWeight: 800, color: "var(--summary-vip-price)", fontSize: 15 }}>{money(Number((selectedTrip.price || 0) * 2.5))}</div>
                     </div>
                     <div style={{ marginTop: 8, color: selectedSeatIds.length >= (passengers || 1) ? "#22c55e" : "var(--text-muted)" }}>{t.seatsSelectedCount.replace('{selected}', selectedSeatIds.length).replace('{total}', passengers || 1)}</div>
                   </div>
@@ -1789,7 +1789,7 @@ const AirlineTickets = () => {
                           <div style={{ marginTop: 10, padding: "10px 12px", background: "var(--bg-input)", borderRadius: 8, border: "1px solid var(--border-main)" }}>
                             <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 2 }}>{t.ticketTotalLabel}</div>
                             <div style={{ fontWeight: 800, color: "#f97316", fontSize: 17 }}>
-                              {totalPrice > 0 ? `${totalPrice.toLocaleString("vi-VN")} đ` : `${Number(selectedTrip.price || 0).toLocaleString("vi-VN")} đ ${t.perSeatUnit}`}
+                              {totalPrice > 0 ? `${money(totalPrice)}` : `${money(Number(selectedTrip.price || 0))} ${t.perSeatUnit}`}
                             </div>
                           </div>
                         </>
@@ -1844,7 +1844,7 @@ const AirlineTickets = () => {
                               }}>
                                 <input type="radio" name="baggage" style={{ display: "none" }} checked={isSel} onChange={() => setSingleServiceInCategory(s.id, categories.baggage)} />
                                 <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{kg}</span>
-                                <span style={{ fontSize: 12, color: "#f97316", fontWeight: 700 }}>{Number(s.price || 0).toLocaleString("vi-VN")} đ</span>
+                                <span style={{ fontSize: 12, color: "#f97316", fontWeight: 700 }}>{money(Number(s.price || 0))}</span>
                               </label>
                             );
                           })}
@@ -1895,7 +1895,13 @@ const AirlineTickets = () => {
                                 ];
                                 const img = s.img || fallbackImages[index % fallbackImages.length];
                                 const isSelected = selectedServiceIds.includes(s.id);
-                                const cleanName = s.serviceName.replace(/^Suất ăn\s*-\s*/i, '');
+                                // Bỏ phần "Suất ăn - " / "Meal - " ở đầu vì tiêu đề khối đã nói rồi.
+                                // Cắt theo dấu " - " đầu tiên chứ không theo chữ tiếng Việt, để một dòng
+                                // code này chạy đúng ở mọi ngôn ngữ.
+                                const fullName = translateServiceName(s, t);
+                                const cleanName = fullName.includes(" - ")
+                                  ? fullName.slice(fullName.indexOf(" - ") + 3)
+                                  : fullName;
                                 return (
                                   <div key={s.id} onClick={() => setSingleServiceInCategory(s.id, categories.meal)}
                                     style={{
@@ -1912,7 +1918,7 @@ const AirlineTickets = () => {
                                         {cleanName}
                                       </div>
                                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-                                        <span style={{ color: "#f97316", fontWeight: 800, fontSize: 14 }}>{Number(s.price || 0).toLocaleString("vi-VN")} đ</span>
+                                        <span style={{ color: "#f97316", fontWeight: 800, fontSize: 14 }}>{money(Number(s.price || 0))}</span>
                                         <div style={{
                                           width: 22, height: 22, borderRadius: "50%", background: isSelected ? "var(--primary)" : "var(--bg-input)",
                                           display: "flex", alignItems: "center", justifyContent: "center", color: isSelected ? "#fff" : "var(--text-muted)", fontWeight: "bold", fontSize: 12
@@ -1946,7 +1952,7 @@ const AirlineTickets = () => {
                       </div>
 
                       {[{ cat: categories.insurance, icon: <FaShieldAlt style={{ color: "#22c55e", fontSize: 22 }} />, title: t.travelInsurance, sub: t.insuranceSub, id: "insurance" },
-                      { cat: categories.taxi, icon: <FaTaxi style={{ color: "#f59e0b", fontSize: 22 }} />, title: t.airportTaxi, sub: t.taxiSub, id: "taxi" }]
+                      { cat: categories.transfer, icon: <FaTaxi style={{ color: "#f59e0b", fontSize: 22 }} />, title: t.airportTaxi, sub: t.taxiSub, id: "taxi" }]
                         .map(({ cat, icon, title, sub, id }) => (
                           cat.length > 0 && (
                             <div key={id} style={{ border: "1px solid var(--border-main)", borderRadius: 12, padding: 16, background: "var(--bg-input)" }}>
@@ -2016,7 +2022,12 @@ const AirlineTickets = () => {
                               </label>
 
                               {cat.map(s => {
-                                const shortName = s.serviceName.replace(/^(Bảo hiểm du lịch|Taxi đưa đón sân bay)\s*/i, '');
+                                // Không cắt tiền tố nữa. Bản cũ cắt bằng regex tiếng Việt và trượt ở CẢ BA
+                                // trang: trang tàu cắt "Taxi đưa đón sân ga" còn dữ liệu ghi "sân bay",
+                                // trang xe khách cắt "Bảo hiểm chuyến đi" còn dữ liệu ghi "Bảo hiểm du
+                                // lịch" — trượt thì hiện nguyên cả câu, trúng thì còn lại "cơ bản" viết
+                                // thường. Bảng dịch giờ cho sẵn tên gọn và đủ nghĩa.
+                                const shortName = translateServiceName(s, t);
                                 const sel = selectedServiceIds.includes(s.id);
                                 return (
                                   <label key={s.id}
@@ -2029,12 +2040,12 @@ const AirlineTickets = () => {
                                     }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                       <div>
-                                        <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{shortName || s.serviceName}</div>
+                                        <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{shortName}</div>
                                         {sel && <div style={{ fontSize: 11, color: "var(--primary)" }}>✓ {t.selected}</div>}
                                       </div>
                                     </div>
                                     <span style={{ fontWeight: 800, fontSize: 14, color: "#f97316" }}>
-                                      {Number(s.price || 0) === 0 ? t.free : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}
+                                      {Number(s.price || 0) === 0 ? t.free : `${money(Number(s.price || 0))}`}
                                     </span>
                                   </label>
                                 );
@@ -2066,21 +2077,21 @@ const AirlineTickets = () => {
                         <>
                           <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "var(--text-main)", gap: 8 }}>
                             <span>{t.ticketPriceForSeats.replace('{count}', selectedSeatIds.length).replace('{seats}', t.seatUnit)}</span>
-                            <b style={{ whiteSpace: "nowrap" }}>{seatsTotal.toLocaleString("vi-VN")} đ</b>
+                            <b style={{ whiteSpace: "nowrap" }}>{money(seatsTotal)}</b>
                           </div>
-                          {ecoCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {ecoCount}x {t.economy}</span><b style={{ whiteSpace: "nowrap", fontWeight: 700 }}>{(ecoCount * basePrice).toLocaleString("vi-VN")} đ</b></div>}
-                          {bizCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {bizCount}x {t.business}</span><b style={{ whiteSpace: "nowrap", fontWeight: 700 }}>{(bizCount * basePrice * 2.5).toLocaleString("vi-VN")} đ</b></div>}
+                          {ecoCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {ecoCount}x {t.economy}</span><b style={{ whiteSpace: "nowrap", fontWeight: 700 }}>{money((ecoCount * basePrice))}</b></div>}
+                          {bizCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {bizCount}x {t.business}</span><b style={{ whiteSpace: "nowrap", fontWeight: 700 }}>{money((bizCount * basePrice * 2.5))}</b></div>}
 
                           {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", color: "var(--text-main)", gap: 10, marginTop: 4 }}>
-                              <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>+ {s.serviceName}</span>
-                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? t.free : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
+                              <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>+ {translateServiceName(s, t)}</span>
+                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? t.free : `${money(Number(s.price || 0))}`}</b>
                             </div>
                           ))}
 
                           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-main)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{t.totalLabel}</span>
-                            <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{(seatsTotal + extraTotal).toLocaleString("vi-VN")} đ</span>
+                            <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{money((seatsTotal + extraTotal))}</span>
                           </div>
                         </>
                       );
@@ -2102,7 +2113,7 @@ const AirlineTickets = () => {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 17, color: "var(--text-main)" }}>{selectedTrip.origin} → {selectedTrip.destination}</div>
-                        <div style={{ color: "var(--text-main)", fontSize: 14, marginTop: 4, fontWeight: 500 }}>{selectedTrip.departureTime} · {selectedTrip.providerName}</div>
+                        <div style={{ color: "var(--text-main)", fontSize: 14, marginTop: 4, fontWeight: 500 }}>{formatTripDateTime(selectedTrip.departureTime, currentLanguage?.code)} · {selectedTrip.providerName}</div>
                       </div>
                       <div style={{ fontWeight: 800, color: "#f97316", fontSize: 17, whiteSpace: "nowrap" }}>
                         {(() => {
@@ -2110,7 +2121,7 @@ const AirlineTickets = () => {
                           const ecoCount = selSeats.filter(s => s.seatType !== "BUSINESS").length;
                           const bizCount = selSeats.filter(s => s.seatType === "BUSINESS").length;
                           const basePrice = Number(selectedTrip.price || 0);
-                          return (ecoCount * basePrice + bizCount * basePrice * 2.5).toLocaleString("vi-VN");
+                          return money((ecoCount * basePrice + bizCount * basePrice * 2.5));
                         })()} đ
                       </div>
                     </div>
@@ -2140,8 +2151,8 @@ const AirlineTickets = () => {
                       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "var(--primary)" }}>🛎 {t.extrasLabel}</div>
                       {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                         <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 6, color: "var(--text-main)", gap: 10 }}>
-                          <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>{s.serviceName}</span>
-                          <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0).toLocaleString("vi-VN")} đ</b>
+                          <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>{translateServiceName(s, t)}</span>
+                          <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{money(Number(s.price || 0))}</b>
                         </div>
                       ))}
                     </div>
@@ -2166,7 +2177,7 @@ const AirlineTickets = () => {
                       <div style={{ fontWeight: 800, color: "#22c55e", fontSize: 16, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><MdOutlineDone /> {t.successBooking}</div>
                       <div style={{ fontSize: 14, color: "var(--text-main)", lineHeight: 1.9 }}>
                         <div>{t.bookingIdPrefix} <b style={{ color: "var(--primary)" }}>#{bookingResult.id}</b></div>
-                        <div>{t.totalAmountPrefix} <b style={{ color: "#f97316" }}>{Number(bookingResult.totalPrice || 0).toLocaleString("vi-VN")} đ</b></div>
+                        <div>{t.totalAmountPrefix} <b style={{ color: "#f97316" }}>{money(Number(bookingResult.totalPrice || 0))}</b></div>
                         <div>{t.seatPrefix} {Array.isArray(bookingResult.seatNumbers) ? bookingResult.seatNumbers.join(", ") : ""}</div>
                       </div>
                       <button type="button"
@@ -2206,32 +2217,32 @@ const AirlineTickets = () => {
                         <>
                           <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "var(--text-main)", gap: 8 }}>
                             <span>{t.ticketPriceForSeats.replace('{count}', selectedSeatIds.length).replace('{seats}', t.seatUnit)}</span>
-                            <b style={{ whiteSpace: "nowrap", flexShrink: 0 }}>{seatsTotal.toLocaleString("vi-VN")} đ</b>
+                            <b style={{ whiteSpace: "nowrap", flexShrink: 0 }}>{money(seatsTotal)}</b>
                           </div>
-                          {ecoCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {ecoCount}x {t.economy}</span><b style={{ whiteSpace: "nowrap", flexShrink: 0, fontWeight: 700 }}>{(ecoCount * basePrice).toLocaleString("vi-VN")} đ</b></div>}
-                          {bizCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {bizCount}x {t.business}</span><b style={{ whiteSpace: "nowrap", flexShrink: 0, fontWeight: 700 }}>{(bizCount * basePrice * 2.5).toLocaleString("vi-VN")} đ</b></div>}
+                          {ecoCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {ecoCount}x {t.economy}</span><b style={{ whiteSpace: "nowrap", flexShrink: 0, fontWeight: 700 }}>{money((ecoCount * basePrice))}</b></div>}
+                          {bizCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-main)", paddingLeft: 8, gap: 8 }}><span>↳ {bizCount}x {t.business}</span><b style={{ whiteSpace: "nowrap", flexShrink: 0, fontWeight: 700 }}>{money((bizCount * basePrice * 2.5))}</b></div>}
 
                           {services.filter(s => selectedServiceIds.includes(s.id)).map(s => (
                             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", color: "var(--text-main)", gap: 10, marginTop: 4 }}>
-                              <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>+ {s.serviceName}</span>
-                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? t.free : `${Number(s.price || 0).toLocaleString("vi-VN")} đ`}</b>
+                              <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>+ {translateServiceName(s, t)}</span>
+                              <b style={{ whiteSpace: "nowrap", flexShrink: 0, color: "#f97316" }}>{Number(s.price || 0) === 0 ? t.free : `${money(Number(s.price || 0))}`}</b>
                             </div>
                           ))}
                           {membershipDiscount > 0 && (
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 6, fontWeight: 600, gap: 8 }}>
                               <span>🏅 {t.memberDiscountLabel.replace('{rate}', membershipDiscountPercent)}</span>
-                              <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{membershipDiscount.toLocaleString("vi-VN")} đ</span>
+                              <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{money(membershipDiscount)}</span>
                             </div>
                           )}
                           {appliedVoucher && (
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#22c55e", marginTop: 4, gap: 8 }}>
                               <span>🎟 {t.codePrefix} {appliedVoucher}</span>
-                              <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{voucherDiscount.toLocaleString("vi-VN")} đ</span>
+                              <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>-{money(voucherDiscount)}</span>
                             </div>
                           )}
                           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-main)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text-main)" }}>{t.totalLabel}</span>
-                            <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{Number(bookingResult ? bookingResult.totalPrice || 0 : Math.max(0, seatsTotal + extraTotal - membershipDiscount - voucherDiscount)).toLocaleString("vi-VN")} đ</span>
+                            <span style={{ fontWeight: 800, fontSize: 18, color: "#f97316", whiteSpace: "nowrap" }}>{money(Number(bookingResult ? bookingResult.totalPrice || 0 : Math.max(0, seatsTotal + extraTotal - membershipDiscount - voucherDiscount)))}</span>
                           </div>
                         </>
                       );

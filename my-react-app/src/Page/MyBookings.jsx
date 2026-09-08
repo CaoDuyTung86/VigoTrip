@@ -10,6 +10,8 @@ import { FiLock, FiAlertCircle, FiRefreshCw, FiAlertTriangle, FiCheckCircle, FiC
 import { Compass } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { ticketQrPayload } from "../utils/ticketQr";
+import { formatMoney } from "../utils/money";
+import { translateServiceName } from "../utils/serviceCatalog";
 import Auth from "./Auth";
 
 const MyBookings = () => {
@@ -19,6 +21,7 @@ const MyBookings = () => {
   const [errorStatus, setErrorStatus] = useState(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const { t, currentLanguage } = useLanguage();
+  const money = (amount) => formatMoney(amount, currentLanguage?.code);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -498,14 +501,18 @@ const MyBookings = () => {
                           {bk.additionalServices && bk.additionalServices.length > 0 && (
                             <div style={{ fontSize: 13.5, color: "var(--text-main)", marginTop: 4, lineHeight: 1.5 }}>
                               <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{t.servicesPrefix || "Dịch vụ:"} </span>
-                              <span style={{ fontWeight: 600 }}>{bk.additionalServices.join(", ")}</span>
+                              <span style={{ fontWeight: 600 }}>
+                                {bk.additionalServices
+                                  .map((svc) => translateServiceName({ serviceCode: svc.code, serviceName: svc.name }, t))
+                                  .join(", ")}
+                              </span>
                             </div>
                           )}
 
                           {/* Refund Badges */}
                           {bk.status === "CANCELLED" && bk.refundAmount > 0 && (
                             <div style={{ fontSize: 13, color: "#22c55e", fontWeight: 700, marginTop: 4 }}>
-                              {t.refundedAmountText || "Đã hoàn tiền:"} {bk.refundAmount.toLocaleString("vi-VN")} đ
+                              {t.refundedAmountText || "Đã hoàn tiền:"} {money(bk.refundAmount)}
                             </div>
                           )}
                           {hasPendingRefund && (
@@ -523,7 +530,7 @@ const MyBookings = () => {
                         {/* Right Column Price */}
                         <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                           <div style={{ fontSize: 22, fontWeight: 800, color: "#f97316", whiteSpace: "nowrap" }}>
-                            {(bk.totalPrice || 0).toLocaleString("vi-VN")} đ
+                            {money((bk.totalPrice || 0))}
                           </div>
                           <div style={{ fontSize: 12, color: "#22c55e", fontWeight: 600, marginTop: 2 }}>
                             {t.discountAppliedText || "(Đã áp dụng ưu đãi)"}
@@ -646,7 +653,7 @@ const MyBookings = () => {
               <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-light)", padding: 16, borderRadius: 8, marginBottom: 20 }}>
                 <p style={{ margin: "0 0 8px 0", fontSize: 14 }}><b>{t.refundTripLabel || "Chuyến:"}</b> {cancelModal.booking.origin} → {cancelModal.booking.destination}</p>
                 <p style={{ margin: "0 0 8px 0", fontSize: 14 }}><b>{t.refundDepLabel || "Khởi hành:"}</b> {new Date(cancelModal.booking.departureTime).toLocaleString(currentLanguage?.code === "vi" ? "vi-VN" : currentLanguage?.code === "ja" ? "ja-JP" : currentLanguage?.code === "zh" ? "zh-TW" : "en-US")}</p>
-                <p style={{ margin: 0, fontSize: 14 }}><b>{t.refundTotalPaidLabel || "Tổng tiền đã đặt:"}</b> <span style={{ color: "#ff6b00", fontWeight: 700 }}>{(cancelModal.booking.totalPrice || 0).toLocaleString("vi-VN")} đ</span></p>
+                <p style={{ margin: 0, fontSize: 14 }}><b>{t.refundTotalPaidLabel || "Tổng tiền đã đặt:"}</b> <span style={{ color: "#ff6b00", fontWeight: 700 }}>{money((cancelModal.booking.totalPrice || 0))}</span></p>
               </div>
 
               <div style={{
@@ -667,11 +674,11 @@ const MyBookings = () => {
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(59, 130, 246, 0.3)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 6, color: "var(--text-secondary)" }}>
                       <span>{t.refundPenaltyFee || "Phí phạt"} ({refundInfo.penaltyPercent}%):</span>
-                      <span style={{ color: "#ef4444" }}>-{penaltyAmount.toLocaleString("vi-VN")} đ</span>
+                      <span style={{ color: "#ef4444" }}>-{money(penaltyAmount)}</span>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, marginTop: 8, color: "var(--text-main)" }}>
                       <span>{t.refundExpectedAmount || "Số tiền sẽ nhận lại:"}</span>
-                      <span style={{ color: "#4ade80", fontSize: 18 }}>{expectedRefund.toLocaleString("vi-VN")} đ</span>
+                      <span style={{ color: "#4ade80", fontSize: 18 }}>{money(expectedRefund)}</span>
                     </div>
                   </div>
                 )}

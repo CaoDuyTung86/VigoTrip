@@ -189,6 +189,31 @@ class EmailTemplateTest {
     }
 
     /**
+     * Số tiền trong thư đi theo NGƯỜI NHẬN, không theo locale của máy chủ chạy container.
+     *
+     * <p>Test này đi hết đường dây thật (EmailService.money -> mail.currency), khác với
+     * MailLocalizationTest chỉ kiểm bảng dịch. Bug cũ nằm đúng ở khúc nối đó: bảng dịch
+     * không sai, chỉ có String.format quên truyền Locale và chữ "đ" viết cứng trong Java.
+     */
+    @Test
+    @DisplayName("Số tiền trong thư viết theo ngôn ngữ người nhận, không theo máy chủ")
+    void moneyFollowsRecipientLanguage() throws Exception {
+        emailService.sendTripCancelledEmail("khach@example.com", 52L, "HAN → CXR", 4_952_950d, VI);
+        emailService.sendTripCancelledEmail("khach@example.com", 52L, "HAN → CXR", 4_952_950d, EN);
+
+        List<String> htmls = capturedHtml();
+
+        assertThat(htmls.get(0))
+                .as("bản tiếng Việt: nhóm bằng dấu chấm, ký hiệu đ")
+                .contains("4.952.950 đ");
+        assertThat(htmls.get(1))
+                .as("bản tiếng Anh: nhóm bằng dấu phẩy, ký hiệu VND, và không lẫn chữ Việt")
+                .contains("4,952,950 VND")
+                .doesNotContain("4.952.950")
+                .doesNotContain(" đ<");
+    }
+
+    /**
      * ja/zh chưa dịch nên rơi về bản mặc định. Điều phải bảo đảm là nó rơi về TIẾNG ANH,
      * không phải rơi về locale của máy chủ — thứ mỗi nơi deploy một khác.
      */

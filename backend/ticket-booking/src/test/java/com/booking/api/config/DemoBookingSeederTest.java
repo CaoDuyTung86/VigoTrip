@@ -366,7 +366,11 @@ class DemoBookingSeederTest {
     }
 
     private static AdditionalService service(long id, String name, int price) {
-        return new AdditionalService(id, name, BigDecimal.valueOf(price));
+        AdditionalService svc = new AdditionalService();
+        svc.setId(id);
+        svc.setServiceName(name);
+        svc.setPrice(BigDecimal.valueOf(price));
+        return svc;
     }
 
     /** Ba chuyến mỗi loại, giá khác nhau để cơ cấu doanh thu không phẳng. */
