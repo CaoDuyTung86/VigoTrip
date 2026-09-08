@@ -4,6 +4,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { FaCalendarAlt, FaSearch, FaTrain } from "react-icons/fa";
 import { IoIosSwap } from "react-icons/io";
 import CitySelector from "./CitySelector";
+import DatePicker from "./DatePicker";
 import { useToast } from "../context/ToastContext";
 
 const TrainSearch = () => {
@@ -223,21 +224,12 @@ const TrainSearch = () => {
             {t.departureDate}
           </label>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "15px" }} />
-            <input
-              type="date"
+            <DatePicker
+              icon={<FaCalendarAlt style={{ color: "var(--primary)", fontSize: "15px", flexShrink: 0 }} />}
               min={todayISO}
               value={departDate}
-              onChange={(e) => setDepartDate(e.target.value)}
-              style={{
-                border: "none",
-                background: "transparent",
-                outline: "none",
-                fontSize: "15px",
-                width: "100%",
-                color: "var(--text-main)",
-                fontFamily: "inherit",
-              }}
+              onChange={setDepartDate}
+              ariaLabel={t.departureDate}
             />
           </div>
         </div>
@@ -254,21 +246,12 @@ const TrainSearch = () => {
               {t.returnDate}
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "15px" }} />
-              <input
-                type="date"
+              <DatePicker
+                icon={<FaCalendarAlt style={{ color: "var(--primary)", fontSize: "15px", flexShrink: 0 }} />}
                 min={departDate || todayISO}
                 value={returnDate}
-                onChange={(e) => setReturnDate(e.target.value)}
-                style={{
-                  border: "none",
-                  background: "transparent",
-                  outline: "none",
-                  fontSize: "15px",
-                  width: "100%",
-                  color: "var(--text-main)",
-                  fontFamily: "inherit",
-                }}
+                onChange={setReturnDate}
+                ariaLabel={t.returnDate}
               />
             </div>
           </div>

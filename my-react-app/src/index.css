@@ -239,19 +239,25 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Đảo màu icon đồng hồ / lịch của input date, time trong Dark mode */
+/* Icon lịch / đồng hồ của input date, time.
+   Ở bản trước, sau ba selector dark mode còn kèm luôn ba selector KHÔNG điều kiện, nên
+   quy tắc invert(1) áp cả ở nền sáng: icon vốn màu đen bị lật thành trắng, nằm trên ô
+   nền trắng và biến mất. Người dùng chỉ còn thấy chữ "dd/mm/yyyy" nên tưởng phải gõ tay.
+   Giờ chỉ đảo màu trong dark mode; nền sáng để nguyên icon mặc định. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.9;
+}
+
 [data-theme='dark'] input[type="date"]::-webkit-calendar-picker-indicator,
 [data-theme='dark'] input[type="time"]::-webkit-calendar-picker-indicator,
 [data-theme='dark'] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
 .dark input[type="date"]::-webkit-calendar-picker-indicator,
 .dark input[type="time"]::-webkit-calendar-picker-indicator,
-.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
-input[type="date"]::-webkit-calendar-picker-indicator,
-input[type="time"]::-webkit-calendar-picker-indicator,
-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: invert(1) hue-rotate(180deg) brightness(1.8);
-  cursor: pointer;
-  opacity: 0.9;
 }
 
 

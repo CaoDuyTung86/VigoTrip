@@ -4,6 +4,7 @@ import { IoIosSwap } from "react-icons/io";
 import { FaCalendarAlt, FaUser, FaSearch, FaPlus, FaPlane } from "react-icons/fa";
 import { MdFlightTakeoff, MdFlightLand } from "react-icons/md";
 import CitySelector from "./CitySelector";
+import DatePicker from "./DatePicker";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 
@@ -315,25 +316,16 @@ const FlightSearch = () => {
                 {t.departureDate}
               </label>
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "12px" }} />
-                <input
-                  type="date"
+                <DatePicker
+                  icon={<FaCalendarAlt style={{ color: "var(--primary)", fontSize: "12px", flexShrink: 0 }} />}
                   value={flight.departDate}
                   min={todayISO}
-                  onChange={(e) => {
+                  onChange={(date) => {
                     setMultiCityFlights(prev => prev.map(f =>
-                      f.id === flight.id ? { ...f, departDate: e.target.value } : f
+                      f.id === flight.id ? { ...f, departDate: date } : f
                     ));
                   }}
-                  placeholder={t.pickDate}
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    outline: "none",
-                    fontSize: "13px",
-                    width: "100%",
-                    color: flight.departDate ? "#333" : "#999",
-                  }}
+                  ariaLabel={t.departureDate}
                 />
               </div>
             </div>
@@ -509,21 +501,12 @@ const FlightSearch = () => {
                 {t.departureDate}
               </label>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "15px" }} />
-                <input
-                  type="date"
+                <DatePicker
+                  icon={<FaCalendarAlt style={{ color: "var(--primary)", fontSize: "15px", flexShrink: 0 }} />}
                   value={departDate}
                   min={todayISO}
-                  onChange={(e) => setDepartDate(e.target.value)}
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    outline: "none",
-                    fontSize: "15px",
-                    width: "100%",
-                    color: "var(--text-main)",
-                    fontFamily: "inherit",
-                  }}
+                  onChange={setDepartDate}
+                  ariaLabel={t.departureDate}
                 />
               </div>
             </div>
@@ -540,21 +523,12 @@ const FlightSearch = () => {
                   {t.returnDate}
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "15px" }} />
-                  <input
-                    type="date"
+                  <DatePicker
+                    icon={<FaCalendarAlt style={{ color: "var(--primary)", fontSize: "15px", flexShrink: 0 }} />}
                     value={returnDate}
                     min={departDate || todayISO}
-                    onChange={(e) => setReturnDate(e.target.value)}
-                    style={{
-                      border: "none",
-                      background: "transparent",
-                      outline: "none",
-                      fontSize: "15px",
-                      width: "100%",
-                      color: "var(--text-main)",
-                      fontFamily: "inherit",
-                    }}
+                    onChange={setReturnDate}
+                    ariaLabel={t.returnDate}
                   />
                 </div>
               </div>

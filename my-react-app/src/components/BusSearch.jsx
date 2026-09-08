@@ -4,6 +4,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { FaCalendarAlt, FaSearch } from "react-icons/fa";
 import { IoIosSwap } from "react-icons/io";
 import { IoLocationOutline } from "react-icons/io5";
+import DatePicker from "./DatePicker";
 
 const VIETNAM_CITIES = [
   { id: "HAN", code: "HAN", name: "Hà Nội" },
@@ -183,13 +184,12 @@ const BusSearch = () => {
           {t.departureTime || "Ngày đi"}
         </label>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <FaCalendarAlt style={{ color: "var(--primary)", fontSize: "14px" }} />
-          <input
-            type="date"
+          <DatePicker
+            icon={<FaCalendarAlt style={{ color: "var(--primary)", fontSize: "14px", flexShrink: 0 }} />}
             min={todayISO}
             value={departDate}
-            onChange={(e) => setDepartDate(e.target.value)}
-            style={{ border: "none", background: "transparent", outline: "none", fontSize: "15px", width: "100%", color: "var(--text-main)", fontFamily: "inherit" }}
+            onChange={setDepartDate}
+            ariaLabel={t.departureTime}
           />
         </div>
       </div>

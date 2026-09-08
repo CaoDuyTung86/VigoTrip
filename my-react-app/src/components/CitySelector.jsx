@@ -1,11 +1,13 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { IoClose, IoSearch } from "react-icons/io5";
+import ModalPortal from "./ModalPortal";
 
 const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
   const { t, currentLanguage } = useLanguage();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTab, setSelectedTab] = useState("all");
+  const searchRef = useRef(null);
 
   const cityTranslations = {
     vi: {
@@ -55,7 +57,7 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
       HPH: { name: "海防", airport: "海防 (HPH) - 吉碑國際機場 / 海防火車站" },
       VII: { name: "榮市", airport: "榮市 (VII) - 榮市機場 / 榮市火車站" },
       VCL: { name: "朱萊", airport: "朱萊 (VCL) - 廣南" },
-    }
+    },
   };
 
   const getLocalizedCity = (code) => {
@@ -64,7 +66,7 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
     return {
       code,
       name: dict[code]?.name || code,
-      airport: dict[code]?.airport || code
+      airport: dict[code]?.airport || code,
     };
   };
 
@@ -82,199 +84,297 @@ const CitySelector = ({ isOpen, onClose, onSelect, type }) => {
     { id: "south", label: t.southVietnam || "Miền Nam" },
   ];
 
-  const getCityName = (city) => {
-    return city.name;
-  };
+  // Bỏ dấu trước khi so khớp: gõ "da nang" phải ra "Đà Nẵng", chứ bắt gõ đủ dấu thì
+  // hộp tìm kiếm coi như vô dụng với chính người dùng Việt.
+  const normalize = (s) =>
+    (s || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d");
 
-  const filteredCities = (cityList) => {
-    if (!searchTerm) return cityList;
-    return cityList.filter(city => 
-      getCityName(city).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      city.code.toLowerCase().includes(searchTerm.toLowerCase())
+  // Đang gõ thì tìm trên TOÀN BỘ danh sách, không giới hạn theo tab đang chọn: người dùng
+  // gõ "Huế" khi tab đang ở "Miền Bắc" mà nhận về danh sách rỗng sẽ tưởng là không có.
+  const visibleCities = useMemo(() => {
+    const term = normalize(searchTerm).trim();
+    if (!term) return cities[selectedTab] || [];
+    return cities.all.filter(
+      (city) =>
+        normalize(city.name).includes(term) ||
+        normalize(city.code).includes(term) ||
+        normalize(city.airport).includes(term),
     );
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedTab, currentLanguage?.code]);
+
+  // Mở lại lần sau phải là một hộp sạch, không giữ từ khoá của lần trước.
+  useEffect(() => {
+    if (!isOpen) return;
+    setSearchTerm("");
+    setSelectedTab("all");
+    const id = window.setTimeout(() => searchRef.current?.focus(), 60);
+    return () => window.clearTimeout(id);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const heading = searchTerm.trim()
+    ? `${t.searchResults} (${visibleCities.length})`
+    : tabs.find((tab) => tab.id === selectedTab)?.label;
+
+  const choose = (city) => {
+    onSelect(city);
+    onClose();
+  };
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.5)",
-        zIndex: 2000,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-      onClick={onClose}
-    >
+    <ModalPortal onClose={onClose} zIndex={2000} blur={4} backdrop="rgba(15, 23, 42, 0.55)">
       <div
         style={{
-          width: "700px",
-          maxWidth: "90vw",
-          maxHeight: "80vh",
-          backgroundColor: "var(--bg-card)",
-          borderRadius: "16px",
-          padding: "24px",
-          overflow: "hidden",
+          width: "min(720px, 100%)",
+          // Cao tối đa theo màn hình, trừ đúng phần padding 20px x2 của ModalPortal;
+          // phần vượt quá do danh sách dài sẽ cuộn bên trong thân hộp.
+          maxHeight: "calc(100vh - 40px)",
+          background: "var(--bg-card)",
+          borderRadius: "20px",
+          boxShadow: "var(--shadow-lg)",
           display: "flex",
           flexDirection: "column",
+          overflow: "hidden",
         }}
-        onClick={(e) => e.stopPropagation()}
       >
-       
-        <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "20px",
-        }}>
-          <h3 style={{ fontSize: "20px", fontWeight: "600", color: "var(--text-main)" }}>
-            {type === "from" ? t.selectDeparture : t.selectDestination}
-          </h3>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "24px",
-              color: "var(--text-secondary)",
-            }}
-          >
-            <IoClose />
-          </button>
-        </div>
-
-        
-        <div style={{
-          position: "relative",
-          marginBottom: "20px",
-        }}>
-          <IoSearch style={{
-            position: "absolute",
-            left: "12px",
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: "var(--text-muted)",
-          }} />
-          <input
-            type="text"
-            placeholder={t.searchCity}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px 12px 12px 40px",
-              border: "1px solid var(--border-main)",
-              borderRadius: "8px",
-              fontSize: "15px",
-              outline: "none",
-              background: "var(--bg-input)",
+        {/* Đầu hộp + ô tìm + tab: cố định, chỉ danh sách bên dưới cuộn */}
+        <div style={{ padding: "20px 20px 0", flexShrink: 0 }}>
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: "16px",
+          }}>
+            <h3 style={{
+              fontSize: "19px",
+              fontWeight: 700,
               color: "var(--text-main)",
-            }}
-          />
-        </div>
-
-        
-        <div style={{
-          display: "flex",
-          gap: "8px",
-          marginBottom: "20px",
-          borderBottom: "1px solid var(--border-light)",
-          paddingBottom: "12px",
-          flexWrap: "wrap",
-        }}>
-          {tabs.map(tab => (
+              margin: 0,
+            }}>
+              {type === "from" ? t.selectDeparture : t.selectDestination}
+            </h3>
             <button
-              key={tab.id}
-              onClick={() => setSelectedTab(tab.id)}
+              onClick={onClose}
+              aria-label={t.close}
               style={{
-                padding: "8px 16px",
-                border: "none",
-                background: selectedTab === tab.id ? "var(--primary)" : "transparent",
-                color: selectedTab === tab.id ? "#fff" : "var(--text-secondary)",
-                borderRadius: "20px",
+                width: 36,
+                height: 36,
+                flexShrink: 0,
+                borderRadius: "50%",
+                background: "var(--bg-input)",
+                border: "1px solid var(--border-main)",
                 cursor: "pointer",
-                fontSize: "14px",
-                fontWeight: selectedTab === tab.id ? "600" : "400",
-                transition: "all 0.2s",
-                flex: "0 1 auto",
+                fontSize: "20px",
+                color: "var(--text-secondary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              {tab.label}
+              <IoClose />
             </button>
-          ))}
+          </div>
+
+          <div style={{ position: "relative", marginBottom: "14px" }}>
+            <IoSearch style={{
+              position: "absolute",
+              left: "14px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--text-muted)",
+              pointerEvents: "none",
+            }} />
+            <input
+              ref={searchRef}
+              type="text"
+              placeholder={t.searchCity}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                // Gõ xong nhấn Enter là chọn luôn kết quả đầu, khỏi phải rời bàn phím.
+                if (e.key === "Enter" && visibleCities.length > 0) choose(visibleCities[0]);
+              }}
+              style={{
+                width: "100%",
+                padding: "12px 40px 12px 42px",
+                border: "1px solid var(--border-input)",
+                borderRadius: "12px",
+                fontSize: "15px",
+                outline: "none",
+                background: "var(--bg-input)",
+                color: "var(--text-main)",
+                fontFamily: "inherit",
+              }}
+            />
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm("");
+                  searchRef.current?.focus();
+                }}
+                aria-label={t.clear}
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 24,
+                  height: 24,
+                  border: "none",
+                  borderRadius: "50%",
+                  background: "var(--bg-tag)",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 14,
+                }}
+              >
+                <IoClose />
+              </button>
+            )}
+          </div>
+
+          <div style={{
+            display: "flex",
+            gap: "8px",
+            borderBottom: "1px solid var(--border-light)",
+            paddingBottom: "12px",
+            flexWrap: "wrap",
+          }}>
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setSelectedTab(tab.id);
+                  setSearchTerm("");
+                }}
+                style={{
+                  padding: "8px 16px",
+                  border: "none",
+                  background: selectedTab === tab.id && !searchTerm ? "var(--primary)" : "transparent",
+                  color: selectedTab === tab.id && !searchTerm ? "#fff" : "var(--text-secondary)",
+                  borderRadius: "20px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontFamily: "inherit",
+                  fontWeight: selectedTab === tab.id && !searchTerm ? 600 : 400,
+                  transition: "all 0.2s",
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        
         <div style={{
           overflowY: "auto",
+          overscrollBehavior: "contain",
           flex: 1,
-          paddingRight: "8px",
+          minHeight: 0, // không có dòng này thì flex item không chịu co lại để cuộn
+          padding: "16px 20px 20px",
         }}>
-         
-          {cities[selectedTab] && (
-            <div>
-              <h4 style={{
-                fontSize: "14px",
-                fontWeight: "600",
-                color: "var(--text-secondary)",
-                marginBottom: "12px",
-                textTransform: "uppercase",
-              }}>
-                {tabs.find(t => t.id === selectedTab)?.label || "ĐỊA ĐIỂM VIỆT NAM"}
-              </h4>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "8px",
-                marginBottom: "16px",
-              }}>
-                {filteredCities(cities[selectedTab]).map(city => (
-                  <button
-                    key={city.code}
-                    onClick={() => {
-                      onSelect(city);
-                      onClose();
-                    }}
-                    style={{
-                      padding: "12px",
-                      border: "1px solid var(--border-main)",
-                      borderRadius: "8px",
-                      background: "var(--bg-input)",
+          <h4 style={{
+            fontSize: "12px",
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            color: "var(--text-muted)",
+            margin: "0 0 12px",
+            textTransform: "uppercase",
+          }}>
+            {heading}
+          </h4>
+
+          {visibleCities.length === 0 ? (
+            <div style={{
+              padding: "36px 12px",
+              textAlign: "center",
+              color: "var(--text-muted)",
+              fontSize: 14,
+            }}>
+              {t.notFound}
+            </div>
+          ) : (
+            <div style={{
+              display: "grid",
+              // auto-fit + minmax: màn hẹp tự rơi về 1 cột thay vì ép 2 cột rồi vỡ chữ.
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: "10px",
+            }}>
+              {visibleCities.map((city) => (
+                <button
+                  key={city.code}
+                  onClick={() => choose(city)}
+                  style={{
+                    padding: "12px 14px",
+                    border: "1px solid var(--border-main)",
+                    borderRadius: "12px",
+                    background: "var(--bg-input)",
+                    color: "var(--text-main)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    fontFamily: "inherit",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    transition: "border-color 0.2s, background 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--primary)";
+                    e.currentTarget.style.background = "var(--bg-hover)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-main)";
+                    e.currentTarget.style.background = "var(--bg-input)";
+                  }}
+                >
+                  <span style={{
+                    flexShrink: 0,
+                    minWidth: 46,
+                    padding: "4px 8px",
+                    borderRadius: 8,
+                    background: "var(--primary-light)",
+                    color: "var(--primary)",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textAlign: "center",
+                  }}>
+                    {city.code}
+                  </span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{
+                      display: "block",
+                      fontWeight: 600,
+                      marginBottom: "2px",
                       color: "var(--text-main)",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "var(--primary)";
-                      e.currentTarget.style.background = "var(--bg-hover)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border-main)";
-                      e.currentTarget.style.background = "var(--bg-input)";
-                    }}
-                  >
-                    <div style={{ fontWeight: "600", marginBottom: "4px", color: "var(--text-main)" }}>
-                      {getCityName(city)}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                      {city.code} {city.airport ? `• ${city.airport}` : ""}
-                    </div>
-                  </button>
-                ))}
-              </div>
+                    }}>
+                      {city.name}
+                    </span>
+                    <span style={{
+                      display: "block",
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      lineHeight: 1.35,
+                    }}>
+                      {city.airport}
+                    </span>
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 };
 

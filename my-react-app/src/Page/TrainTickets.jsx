@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import DatePicker from "../components/DatePicker";
 import axios from "axios";
 import { useLanguage } from "../context/LanguageContext";
 import { useSavedPassengers } from "../context/SavedPassengersContext";
@@ -1168,14 +1169,17 @@ const TrainTickets = () => {
 
                 <div>
                   <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "var(--text-secondary)" }}><FaRegCalendarAlt /> {t.departureDate}</label>
-                  <input type="date" value={date}
-                    onChange={(e) => { setDate(e.target.value); setFormErrors(p => ({ ...p, date: undefined })); }}
-                    min={todayISO}
-                    style={{
-                      width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 14, boxSizing: "border-box",
-                      border: formErrors.date ? "2px solid #e53935" : "2px solid #e0e7ff", background: "var(--bg-input)", color: "var(--text-main)"
-                    }}
-                  />
+                  <div style={{
+                    width: "100%", padding: "10px 14px", borderRadius: 10, boxSizing: "border-box",
+                    border: formErrors.date ? "2px solid #e53935" : "2px solid #e0e7ff", background: "var(--bg-input)"
+                  }}>
+                    <DatePicker
+                      value={date}
+                      min={todayISO}
+                      onChange={(next) => { setDate(next); setFormErrors(p => ({ ...p, date: undefined })); }}
+                      ariaLabel={t.departureDate}
+                    />
+                  </div>
                   {formErrors.date && <div style={{ color: "#e53935", fontSize: 12, marginTop: 4 }}>{formErrors.date}</div>}
                 </div>
 
