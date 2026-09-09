@@ -2,6 +2,7 @@ package com.booking.api.service;
 
 import com.booking.api.ai.rag.HybridRetriever;
 import com.booking.api.dto.VoucherPublicDTO;
+import com.booking.api.repository.AdditionalServiceRepository;
 import com.booking.api.repository.BookingRepository;
 import com.booking.api.repository.RouteRepository;
 import com.booking.api.repository.TripRepository;
@@ -55,7 +56,8 @@ class ChatServiceVoucherContextTest {
         when(hybridRetriever.retrieve(anyString())).thenReturn(List.of());
 
         chatService = new ChatService(tripRepository, bookingRepository, voucherService,
-                routeRepository, aiService, mock(RestTemplate.class), hybridRetriever,
+                routeRepository, mock(AdditionalServiceRepository.class),
+                aiService, mock(RestTemplate.class), hybridRetriever,
                 mock(ChatHistoryService.class), mock(ChatMetricService.class),
                 new ChatMessageRefRegistry(24, 50000));
     }

@@ -31,6 +31,14 @@ public class ChatService implements AIService.ToolHandler {
     private final BookingRepository bookingRepository;
     private final VoucherService voucherService;
     private final com.booking.api.repository.RouteRepository routeRepository;
+    /**
+     * Danh mục dịch vụ mua kèm (suất ăn, hành lý, bảo hiểm, đưa đón).
+     *
+     * Đọc thẳng từ bảng {@code dich_vu_bo_sung} — đúng nguồn mà ba trang đặt vé dùng —
+     * thay vì mô tả trong knowledge base: giá và danh sách món đổi được trong lúc vận hành,
+     * mà một chunk RAG chép lại thì không đổi theo.
+     */
+    private final com.booking.api.repository.AdditionalServiceRepository additionalServiceRepository;
     private final AIService aiService;
     private final org.springframework.web.client.RestTemplate aiRestTemplate;
     private final com.booking.api.ai.rag.HybridRetriever hybridRetriever;
@@ -312,6 +320,40 @@ public class ChatService implements AIService.ToolHandler {
             );
         }
 
+        if ("get_addon_services".equals(functionName)) {
+            String category = arguments != null && arguments.containsKey("category")
+                    ? String.valueOf(arguments.get("category")).trim().toUpperCase(Locale.ROOT)
+                    : null;
+            if (category != null && (category.isBlank() || "NULL".equals(category))) {
+                category = null;
+            }
+
+            List<com.booking.api.entity.AdditionalService> services = additionalServiceRepository.findAll();
+            final String wantedCategory = category;
+            if (wantedCategory != null) {
+                services = services.stream()
+                        .filter(s -> wantedCategory.equals(s.getCategory()))
+                        .toList();
+            }
+            if (services.isEmpty()) {
+                return wantedCategory == null
+                        ? "Hiện chưa có dịch vụ mua kèm nào trong hệ thống."
+                        : "Không có dịch vụ mua kèm nào thuộc nhóm " + wantedCategory + ".";
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("DANH MỤC DỊCH VỤ MUA KÈM (khách chọn ở bước điền thông tin hành khách; danh mục giống nhau cho vé máy bay, tàu hỏa và xe khách):\n");
+            for (com.booking.api.entity.AdditionalService s : services) {
+                sb.append(String.format("- [%s] %s | %s VND%n",
+                        addonCategoryLabel(s.getCategory()),
+                        s.getServiceName(),
+                        s.getPrice() != null ? df.format(s.getPrice()) : "0"));
+            }
+            sb.append("Mỗi dịch vụ tính một lần cho cả đơn hàng, không nhân theo số hành khách.\n");
+            sb.append("ĐÂY LÀ TOÀN BỘ danh mục đang bán: tuyệt đối không nêu thêm món ăn hay dịch vụ nào ngoài danh sách trên.");
+            return sb.toString();
+        }
+
         if ("check_voucher".equals(functionName)) {
             String username = arguments != null && arguments.containsKey("username")
                     ? String.valueOf(arguments.get("username"))
@@ -379,6 +421,26 @@ public class ChatService implements AIService.ToolHandler {
         }
 
         return "Công cụ không hợp lệ.";
+    }
+
+    /**
+     * Nhãn tiếng Việt cho nhóm dịch vụ mua kèm.
+     *
+     * Dòng do quản trị viên tự thêm ngoài danh mục seed có thể để trống cột nhóm. Khi đó xếp
+     * vào "Khác" chứ KHÔNG đoán nhóm theo tên như giao diện đang làm: đoán trượt ở đây nghĩa là
+     * chatbot mô tả sai thứ khách sắp trả tiền, còn xếp vào "Khác" thì chỉ mất một chữ.
+     */
+    private static String addonCategoryLabel(String category) {
+        if (category == null) {
+            return "Khác";
+        }
+        return switch (category) {
+            case "MEAL" -> "Suất ăn";
+            case "BAGGAGE" -> "Hành lý";
+            case "INSURANCE" -> "Bảo hiểm";
+            case "TRANSFER" -> "Đưa đón";
+            default -> category;
+        };
     }
 
     /**
@@ -553,11 +615,17 @@ public class ChatService implements AIService.ToolHandler {
                 + (cacheContext.length() > 0 ? cacheContext.toString() + "\n" : "")
                 + "\n"
                 
+                + "NGUYÊN TẮC QUAN TRỌNG NHẤT: CHỈ NÓI ĐIỀU CÓ CĂN CỨ\n"
+                + "- Mọi thông tin về VigoTrip trong câu trả lời phải lấy từ kết quả công cụ hoặc từ phần KIẾN THỨC VỀ DỊCH VỤ bên dưới. TUYỆT ĐỐI KHÔNG suy đoán và KHÔNG dùng hiểu biết chung về các hãng vận chuyển ngoài đời thực.\n"
+                + "- Không có căn cứ thì nói thẳng là mình chưa có thông tin đó, rồi hướng khách sang trang phù hợp hoặc tổng đài. Một câu 'mình chưa có thông tin này' LUÔN tốt hơn một câu trả lời nghe hợp lý nhưng không có căn cứ.\n"
+                + "- TUYỆT ĐỐI KHÔNG tự nghĩ ra: tên hay giá món ăn và dịch vụ mua kèm (phải gọi `get_addon_services`), số ghế còn trống, giờ đến, thời gian hành trình, tiện nghi trên phương tiện (wifi, giường nằm, ổ cắm sạc), số sao đánh giá của chuyến, số tiền hoàn và thời điểm hoàn của một đơn, phương thức thanh toán của một đơn, mã giảm giá.\n"
+                + "- Về một chuyến đi, chỉ được nói đúng những mục mà công cụ trả về: tuyến, hãng, loại phương tiện, giờ đi và giá. Khách hỏi mục khác thì mời khách mở trang chi tiết chuyến.\n\n"
+
                 + "PHONG CÁCH GIAO TIẾP:\n"
                 + "- Xưng hô lịch sự, nhã nhặn và tự nhiên (mình/tôi - bạn/quý khách). TUYỆT ĐỐI KHÔNG tự xưng là 'Son', không xưng hô kiểu trẻ con hay dùng từ ngữ thiếu chuyên nghiệp như 'bật mí', 'Dạ để Son tìm'.\n"
                 + "- TUYỆT ĐỐI KHÔNG sử dụng biểu tượng cảm xúc (icon, emoji) trong toàn bộ câu trả lời.\n"
                 + "- Câu trả lời phải ngắn gọn, súc tích, đi thẳng vào trọng tâm (dưới 100 từ).\n"
-                + "- TUYỆT ĐỐI CẤM sử dụng các từ ngữ mang tính kỹ thuật hoặc lộ cấu trúc hệ thống như 'trong danh sách được cung cấp', 'cơ sở dữ liệu', 'theo dữ liệu của bạn'. Hãy trả lời hoàn toàn tự nhiên như một nhân viên hỗ trợ trực tiếp.\n"
+                + "- TUYỆT ĐỐI CẤM sử dụng các từ ngữ mang tính kỹ thuật hoặc lộ cấu trúc hệ thống như 'trong danh sách được cung cấp', 'cơ sở dữ liệu', 'theo dữ liệu của bạn'. Hãy trả lời hoàn toàn tự nhiên như một nhân viên hỗ trợ trực tiếp. Quy tắc này chỉ cấm CÁCH NÓI, không cấm việc thừa nhận thiếu thông tin: khi không có căn cứ thì vẫn phải nói rõ là mình chưa có thông tin đó, chỉ cần diễn đạt tự nhiên ('mình chưa có thông tin này', 'phần này mình chưa nắm được') thay vì nhắc tới dữ liệu hay hệ thống.\n"
                 + "- ĐA NGÔN NGỮ (MULTILINGUAL): Bắt buộc trả lời 100% bằng đúng ngôn ngữ mà người dùng sử dụng để hỏi (ví dụ: người dùng hỏi tiếng Anh thì trả lời tiếng Anh, hỏi tiếng Nhật thì trả lời tiếng Nhật, tiếng Trung thì trả lời tiếng Trung, tiếng Việt thì trả lời tiếng Việt).\n\n"
                 
                 + "HƯỚNG DẪN DÙNG CÔNG CỤ (TOOLS):\n"
@@ -568,6 +636,7 @@ public class ChatService implements AIService.ToolHandler {
                 + "- Bạn có công cụ `get_user_bookings` để tra cứu vé đã đặt của khách. Hãy gọi công cụ này khi khách hỏi về đơn hàng hoặc vé của họ (có thể phân tích ngày từ câu hỏi để tra cứu).\n"
                 + "- Bạn có công cụ `get_booking_by_id` để tra cứu chính xác một mã đơn hàng. Hãy gọi khi khách cung cấp ID cụ thể.\n"
                 + "- Bạn có công cụ `check_voucher` để kiểm tra một mã giảm giá có áp dụng được cho đơn hàng của khách không và giảm bao nhiêu tiền. Hãy gọi khi khách hỏi 'mã X có dùng được không', 'đơn Y đồng thì giảm bao nhiêu', hoặc khi khách đã cho biết giá vé/tổng tiền.\n"
+                + "- Bạn có công cụ `get_addon_services` để lấy danh mục dịch vụ mua kèm: suất ăn, gói hành lý ký gửi, bảo hiểm du lịch, xe đưa đón. BẮT BUỘC gọi công cụ này trước khi nói bất cứ điều gì về món ăn, đồ ăn trên chuyến, gói hành lý mua thêm, bảo hiểm hay đưa đón, kể cả câu hỏi chung như 'gợi ý món ăn' hay 'có món gì ngon'. TUYỆT ĐỐI KHÔNG tự nghĩ ra tên món hoặc giá.\n"
                 + "- Khi khách hỏi tìm vé mà thiếu thông tin (điểm đi, điểm đến, ngày đi) → bạn có thể hỏi thêm điểm đi/đến hoặc gọi `search_trips` với thông tin hiện có.\n\n"
                 
                 + "KIẾN THỨC VỀ DỊCH VỤ (RAG Context):\n"

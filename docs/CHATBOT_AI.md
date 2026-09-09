@@ -180,13 +180,22 @@ sequenceDiagram
 của người dùng chứ không theo số lời gọi HTTP — và là lý do ta giới hạn kết quả trả về chỉ 4
 chuyến (`ChatService`), vì toàn bộ kết quả phải nhét vào prompt của vòng 2.
 
-### 4.3 Ba tool của hệ thống
+### 4.3 Năm tool của hệ thống
 
 | Tool | Việc | Tham số |
 |---|---|---|
 | `search_trips` | Tìm chuyến đi | điểm đi, điểm đến, loại xe, ngày, khung giờ |
 | `get_user_bookings` | Danh sách vé đã đặt | *(không có — danh tính lấy từ JWT)* |
 | `get_booking_by_id` | Chi tiết một đơn | mã đơn |
+| `check_voucher` | Mã giảm giá có dùng được không, giảm bao nhiêu | mã, tổng tiền đơn |
+| `get_addon_services` | Danh mục dịch vụ mua kèm | nhóm (suất ăn / hành lý / bảo hiểm / đưa đón) |
+
+`get_addon_services` tồn tại vì một lý do rất cụ thể: suất ăn, gói hành lý, bảo hiểm và xe
+đưa đón nằm trong bảng `dich_vu_bo_sung` mà trước đó không cơ chế nào chạm tới. Khách hỏi
+*"gợi ý món ăn"* thì cả RAG lẫn function calling đều im lặng, và model lấp khoảng trống bằng
+một thực đơn tự nghĩ kèm giá tự nghĩ. Đây đúng là kiểu câu hỏi mà mục 3.2 mô tả: đáp án nằm
+trong dữ liệu động, nên nó phải là một tool chứ không phải một chunk RAG chép lại danh sách
+món — giá và danh mục đổi được trong lúc vận hành, chunk thì không đổi theo.
 
 Mô tả tool nhúng luôn bảng quy đổi tên thành phố sang mã: `Hà Nội=HAN, Sài Gòn=SGN,
 Đà Nẵng=DAD...`. Nhờ vậy model tự dịch "Hà Nội đi Đà Nẵng" thành `origin=HAN, destination=DAD`.

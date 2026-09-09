@@ -350,6 +350,27 @@ public class AIService {
         ));
         tools.add(Map.of("type", "function", "function", checkVoucherFn));
 
+        // Tool 5: get_addon_services
+        // Đại diện cho bảng dich_vu_bo_sung. Thiếu tool này thì câu hỏi "gợi ý món ăn" không có
+        // nguồn nào để bám, và model đặt ra thực đơn của riêng nó kèm giá tự nghĩ.
+        Map<String, Object> addonServicesFn = new HashMap<>();
+        addonServicesFn.put("name", "get_addon_services");
+        addonServicesFn.put("description",
+            "Lấy danh mục dịch vụ mua kèm khi đặt vé: suất ăn, gói hành lý ký gửi, bảo hiểm du lịch, xe đưa đón. " +
+            "BẮT BUỘC gọi trước khi nói bất cứ điều gì về món ăn, suất ăn, đồ ăn trên chuyến, gói hành lý mua thêm, " +
+            "bảo hiểm hay dịch vụ đưa đón, kể cả câu hỏi chung như 'gợi ý món ăn' hay 'có món gì ngon'. " +
+            "Danh mục giống nhau cho cả ba loại phương tiện.");
+        addonServicesFn.put("parameters", Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "category", Map.of(
+                    "type", "string",
+                    "description", "Nhóm cần lấy: 'MEAL' (suất ăn), 'BAGGAGE' (hành lý), 'INSURANCE' (bảo hiểm), 'TRANSFER' (xe đưa đón). Muốn lấy toàn bộ danh mục thì truyền giá trị rỗng ''."
+                )
+            )
+        ));
+        tools.add(Map.of("type", "function", "function", addonServicesFn));
+
         return tools;
     }
 }

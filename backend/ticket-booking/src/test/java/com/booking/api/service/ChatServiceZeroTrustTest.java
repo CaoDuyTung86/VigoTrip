@@ -1,6 +1,7 @@
 package com.booking.api.service;
 
 import com.booking.api.ai.rag.HybridRetriever;
+import com.booking.api.repository.AdditionalServiceRepository;
 import com.booking.api.repository.BookingRepository;
 import com.booking.api.repository.RouteRepository;
 import com.booking.api.repository.TripRepository;
@@ -58,7 +59,8 @@ class ChatServiceZeroTrustTest {
         when(bookingRepository.findByIdAndUserEmail(any(), anyString())).thenReturn(Optional.empty());
 
         chatService = new ChatService(tripRepository, bookingRepository, voucherService,
-                routeRepository, aiService, mock(RestTemplate.class), hybridRetriever,
+                routeRepository, mock(AdditionalServiceRepository.class),
+                aiService, mock(RestTemplate.class), hybridRetriever,
                 mock(ChatHistoryService.class), mock(ChatMetricService.class),
                 new ChatMessageRefRegistry(24, 50000));
     }
