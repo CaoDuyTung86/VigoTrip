@@ -58,7 +58,7 @@
 - query: đơn hoàn tiền của tôi đang chờ duyệt nghĩa là sao
   expected: [refund-status-meaning]
 
-- query: sao tôi chỉ được trả lại một nửa tiền
+- query: sao tôi không được hoàn đủ tiền vé
   expected: [refund-partial, cancel-policy-refund-tiers]
 
 - query: bé nhà tôi 1 tuổi có phải mua vé không
