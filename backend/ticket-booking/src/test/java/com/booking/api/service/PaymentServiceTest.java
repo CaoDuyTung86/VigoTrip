@@ -27,10 +27,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -43,6 +45,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SortedMap;
@@ -89,6 +92,10 @@ class PaymentServiceTest {
     @Mock
     private PaymentLogService paymentLogService;
 
+    /** Proxy của chính bean này — nửa ngoài của callback đi qua đây để vào nửa trong. */
+    @Mock
+    private ObjectProvider<PaymentService> self;
+
     @InjectMocks
     private PaymentService paymentService;
 
@@ -113,6 +120,13 @@ class PaymentServiceTest {
         lenient().when(vnPayQueryService.verifySuccessfulCallback(any(), anyLong()))
                 .thenReturn(VNPayQueryService.Verdict.UNAVAILABLE);
 
+        // Lớp kiểm chứng bật, đúng như cấu hình mặc định. Test nào cần tắt thì tự stub lại.
+        lenient().when(vnPayQueryService.isEnabled()).thenReturn(true);
+
+        // Nửa ngoài của cả hai điểm vào callback gọi sang nửa trong qua proxy của Spring.
+        // Trong unit test thì "proxy" chính là bean đang thử.
+        lenient().when(self.getObject()).thenReturn(paymentService);
+
         user = new User();
         user.setId(1L);
         user.setEmail("test@example.com");
@@ -123,6 +137,9 @@ class PaymentServiceTest {
         booking.setUser(user);
         booking.setTotalPrice(java.math.BigDecimal.valueOf(100000));
         booking.setStatus("PENDING");
+
+        // Nửa ngoài đọc đơn KHÔNG kèm khóa dòng, chỉ để biết số tiền cần hỏi cổng.
+        lenient().when(bookingRepository.findById(123L)).thenReturn(Optional.of(booking));
     }
 
     @Test
@@ -696,18 +713,37 @@ class PaymentServiceTest {
     }
 
     @Test
-    @DisplayName("Đơn quá hạn mà cổng xác nhận đã thu tiền thì được cứu, không bị hủy")
-    void sweepExpiredBooking_GatewayConfirms_Recovers() {
-        Payment attempt = initiatedAttempt();
+    @DisplayName("Tắt kiểm chứng thì không dựng probe nào, cleanup chạy y như cũ")
+    void planSweep_VerificationDisabled_BuildsNoProbe() {
+        when(vnPayQueryService.isEnabled()).thenReturn(false);
 
-        when(vnPayQueryService.isEnabled()).thenReturn(true);
+        assertTrue(paymentService.planSweep(123L).isEmpty());
+        verify(paymentRepository, never()).findByBooking_IdAndPaymentStatus(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("Mỗi lần bấm sang cổng còn treo thành một probe, dựng xong TRƯỚC khi gọi ra ngoài")
+    void planSweep_BuildsOneProbePerAttempt() {
         when(paymentRepository.findByBooking_IdAndPaymentStatus(123L, PaymentService.PAYMENT_INITIATED))
-                .thenReturn(java.util.List.of(attempt));
-        when(vnPayQueryService.verifyTransaction(eq("TXN_LOST"), anyString(), eq(10000000L)))
-                .thenReturn(VNPayQueryService.Verdict.CONFIRMED);
+                .thenReturn(List.of(initiatedAttempt()));
+
+        List<PaymentService.SweepProbe> probes = paymentService.planSweep(123L);
+
+        assertEquals(1, probes.size());
+        assertEquals("TXN_LOST", probes.get(0).txnRef());
+        assertEquals(10000000L, probes.get(0).expectedAmount(), "phải quy về đơn vị của vnp_Amount");
+        // Bước lập kế hoạch chạy trong transaction chỉ-đọc nên tuyệt đối không được chạm cổng.
+        verify(vnPayQueryService, never()).verifyTransaction(anyString(), anyString(), anyLong());
+    }
+
+    @Test
+    @DisplayName("Đơn quá hạn mà cổng xác nhận đã thu tiền thì được cứu, không bị hủy")
+    void applySweepAnswers_GatewayConfirms_Recovers() {
+        Payment attempt = initiatedAttempt();
         when(paymentRepository.findByTransactionRef("TXN_LOST")).thenReturn(Optional.of(attempt));
 
-        PaymentService.SweepResult result = paymentService.sweepExpiredBooking(booking);
+        PaymentService.SweepResult result = paymentService.applySweepAnswers(
+                booking, List.of(answerFor(attempt, VNPayQueryService.Verdict.CONFIRMED)));
 
         assertEquals(PaymentService.SweepResult.RECOVERED, result);
         assertEquals("CONFIRMED", booking.getStatus(), "khoản tiền đã thu phải thành vé, không bị hủy");
@@ -717,16 +753,12 @@ class PaymentServiceTest {
 
     @Test
     @DisplayName("Cổng khẳng định không có giao dịch thì cho phép hủy đơn")
-    void sweepExpiredBooking_GatewayDenies_SafeToCancel() {
+    void applySweepAnswers_GatewayDenies_SafeToCancel() {
         Payment attempt = initiatedAttempt();
+        when(paymentRepository.findById(attempt.getId())).thenReturn(Optional.of(attempt));
 
-        when(vnPayQueryService.isEnabled()).thenReturn(true);
-        when(paymentRepository.findByBooking_IdAndPaymentStatus(123L, PaymentService.PAYMENT_INITIATED))
-                .thenReturn(java.util.List.of(attempt));
-        when(vnPayQueryService.verifyTransaction(eq("TXN_LOST"), anyString(), eq(10000000L)))
-                .thenReturn(VNPayQueryService.Verdict.CONTRADICTED);
-
-        PaymentService.SweepResult result = paymentService.sweepExpiredBooking(booking);
+        PaymentService.SweepResult result = paymentService.applySweepAnswers(
+                booking, List.of(answerFor(attempt, VNPayQueryService.Verdict.CONTRADICTED)));
 
         assertEquals(PaymentService.SweepResult.SAFE_TO_CANCEL, result);
         assertEquals("ABANDONED", attempt.getPaymentStatus(), "đã có câu trả lời dứt khoát, thôi hỏi lại");
@@ -734,44 +766,54 @@ class PaymentServiceTest {
 
     @Test
     @DisplayName("Không hỏi được cổng thì GIỮ đơn lại, không hủy")
-    void sweepExpiredBooking_GatewayUnreachable_Holds() {
-        // Điểm mấu chốt của cả thay đổi này: "không hỏi được" khác "khách chưa trả tiền".
-        when(vnPayQueryService.isEnabled()).thenReturn(true);
-        when(paymentRepository.findByBooking_IdAndPaymentStatus(123L, PaymentService.PAYMENT_INITIATED))
-                .thenReturn(java.util.List.of(initiatedAttempt()));
-        when(vnPayQueryService.verifyTransaction(eq("TXN_LOST"), anyString(), eq(10000000L)))
-                .thenReturn(VNPayQueryService.Verdict.UNAVAILABLE);
+    void applySweepAnswers_GatewayUnreachable_Holds() {
+        // Điểm mấu chốt của cả lớp kiểm chứng: "không hỏi được" khác "khách chưa trả tiền".
+        PaymentService.SweepResult result = paymentService.applySweepAnswers(
+                booking, List.of(answerFor(initiatedAttempt(), VNPayQueryService.Verdict.UNAVAILABLE)));
 
-        assertEquals(PaymentService.SweepResult.HOLD, paymentService.sweepExpiredBooking(booking));
+        assertEquals(PaymentService.SweepResult.HOLD, result);
         assertEquals("PENDING", booking.getStatus());
     }
 
     @Test
-    @DisplayName("Tắt kiểm chứng thì cleanup chạy y như cũ, không giữ đơn lại")
-    void sweepExpiredBooking_VerificationDisabled_SafeToCancel() {
-        when(vnPayQueryService.isEnabled()).thenReturn(false);
-
-        assertEquals(PaymentService.SweepResult.SAFE_TO_CANCEL, paymentService.sweepExpiredBooking(booking));
-        verify(paymentRepository, never()).findByBooking_IdAndPaymentStatus(anyLong(), anyString());
+    @DisplayName("Đơn chưa từng bấm sang cổng thì hủy thẳng, không phải chờ ai trả lời")
+    void applySweepAnswers_NoProbe_SafeToCancel() {
+        assertEquals(PaymentService.SweepResult.SAFE_TO_CANCEL,
+                paymentService.applySweepAnswers(booking, List.of()));
     }
 
     @Test
-    @DisplayName("Return nạp đơn kèm khóa dòng, không đi đường findById")
+    @DisplayName("Câu trả lời nói về số tiền khác thì không dùng, đơn được giữ lại")
+    void applySweepAnswers_AnswerAboutAnotherAmount_Holds() {
+        // Giữa lúc hỏi cổng và lúc ghi kết quả không còn transaction nào bảo đảm đơn đứng yên.
+        Payment attempt = initiatedAttempt();
+        PaymentService.SweepAnswer stale = new PaymentService.SweepAnswer(
+                new PaymentService.SweepProbe(123L, attempt.getId(), "TXN_LOST", "20260101000000", 999L),
+                VNPayQueryService.Verdict.CONTRADICTED);
+
+        assertEquals(PaymentService.SweepResult.HOLD,
+                paymentService.applySweepAnswers(booking, List.of(stale)));
+        assertEquals(PaymentService.PAYMENT_INITIATED, attempt.getPaymentStatus(),
+                "không được đánh dấu bỏ dựa trên câu trả lời nói về con số khác");
+    }
+
+    @Test
+    @DisplayName("Return khóa dòng đơn ở nửa trong, nơi kết quả được ghi")
     void handleVNPayReturn_LocksBookingRow() {
         when(vnPayConfig.getHashSecret()).thenReturn("secret");
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
 
         paymentService.handleVNPayReturn(signedCallback("00", "TXN_LOCK_RETURN"), CLIENT_IP);
 
-        verify(bookingRepository).findByIdForUpdate(123L);
         // Không có khóa dòng thì Return và IPN của cùng giao dịch (chúng về gần như cùng
         // lúc) cùng thấy "chưa xử lý" và cùng xác nhận đơn: hai mail xác nhận giống hệt
-        // nhau và điểm thành viên bị tích hai lần.
-        verify(bookingRepository, never()).findById(anyLong());
+        // nhau và điểm thành viên bị tích hai lần. Bản đọc không khóa ở nửa ngoài chỉ dùng
+        // để dựng câu hỏi gửi sang cổng, không quyết định gì.
+        verify(bookingRepository).findByIdForUpdate(123L);
     }
 
     @Test
-    @DisplayName("IPN nạp đơn kèm khóa dòng, không đi đường findById")
+    @DisplayName("IPN khóa dòng đơn ở nửa trong, nơi kết quả được ghi")
     void handleVNPayIPN_LocksBookingRow() {
         when(vnPayConfig.getHashSecret()).thenReturn("secret");
         when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
@@ -779,7 +821,21 @@ class PaymentServiceTest {
         paymentService.handleVNPayIPN(signedCallback("00", "TXN_LOCK_IPN"), CLIENT_IP);
 
         verify(bookingRepository).findByIdForUpdate(123L);
-        verify(bookingRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    @DisplayName("Cổng được hỏi TRƯỚC khi khóa dòng đơn, không giữ khóa suốt quãng chờ mạng")
+    void handleVNPayIPN_AsksGatewayBeforeLockingRow() {
+        when(vnPayConfig.getHashSecret()).thenReturn("secret");
+        when(bookingRepository.findByIdForUpdate(123L)).thenReturn(Optional.of(booking));
+
+        paymentService.handleVNPayIPN(signedCallback("00", "TXN_ORDER"), CLIENT_IP);
+
+        // Đây chính là thay đổi: lời gọi querydr — tới 9 giây trong trường hợp xấu — phải
+        // xong trước khi transaction ghi mở ra và giành khóa dòng đơn.
+        InOrder order = inOrder(vnPayQueryService, bookingRepository);
+        order.verify(vnPayQueryService).verifySuccessfulCallback(any(), eq(10000000L));
+        order.verify(bookingRepository).findByIdForUpdate(123L);
     }
 
     @Test
@@ -866,8 +922,17 @@ class PaymentServiceTest {
     }
 
     /** Một lần mở cổng đã ghi lại nhưng chưa có kết quả — đúng hình dạng của khoản tiền mất dấu. */
+    /** Câu trả lời của cổng cho đúng một lần bấm sang cổng của {@link #booking}. */
+    private PaymentService.SweepAnswer answerFor(Payment attempt, VNPayQueryService.Verdict verdict) {
+        return new PaymentService.SweepAnswer(
+                new PaymentService.SweepProbe(booking.getId(), attempt.getId(),
+                        attempt.getTransactionRef(), "20260101000000", 10000000L),
+                verdict);
+    }
+
     private Payment initiatedAttempt() {
         Payment attempt = new Payment();
+        attempt.setId(77L);
         attempt.setBooking(booking);
         attempt.setTransactionRef("TXN_LOST");
         attempt.setPaymentStatus(PaymentService.PAYMENT_INITIATED);

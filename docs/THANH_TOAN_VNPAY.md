@@ -163,8 +163,14 @@ không thành vé, cũng không thành yêu cầu hoàn tiền.
 để trả ghế, kèm log `ERROR` để đối chiếu tay với sao kê. Giữ vô thời hạn nghĩa là ghế bị khoá
 vĩnh viễn mỗi khi cổng chết — đó là đánh đổi có ý thức, không phải sơ suất.
 
-Cleanup cũng chặn **20 đơn/lượt**: mỗi lần hỏi là một HTTP call nằm trong transaction, mỗi giây
-chờ là một giây giữ connection DB. Phần bị bỏ qua vẫn PENDING nên lượt sau nhặt tiếp.
+Một lượt dọn xử lý mỗi đơn bằng ba bước tách rời — đọc manh mối, hỏi cổng, ghi kết quả — trong
+đó chỉ bước đầu và bước cuối chạm CSDL, mỗi bước một transaction ngắn riêng. Lời gọi ra cổng nằm
+ở giữa, ngoài mọi transaction.
+
+Cleanup vẫn chặn **20 đơn/lượt**, nhưng lý do đã đổi: không còn là để khỏi giữ connection, mà là
+để một lượt dọn không kéo dài quá lâu — bộ lập lịch mặc định của Spring chỉ có một luồng, lượt
+dọn chạy lâu là mọi job theo lịch khác phải xếp hàng chờ. Phần bị bỏ qua vẫn PENDING nên lượt
+sau nhặt tiếp.
 
 > ⚠️ **Bản sửa này chỉ cứu được đơn từ thời điểm triển khai trở đi.** Đơn cũ không có dòng
 > `INITIATED` nên không có gì để hỏi. Riêng 680.000đ của booking 48 không tự đòi lại được —
@@ -427,7 +433,11 @@ là cửa thoát hiểm chỉ nới cho lỗi *"khoá đã lộ"*, **không** n�
 ## 10. Việc còn lại
 
 > **Đã xong ngày 06/09/2026:** nhật ký giao dịch (§8), index chống trùng (§4), dọn hai cặp dòng
-> trùng của booking 49 và 52 (§5.7). Danh sách dưới đây là phần còn lại.
+> trùng của booking 49 và 52 (§5.7).
+>
+> **Đã xong ngày 11/09/2026:** tách lời gọi `querydr` ra khỏi transaction (việc số 5).
+>
+> Danh sách dưới đây là phần còn lại.
 
 1. **Xoay `VNP_HASH_SECRET`.** Giá trị đang dùng đã lộ công khai trong lịch sử Git. Đăng ký
    terminal sandbox mới là cách nhanh nhất. Xong thì **xoá `ALLOW_KNOWN_LEAKED_SECRETS`**.
@@ -441,12 +451,28 @@ là cửa thoát hiểm chỉ nới cho lỗi *"khoá đã lộ"*, **không** n�
 4. **Dọn đơn demo nếu cần số liệu doanh thu sạch.** `DemoBookingSeeder` đóng dấu
    `transaction_ref = 'DEMO<id>'` nên lọc ra được chính xác. Seeder mặc định tắt
    (`DEMO_SEED_BOOKINGS`), nhưng tắt cờ **không xoá** những dòng đã sinh.
-5. **Tách lời gọi `querydr` ra khỏi transaction.** *(~0,5–1 ngày, ưu tiên cao nhất trong ba
-   việc còn lại)* Hiện `VNPayQueryService.query` — 3 giây kết nối cộng 6 giây đọc — chạy **bên
-   trong** transaction của `handleVNPayIPN` và của `BookingCleanupService`. Mỗi giây chờ cổng
-   là một giây giữ một connection DB. `MAX_BOOKINGS_PER_RUN = 20` trong `BookingCleanupService`
-   là băng dán cho đúng vấn đề này và nên bỏ được sau khi tách. Cách làm: hỏi cổng **trước**,
-   ngoài transaction; mở một transaction ngắn **sau** chỉ để ghi kết quả.
+5. ~~Tách lời gọi `querydr` ra khỏi transaction.~~ **Đã làm.** Trước đó
+   `VNPayQueryService.query` — 3 giây kết nối cộng 6 giây đọc — chạy **bên trong** transaction
+   của cả hai đường callback lẫn của `BookingCleanupService`, nên mỗi giây chờ cổng là một giây
+   giữ một connection trong pool mười chỗ, và với hai đường callback thì giữ luôn cả khoá dòng
+   đơn. Giờ cả ba đường đều theo cùng một hình: hỏi cổng **trước**, ngoài transaction; mở một
+   transaction ngắn **sau** chỉ để ghi kết quả.
+   - `handleVNPayReturn` / `handleVNPayIPN` không còn `@Transactional`. Chúng gọi
+     `askGatewayFirst` rồi chuyển sang `handleVNPay*InTransaction` qua proxy của Spring, mang
+     theo kết luận của cổng trong một `CallbackVerification`.
+   - `askGatewayFirst` chỉ hỏi khi kết luận thật sự được dùng tới: callback báo thành công,
+     chữ ký hợp lệ, đúng số tiền, và giao dịch chưa được lượt callback trước xử lý. Chữ ký
+     được kiểm hai lần có chủ ý — lần ở ngoài ngăn người lạ gọi vào endpoint công khai để bắt
+     máy chủ bắn hàng loạt yêu cầu sang cổng.
+   - Cleanup tách thành `planSweep` (transaction chỉ-đọc) → `askGateway` (không transaction)
+     → `settleExpiredBooking` (transaction ghi, có khoá dòng). Bước cuối đọc lại đơn kèm khoá
+     và kiểm tra lại cả trạng thái lẫn điều kiện quá hạn, vì trong quãng chờ cổng thì một
+     callback thật có thể đã về, hoặc khách vừa mở một phiên thanh toán mới.
+   - `CallbackVerification` và `SweepProbe` đều mang theo số tiền đã dùng để hỏi. Nửa trong
+     chỉ tin câu trả lời khi con số đó còn khớp với giá trị đơn; lệch thì coi như chưa hỏi.
+   - `MAX_BOOKINGS_PER_RUN = 20` **giữ nguyên**, không bỏ như dự tính ban đầu. Nó không còn
+     chặn việc giữ connection nữa, nhưng vẫn cần để một lượt dọn không chiếm luồng lập lịch
+     duy nhất của Spring quá lâu.
 6. **ShedLock cho các job `@Scheduled`.** *(~2–3 giờ)* Hệ thống có 9 job chạy theo lịch, tất cả
    đều giả định **chỉ có một tiến trình**. Chạy từ hai instance trở lên mà không có khoá phân
    tán thì hai `BookingCleanupService` cùng quét một đơn, hai `TripReminderScheduler` cùng gửi
@@ -486,7 +512,9 @@ Các lời giải thích chi tiết nhất nằm ngay tại chỗ, dưới dạn
 đều được ghi lý do tại nơi nó được thực hiện:
 
 - `PaymentService.applyPaymentResult` — thứ tự ba lớp phòng thủ, và vì sao
-- `PaymentService.sweepExpiredBooking` — vì sao "không hỏi được" ≠ "chưa trả tiền"
+- `PaymentService.applySweepAnswers` — vì sao "không hỏi được" ≠ "chưa trả tiền"
+- `PaymentService.askGatewayFirst` — vì sao câu hỏi gửi sang cổng phải xong trước khi transaction mở
+- `BookingCleanupService.cancelUnpaidBookings` — ba bước, ba transaction, và lời gọi mạng nằm giữa
 - `VNPayQueryService` (Javadoc lớp) — vì sao fail-open
 - `VNPayUtil.validateHash` — vì sao chấp nhận cả hai cách mã hoá khoảng trắng
 - `PaymentRepository.existsByTransactionRefAndPaymentStatusNot` — cái bẫy ở §5.5

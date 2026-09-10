@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -31,10 +30,11 @@ public class BookingCleanupService {
     /**
      * Số đơn được đối chiếu với cổng trong một lượt dọn.
      *
-     * Mỗi lần đối chiếu là một lời gọi HTTP ra ngoài (3s kết nối + 6s đọc) nằm trong chính
-     * transaction của lượt dọn, tức là mỗi giây chờ là một giây giữ connection DB. Không chặn
-     * lại thì một đợt dồn đơn có thể khoá pool suốt nhiều phút. Phần bị bỏ qua vẫn đang
-     * PENDING nên lượt sau (một phút sau) sẽ nhặt tiếp — không mất đơn nào.
+     * Không còn là để giữ chỗ trong pool connection: lời gọi ra cổng giờ nằm ngoài mọi
+     * transaction. Thứ hạn mức này còn chặn là ĐỘ DÀI của một lượt. Mỗi đơn tốn tới 9 giây
+     * chờ cổng, mà bộ lập lịch mặc định của Spring chỉ có một luồng, nên một lượt dọn kéo dài
+     * là mọi job theo lịch khác phải xếp hàng chờ sau nó. Phần bị bỏ qua vẫn đang PENDING nên
+     * lượt sau (một phút sau) sẽ nhặt tiếp — không mất đơn nào.
      */
     private static final int MAX_BOOKINGS_PER_RUN = 20;
 
@@ -57,11 +57,11 @@ public class BookingCleanupService {
     /**
      * Chính bean này, lấy qua proxy của Spring.
      *
-     * Gọi thẳng {@code cancelUnpaidBookings()} từ trong lớp sẽ đi tắt qua proxy và
-     * {@code @Transactional} mất tác dụng — nghĩa là entity trả về bị detached và
-     * {@code releaseSeats} nổ LazyInitializationException. Cổng chặn phải nằm NGOÀI transaction
-     * (mở transaction rồi mới quay ra là đã có thể chạm DB), nên buộc phải tách làm hai hàm và
-     * đi vòng qua proxy. ObjectProvider tra cứu lười nên không tạo vòng phụ thuộc lúc khởi tạo.
+     * {@code cancelUnpaidBookings()} cố ý KHÔNG có transaction, nhưng ba bước nó gọi thì có.
+     * Gọi thẳng chúng từ trong lớp là đi tắt qua proxy và {@code @Transactional} mất tác dụng —
+     * nghĩa là {@code releaseSeats} nổ LazyInitializationException, và khóa dòng trong
+     * {@code settleExpiredBooking} biến mất. ObjectProvider tra cứu lười nên không tạo vòng phụ
+     * thuộc lúc khởi tạo.
      */
     private final ObjectProvider<BookingCleanupService> self;
 
@@ -75,7 +75,7 @@ public class BookingCleanupService {
             return;
         }
         long token = pendingBookingSignal.beginSweep();
-        if (!self.getObject().cancelUnpaidBookings()) {
+        if (!cancelUnpaidBookings()) {
             pendingBookingSignal.markNoPendingLeft(token);
         }
     }
@@ -83,74 +83,122 @@ public class BookingCleanupService {
     /**
      * Một lượt dọn. Trả về {@code true} nếu DB VẪN còn ít nhất một đơn PENDING sau lượt này
      * (kể cả đơn chưa quá hạn), tức là lượt sau vẫn còn việc.
+     *
+     * KHÔNG có transaction ở tầng này, và đó là điểm mấu chốt. Mỗi đơn đi qua ba bước tách
+     * rời — đọc manh mối, hỏi cổng, ghi kết quả — trong đó chỉ bước đầu và bước cuối chạm CSDL,
+     * mỗi bước một transaction ngắn của riêng nó. Trước đây cả ba nằm chung một transaction
+     * dài, nên chín giây chờ cổng của MỖI đơn là chín giây giữ một chỗ trong pool mười chỗ.
      */
-    @Transactional
     public boolean cancelUnpaidBookings() {
-        LocalDateTime now = LocalDateTime.now();
-        List<Booking> expiredBookings = bookingRepository.findExpiredPendingBookings(
-                now.minusMinutes(PENDING_HOLD_MINUTES), now);
-
-        if (expiredBookings.isEmpty()) {
-            return anyPendingLeft();
+        BookingCleanupService tx = self.getObject();
+        List<Long> expired = tx.findExpiredPendingIds();
+        if (!expired.isEmpty()) {
+            log.info("Found {} expired PENDING bookings. Canceling...", expired.size());
         }
 
-        log.info("Found {} expired PENDING bookings. Canceling...", expiredBookings.size());
-
-        // Chỉ những đơn THẬT SỰ bị hủy mới được lưu lại: đơn vừa được cổng xác nhận đã trở
-        // thành CONFIRMED, ghi đè nó bằng CANCELLED là làm đúng cái việc mà cả thay đổi này
-        // sinh ra để ngăn.
-        List<Booking> cancelled = new ArrayList<>();
-
         int examined = 0;
-        for (Booking booking : expiredBookings) {
+        for (Long bookingId : expired) {
             // Đếm số đơn ĐÃ ĐEM ĐI HỎI CỔNG, không phải số đơn bị hủy: đơn được cứu hoặc đơn
             // đang giữ lại cũng đã tốn một lời gọi ra ngoài rồi, và chính lời gọi đó là thứ
             // hạn mức này sinh ra để chặn.
             if (examined >= MAX_BOOKINGS_PER_RUN) {
                 log.warn("Còn {} đơn quá hạn chưa đối chiếu trong lượt này, để lượt sau.",
-                        expiredBookings.size() - examined);
+                        expired.size() - examined);
                 break;
             }
             examined++;
 
-            // Hỏi cổng trước khi hủy. Đơn PENDING quá hạn KHÔNG đồng nghĩa với chưa trả tiền:
-            // khách có thể đã bị trừ tiền mà cổng chưa từng gọi được callback nào về.
-            PaymentService.SweepResult sweep = paymentService.sweepExpiredBooking(booking);
-            if (sweep == PaymentService.SweepResult.RECOVERED) {
-                continue;
-            }
-            if (sweep == PaymentService.SweepResult.HOLD) {
-                if (!heldTooLong(booking, now)) {
-                    continue;
-                }
-                log.error("Đơn {} đã quá hạn hơn {} phút mà vẫn chưa hỏi được cổng VNPay. Hủy đơn để "
-                                + "trả ghế, nhưng NẾU khách đã bị trừ tiền thì khoản đó chưa được ghi "
-                                + "nhận — cần đối chiếu tay với sao kê.",
-                        booking.getId(), SWEEP_GIVE_UP_MINUTES);
-            }
-
-            booking.setStatus("CANCELLED");
-            releaseSeats(booking);
-
-            // Hoàn lại lượt sử dụng voucher vì đơn hàng chưa thanh toán thành công
-            if (booking.getVoucherCode() != null && !booking.getVoucherCode().isBlank()) {
-                voucherService.refundVoucherUsage(booking.getVoucherCode());
-                log.info("Refunded voucher usage for code {} (booking {} expired unpaid).",
-                        booking.getVoucherCode(), booking.getId());
-            }
-            cancelled.add(booking);
+            // Ba bước, và lời gọi ra cổng nằm ở giữa — ngoài mọi transaction.
+            List<PaymentService.SweepProbe> probes = paymentService.planSweep(bookingId);
+            List<PaymentService.SweepAnswer> answers = paymentService.askGateway(probes);
+            tx.settleExpiredBooking(bookingId, answers);
         }
-        bookingRepository.saveAll(cancelled);
-        return anyPendingLeft();
+        return tx.anyPendingLeft();
+    }
+
+    /**
+     * Mã của những đơn đáng đem đi đối chiếu, đọc trong một transaction chỉ-đọc thật ngắn.
+     *
+     * Trả về mã chứ không trả về entity: giữa lúc đọc và lúc ghi có cả một quãng gọi mạng, mà
+     * một entity mang qua quãng đó là entity đã rời khỏi session và mang dữ liệu có thể đã cũ.
+     */
+    @Transactional(readOnly = true)
+    public List<Long> findExpiredPendingIds() {
+        LocalDateTime now = LocalDateTime.now();
+        return bookingRepository
+                .findExpiredPendingBookings(now.minusMinutes(PENDING_HOLD_MINUTES), now)
+                .stream()
+                .map(Booking::getId)
+                .toList();
+    }
+
+    /**
+     * Chốt số phận một đơn quá hạn, dựa trên những gì cổng vừa trả lời.
+     *
+     * Đọc lại đơn kèm khóa dòng chứ không dùng lại bản đọc ở bước đầu: trong lúc ta hỏi cổng,
+     * một callback thật có thể đã về và xác nhận chính đơn này, hoặc khách có thể vừa mở một
+     * phiên thanh toán mới. Khóa dòng bắt lượt này xếp hàng sau họ, và hai phép kiểm tra ngay
+     * sau đó thấy được kết quả đã commit.
+     */
+    @Transactional
+    public void settleExpiredBooking(Long bookingId, List<PaymentService.SweepAnswer> answers) {
+        LocalDateTime now = LocalDateTime.now();
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId).orElse(null);
+        if (booking == null || !"PENDING".equals(booking.getStatus()) || !stillExpired(booking, now)) {
+            return;
+        }
+
+        PaymentService.SweepResult sweep = paymentService.applySweepAnswers(booking, answers);
+        if (sweep == PaymentService.SweepResult.RECOVERED) {
+            return;
+        }
+        if (sweep == PaymentService.SweepResult.HOLD) {
+            if (!heldTooLong(booking, now)) {
+                return;
+            }
+            log.error("Đơn {} đã quá hạn hơn {} phút mà vẫn chưa hỏi được cổng VNPay. Hủy đơn để "
+                            + "trả ghế, nhưng NẾU khách đã bị trừ tiền thì khoản đó chưa được ghi "
+                            + "nhận — cần đối chiếu tay với sao kê.",
+                    booking.getId(), SWEEP_GIVE_UP_MINUTES);
+        }
+
+        booking.setStatus("CANCELLED");
+        releaseSeats(booking);
+
+        // Hoàn lại lượt sử dụng voucher vì đơn hàng chưa thanh toán thành công
+        if (booking.getVoucherCode() != null && !booking.getVoucherCode().isBlank()) {
+            voucherService.refundVoucherUsage(booking.getVoucherCode());
+            log.info("Refunded voucher usage for code {} (booking {} expired unpaid).",
+                    booking.getVoucherCode(), booking.getId());
+        }
+        bookingRepository.save(booking);
+    }
+
+    /**
+     * Đơn CÒN đáng bị dọn không, hỏi lại ngay trước khi hủy.
+     *
+     * Đây là bản dựng lại bằng Java của đúng điều kiện trong {@code findExpiredPendingBookings}
+     * — hai chỗ này phải sửa cùng nhau. Cần hỏi lại vì giữa lúc câu query kia chạy và lúc ta
+     * cầm khóa dòng có cả quãng chờ cổng, đủ để khách bấm sang cổng lần nữa và mở một phiên
+     * thanh toán mới. Hủy đơn lúc đó là hủy đúng đơn khách đang trả tiền.
+     */
+    private boolean stillExpired(Booking booking, LocalDateTime now) {
+        LocalDateTime bookingDate = booking.getBookingDate();
+        if (bookingDate == null || !bookingDate.isBefore(now.minusMinutes(PENDING_HOLD_MINUTES))) {
+            return false;
+        }
+        LocalDateTime paymentExpiresAt = booking.getPaymentExpiresAt();
+        return paymentExpiresAt == null || paymentExpiresAt.isBefore(now);
     }
 
     /**
      * Còn đơn PENDING nào trong DB không.
      *
-     * Chạy trong cùng transaction với phần dọn ở trên nên Hibernate flush các đơn vừa chuyển
-     * sang CANCELLED trước khi đếm — số đếm không tính lại chính những đơn ta vừa xử lý.
+     * Transaction riêng, chạy sau khi mọi đơn của lượt này đã commit, nên số đếm không tính
+     * lại chính những đơn ta vừa chuyển sang CANCELLED.
      */
-    private boolean anyPendingLeft() {
+    @Transactional(readOnly = true)
+    public boolean anyPendingLeft() {
         return bookingRepository.countByStatus("PENDING") > 0;
     }
 

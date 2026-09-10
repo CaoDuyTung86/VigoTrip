@@ -20,6 +20,7 @@ import com.booking.api.repository.UserRepository;
 import com.booking.api.util.VNPayUtil;
 import com.booking.api.entity.Ticket;
 import com.booking.api.realtime.SeatStatusBroadcaster;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import lombok.RequiredArgsConstructor;
@@ -105,6 +106,29 @@ public class PaymentService {
         HOLD
     }
 
+    /**
+     * Kết luận của cổng về một callback, hỏi XONG trước khi transaction được mở.
+     *
+     * Mang theo cả số tiền đã dùng để hỏi, chứ không chỉ mỗi kết luận: câu trả lời của cổng
+     * là câu trả lời cho MỘT con số cụ thể, và giữa lúc hỏi với lúc ghi không còn transaction
+     * nào bảo đảm con số đó chưa đổi. Nửa trong đối chiếu lại trước khi tin.
+     */
+    public record CallbackVerification(VNPayQueryService.Verdict verdict, long verifiedAmount) {
+        /**
+         * Chưa hỏi cổng lần nào — vì không cần hỏi, chứ không phải vì hỏi mà không được.
+         * Mang kết luận UNAVAILABLE nên nửa trong xử lý y như khi cổng không trả lời.
+         */
+        public static final CallbackVerification NOT_ASKED =
+                new CallbackVerification(VNPayQueryService.Verdict.UNAVAILABLE, -1L);
+    }
+
+    /** Một lần bấm sang cổng còn treo của đơn quá hạn — đủ dữ liệu để hỏi lại cổng về nó. */
+    public record SweepProbe(Long bookingId, Long paymentId, String txnRef,
+                             String transactionDate, long expectedAmount) {}
+
+    /** Câu trả lời của cổng cho một {@link SweepProbe}. */
+    public record SweepAnswer(SweepProbe probe, VNPayQueryService.Verdict verdict) {}
+
     /** Kết quả của một lần cổng báo về, dùng chung cho cả Return lẫn IPN. */
     private enum PaymentOutcome { SUCCESS, FAILED, ALREADY_PROCESSED, LATE_NEEDS_REFUND, INVALID_AMOUNT, UNVERIFIED }
 
@@ -135,6 +159,17 @@ public class PaymentService {
     private final VoucherService voucherService;
     private final VNPayQueryService vnPayQueryService;
     private final PaymentLogService paymentLogService;
+
+    /**
+     * Chính bean này, lấy qua proxy của Spring.
+     *
+     * Hai điểm vào callback giờ chia làm hai nửa: nửa ngoài hỏi cổng VNPay, nửa trong ghi
+     * xuống CSDL. Gọi thẳng nửa trong từ trong lớp sẽ đi tắt qua proxy và {@code @Transactional}
+     * mất tác dụng — nghĩa là không còn transaction nào bao lấy phần ghi, cũng không còn khóa
+     * dòng đơn. Cùng lý do và cùng cách xử lý như trong {@code BookingCleanupService}.
+     * ObjectProvider tra cứu lười nên không tạo vòng phụ thuộc lúc khởi tạo.
+     */
+    private final ObjectProvider<PaymentService> self;
 
     /** Tên miền frontend mặc định, dùng khi không xác định được nơi khách bắt đầu trả tiền. */
     @org.springframework.beans.factory.annotation.Value("${app.frontend-url:http://localhost:5173}")
@@ -330,11 +365,81 @@ public class PaymentService {
      *
      * @param sourceIp IP đã gọi vào endpoint, chỉ dùng để ghi nhật ký
      */
-    @Transactional
+    /**
+     * Hỏi cổng VNPay về một callback, TRƯỚC khi mở transaction. Đây là lý do cả hai điểm vào
+     * callback bị tách làm đôi.
+     *
+     * Một lời gọi querydr mất tới 9 giây trong trường hợp xấu: 3 giây kết nối cộng 6 giây đọc.
+     * Đặt nó bên trong transaction xử lý callback nghĩa là mỗi giây chờ cổng là một giây giữ
+     * một connection trong pool mười chỗ — và giữ luôn cả khóa dòng đơn. Hỏi xong ở đây rồi
+     * mới mở một transaction ngắn chỉ để ghi kết quả.
+     *
+     * Mọi lối ra sớm dưới đây đều là những trường hợp mà nửa trong sẽ tự từ chối, hoặc không
+     * cần tới kết luận của cổng. Không hỏi ở đó là đúng chứ không phải bỏ sót một lớp phòng
+     * thủ: {@link #applyPaymentResult} chỉ dùng kết luận này ở đúng một chỗ, ngay trước khi
+     * giao vé cho một callback tự khai là đã thu tiền.
+     *
+     * Phép kiểm tra chữ ký được làm hai lần một cách có chủ ý. Nửa trong vẫn phải tự kiểm vì
+     * nó mới là nơi ra quyết định; còn ở đây nó ngăn người lạ gọi vào endpoint công khai để
+     * bắt máy chủ bắn hàng loạt yêu cầu sang cổng.
+     */
+    private CallbackVerification askGatewayFirst(Map<String, String> params) {
+        if (!vnPayQueryService.isEnabled()) {
+            return CallbackVerification.NOT_ASKED;
+        }
+        // Callback báo thất bại thì không có khoản tiền nào để đối chiếu.
+        if (!isSuccessResponse(params)) {
+            return CallbackVerification.NOT_ASKED;
+        }
+        if (!VNPayUtil.validateHash(params, vnPayConfig.getHashSecret())) {
+            return CallbackVerification.NOT_ASKED;
+        }
+        Long bookingId = parseBookingId(params.get("vnp_OrderInfo"));
+        if (bookingId == null) {
+            return CallbackVerification.NOT_ASKED;
+        }
+        // Đọc thường, KHÔNG khóa dòng: khóa ở đây là giữ nó suốt quãng chờ cổng, đúng cái
+        // việc mà cả thay đổi này sinh ra để tránh. Nửa trong sẽ đọc lại kèm khóa.
+        Booking booking = bookingRepository.findById(bookingId).orElse(null);
+        if (booking == null || !isAmountMatching(booking, params)) {
+            return CallbackVerification.NOT_ASKED;
+        }
+        String txnRef = params.get("vnp_TxnRef");
+        if (txnRef != null
+                && paymentRepository.existsByTransactionRefAndPaymentStatusNot(txnRef, PAYMENT_INITIATED)) {
+            // Lượt callback trước đã xử lý xong giao dịch này. Không thể có chuyện lượt này
+            // thấy "đã xử lý" rồi nửa trong lại thấy chưa: bản ghi thanh toán không bị xóa.
+            return CallbackVerification.NOT_ASKED;
+        }
+        long expectedAmount = expectedGatewayAmount(booking);
+        return new CallbackVerification(
+                vnPayQueryService.verifySuccessfulCallback(params, expectedAmount), expectedAmount);
+    }
+
+    /**
+     * Điểm vào của callback Return. KHÔNG có transaction ở tầng này — xem
+     * {@link #askGatewayFirst}.
+     *
+     * @param sourceIp IP đã gọi vào endpoint, chỉ dùng để ghi nhật ký
+     */
     public String handleVNPayReturn(Map<String, String> params, String sourceIp) {
+        return self.getObject()
+                .handleVNPayReturnInTransaction(params, sourceIp, askGatewayFirst(params));
+    }
+
+    /**
+     * Nửa trong của callback Return: chỉ còn đọc và ghi CSDL, không còn lời gọi ra ngoài nào.
+     *
+     * Phần việc thật nằm ở {@code doHandleVNPayReturn}; lớp vỏ này chỉ để bảo đảm MỌI lối ra —
+     * kể cả lối ném lỗi — đều để lại một dòng trong nhật ký giao dịch. Public là để gọi được
+     * qua proxy của Spring, không phải để nơi khác dùng.
+     */
+    @Transactional
+    public String handleVNPayReturnInTransaction(Map<String, String> params, String sourceIp,
+                                                 CallbackVerification verification) {
         CallbackAudit audit = new CallbackAudit();
         try {
-            audit.outcome = doHandleVNPayReturn(params, audit);
+            audit.outcome = doHandleVNPayReturn(params, audit, verification);
             return audit.outcome;
         } catch (DataIntegrityViolationException e) {
             audit.outcome = duplicateOutcome(e);
@@ -349,7 +454,8 @@ public class PaymentService {
         }
     }
 
-    private String doHandleVNPayReturn(Map<String, String> params, CallbackAudit audit) {
+    private String doHandleVNPayReturn(Map<String, String> params, CallbackAudit audit,
+                                       CallbackVerification verification) {
         logCallbackReceived("Return", params);
         audit.signatureValid = VNPayUtil.validateHash(params, vnPayConfig.getHashSecret());
         if (!audit.signatureValid) {
@@ -366,7 +472,7 @@ public class PaymentService {
         Booking booking = bookingRepository.findByIdForUpdate(bookingId).orElse(null);
         if (booking == null) return "BOOKING_NOT_FOUND";
 
-        return switch (applyPaymentResult(booking, params)) {
+        return switch (applyPaymentResult(booking, params, verification)) {
             case SUCCESS -> "SUCCESS";
             // Đã xử lý ở lần callback trước (thường là IPN về trước) — kết quả không đổi
             case ALREADY_PROCESSED -> isSuccessResponse(params)
@@ -382,12 +488,19 @@ public class PaymentService {
      * Xử lý IPN từ VNPay (Server-to-Server). Đây mới là nguồn tin cậy về kết quả
      * thanh toán; Return chỉ là điều hướng trình duyệt và có thể không bao giờ tới.
      */
-    @Transactional
     public Map<String, String> handleVNPayIPN(Map<String, String> params, String sourceIp) {
+        return self.getObject()
+                .handleVNPayIPNInTransaction(params, sourceIp, askGatewayFirst(params));
+    }
+
+    /** Nửa trong của IPN. Xem {@link #handleVNPayReturnInTransaction} về việc vì sao tách đôi. */
+    @Transactional
+    public Map<String, String> handleVNPayIPNInTransaction(Map<String, String> params, String sourceIp,
+                                                           CallbackVerification verification) {
         CallbackAudit audit = new CallbackAudit();
         Map<String, String> response = null;
         try {
-            response = doHandleVNPayIPN(params, audit);
+            response = doHandleVNPayIPN(params, audit, verification);
             return response;
         } catch (DataIntegrityViolationException e) {
             audit.outcome = duplicateOutcome(e);
@@ -403,7 +516,8 @@ public class PaymentService {
         }
     }
 
-    private Map<String, String> doHandleVNPayIPN(Map<String, String> params, CallbackAudit audit) {
+    private Map<String, String> doHandleVNPayIPN(Map<String, String> params, CallbackAudit audit,
+                                                 CallbackVerification verification) {
         try {
             logCallbackReceived("IPN", params);
             audit.signatureValid = VNPayUtil.validateHash(params, vnPayConfig.getHashSecret());
@@ -425,7 +539,7 @@ public class PaymentService {
                 return ipnResponse("01", "Order not found");
             }
 
-            return switch (applyPaymentResult(booking, params)) {
+            return switch (applyPaymentResult(booking, params, verification)) {
                 case INVALID_AMOUNT -> ipnResponse("04", "Invalid Amount");
                 case ALREADY_PROCESSED -> ipnResponse("02", "Order already confirmed");
                 // Không báo "00": cổng sẽ gửi lại IPN, và nếu lần truy vấn vừa rồi trượt vì
@@ -495,7 +609,8 @@ public class PaymentService {
      * Áp kết quả cổng trả về lên đơn hàng. Return và IPN dùng chung hàm này nên chỉ có
      * một chỗ duy nhất quyết định trạng thái, hai luồng không thể xử lý lệch nhau.
      */
-    private PaymentOutcome applyPaymentResult(Booking booking, Map<String, String> params) {
+    private PaymentOutcome applyPaymentResult(Booking booking, Map<String, String> params,
+                                              CallbackVerification verification) {
         if (!isAmountMatching(booking, params)) {
             // In cả hai về cùng đơn vị vnp_Amount (VND x100), nếu không hai số lệch đơn vị
             // sẽ trông như nhau và người đọc log tưởng hệ thống từ chối nhầm.
@@ -525,8 +640,7 @@ public class PaymentService {
         // trong lịch sử Git của repo này). Nên trước khi giao vé hoặc mở yêu cầu hoàn tiền,
         // hỏi thẳng cổng bằng lệnh querydr. Chỉ dừng lại khi cổng PHỦ NHẬN; hỏi không được
         // thì đi tiếp như cũ (xem VNPayQueryService để biết vì sao fail-open).
-        if (vnPayQueryService.verifySuccessfulCallback(params, expectedGatewayAmount(booking))
-                == VNPayQueryService.Verdict.CONTRADICTED) {
+        if (gatewayContradicts(verification, booking)) {
             log.error("Từ chối callback thanh toán cho booking {} (txnRef={}): cổng VNPay không xác nhận "
                     + "giao dịch này", booking.getId(), txnRef);
             return PaymentOutcome.UNVERIFIED;
@@ -549,6 +663,29 @@ public class PaymentService {
         // hoặc đã trả tiền bằng một giao dịch khác). Không được im lặng bỏ qua.
         recordLatePaymentForRefund(booking, params);
         return PaymentOutcome.LATE_NEEDS_REFUND;
+    }
+
+    /**
+     * Cổng có PHỦ NHẬN giao dịch này không — theo câu trả lời lấy được trước khi mở transaction.
+     *
+     * Chỉ tin câu trả lời đó khi nó nói về đúng số tiền mà đơn đang đòi. Giá đơn trên thực tế
+     * không đổi sau khi tạo, nên nhánh lệch là nhánh không bao giờ chạy tới; nó tồn tại để một
+     * thay đổi sau này khiến giá đơn đổi được sẽ không âm thầm biến câu trả lời cũ thành cái cớ
+     * từ chối một khoản tiền có thật. Lệch thì coi như chưa hỏi, đúng nguyên tắc fail-open đã
+     * ghi ở đầu {@link VNPayQueryService}.
+     */
+    private boolean gatewayContradicts(CallbackVerification verification, Booking booking) {
+        if (verification.verdict() != VNPayQueryService.Verdict.CONTRADICTED) {
+            return false;
+        }
+        long expectedAmount = expectedGatewayAmount(booking);
+        if (verification.verifiedAmount() != expectedAmount) {
+            log.error("Đơn {} đổi giá trị giữa lúc hỏi cổng ({}) và lúc ghi kết quả ({}) — bỏ qua "
+                            + "câu trả lời cũ của cổng",
+                    booking.getId(), verification.verifiedAmount(), expectedAmount);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -703,55 +840,104 @@ public class PaymentService {
     }
 
     /**
-     * Hỏi cổng xem một đơn sắp bị hủy vì quá hạn có thật sự đã bị trừ tiền hay chưa.
+     * Manh mối để hỏi cổng về một đơn PENDING quá hạn: mỗi lần khách bấm sang cổng là một
+     * probe. Đọc trong một transaction chỉ-đọc thật ngắn, XONG rồi mới gọi ra ngoài.
      *
      * Đây là chỗ 680.000đ của booking 48 đã bốc hơi: cleanup hủy đơn PENDING quá hạn mà
      * không hỏi cổng câu nào, nên một khoản đã thu nhưng không có callback về thì vừa không
      * thành vé, vừa không thành yêu cầu hoàn tiền.
+     */
+    @Transactional(readOnly = true)
+    public List<SweepProbe> planSweep(Long bookingId) {
+        // Tắt kiểm chứng thì mọi thứ chạy y như trước khi có lớp này: không probe nào, không
+        // câu hỏi nào, và đơn quá hạn bị hủy thẳng.
+        if (!vnPayQueryService.isEnabled()) {
+            return List.of();
+        }
+        Booking booking = bookingRepository.findById(bookingId).orElse(null);
+        if (booking == null) {
+            return List.of();
+        }
+        long expectedAmount = expectedGatewayAmount(booking);
+        List<SweepProbe> probes = new ArrayList<>();
+        for (Payment attempt : paymentRepository
+                .findByBooking_IdAndPaymentStatus(bookingId, PAYMENT_INITIATED)) {
+            probes.add(new SweepProbe(bookingId, attempt.getId(), attempt.getTransactionRef(),
+                    attempt.getPaymentDate() == null ? null : VNPayUtil.toGatewayDate(attempt.getPaymentDate()),
+                    expectedAmount));
+        }
+        return probes;
+    }
+
+    /**
+     * Hỏi cổng về từng probe. KHÔNG có {@code @Transactional}, và đó là toàn bộ lý do hàm này
+     * tồn tại riêng: mỗi probe tốn tới 9 giây chờ mạng, quãng đó không được phép giữ connection.
+     */
+    public List<SweepAnswer> askGateway(List<SweepProbe> probes) {
+        List<SweepAnswer> answers = new ArrayList<>(probes.size());
+        for (SweepProbe probe : probes) {
+            answers.add(new SweepAnswer(probe, vnPayQueryService.verifyTransaction(
+                    probe.txnRef(), probe.transactionDate(), probe.expectedAmount())));
+        }
+        return answers;
+    }
+
+    /**
+     * Áp những câu trả lời vừa lấy được lên đơn, trong một transaction ngắn.
      *
      * Nguyên tắc: chỉ trả SAFE_TO_CANCEL khi cổng nói rõ là không có khoản nào. "Không hỏi
      * được" KHÔNG phải là "chưa trả tiền" — nó là HOLD, và bên gọi quyết định chờ tới bao giờ.
      */
     @Transactional
-    public SweepResult sweepExpiredBooking(Booking booking) {
-        // Tắt kiểm chứng thì mọi thứ chạy y như trước khi có lớp này, không giữ đơn lại.
-        if (!vnPayQueryService.isEnabled()) {
-            return SweepResult.SAFE_TO_CANCEL;
-        }
-
-        List<Payment> attempts = paymentRepository
-                .findByBooking_IdAndPaymentStatus(booking.getId(), PAYMENT_INITIATED);
-        if (attempts.isEmpty()) {
-            // Khách chưa từng bấm sang cổng (hoặc đơn có từ trước bản sửa này) — không có gì để hỏi.
+    public SweepResult applySweepAnswers(Booking booking, List<SweepAnswer> answers) {
+        if (answers.isEmpty()) {
+            // Khách chưa từng bấm sang cổng, hoặc lớp kiểm chứng đang tắt — không có gì để hỏi.
             return SweepResult.SAFE_TO_CANCEL;
         }
 
         long expectedAmount = expectedGatewayAmount(booking);
         boolean anyUnavailable = false;
-        for (Payment attempt : attempts) {
-            String transactionDate = attempt.getPaymentDate() == null
-                    ? null
-                    : VNPayUtil.toGatewayDate(attempt.getPaymentDate());
-
-            switch (vnPayQueryService.verifyTransaction(
-                    attempt.getTransactionRef(), transactionDate, expectedAmount)) {
+        for (SweepAnswer answer : answers) {
+            SweepProbe probe = answer.probe();
+            if (probe.expectedAmount() != expectedAmount) {
+                // Câu trả lời nói về một con số khác con số đơn đang đòi: không dùng được.
+                // Giữ đơn lại và hỏi lại ở lượt sau, thay vì hủy dựa trên dữ liệu đã cũ.
+                log.error("Đơn {} đổi giá trị giữa lúc hỏi cổng ({}) và lúc ghi kết quả ({}) — bỏ qua "
+                                + "câu trả lời cũ của cổng",
+                        booking.getId(), probe.expectedAmount(), expectedAmount);
+                anyUnavailable = true;
+                continue;
+            }
+            switch (answer.verdict()) {
                 case CONFIRMED -> {
                     log.error("Đơn {} sắp bị hủy vì quá hạn, nhưng cổng VNPay xác nhận giao dịch {} "
                                     + "ĐÃ THU {} — xác nhận đơn thay vì hủy. Đây là một callback mà cổng "
                                     + "chưa bao giờ gửi tới được.",
-                            booking.getId(), attempt.getTransactionRef(), booking.getTotalPrice());
-                    processSuccessfulPayment(booking, recoveredParams(attempt, expectedAmount));
+                            booking.getId(), probe.txnRef(), booking.getTotalPrice());
+                    processSuccessfulPayment(booking, recoveredParams(probe));
                     return SweepResult.RECOVERED;
                 }
-                case CONTRADICTED -> {
-                    // Cổng đã trả lời dứt khoát; đánh dấu để những lượt sau thôi hỏi lại.
-                    attempt.setPaymentStatus(PAYMENT_ABANDONED);
-                    paymentRepository.save(attempt);
-                }
+                case CONTRADICTED -> markAbandoned(probe.paymentId());
                 case UNAVAILABLE -> anyUnavailable = true;
             }
         }
         return anyUnavailable ? SweepResult.HOLD : SweepResult.SAFE_TO_CANCEL;
+    }
+
+    /**
+     * Cổng đã trả lời dứt khoát về lần thử này; đánh dấu để những lượt sau thôi hỏi lại.
+     *
+     * Nạp lại theo mã chứ không dùng lại entity đã đọc ở bước lập kế hoạch: entity đó đã rời
+     * khỏi transaction của nó từ trước quãng gọi mạng, gán vào rồi lưu là ghi đè bằng dữ liệu cũ.
+     */
+    private void markAbandoned(Long paymentId) {
+        if (paymentId == null) {
+            return;
+        }
+        paymentRepository.findById(paymentId).ifPresent(attempt -> {
+            attempt.setPaymentStatus(PAYMENT_ABANDONED);
+            paymentRepository.save(attempt);
+        });
     }
 
     /**
@@ -761,10 +947,10 @@ public class PaymentService {
      * đòi đúng mã giao dịch này, trạng thái thành công VÀ số tiền khớp với giá trị đơn. Ba
      * trường dưới đây là toàn bộ những gì processSuccessfulPayment thật sự đọc.
      */
-    private static Map<String, String> recoveredParams(Payment attempt, long expectedAmount) {
+    private static Map<String, String> recoveredParams(SweepProbe probe) {
         Map<String, String> params = new HashMap<>();
-        params.put("vnp_TxnRef", attempt.getTransactionRef());
-        params.put("vnp_Amount", String.valueOf(expectedAmount));
+        params.put("vnp_TxnRef", probe.txnRef());
+        params.put("vnp_Amount", String.valueOf(probe.expectedAmount()));
         params.put("vnp_ResponseCode", "00");
         return params;
     }
