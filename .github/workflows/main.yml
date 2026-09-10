@@ -34,19 +34,28 @@ jobs:
         distribution: 'temurin'
         cache: maven
         
-    - name: Build Backend with Maven
+    # Chay DU bo test backend, khong con -DskipTests. Truoc day buoc nay bo qua toan
+    # bo test roi chi goi rieng RagRetrievalQualityTest, nen 47 lop test con lai chua
+    # bao gio chay tren CI -- luoi an toan co san ma khong duoc mac. Ca bo chay offline
+    # hoan toan: H2 trong bo nho, profile "test", khong can DB that lan API key.
+    #
+    # Cong chat luong truy hoi RAG nam trong bo nay chu khong con la mot buoc rieng:
+    # RagRetrievalQualityTest do BM25 tren bo 57 cau hoi vang va tu do neu recall@3 < 0.85
+    # hoac MRR < 0.70, nen sua knowledge base hay TextNormalizer ma lam tut thi build do ngay.
+    - name: Build & Test Backend
       run: |
         cd backend/ticket-booking
-        mvn clean package -DskipTests
+        mvn -B clean package
 
-    # Cong chat luong truy hoi RAG. Chay offline hoan toan: JUnit thuan, khong can
-    # Spring context, khong can DB, khong can API key -- chi do nhanh BM25 tren bo
-    # 57 cau hoi vang. Test tu fail neu recall@3 < 0.85 hoac MRR < 0.70, nen sua
-    # knowledge base hay TextNormalizer ma lam tut chat luong thi build do ngay.
-    - name: RAG Retrieval Quality Gate
-      run: |
-        cd backend/ticket-booking
-        mvn test -Dtest=RagRetrievalQualityTest -DfailIfNoTests=false
+    # Bao cao surefire cua lan chay do, de doc duoc test nao hong ma khong phai loi
+    # nguoc log. Chi tai len khi build do nen khong ton dung luong cho lan chay xanh.
+    - name: Upload Backend Test Reports
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: backend-surefire-reports
+        path: backend/ticket-booking/target/surefire-reports/
+        retention-days: 7
 
   # 2. Build & Test Frontend
   build-frontend:
