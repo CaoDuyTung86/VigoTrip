@@ -412,7 +412,7 @@ const AdminTrips = () => {
   }
 
   return (
-    <div className="page-main" style={{ padding: "var(--page-padding)", paddingTop: "calc(var(--header-height) + var(--page-padding))", color: "var(--text-main)" }}>
+    <div className="page-main" style={{ padding: "var(--page-padding)", paddingTop: "calc(var(--header-offset) + var(--page-padding))", color: "var(--text-main)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <div>
           <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: "var(--text-heading)" }}>

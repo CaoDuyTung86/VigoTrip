@@ -63,6 +63,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/trips/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/additional-services/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/trip/**").permitAll()
+                        // Dải tin chạy trên Header: khách chưa đăng nhập cũng phải thấy, và
+                        // nội dung là voucher vốn đã công khai ở trang /uu-dai. Chỉ mở GET —
+                        // ghi tin là việc của /api/admin/** (nhịp hai).
+                        .requestMatchers(HttpMethod.GET, "/api/announcements").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/payment/vnpay-return", "/api/payment/vnpay-ipn").permitAll()
                         // Trang /admin/reviews cho cả provider lẫn admin vào, nên quyền ở đây

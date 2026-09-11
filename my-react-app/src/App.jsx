@@ -29,6 +29,7 @@ import AdminChatbot from "./Page/AdminChatbot";
 import ProviderRefunds from "./Page/ProviderRefunds";
 import AdminPaymentLogs from "./Page/AdminPaymentLogs";
 import ProviderCheckIn from "./Page/ProviderCheckIn";
+import AnnouncementTicker from "./components/AnnouncementTicker";
 import Chatbot from "./components/Chatbot";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -59,6 +60,10 @@ function AppWrapper() {
   return (
     <>
       {showHeader && <Header />}
+      {/* Đi kèm Header chứ không đứng riêng: dải tin chừa chỗ bằng --header-offset, mà
+          những trang ẩn Header thì không chừa chỗ đó — để nó tự hiện ở đấy là đè lên
+          nội dung. */}
+      {showHeader && <AnnouncementTicker />}
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<Home />} />

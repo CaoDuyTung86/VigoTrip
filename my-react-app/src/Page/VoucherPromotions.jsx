@@ -29,6 +29,9 @@ const REASON_KEY_BY_CODE = {
   MIN_ORDER: "vchReasonMinOrder",
 };
 
+/** Id neo để cuộn tới đúng thẻ khi vào trang bằng /uu-dai?code=... */
+const voucherAnchorId = (code) => `voucher-${String(code || "").toUpperCase()}`;
+
 const cardBaseStyle = {
   borderRadius: 14,
   border: "1px solid var(--border-light)",
@@ -41,7 +44,7 @@ const cardBaseStyle = {
   position: "relative",
 };
 
-function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy, t, formatDate, formatMoney }) {
+function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy, t, formatDate, formatMoney, highlighted }) {
   const remaining = voucher.maxUsage != null ? Math.max(voucher.maxUsage - (voucher.currentUsage || 0), 0) : null;
 
   const reasonKey = REASON_KEY_BY_CODE[voucher.unavailableReasonCode];
@@ -53,7 +56,18 @@ function VoucherCard({ voucher, saved, isAuthenticated, onToggleSave, onCopy, t,
     : voucher.unavailableReason;
 
   return (
-    <div style={{ ...cardBaseStyle, opacity: voucher.available ? 1 : 0.65 }}>
+    <div
+      id={voucherAnchorId(voucher.code)}
+      style={{
+        ...cardBaseStyle,
+        opacity: voucher.available ? 1 : 0.65,
+        // Đến từ dải tin chạy trên Header (/uu-dai?code=...): phải chỉ rõ mã nào, nếu không
+        // người dùng bấm một mẩu tin cụ thể rồi rơi vào một trang đầy thẻ giống nhau.
+        ...(highlighted
+          ? { borderColor: "var(--primary)", boxShadow: "0 0 0 2px var(--primary)", scrollMarginTop: "calc(var(--header-offset) + 16px)" }
+          : null),
+      }}
+    >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div
@@ -168,6 +182,8 @@ const VoucherPromotions = () => {
 
   const providerId = searchParams.get("providerId") || null;
   const orderAmount = searchParams.get("orderAmount") || null;
+  /** Mã cần làm nổi, do dải tin chạy trên Header gửi sang. Rỗng khi vào trang theo lối thường. */
+  const highlightCode = (searchParams.get("code") || "").trim().toUpperCase();
 
   const [vouchers, setVouchers] = useState([]);
   const [savedIds, setSavedIds] = useState(new Set());
@@ -281,12 +297,33 @@ const VoucherPromotions = () => {
 
   const cardProps = { t, formatDate, formatMoney, isAuthenticated, onToggleSave: handleToggleSave, onCopy: handleCopy };
 
+  // Cuộn tới thẻ được chỉ định sau khi danh sách đã dựng xong. Mã không còn hiệu lực (hoặc
+  // bị gõ tay sai) thì không có gì để cuộn tới — im lặng bỏ qua, trang vẫn dùng bình thường.
+  //
+  // block "nearest" chứ không phải "center": trang ưu đãi thường ngắn hơn một màn hình rưỡi,
+  // mà "center" thì đòi cuộn nhiều hơn số pixel trang có, nên trình duyệt cuộn kịch đáy và
+  // đẩy chính cái thẻ vừa chỉ tới chui lên sau header. "nearest" chỉ cuộn vừa đủ để thẻ lọt
+  // vào tầm nhìn, và không cuộn gì cả nếu nó vốn đã nằm trong màn hình.
+  //
+  // Chờ một khung hình vì ngay lúc loading tắt, lưới thẻ chưa xong bố cục — cuộn ở thời
+  // điểm đó là cuộn theo một toạ độ sắp bị thay.
+  useEffect(() => {
+    if (!highlightCode || loading) return undefined;
+    const frame = requestAnimationFrame(() => {
+      const el = document.getElementById(voucherAnchorId(highlightCode));
+      if (!el) return;
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "nearest" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [highlightCode, loading, vouchers]);
+
   return (
     <div
       className="page-main"
       style={{
         padding: "var(--page-padding)",
-        paddingTop: "calc(var(--header-height) + var(--page-padding))",
+        paddingTop: "calc(var(--header-offset) + var(--page-padding))",
         color: "var(--text-main)",
         maxWidth: 1200,
         margin: "0 auto",
@@ -318,7 +355,7 @@ const VoucherPromotions = () => {
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, marginBottom: 32 }}>
               {availableVouchers.map((v) => (
-                <VoucherCard key={v.id} voucher={v} saved={savedIds.has(v.id)} {...cardProps} />
+                <VoucherCard key={v.id} voucher={v} saved={savedIds.has(v.id)} highlighted={highlightCode !== "" && String(v.code).toUpperCase() === highlightCode} {...cardProps} />
               ))}
             </div>
           )}
@@ -330,7 +367,7 @@ const VoucherPromotions = () => {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
                 {unavailableVouchers.map((v) => (
-                  <VoucherCard key={v.id} voucher={v} saved={savedIds.has(v.id)} {...cardProps} />
+                  <VoucherCard key={v.id} voucher={v} saved={savedIds.has(v.id)} highlighted={highlightCode !== "" && String(v.code).toUpperCase() === highlightCode} {...cardProps} />
                 ))}
               </div>
             </>

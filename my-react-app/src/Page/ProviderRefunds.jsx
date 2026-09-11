@@ -96,7 +96,7 @@ const ProviderRefunds = () => {
           hai header position:fixed chồng khít lên nhau — từ khi có ngăn kéo mobile thành
           hai hamburger, hai ngăn kéo trong DOM. Prop setIsSidebarOpen cũng chưa bao giờ
           có tác dụng: Header không nhận prop nào. */}
-      <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "var(--header-height)" }}>
+      <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "var(--header-offset)" }}>
         <Sidebar isOpen={isSidebarOpen} />
         <div className={`page-main ${isSidebarOpen ? "with-sidebar" : ""}`} style={{ padding: "30px", flex: 1, overflowY: "auto" }}>
           <div style={{ maxWidth: 1200, margin: "0 auto" }}>

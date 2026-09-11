@@ -96,7 +96,7 @@ const AdminPaymentLogs = () => {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "var(--bg-main)", display: "flex", flexDirection: "column" }}>
-      <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "var(--header-height)" }}>
+      <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "var(--header-offset)" }}>
         <Sidebar isOpen={true} />
         <div className="page-main with-sidebar" style={{ padding: 30, flex: 1, overflowY: "auto" }}>
           <div style={{ maxWidth: 1100, margin: "0 auto" }}>

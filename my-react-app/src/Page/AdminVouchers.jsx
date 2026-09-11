@@ -401,7 +401,7 @@ const AdminVouchers = () => {
       className="page-main"
       style={{
         padding: "var(--page-padding)",
-        paddingTop: "calc(var(--header-height) + var(--page-padding))",
+        paddingTop: "calc(var(--header-offset) + var(--page-padding))",
         color: "var(--text-main)",
         maxWidth: 1300,
         margin: "0 auto",

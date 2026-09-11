@@ -61,4 +61,31 @@ export const formatTripDateTime = (isoString, langCode = VI) => {
   }
 };
 
+/**
+ * Chỉ phần ngày, không giờ — dùng cho những chỗ nói về hạn dùng chứ không nói về một mốc
+ * khởi hành (hạn voucher trên dải tin chạy, chẳng hạn). Quy ước viết tháng giống hệt
+ * {@link formatTripDateTime}: tiếng Việt dùng số, còn lại dùng chữ, để cùng một ngày không
+ * hiện hai kiểu ở hai chỗ trên cùng một màn hình.
+ *
+ * @param {string|null|undefined} isoString ngày backend trả về
+ * @param {string} langCode mã ngôn ngữ đang hiển thị
+ * @returns {string} "17/09/2026" (vi) hoặc "17 Sep 2026" (mọi ngôn ngữ khác)
+ */
+export const formatDateShort = (isoString, langCode = VI) => {
+  if (!isoString) return "";
+  try {
+    const d = new Date(isoString);
+    if (Number.isNaN(d.getTime())) return String(isoString).slice(0, 10);
+
+    const day = pad2(d.getDate());
+    const year = d.getFullYear();
+    if (normalize(langCode) === VI) {
+      return `${day}/${pad2(d.getMonth() + 1)}/${year}`;
+    }
+    return `${day} ${INTL_MONTH.format(d)} ${year}`;
+  } catch {
+    return String(isoString).slice(0, 10);
+  }
+};
+
 export default formatTripDateTime;

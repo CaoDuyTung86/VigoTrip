@@ -26,10 +26,10 @@ const Sidebar = ({ isOpen }) => {
         // Trước đây cắm cứng 70px. Header nay cao 64px ở desktop và 56px + vùng
         // tai thỏ ở mobile, nên phải bám biến — không thì sidebar hoặc hụt hoặc
         // chui xuống dưới header trên iPhone có notch.
-        top: "var(--header-height)",
+        top: "var(--header-offset)",
         left: 0,
         width: isOpen ? "170px" : "0",
-        height: "calc(100vh - var(--header-height))",
+        height: "calc(100vh - var(--header-offset))",
         backgroundColor: "var(--bg-card)",
         boxShadow: isOpen ? "2px 0 10px rgba(0,0,0,0.05)" : "none",
         transition: "width 0.3s",

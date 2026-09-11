@@ -1661,10 +1661,10 @@ const AirlineTicketsDetail = () => {
 
   return (
     <div style={{
-      marginTop: "var(--header-height)",
+      marginTop: "var(--header-offset)",
       padding: "20px 30px",
       backgroundColor: "var(--bg-hover)",
-      minHeight: "calc(100vh - var(--header-height))",
+      minHeight: "calc(100vh - var(--header-offset))",
     }}>
       {/* Header Tabs */}
       <div style={{

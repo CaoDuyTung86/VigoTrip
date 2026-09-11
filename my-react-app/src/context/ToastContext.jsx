@@ -119,7 +119,7 @@ export const ToastProvider = ({ children }) => {
       <style>{`
         .vg-toast-stack {
           position: fixed;
-          top: calc(var(--header-height, 64px) + 16px);
+          top: calc(var(--header-offset, 64px) + 16px);
           right: 16px;
           z-index: 10001;
           display: flex;
@@ -227,7 +227,7 @@ export const ToastProvider = ({ children }) => {
             left: 12px;
             right: 12px;
             width: auto;
-            top: calc(var(--header-height, 64px) + 10px);
+            top: calc(var(--header-offset, 64px) + 10px);
           }
         }
 

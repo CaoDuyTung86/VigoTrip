@@ -216,7 +216,7 @@ const AdminRevenue = () => {
         .bi-table tbody tr:hover { background: var(--bg-hover); }
       `}</style>
 
-      <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "var(--header-height)" }}>
+      <div className="page-with-sidebar" style={{ display: "flex", flex: 1, marginTop: "var(--header-offset)" }}>
         <Sidebar isOpen={isSidebarOpen} />
         <div className={`page-main ${isSidebarOpen ? "with-sidebar" : ""}`} style={{ padding: "28px", flex: 1, overflowY: "auto" }}>
           <div style={{ maxWidth: 1240, margin: "0 auto" }}>

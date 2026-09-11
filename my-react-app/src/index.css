@@ -11,6 +11,15 @@ html {
 /* ===== THEME CSS VARIABLES ===== */
 :root {
   --header-height: 64px;
+  /* Chiều cao dải tin chạy khi CÓ tin. Biến riêng để media query dưới 768px hạ nó xuống
+     mà AnnouncementTicker không phải biết gì về điểm ngắt. */
+  --ticker-height-base: 36px;
+  /* Chiều cao dải tin ĐANG chiếm chỗ. Mặc định 0; AnnouncementTicker đặt lại thành
+     var(--ticker-height-base) trên :root khi có tin và gỡ đi khi không có. */
+  --ticker-height: 0px;
+  /* Khoảng phải chừa ra ở đỉnh trang. Mọi nơi né header đọc biến NÀY, không đọc thẳng
+     --header-height nữa — nếu không, bật dải tin lên là nó đè lên dòng đầu của mọi trang. */
+  --header-offset: calc(var(--header-height) + var(--ticker-height));
   --sidebar-width: 200px;
   --content-max-width: 1200px;
   --gap-unit: clamp(12px, 2vw, 24px);
@@ -697,7 +706,7 @@ body:not(.dark) .search-widget-card {
 
 /* ===== HOME SECTIONS ===== */
 .home-wrap {
-  margin-top: var(--header-height);
+  margin-top: var(--header-offset);
   background: var(--bg-main);
   position: relative;
 }
@@ -873,9 +882,9 @@ body.dark .home-wrap {
 /* ===== SUB-PAGES (airline, bus, train...) ===== */
 .page-with-sidebar {
   display: flex;
-  margin-top: var(--header-height);
+  margin-top: var(--header-offset);
   position: relative;
-  min-height: calc(100vh - var(--header-height));
+  min-height: calc(100vh - var(--header-offset));
 }
 .page-main {
   flex: 1;
@@ -1135,7 +1144,7 @@ body:not(.dark) .chatbot-messages-container::-webkit-scrollbar-thumb:hover {
    nhìn thấy thật. Đặt sau bản 100vh ở trên nên trình duyệt cũ vẫn có fallback. */
 @supports (height: 100dvh) {
   body { min-height: 100dvh; }
-  .page-with-sidebar { min-height: calc(100dvh - var(--header-height)); }
+  .page-with-sidebar { min-height: calc(100dvh - var(--header-offset)); }
 }
 
 /* ===== 1. HEADER TRÊN MOBILE ===== */
@@ -1143,6 +1152,7 @@ body:not(.dark) .chatbot-messages-container::-webkit-scrollbar-thumb:hover {
   /* Header thấp hơn + cộng thêm tai thỏ. Mọi chỗ chừa chỗ cho header đều đọc
      biến này (.home-wrap, .page-with-sidebar) nên chỉ cần sửa một nơi. */
   :root { --header-height: calc(56px + env(safe-area-inset-top, 0px)); }
+  :root { --ticker-height-base: 32px; }
 
   .app-header {
     padding: var(--safe-top) calc(12px + var(--safe-right)) 0 calc(12px + var(--safe-left));
@@ -1581,7 +1591,7 @@ body:not(.dark) .chatbot-messages-container::-webkit-scrollbar-thumb:hover {
    chỉnh phần chừa header và lề. */
 @media (max-width: 768px) {
   .chk-main {
-    padding: calc(var(--header-height) + 16px) 14px calc(28px + var(--safe-bottom)) !important;
+    padding: calc(var(--header-offset) + 16px) 14px calc(28px + var(--safe-bottom)) !important;
   }
   .chk-head { padding: 14px 16px !important; border-radius: 18px !important; }
   .chk-head-text { min-width: 0 !important; }
@@ -1624,4 +1634,120 @@ body:not(.dark) .chatbot-messages-container::-webkit-scrollbar-thumb:hover {
 }
 @media (max-width: 480px) {
   .auth-card { border-radius: 18px; }
+}
+
+/* ===== 15. DẢI TIN CHẠY (AnnouncementTicker) =====
+   Nằm ngay dưới header và cũng fixed, nên phần chỗ nó chiếm được công bố qua
+   --ticker-height (do component đặt trên :root) và mọi trang né qua --header-offset.
+   z-index thấp hơn header một bậc: dropdown ngôn ngữ/tài khoản phải đổ đè lên dải tin. */
+.ann-ticker {
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  width: 100%;
+  height: var(--ticker-height-base);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 calc(8px + var(--safe-right, 0px)) 0 calc(12px + var(--safe-left, 0px));
+  background: linear-gradient(90deg, rgba(0, 113, 235, 0.10), rgba(0, 180, 216, 0.08));
+  border-bottom: 1px solid var(--border-light);
+  overflow: hidden;
+  font-size: 13px;
+}
+body.dark .ann-ticker {
+  background: linear-gradient(90deg, rgba(0, 113, 235, 0.22), rgba(139, 92, 246, 0.16));
+}
+
+.ann-badge {
+  display: flex;
+  align-items: center;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.ann-viewport {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Hai bản sao nội dung đặt cạnh nhau; chạy hết đúng một nửa là khung hình trùng khít với
+   lúc bắt đầu, nên vòng lặp không hở khoảng trắng dù nội dung dài ngắn thế nào.
+   animation-duration do JS đặt theo bề rộng thật để tốc độ đọc không đổi. */
+.ann-track {
+  display: flex;
+  width: max-content;
+  animation-name: ann-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes ann-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* Bắt buộc theo yêu cầu của tính năng: rê chuột hoặc đưa tiêu điểm bàn phím vào là dừng,
+   để còn đọc và còn bấm trúng. Làm bằng CSS thay vì state React — chuột rời khỏi cửa sổ
+   giữa chừng vẫn dừng/chạy đúng, không phụ thuộc sự kiện nào bị bỏ lỡ. */
+.ann-ticker:hover .ann-track,
+.ann-ticker:focus-within .ann-track {
+  animation-play-state: paused;
+}
+
+.ann-group {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  padding-right: 30px;
+}
+
+/* Bản dự phòng cho người bật "giảm chuyển động": danh sách tĩnh, cuộn ngang được. */
+.ann-static {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ann-static::-webkit-scrollbar { display: none; }
+
+.ann-item {
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--text-main);
+  font-weight: 600;
+  letter-spacing: 0.1px;
+}
+.ann-item:hover { text-decoration: underline; }
+.ann-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.ann-close {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.ann-close:hover { background: var(--bg-hover); color: var(--text-main); }
+
+/* Chốt chặn thứ hai cho prefers-reduced-motion: component đã đổi sang danh sách tĩnh bằng
+   matchMedia, nhưng nếu JS đó không chạy (test, môi trường không có matchMedia) thì luật
+   này vẫn giữ cho chữ đứng yên. */
+@media (prefers-reduced-motion: reduce) {
+  .ann-track { animation: none; }
 }

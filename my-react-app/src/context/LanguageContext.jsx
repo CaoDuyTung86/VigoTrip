@@ -1376,6 +1376,16 @@ const translations = {
     vchReasonProviderOnly: "Chỉ áp dụng cho hãng \"{provider}\".",
     vchReasonMinOrder: "Đơn hàng tối thiểu {amount} để áp dụng mã này.",
 
+    // ==== Dải tin chạy trên Header (AnnouncementTicker) ====
+    // Mỗi mảnh là một khoá riêng và được nối bằng " · " lúc hiển thị, thay vì một câu dài
+    // có chỗ trống lồng nhau — dịch giả không phải giữ trật tự từ của tiếng Việt.
+    annLabel: "Bảng tin",
+    annVoucher: "Mã {code} — giảm {percent}%",
+    annVoucherMinOrder: "đơn từ {amount}",
+    annVoucherProvider: "áp dụng cho {provider}",
+    annVoucherUntil: "đến hết {date}",
+    annDismiss: "Ẩn bảng tin",
+
     // ==== Quản lý voucher (trang quản trị) ====
     admVchTitle: "Quản lý Voucher",
     admVchTitleProvider: "Voucher đang hoạt động",
@@ -2865,6 +2875,14 @@ const translations = {
     vchReasonSoldOut: "This code has run out of uses.",
     vchReasonProviderOnly: "Only valid with {provider}.",
     vchReasonMinOrder: "Requires a minimum order of {amount}.",
+
+    // ==== Header announcement ticker ====
+    annLabel: "Announcements",
+    annVoucher: "Code {code} — {percent}% off",
+    annVoucherMinOrder: "orders from {amount}",
+    annVoucherProvider: "valid with {provider}",
+    annVoucherUntil: "until {date}",
+    annDismiss: "Hide announcements",
 
     // ==== Voucher management (admin page) ====
     admVchTitle: "Voucher Management",

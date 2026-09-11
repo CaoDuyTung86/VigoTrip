@@ -19,12 +19,12 @@ const LAST_UPDATED = "05/09/2026";
 
 // Header của app là position:fixed cao 64px — dùng padding cố định 40px thì link
 // "← VigoTrip" chui xuống dưới nó và biến mất. Các trang khác cũng chừa chỗ theo
-// biến --header-height này.
+// biến --header-offset này (đã gồm cả dải tin chạy khi nó đang hiện).
 const LegalLayout = ({ title, children }) => (
   <div style={{
     background: "var(--bg-main)",
     minHeight: "100vh",
-    padding: "calc(var(--header-height, 64px) + 28px) 20px 80px",
+    padding: "calc(var(--header-offset, 64px) + 28px) 20px 80px",
   }}>
     <div style={{ maxWidth: "820px", margin: "0 auto" }}>
       <Link

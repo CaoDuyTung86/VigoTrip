@@ -296,8 +296,16 @@ public class VoucherService {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hãng phương tiện với ID: " + providerId));
     }
 
+    /**
+     * Xóa luôn cache "announcements": dải tin chạy trên Header lấy nội dung từ chính danh
+     * sách voucher đang hiệu lực, nên Admin thêm/sửa/tắt/xóa một mã là dải tin phải đổi
+     * theo ngay. Bốn thao tác quản trị ở dưới đều xóa; hai chỗ chỉ đổi số lượt dùng
+     * (useVoucher/refundVoucherUsage) thì không — một mã cạn lượt chậm nhất 5 phút sau sẽ
+     * tự rụng khỏi dải tin theo TTL, đổi lại là mỗi lượt đặt vé không kéo theo một lượt
+     * tính lại dải tin cho toàn hệ thống.
+     */
     @Transactional
-    @CacheEvict(value = "vouchers", allEntries = true)
+    @CacheEvict(value = {"vouchers", "announcements"}, allEntries = true)
     public Voucher createVoucher(Voucher data, Long providerId) {
         if (data.getCode() == null || data.getCode().isBlank()) {
             throw new IllegalArgumentException("Mã voucher không được để trống");
@@ -319,7 +327,7 @@ public class VoucherService {
     }
 
     @Transactional
-    @CacheEvict(value = "vouchers", allEntries = true)
+    @CacheEvict(value = {"vouchers", "announcements"}, allEntries = true)
     public Voucher updateVoucher(Long id, Voucher data, Long providerId) {
         Voucher voucher = voucherRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy voucher với ID: " + id));
@@ -356,7 +364,7 @@ public class VoucherService {
      * vẫn còn nên các đơn cũ tra ngược lại được và admin bật lại lúc nào cũng được.
      */
     @Transactional
-    @CacheEvict(value = "vouchers", allEntries = true)
+    @CacheEvict(value = {"vouchers", "announcements"}, allEntries = true)
     public Voucher setVoucherActive(Long id, boolean active) {
         Voucher voucher = voucherRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy voucher với ID: " + id));
@@ -390,7 +398,7 @@ public class VoucherService {
      *    → phải tự kiểm tra ở đây.
      */
     @Transactional
-    @CacheEvict(value = "vouchers", allEntries = true)
+    @CacheEvict(value = {"vouchers", "announcements"}, allEntries = true)
     public void deleteVoucher(Long id) {
         Voucher voucher = voucherRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy voucher với ID: " + id));

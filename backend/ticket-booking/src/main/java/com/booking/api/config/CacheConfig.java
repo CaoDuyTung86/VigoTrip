@@ -33,6 +33,15 @@ public class CacheConfig {
                 .maximumSize(100)
                 .build());
                 
+        // Dải tin chạy: endpoint công khai, client gọi lại mỗi lần cửa sổ được focus. TTL ngắn
+        // hơn "vouchers" vì tin phải tự rụng khi voucher hết hạn, mà việc hết hạn thì không
+        // có thao tác nào để bám vào mà xóa cache. Kích thước 4 chứ không phải 100: cache này
+        // chỉ có đúng một khóa (phương thức không tham số).
+        cacheManager.registerCustomCache("announcements", Caffeine.newBuilder()
+                .expireAfterWrite(5, TimeUnit.MINUTES)
+                .maximumSize(4)
+                .build());
+
         cacheManager.registerCustomCache("routes", Caffeine.newBuilder()
                 .expireAfterWrite(30, TimeUnit.MINUTES)
                 .maximumSize(100)
