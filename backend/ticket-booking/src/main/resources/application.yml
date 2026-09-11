@@ -70,7 +70,31 @@ server:
 # Danh sách đầy đủ và cách lấy từng giá trị: xem .env.example.
 jwt:
   secret: ${JWT_SECRET:}
-  expiration: 86400000
+  # Hạn của ACCESS TOKEN, tính bằng mili-giây. 15 phút, trước đây là 24 giờ.
+  #
+  # Con số này chính là "cửa sổ thiệt hại" của một token bị lộ, vì JWT không thu hồi được:
+  # đã ký ra là có hiệu lực tới đúng giây hết hạn, bấm đăng xuất cũng không rút lại được.
+  # 24 giờ nghĩa là một token rơi vào tay người khác (qua XSS, qua log, qua máy dùng chung)
+  # mở được tài khoản suốt một ngày. 15 phút thì không.
+  #
+  # Rút ngắn được là nhờ có refresh token bên dưới gánh phần "giữ người dùng đăng nhập lâu";
+  # đừng hạ con số này thêm nữa mà không đo lại: mỗi lần hết hạn là một vòng /refresh, và
+  # trên Render free tier thì một request thừa lúc container vừa ngủ dậy là 30-60 giây chờ.
+  expiration: ${JWT_EXPIRATION:900000}
+
+  # REFRESH TOKEN — chuỗi ngẫu nhiên 256 bit, nằm trong cookie HttpOnly, lưu dưới dạng
+  # SHA-256 trong bảng phien_dang_nhap. Xem RefreshToken.java và docs/BAO_MAT_XAC_THUC.md.
+  refresh:
+    # Không hoạt động bao nhiêu ngày thì phiên chết. Mỗi lần /refresh gia hạn lại từ đầu.
+    idle-days: ${JWT_REFRESH_IDLE_DAYS:14}
+    # Trần cứng tính từ lúc đăng nhập, bất kể hoạt động dày tới đâu. Không có nó thì một
+    # phiên bị chiếm mà kẻ chiếm siêng gọi /refresh sẽ sống vĩnh viễn.
+    absolute-days: ${JWT_REFRESH_ABSOLUTE_DAYS:60}
+    # Cửa sổ tha thứ cho việc gọi /refresh trùng nhau (nhiều tab, retry sau khi mất mạng).
+    # 0 = nghiêm ngặt tuyệt đối. Đọc handleAlreadyRevoked() trước khi đổi — đây là đánh đổi
+    # giữa "đăng xuất oan người thật" và "bỏ lọt một cửa sổ vài giây cho kẻ trộm".
+    reuse-grace-seconds: ${JWT_REFRESH_REUSE_GRACE_SECONDS:10}
+    cleanup-cron: ${JWT_REFRESH_CLEANUP_CRON:0 5 4 * * *}
 
 # VNPay Sandbox. tmn-code/hash-secret lấy ở sandbox.vnpayment.vn, KHÔNG hardcode:
 # hash-secret là thứ duy nhất chứng minh một callback thật sự đến từ cổng thanh toán.
@@ -105,7 +129,8 @@ app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
   # Các origin frontend được phép nhận redirect sau khi VNPay trả kết quả.
   # Cổng chỉ gọi ngược về backend, nên backend là bên quyết định đưa khách về đâu; trả về
-  # sai tên miền là khách mất token trong localStorage và bị đá ra khỏi phiên đăng nhập.
+  # sai tên miền là khách rơi vào một phiên khác (cookie đăng nhập gắn theo tên miền) và bị
+  # đá ra khỏi phiên đang dùng.
   # Đây là allowlist chứ không phải giá trị tin cậy tuyệt đối: origin do client gửi lên,
   # không lọc thì thành open redirect. Thêm tên miền mới vào đây khi đổi chỗ deploy.
   allowed-frontend-origins: ${ALLOWED_FRONTEND_ORIGINS:https://vigotrip.vercel.app,https://datxe.duckdns.org,http://localhost:5173}
@@ -140,6 +165,18 @@ app:
   # Đặt CAO hơn thực tế sẽ cho phép client giả mạo IP để né rate limit — khi không
   # chắc, cứ để 0 (nhiều client dùng chung hạn mức, phiền nhưng an toàn).
   trusted-proxy-count: ${APP_TRUSTED_PROXY_COUNT:0}
+  auth:
+    refresh-cookie:
+      # auto = suy ra từ scheme thật của request (X-Forwarded-Proto khi đứng sau proxy).
+      # Chỉ ép true/false khi biết chắc mình đang làm gì: ép true trên môi trường http sẽ
+      # khiến trình duyệt lặng lẽ vứt cookie đi, không lỗi, không cảnh báo — chỉ là đăng
+      # nhập xong tải lại trang là mất phiên.
+      secure: ${AUTH_REFRESH_COOKIE_SECURE:auto}
+      # Lax đúng cho kiến trúc hiện tại vì frontend gọi /api qua rewrite của Vercel (và qua
+      # Nginx ở bản AWS) nên với trình duyệt là cùng một site. Đổi sang None CHỈ khi frontend
+      # gọi thẳng sang tên miền backend — và lúc đó lá chắn CSRF này biến mất, phải bù bằng
+      # cơ chế khác. Xem RefreshCookieFactory.
+      same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
   # Cho phép khởi động dù một bí mật đang dùng nằm trong danh sách đã lộ (xem
   # StartupSecretsValidator). Chỉ đặt true khi CHƯA xoay được khoá và chấp nhận rủi ro —
   # mỗi lần khởi động sẽ in một khối cảnh báo. Xoay khoá xong thì bỏ biến này.

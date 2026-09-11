@@ -59,7 +59,7 @@ public class PaymentController {
         String result = returnResult(params, httpRequest);
 
         // Không dùng thẳng frontendUrl: khách phải quay về đúng tên miền họ đang mở,
-        // nếu không token trong localStorage của tên miền kia coi như không tồn tại.
+        // nếu không phiên đăng nhập của tên miền kia coi như không tồn tại.
         String redirectUrl = paymentService.resolveReturnFrontendUrl(params) + "/my-bookings";
         if ("SUCCESS".equals(result)) {
             redirectUrl += "?payment=success";

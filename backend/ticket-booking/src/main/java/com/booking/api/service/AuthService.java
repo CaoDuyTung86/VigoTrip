@@ -1,6 +1,7 @@
 package com.booking.api.service;
 
 import com.booking.api.dto.AuthResponse;
+import com.booking.api.dto.AuthResult;
 import com.booking.api.dto.ForgotPasswordRequest;
 import com.booking.api.dto.GoogleLoginRequest;
 import com.booking.api.dto.LoginRequest;
@@ -10,6 +11,7 @@ import com.booking.api.entity.User;
 import com.booking.api.exception.DuplicateResourceException;
 import com.booking.api.exception.AccountLockedException;
 import com.booking.api.exception.EmailNotVerifiedException;
+import com.booking.api.exception.InvalidRefreshTokenException;
 import com.booking.api.repository.UserRepository;
 import com.booking.api.security.GoogleTokenVerifier;
 import com.booking.api.security.JwtService;
@@ -39,6 +41,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final EmailService emailService;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final RefreshTokenService refreshTokenService;
     private static final SecureRandom secureRandom = new SecureRandom();
 
     @Transactional
@@ -84,7 +87,7 @@ public class AuthService {
      * mật khẩu luôn nhận đúng một câu "Email hoặc mật khẩu không đúng", bất kể email có
      * tồn tại hay không; còn chủ tài khoản thật thì được dẫn thẳng tới màn nhập mã xác thực.
      */
-    public AuthResponse login(LoginRequest request) {
+    public AuthResult login(LoginRequest request, String userAgent) {
         User user = userRepository.findByEmail(normalizeEmail(request.getEmail()))
                 .orElse(null);
 
@@ -117,11 +120,11 @@ public class AuthService {
             throw new BadCredentialsException("Email hoặc mật khẩu không đúng");
         }
 
-        return generateAuthResponse(user);
+        return openSession(user, userAgent);
     }
 
     @Transactional
-    public AuthResponse verifyEmail(String email, String code) {
+    public AuthResult verifyEmail(String email, String code, String userAgent) {
         // Ba nhánh hỏng dưới đây (không có user / đã kích hoạt / sai mã) cố tình dùng CHUNG
         // một câu trả lời. Tách ra thì chỉ cần gửi một mã bừa là biết được email nào đã đăng ký
         // và email nào đã kích hoạt — đúng thứ mà /resend-verification đã cẩn thận giấu đi.
@@ -142,7 +145,7 @@ public class AuthService {
         user.setVerificationCode(null);
         userRepository.save(user);
 
-        return generateAuthResponse(user);
+        return openSession(user, userAgent);
     }
 
     /**
@@ -229,10 +232,19 @@ public class AuthService {
         user.setResetToken(null);
         user.setResetTokenExpiry(null);
         userRepository.save(user);
+
+        // Đổi mật khẩu KHÔNG tự nó đuổi được kẻ đang cầm phiên cũ ra ngoài: refresh token
+        // là một chuỗi ngẫu nhiên độc lập, nó không biết gì về mật khẩu. Mà người bấm
+        // "Quên mật khẩu" thì phần lớn là đang nghi tài khoản bị chiếm — để nguyên các phiên
+        // cũ ở đây nghĩa là kẻ chiếm vẫn ở trong nhà sau khi nạn nhân vừa đổi ổ khoá.
+        int revoked = refreshTokenService.revokeAllSessions(user, RefreshTokenService.REASON_PASSWORD_CHANGED);
+        if (revoked > 0) {
+            log.info("[ResetPassword] Da thu hoi {} phien dang nhap sau khi doi mat khau.", revoked);
+        }
     }
 
     @Transactional
-    public AuthResponse googleLogin(GoogleLoginRequest request) {
+    public AuthResult googleLogin(GoogleLoginRequest request, String userAgent) {
         // Bước 1: Verify Google ID Token phía server — không tin tưởng bất kỳ data nào từ client
         GoogleIdToken.Payload payload = googleTokenVerifier.verify(request.getIdToken());
         if (payload == null) {
@@ -269,7 +281,41 @@ public class AuthService {
         }
 
         log.info("[GoogleLogin] Đăng nhập thành công: {}", normalizedEmail);
-        return generateAuthResponse(user);
+        return openSession(user, userAgent);
+    }
+
+    /**
+     * Đổi refresh token trong cookie lấy một access token mới.
+     *
+     * Kiểm enabled lại ở đây chứ không tin vào việc token còn hạn: tài khoản bị quản trị
+     * viên khóa phải mất quyền NGAY, kể cả khi phiên dài hạn của họ còn sống hàng tuần.
+     * Đây là chốt chặn song song với cùng một phép kiểm trong JwtAuthFilter — một cái chặn
+     * việc dùng tiếp access token đang cầm, cái này chặn việc xin cái mới.
+     */
+    @Transactional
+    public AuthResult refreshSession(String rawRefreshToken, String userAgent) {
+        if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
+            throw new InvalidRefreshTokenException("Không có phiên đăng nhập.");
+        }
+
+        RefreshTokenService.RotationResult rotation = refreshTokenService.rotate(rawRefreshToken, userAgent);
+        User user = rotation.user();
+
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            refreshTokenService.revokeAllSessions(user, RefreshTokenService.REASON_LOGOUT);
+            throw new InvalidRefreshTokenException("Tài khoản không còn hoạt động. Vui lòng liên hệ hỗ trợ.");
+        }
+
+        return new AuthResult(
+                generateAuthResponse(user),
+                rotation.token().rawToken(),
+                rotation.token().ttl());
+    }
+
+    /** Cấp đồng thời access token (vào body) và refresh token (vào cookie). */
+    private AuthResult openSession(User user, String userAgent) {
+        RefreshTokenService.IssuedToken refresh = refreshTokenService.issue(user, userAgent);
+        return new AuthResult(generateAuthResponse(user), refresh.rawToken(), refresh.ttl());
     }
 
     private User createGoogleUser(String email, String fullName) {

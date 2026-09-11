@@ -27,8 +27,11 @@ import static org.mockito.Mockito.when;
  *
  * JwtService.isTokenValid chỉ so khớp email trong token với UserDetails và kiểm tra hạn,
  * nên nếu bộ lọc không tự hỏi thêm isEnabled() thì người bị khóa vẫn gọi API bình thường
- * cho tới khi token hết hạn — tức 24 giờ theo jwt.expiration. Đăng nhập mới bị chặn, còn
+ * cho tới khi token hết hạn (jwt.expiration, khi đó là 24 giờ). Đăng nhập mới bị chặn, còn
  * token đang cầm thì không, và đó đúng là kiểu lỗ hổng không ai nhìn thấy từ giao diện.
+ *
+ * Hạn access token nay là 15 phút nên cửa sổ đã hẹp đi nhiều, nhưng bài kiểm tra này vẫn
+ * giữ nguyên giá trị: nó bảo đảm cửa sổ bằng 0 chứ không phải "chỉ 15 phút".
  */
 class JwtAuthFilterTest {
 

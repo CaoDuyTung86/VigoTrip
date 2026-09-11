@@ -4,6 +4,7 @@ import Sidebar from "../components/Sidebar";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
+import { useAuth } from "../context/AuthContext";
 import { User, Lock, Award, Settings, Info, ShieldCheck, AlertTriangle, CheckCircle } from "lucide-react";
 
 const API = "";
@@ -37,16 +38,17 @@ const AccountPage = () => {
   const [chatConsentLoading, setChatConsentLoading] = useState(false);
   const [confirmChatOffOpen, setConfirmChatOffOpen] = useState(false);
 
-  const token = localStorage.getItem("authToken");
+  // Không còn đọc token từ localStorage: nó đã chuyển vào bộ nhớ, và header Authorization
+  // do bộ chặn axios trong utils/authSession.js tự gắn vào mọi request tới /api.
+  // `authReady` để không gọi API trước khi phiên kịp khôi phục lúc mở trang.
+  const { authReady, isAuthenticated } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const { t } = useLanguage();
 
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API}/api/users/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.get(`${API}/api/users/me`);
       setProfile(res.data);
       setFullName(res.data.fullName || "");
       setPhone(res.data.phone || "");
@@ -57,16 +59,18 @@ const AccountPage = () => {
     }
   };
 
-  useEffect(() => { fetchProfile(); }, []);
+  useEffect(() => {
+    if (!authReady) return;
+    if (!isAuthenticated) { setLoading(false); return; }
+    fetchProfile();
+  }, [authReady, isAuthenticated]);
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setProfileLoading(true);
     setProfileMsg(null);
     try {
-      await axios.put(`${API}/api/users/me`, { fullName, phone }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.put(`${API}/api/users/me`, { fullName, phone });
       setProfileMsg({ type: "success", text: t.acctProfileUpdateSuccess });
       fetchProfile();
     } catch (err) {
@@ -98,9 +102,7 @@ const AccountPage = () => {
     setChatConsentLoading(true);
     setChatConsentMsg(null);
     try {
-      const res = await axios.put(`${API}/api/users/me/chat-consent`, { chatHistoryOptIn: next }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.put(`${API}/api/users/me/chat-consent`, { chatHistoryOptIn: next });
       setProfile(res.data);
       setChatConsentMsg({ type: "success", text: t.acctChatPrivacySaved || "Đã cập nhật cài đặt." });
     } catch (err) {
@@ -131,9 +133,23 @@ const AccountPage = () => {
     setPwdLoading(true);
     setPwdMsg(null);
     try {
-      await axios.put(`${API}/api/users/me/password`, { oldPassword: oldPwd, newPassword: newPwd }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.put(`${API}/api/users/me/password`, { oldPassword: oldPwd, newPassword: newPwd });
+
+      // Đổi mật khẩu xong phải đuổi các phiên KHÁC ra ngoài, nếu không thì việc đổi mật
+      // khẩu gần như vô nghĩa trước đúng tình huống người ta đổi vì nó: ai đó đã vào được
+      // tài khoản. Refresh token là chuỗi ngẫu nhiên độc lập, nó không biết mật khẩu vừa
+      // đổi và vẫn mở được tài khoản cho tới ngày hết hạn.
+      //
+      // Thiết bị đang thao tác được giữ lại (máy chủ nhận ra nó qua chính cookie refresh),
+      // nên người dùng không bị đá ra khỏi màn hình họ vừa bấm nút.
+      // Lỗi ở bước này cố tình nuốt: mật khẩu ĐÃ đổi thành công rồi, báo đỏ ở đây chỉ khiến
+      // người dùng tưởng là chưa.
+      // withCredentials: đây là một trong số ít request của ứng dụng THỰC SỰ cần cookie đi
+      // kèm. Same-origin thì trình duyệt tự gửi, nhưng nói rõ ra để bản deploy nào gọi thẳng
+      // sang tên miền backend cũng chạy đúng.
+      await axios.post(`${API}/api/auth/revoke-other-sessions`, null, { withCredentials: true })
+        .catch(() => {});
+
       setPwdMsg({ type: "success", text: t.acctPwdChangeSuccess });
       setOldPwd(""); setNewPwd(""); setConfirmPwd("");
     } catch (err) {

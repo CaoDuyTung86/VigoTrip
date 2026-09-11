@@ -288,10 +288,12 @@ public class PaymentService {
     /**
      * Tên miền frontend để đưa khách quay về sau khi cổng trả kết quả.
      *
-     * Ưu tiên origin đã ghi lại lúc mở phiên thanh toán, vì token đăng nhập nằm trong
-     * localStorage — vốn tách riêng theo từng origin. Trả khách về một tên miền khác
-     * (kể cả một alias cũ của cùng dự án) thì trình duyệt không thấy token nào, khách
-     * bị đá về màn hình đăng nhập và mọi lời gọi API sau đó đều hỏng.
+     * Ưu tiên origin đã ghi lại lúc mở phiên thanh toán, vì phiên đăng nhập tách riêng
+     * theo từng origin: cookie refresh gắn với đúng một tên miền (host-only, xem
+     * RefreshCookieFactory), còn access token thì nằm trong bộ nhớ của tab đang mở tên
+     * miền đó. Trả khách về một tên miền khác (kể cả một alias cũ của cùng dự án) thì
+     * trình duyệt không có phiên nào để khôi phục, khách bị đá về màn hình đăng nhập và
+     * mọi lời gọi API sau đó đều hỏng.
      */
     public String resolveReturnFrontendUrl(Map<String, String> params) {
         Long bookingId = parseBookingId(params.get("vnp_OrderInfo"));

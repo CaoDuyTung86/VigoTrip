@@ -112,6 +112,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 
+    /**
+     * Refresh token hỏng → 401, và đây là một trong số RẤT ÍT chỗ được phép trả 401 cho
+     * /api/auth/*. Giao diện dựa vào đúng mã này để biết phiên dài hạn đã chết và phải
+     * đưa người dùng về màn đăng nhập, thay vì thử làm mới lại lần nữa trong vô tận.
+     */
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRefreshToken(InvalidRefreshTokenException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.UNAUTHORIZED.value(),
+                "Unauthorized",
+                ex.getMessage(),
+                LocalDateTime.now(),
+                "REFRESH_TOKEN_INVALID");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
         ErrorResponse error = new ErrorResponse(

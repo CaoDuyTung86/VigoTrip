@@ -5,6 +5,7 @@ import VNFlag from '../Picture/flags/vn.png';
 import UKFlag from '../Picture/flags/uk.png';
 import JPFlag from '../Picture/flags/jp.png';
 import TWFlag from '../Picture/flags/tw.png';
+import { getAccessToken } from "../utils/authSession";
 
 // Nguồn dữ liệu duy nhất cho danh sách ngôn ngữ. `flag` là URL do Vite sinh ra lúc
 // build (có hash nội dung) nên KHÔNG được lưu xuống localStorage: mỗi lần deploy
@@ -5269,7 +5270,7 @@ const wasLanguageTouched = () => {
 /**
  * Ghi lựa chọn ngôn ngữ xuống tài khoản.
  *
- * Đọc token thẳng từ localStorage thay vì gọi useAuth: AuthProvider nằm BÊN TRONG
+ * Đọc token thẳng từ kho trong bộ nhớ thay vì gọi useAuth: AuthProvider nằm BÊN TRONG
  * LanguageProvider (xem App.jsx), nên context này không với tới nó được — mà đảo thứ tự
  * hai provider thì AuthContext mất `t` để dịch thông báo lỗi phiên đăng nhập.
  *
@@ -5278,17 +5279,14 @@ const wasLanguageTouched = () => {
  * này lên server.
  */
 const pushLanguageToServer = (code) => {
-  let token = null;
-  try {
-    token = localStorage.getItem("authToken");
-  } catch {
-    return;
-  }
-  if (!token) return;
+  // Đọc token từ kho trong bộ nhớ thay vì localStorage — localStorage không còn giữ token
+  // nữa (xem utils/authSession.js). Không có token nghĩa là chưa đăng nhập, và lựa chọn
+  // ngôn ngữ của khách vãng lai vốn chỉ nằm ở máy họ.
+  if (!getAccessToken()) return;
 
   fetch("/api/users/me/language", {
     method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ language: code }),
   }).catch(() => {});
 };

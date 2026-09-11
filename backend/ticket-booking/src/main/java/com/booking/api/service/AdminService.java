@@ -31,6 +31,7 @@ public class AdminService {
     private final TicketRepository ticketRepository;
     private final VoucherRepository voucherRepository;
     private final EmailService emailService;
+    private final RefreshTokenService refreshTokenService;
 
     // ==================== ROUTE ====================
 
@@ -431,6 +432,17 @@ public class AdminService {
         // thực). Nếu khóa một tài khoản chưa xác thực mà để nguyên mã, tài khoản đó vẫn
         // nằm ở nhánh "chưa xác thực" — người bị khóa xin mã mới rồi tự kích hoạt lại.
         user.setVerificationCode(null);
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+
+        // Khóa tài khoản phải cắt luôn các phiên đang mở, không chỉ chặn lần đăng nhập sau.
+        //
+        // JwtAuthFilter và AuthService.refreshSession đều kiểm enabled nên người bị khóa
+        // không gọi được API nữa; nhưng nếu để nguyên bảng phien_dang_nhap thì cookie của họ
+        // vẫn là một chìa khoá hợp lệ nằm chờ — mở khóa lại là phiên cũ sống dậy, kể cả khi
+        // lý do khóa chính là tài khoản đó đã bị chiếm.
+        if (Boolean.FALSE.equals(enabled)) {
+            refreshTokenService.revokeAllSessions(saved, RefreshTokenService.REASON_LOGOUT);
+        }
+        return saved;
     }
 }

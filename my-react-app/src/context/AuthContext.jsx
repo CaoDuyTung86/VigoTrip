@@ -2,6 +2,15 @@
 import React, { createContext, useContext, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/apiClient";
+import {
+  getAccessToken,
+  setAccessToken,
+  clearAccessToken,
+  refreshAccessToken,
+  revokeSessionOnServer,
+  readTokenExpiryMs,
+  installAuthInterceptors,
+} from "../utils/authSession";
 import { useToast } from "./ToastContext";
 import { useLanguage } from "./LanguageContext";
 
@@ -18,34 +27,57 @@ export const AuthContext = createContext(null);
  */
 const AUTH_ONLY_PREFIXES = ["/admin", "/account", "/my-bookings", "/provider"];
 
+/**
+ * Chỉ là DẤU HIỆU "máy này từng đăng nhập", không phải chứng chỉ.
+ *
+ * Cookie refresh là HttpOnly nên JavaScript không có cách nào biết nó còn hay mất. Không có
+ * dấu hiệu này thì mỗi khách vãng lai mở trang đều tốn một lượt gọi /refresh chỉ để nhận
+ * 401 — trên Render free tier, đó là một request đánh thức container hoàn toàn vô ích.
+ *
+ * Sửa tay giá trị này KHÔNG cho ai thêm quyền gì: nó chỉ quyết định có thử gọi /refresh hay
+ * không, còn câu trả lời vẫn do cookie và cơ sở dữ liệu định đoạt.
+ */
+const SESSION_HINT_KEY = "authUser";
+
+/** Làm mới trước khi access token hết hạn ngần này, để không có request nào rơi vào khe chết. */
+const REFRESH_LEEWAY_MS = 60_000;
+
 export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { t, syncLanguageFromProfile } = useLanguage();
 
   const [user, setUser] = useState(() => {
-    const storedUser = localStorage.getItem("authUser");
+    const storedUser = localStorage.getItem(SESSION_HINT_KEY);
     if (storedUser) {
       try {
         return JSON.parse(storedUser);
       } catch {
-        localStorage.removeItem("authUser");
+        localStorage.removeItem(SESSION_HINT_KEY);
       }
     }
     return null;
   });
 
-  const [token, setToken] = useState(() => {
-    const storedToken = localStorage.getItem("authToken");
-    const storedUser = localStorage.getItem("authUser");
-    if (storedToken && storedUser) {
-      return storedToken;
-    }
-    if (!storedUser) {
-      localStorage.removeItem("authToken");
-    }
-    return null;
-  });
+  /**
+   * Access token — trong state của React, tức là trong RAM của tab. KHÔNG đọc từ
+   * localStorage như trước, và cũng không ghi vào đó nữa. Lý do đầy đủ nằm ở đầu file
+   * utils/authSession.js.
+   *
+   * Hệ quả: tải lại trang là mất token, và ta lấy lại nó bằng một lượt /refresh (xem effect
+   * khôi phục phiên bên dưới). Đó là cái giá phải trả, và nó rẻ.
+   */
+  const [token, setToken] = useState(null);
+
+  /**
+   * false cho tới khi lượt khôi phục phiên đầu tiên có kết quả.
+   *
+   * Cần cờ này vì giữa lúc mở trang và lúc /refresh trả lời, `token` là null trong khi
+   * người dùng thật ra VẪN đang đăng nhập. Màn hình nào quyết định dựa trên isAuthenticated
+   * mà không đợi cờ này sẽ chớp qua trạng thái "chưa đăng nhập" rồi tự sửa lại — hoặc tệ
+   * hơn, đá người dùng về trang chủ.
+   */
+  const [authReady, setAuthReady] = useState(false);
 
   // Hồ sơ đầy đủ lấy từ /api/users/me — chứa điểm tích lũy, hạng và % giảm giá thành viên.
   // Backend LUÔN trừ % này trước khi áp voucher khi tạo booking, nên giao diện phải
@@ -62,10 +94,7 @@ export const AuthProvider = ({ children }) => {
       return null;
     }
     try {
-      const { ok, data } = await apiFetch(
-        "/api/users/me",
-        { headers: { Authorization: `Bearer ${tokenRef.current}` } },
-      );
+      const { ok, data } = await apiFetch("/api/users/me");
       if (!ok || !data) return null;
       setProfile(data);
       syncLanguageFromProfile(data.language);
@@ -80,15 +109,16 @@ export const AuthProvider = ({ children }) => {
   // Dùng apiFetch (có retry) thay vì fetch trần: nếu backend đang "thức dậy" và lần gọi này
   // thất bại, profile sẽ đứng ở null → membershipDiscountPercent = 0 → bảng "Chi tiết thanh toán"
   // hiển thị sai số tiền so với lúc backend thực sự tạo booking.
+  //
+  // Header Authorization không còn phải ghép tay ở đây: bộ chặn trong authSession.js gắn
+  // token mới nhất vào mọi request tới /api. Ghép tay lại là mời gọi đúng lỗi mà bộ chặn
+  // sinh ra để dập — một token chụp lúc render, đã cũ vào lúc request thật sự bay đi.
   useEffect(() => {
     if (!token) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const { ok, data } = await apiFetch(
-          "/api/users/me",
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        const { ok, data } = await apiFetch("/api/users/me");
         if (!ok || !data || cancelled) return;
         setProfile(data);
         // Ngôn ngữ của tài khoản chỉ biết được sau khi hồ sơ về tới nơi. Đồng bộ ở đây thay
@@ -101,35 +131,52 @@ export const AuthProvider = ({ children }) => {
     return () => { cancelled = true; };
   }, [token, syncLanguageFromProfile]);
 
-  const loginSuccess = useCallback((authData) => {
-    if (!authData) return;
-
+  /** Ghi nhận một phiên mới hoặc vừa được làm mới (dùng chung cho login và refresh). */
+  const applySession = useCallback((authData) => {
+    if (!authData?.token) return;
     const authUser = {
       email: authData.email,
       fullName: authData.fullName,
       role: authData.role,
     };
-
+    setAccessToken(authData.token);
     setToken(authData.token);
     setUser(authUser);
-
-    localStorage.setItem("authToken", authData.token);
-    localStorage.setItem("authUser", JSON.stringify(authUser));
+    localStorage.setItem(SESSION_HINT_KEY, JSON.stringify(authUser));
   }, []);
 
-  const logout = useCallback(() => {
+  const loginSuccess = useCallback((authData) => {
+    if (!authData) return;
+    applySession(authData);
+  }, [applySession]);
+
+  /** Dọn sạch phiên phía trình duyệt. Không gọi mạng — hai hàm bên dưới quyết định việc đó. */
+  const clearLocalSession = useCallback(() => {
+    clearAccessToken();
     setToken(null);
     setUser(null);
     setProfile(null);
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("authUser");
+    localStorage.removeItem(SESSION_HINT_KEY);
     // Email của phiên vừa rồi. Trước đây chỉ được xóa khi đăng nhập THÀNH CÔNG, nên sau khi
     // đăng xuất, form đăng nhập vẫn tự điền sẵn email của người trước — khó chịu trên máy dùng chung.
     sessionStorage.removeItem("tempEmail");
   }, []);
 
   /**
-   * Bắt buộc logout khi server trả 401 cho tài khoản bị khóa/hết hạn.
+   * Đăng xuất do người dùng chủ động.
+   *
+   * Báo máy chủ TRƯỚC rồi mới dọn cục bộ. Chỉ xoá phía trình duyệt là "đăng xuất" kiểu
+   * trang trí: refresh token vẫn sống trong cơ sở dữ liệu tới ngày hết hạn, nên bản sao mà
+   * ai đó kịp lấy được vẫn mở lại phiên này bất cứ lúc nào.
+   */
+  const logout = useCallback(() => {
+    revokeSessionOnServer();
+    clearLocalSession();
+  }, [clearLocalSession]);
+
+  /**
+   * Bắt buộc logout khi phiên không còn hiệu lực (tài khoản bị khóa, refresh token hết hạn
+   * hoặc đã bị thu hồi).
    *
    * Trước đây hàm này làm `window.location.href = "/"`: tải lại cả trang, cuốn theo toàn bộ
    * form đặt vé đang dở (chuyến, ghế đã giữ, thông tin hành khách, dịch vụ, mã giảm giá) —
@@ -139,60 +186,92 @@ export const AuthProvider = ({ children }) => {
    */
   const forceLogout = useCallback((reason) => {
     if (!tokenRef.current) return; // chỉ xử lý nếu đang đăng nhập
-    setToken(null);
-    setUser(null);
-    setProfile(null);
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("authUser");
-    sessionStorage.removeItem("tempEmail");
+    clearLocalSession();
+    revokeSessionOnServer();
     showToast(reason || t.authXSessionExpiredOrLocked, "error", 6000);
 
     if (AUTH_ONLY_PREFIXES.some((prefix) => window.location.pathname.startsWith(prefix))) {
       navigate("/", { replace: true });
     }
-  }, [navigate, showToast, t]);
+  }, [clearLocalSession, navigate, showToast, t]);
 
   /**
-   * Patch global fetch — chỉ đăng xuất khi API nội bộ trả về 401.
+   * Bộ chặn chỉ được cài MỘT lần cho cả vòng đời ứng dụng.
    *
-   * Trước đây hàm này đăng xuất với CẢ 403, và đó là nguyên nhân của lỗi
-   * "tài khoản đã bị khóa / phiên đăng nhập hết hạn" xuất hiện ngẫu nhiên:
-   *   - Spring Security trả 403 cho cả "thiếu quyền" lẫn "chưa xác thực", nên chỉ cần
-   *     người dùng thường vô tình chạm vào một endpoint dành cho admin/nhà xe là bị
-   *     đá ra ngoài, dù phiên đăng nhập vẫn còn nguyên hiệu lực.
-   *   - Tài khoản tạo bằng Google Login (password = null) làm CustomUserDetailsService
-   *     ném lỗi → mọi request đều 403 → đăng nhập xong là bị đăng xuất ngay.
-   * Backend nay đã tách bạch: 401 = phiên thật sự không còn hiệu lực, 403 = thiếu quyền.
-   * Xem RestAuthenticationHandlers.java phía backend.
+   * Các hàm xử lý đi qua ref chứ không nằm trong mảng phụ thuộc: forceLogout đổi danh tính
+   * mỗi khi người dùng chuyển ngôn ngữ (nó phụ thuộc `t`), mà gỡ rồi cài lại bộ chặn giữa
+   * chừng sẽ làm rơi mất những request đang bay.
+   */
+  const handlersRef = useRef({ onRefreshed: () => {}, onSessionLost: () => {} });
+  useEffect(() => {
+    handlersRef.current = {
+      onRefreshed: applySession,
+      onSessionLost: () => forceLogout(t.authXSessionExpired),
+    };
+  }, [applySession, forceLogout, t]);
+
+  useEffect(() => installAuthInterceptors({
+    onRefreshed: (data) => handlersRef.current?.onRefreshed(data),
+    onSessionLost: () => handlersRef.current?.onSessionLost(),
+  }), []);
+
+  /**
+   * Khôi phục phiên khi mở trang: đổi cookie refresh lấy access token mới.
+   *
+   * Đây là thứ thay thế cho việc đọc token từ localStorage. Khác biệt: quyết định "phiên
+   * này còn hiệu lực không" chuyển từ trình duyệt sang máy chủ. Tài khoản vừa bị khóa, phiên
+   * vừa bị thu hồi vì đổi mật khẩu, hay refresh token đã bị phát hiện dùng lại — tất cả đều
+   * chặn được ngay tại đây, việc mà một token nằm sẵn trong localStorage không bao giờ làm
+   * được.
    */
   useEffect(() => {
-    const originalFetch = window.fetch;
+    // Token cũ còn sót từ các phiên bản trước. Xoá đi: nó là một bí mật còn hiệu lực đang
+    // nằm ở nơi mà bất kỳ đoạn mã nào trong trang cũng đọc được, và giờ không ai dùng nữa.
+    localStorage.removeItem("authToken");
 
-    window.fetch = async (...args) => {
-      const response = await originalFetch(...args);
-
-      // Chỉ xử lý khi đang có token (đang đăng nhập)
-      if (tokenRef.current && response.status === 401) {
-        // Kiểm tra có phải URL API nội bộ không (tránh bắt nhầm Google/third-party)
-        const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
-        const isInternalApi = url.startsWith("/api") || url.includes(window.location.origin + "/api");
-
-        // Endpoint /api/auth/* là public: 401 ở đó là kết quả của thao tác đăng nhập,
-        // không phải dấu hiệu phiên hiện tại đã hỏng.
-        const isAuthEndpoint = url.includes("/api/auth/");
-
-        if (isInternalApi && !isAuthEndpoint) {
-          forceLogout(t.authXSessionExpired);
-        }
+    let cancelled = false;
+    (async () => {
+      if (!localStorage.getItem(SESSION_HINT_KEY)) {
+        setAuthReady(true);
+        return;
       }
+      const data = await refreshAccessToken();
+      if (cancelled) return;
+      if (data) {
+        applySession(data);
+      } else {
+        clearLocalSession();
+      }
+      setAuthReady(true);
+    })();
+    return () => { cancelled = true; };
+  }, [applySession, clearLocalSession]);
 
-      return response;
-    };
+  /**
+   * Làm mới trước hạn.
+   *
+   * Không có nó thì mọi thứ vẫn chạy — bộ chặn 401 sẽ dọn dẹp. Nhưng "vẫn chạy" ở đây có
+   * nghĩa là cứ 15 phút lại có một request phải đi hai vòng, mà trên Render free tier vòng
+   * thứ hai rơi trúng lúc container ngủ là thêm 30-60 giây người dùng ngồi nhìn màn hình
+   * chờ. Rẻ hơn nhiều nếu làm mới lúc rảnh.
+   */
+  useEffect(() => {
+    if (!token) return undefined;
+    const expiry = readTokenExpiryMs(token);
+    if (!expiry) return undefined;
 
-    return () => {
-      window.fetch = originalFetch;
-    };
-  }, [forceLogout, t]);
+    // Sàn 5 giây: token gần hết hạn (hoặc đồng hồ máy lệch) không được biến thành vòng lặp
+    // làm mới liên tục.
+    const delay = Math.max(expiry - Date.now() - REFRESH_LEEWAY_MS, 5_000);
+    const timer = setTimeout(async () => {
+      const data = await refreshAccessToken();
+      // Thất bại ở đây KHÔNG đăng xuất: có thể chỉ là mất mạng tạm thời. Request thật kế
+      // tiếp sẽ nhận 401 và bộ chặn mới là nơi đưa ra kết luận cuối cùng.
+      if (data) applySession(data);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [token, applySession]);
 
   const value = useMemo(() => ({
     user: user && profile ? { ...user, ...profile } : user,
@@ -203,10 +282,12 @@ export const AuthProvider = ({ children }) => {
     refreshProfile,
     token,
     isAuthenticated: !!token,
+    // Đã biết chắc câu trả lời cho "người này có đang đăng nhập không" hay chưa.
+    authReady,
     loginSuccess,
     logout,
     forceLogout,
-  }), [user, profile, token, loginSuccess, logout, forceLogout, refreshProfile]);
+  }), [user, profile, token, authReady, loginSuccess, logout, forceLogout, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
@@ -218,3 +299,11 @@ export const useAuth = () => {
   }
   return ctx;
 };
+
+/**
+ * Cho phép mã nằm NGOÀI cây AuthProvider lấy access token hiện hành (LanguageContext bọc
+ * bên ngoài AuthProvider nên không dùng useAuth được).
+ *
+ * Trước đây những chỗ đó đọc localStorage.getItem("authToken") — chính là cái đã bị bỏ.
+ */
+export { getAccessToken };

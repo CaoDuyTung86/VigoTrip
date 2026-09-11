@@ -449,10 +449,14 @@ const ProviderCheckIn = () => {
   const wakingTimerRef = useRef(null);
   const aliveRef = useRef(true);
 
-  const authHeaders = useMemo(() => {
-    const bearer = token || localStorage.getItem("authToken");
-    return bearer ? { Authorization: `Bearer ${bearer}` } : {};
-  }, [token]);
+  // Không còn đường lùi về localStorage: token chỉ sống trong bộ nhớ. Header ở đây thật ra
+  // cũng chỉ là phần thừa cho dễ đọc — bộ chặn trong utils/authSession.js ghi đè
+  // Authorization bằng token mới nhất trên mọi request tới /api, nên kể cả khi giá trị này
+  // đã cũ sau một vòng làm mới thì request vẫn đi kèm token đúng.
+  const authHeaders = useMemo(
+    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+    [token],
+  );
 
   const roleLooksValid = useMemo(() => {
     const role = String(user?.role || "").toUpperCase();

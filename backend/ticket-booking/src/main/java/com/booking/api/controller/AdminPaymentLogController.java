@@ -24,7 +24,7 @@ import java.util.List;
  * không phải chuyện tiết kiệm công: bảng này giữ 180 ngày lịch sử tiền nong, và trước khi
  * có màn hình thì muốn đọc nó phải có thông tin đăng nhập cơ sở dữ liệu — một nhóm rất nhỏ.
  * Mở ra web là hạ nó xuống thành "ai có phiên quản trị", cộng thêm mọi đường mất phiên
- * thường gặp (mất mật khẩu, XSS lấy token trong localStorage).
+ * thường gặp (mất mật khẩu, hoặc XSS chiếm phiên trong lúc quản trị viên đang mở trang).
  *
  * Bắt buộc phải biết TRƯỚC mã giao dịch hoặc mã đơn là thứ giữ cho việc mở ra đó không
  * thành một cái vòi tải dữ liệu: mã giao dịch do chính khách khiếu nại cung cấp, nên người

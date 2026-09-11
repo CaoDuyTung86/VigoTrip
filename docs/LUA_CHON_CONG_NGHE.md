@@ -416,21 +416,25 @@ Nói được đúng chỗ này — *"em biết Faithfulness là gì, biết vì
 
 ## 11. Bảo mật & xác thực
 
-### JWT thay vì session trên server
+### JWT ngắn hạn + refresh token có trạng thái, thay vì chọn một trong hai
 
-| | JWT (đang dùng) | Session + cookie |
-|---|---|---|
-| Trạng thái phía server | **Không có** — hợp với 1 instance có thể bị Render khởi động lại bất cứ lúc nào, và hợp nếu sau này có nhiều instance | Cần bộ nhớ session dùng chung (Redis) khi có từ 2 instance |
-| Dùng cho WebSocket | Gửi token ở frame CONNECT là xong | Phải bắc cầu session HTTP sang kênh WS |
-| Thu hồi ngay lập tức | **Không làm được** — token còn hạn là còn dùng được | Xóa session là mất hiệu lực tức thì |
+Ban đầu hệ thống dùng JWT thuần: một token hạn 24 giờ nằm trong `localStorage`. Lý do khi đó
+là không phải giữ trạng thái phía máy chủ. Cái giá đi kèm hoá ra đắt hơn nhiều so với dự tính,
+nên nay là mô hình lai.
 
-Đánh đổi được chấp nhận vì hạn token ngắn và hệ thống chưa có nhu cầu thu hồi tức thì
-(chưa có tính năng "đăng xuất khỏi mọi thiết bị").
+| | JWT thuần (bản cũ) | Session + cookie | **Hiện tại: lai** |
+|---|---|---|---|
+| Trạng thái phía server | Không có | Cần kho session dùng chung (Redis) khi có từ 2 instance | Một bảng, chỉ đụng tới lúc làm mới phiên (15 phút/lần) |
+| Dùng cho WebSocket | Gửi token ở frame CONNECT là xong | Phải bắc cầu session HTTP sang kênh WS | Giữ nguyên như JWT — access token vẫn là JWT |
+| Thu hồi ngay lập tức | **Không làm được** | Xoá session là mất hiệu lực tức thì | Làm được, qua refresh token |
+| Nơi giữ bí mật ở client | `localStorage` — **mọi script trong trang đọc được** | Cookie `HttpOnly` | Cookie `HttpOnly` + bộ nhớ tab |
 
-**Nợ đã biết và đã ghi vào roadmap:** access token hiện lưu ở `localStorage`, tức là **script XSS
-nào đọc được thì lấy được phiên**. Hướng xử lý đã xác định: HttpOnly cookie + refresh token có
-xoay vòng, access token ngắn hạn giữ trong React Context. **Chưa làm.** Nếu bị hỏi, trả lời thẳng
-như vậy — đây là lỗ hổng phổ biến nhất trong đồ án web, và biết nó tồn tại là điều hội đồng muốn nghe.
+Mô hình lai giữ được ưu điểm của JWT ở chỗ nó thật sự có giá trị — mỗi request được xác thực
+bằng chữ ký, không cần tra cứu; kênh STOMP không phải bắc cầu session — và trả tiền cho trạng
+thái phía máy chủ đúng một lần mỗi 15 phút, ở nơi duy nhất cần khả năng thu hồi.
+
+Chi tiết cơ chế, các đánh đổi và phần **không** giải quyết được (mã XSS đã chạy trong trang vẫn
+gọi API thay mặt nạn nhân trong lúc tab còn mở): [BAO_MAT_XAC_THUC.md](./BAO_MAT_XAC_THUC.md).
 
 ### Các lớp phòng thủ khác và lý do
 
@@ -534,7 +538,7 @@ Liệt kê ở đây để **chủ động** nói ra, thay vì bị đào ra.
 
 | Nợ | Vì sao chấp nhận | Hướng xử lý |
 |---|---|---|
-| Access token trong `localStorage` | Đơn giản, và ngưỡng rủi ro chấp nhận được ở giai đoạn staging | HttpOnly cookie + refresh token xoay vòng (đã có trong roadmap) |
+| Chưa có `Content-Security-Policy` | Đã hạ được hậu quả của XSS bằng HttpOnly cookie + access token 15 phút; CSP là lớp chặn XSS ngay từ gốc nhưng cần rà toàn bộ script và style nội tuyến | Thêm CSP theo chế độ report-only trước, rồi mới siết |
 | Không dùng TypeScript | Đội chưa quen; chuyển giữa chừng thì phần lớn thời gian sẽ đi vào việc sửa kiểu thay vì làm tính năng | Áp dần theo từng file — `.jsx` và `.tsx` sống chung được |
 | Chỉ chạy **1 instance** | Toàn bộ cơ chế giữ ghế và broker STOMP trong bộ nhớ dựa trên giả định này | Cần STOMP relay ngoài + kho giữ ghế dùng chung trước khi scale ngang |
 | `ddl-auto=update` thay vì công cụ migration | Lược đồ đổi liên tục suốt quá trình làm; và phải chạy trên hai hệ CSDL | Chuyển sang Flyway/Liquibase trước khi có dữ liệu thật (`backend/migrations/` đã là bước đầu) |
@@ -564,7 +568,7 @@ Liệt kê ở đây để **chủ động** nói ra, thay vì bị đào ra.
 | Sao không vector DB? | 56 chunk ≈ 168 KB; quét toàn bộ vừa nhanh hơn vừa **chính xác hơn** chỉ mục xấp xỉ ở quy mô này |
 | Chống bịa số ở AI BI bằng gì? | Groundedness = 1.00, đo tất định bằng cách bóc số và đối chiếu tập hợp; giao diện và AI đọc chung một nguồn số liệu |
 | Chống đặt trùng ghế bằng gì? | Khóa bi quan + **unique index của CSDL** làm chốt chặn cuối — CSDL là bên duy nhất thấy toàn bộ |
-| Chỗ nào còn yếu nhất? | Token trong `localStorage` (XSS), và giả định 1 instance — cả hai đã có hướng xử lý ghi trong roadmap |
+| Chỗ nào còn yếu nhất? | Giả định 1 instance (giữ ghế và broker STOMP đều trong bộ nhớ), và chưa có CSP nên XSS vẫn chiếm được phiên tạm thời trong lúc tab mở — token thì không còn nằm ở `localStorage` nữa |
 
 ---
 

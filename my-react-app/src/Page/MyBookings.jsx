@@ -13,6 +13,7 @@ import { ticketQrPayload } from "../utils/ticketQr";
 import { formatMoney } from "../utils/money";
 import { translateServiceName } from "../utils/serviceCatalog";
 import Auth from "./Auth";
+import { useAuth } from "../context/AuthContext";
 
 const MyBookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -21,6 +22,10 @@ const MyBookings = () => {
   const [errorStatus, setErrorStatus] = useState(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const { t, currentLanguage } = useLanguage();
+  // Access token nay nằm trong bộ nhớ chứ không còn ở localStorage — lấy qua context.
+  // Header Authorization do bộ chặn trong utils/authSession.js tự gắn, nên ở đây chỉ cần
+  // token để biết CÓ đang đăng nhập hay không.
+  const { token, authReady } = useAuth();
   const money = (amount) => formatMoney(amount, currentLanguage?.code);
 
   const location = useLocation();
@@ -41,7 +46,6 @@ const MyBookings = () => {
 
 
   const fetchBookings = async () => {
-    const token = localStorage.getItem("authToken");
     if (!token) {
       setLoading(false);
       setErrorStatus(401);
@@ -53,9 +57,7 @@ const MyBookings = () => {
       setLoading(true);
       setError(null);
       setErrorStatus(null);
-      const res = await axios.get("/api/bookings", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await axios.get("/api/bookings");
       setBookings(res.data || []);
     } catch (err) {
       const status = err.response?.status;
@@ -70,9 +72,14 @@ const MyBookings = () => {
     }
   };
 
+  // Đợi authReady rồi mới gọi: lúc mới mở trang, phiên đang được khôi phục bằng một lượt
+  // /api/auth/refresh nên `token` còn null trong chốc lát. Gọi ngay ở đây sẽ hiện màn hình
+  // "vui lòng đăng nhập" cho người đang đăng nhập hẳn hoi, rồi mới tự sửa lại sau đó.
   useEffect(() => {
+    if (!authReady) return;
     fetchBookings();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authReady, token]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -114,12 +121,9 @@ const MyBookings = () => {
     }
     try {
       setCancelModal(prev => ({ ...prev, loading: true, error: null }));
-      const token = localStorage.getItem("authToken");
       await axios.post(`/api/refunds/request`, {
         bookingId: cancelModal.booking.id,
         reason: cancelModal.reason
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
 
       setCancelModal(prev => ({ ...prev, loading: false, success: true }));
@@ -167,12 +171,11 @@ const MyBookings = () => {
     const currentRating = reviewModal.rating;
     try {
       setReviewModal(prev => ({ ...prev, loading: true, error: null }));
-      const token = localStorage.getItem("authToken");
       await axios.post("/api/reviews", {
         bookingId: reviewModal.booking.id,
         rating: currentRating,
         comment: reviewModal.comment
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      });
       
       // Mark booking as reviewed locally immediately
       const reviewedBookingId = reviewModal.booking.id;
@@ -559,8 +562,7 @@ const MyBookings = () => {
                                 onConfirm: async () => {
                                   try {
                                     setLoading(true);
-                                    const token = localStorage.getItem("authToken");
-                                    await axios.put(`/api/bookings/${bk.id}/complete`, {}, { headers: { Authorization: `Bearer ${token}` } });
+                                    await axios.put(`/api/bookings/${bk.id}/complete`, {});
                                     setToastMsg({ text: t.tripCompletedToast || "Chuyến đi đã hoàn thành. Cảm ơn bạn!", type: "success" });
                                     await fetchBookings();
                                   } catch (e) {
@@ -582,10 +584,8 @@ const MyBookings = () => {
                             onClick={async () => {
                               try {
                                 setLoading(true);
-                                const token = localStorage.getItem("authToken");
                                 const res = await axios.post(`/api/payment/resume`,
-                                  { bookingId: bk.id, language: "vn", returnOrigin: window.location.origin },
-                                  { headers: { Authorization: `Bearer ${token}` } }
+                                  { bookingId: bk.id, language: "vn", returnOrigin: window.location.origin }
                                 );
                                 if (res.data && res.data.paymentUrl) {
                                   window.location.href = res.data.paymentUrl;

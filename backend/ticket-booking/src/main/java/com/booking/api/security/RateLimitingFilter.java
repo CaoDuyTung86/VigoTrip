@@ -50,6 +50,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             .build();
 
     private static final int LOGIN_LIMIT_PER_MIN = 10;
+    private static final int REFRESH_LIMIT_PER_MIN = 30;
     private static final int REGISTER_LIMIT_PER_MIN = 5;
     private static final int FORGOT_PW_LIMIT_PER_15MIN = 3;
     private static final int CHAT_LIMIT_PER_MIN = 15;
@@ -136,6 +137,18 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/auth/login")) {
             if (isRateLimited(clientIp + ":login", requestCounts, LOGIN_LIMIT_PER_MIN)) {
                 sendRateLimitResponse(response, "Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau 1 phút.");
+                return;
+            }
+        } else if (path.startsWith("/api/auth/refresh")) {
+            // Mỗi lần gọi là một lượt tra bảng theo hash cộng hai lượt ghi (thu hồi bản cũ,
+            // chèn bản mới), trên một endpoint permitAll. Không chặn thì bất kỳ ai cũng bơm
+            // được ghi vào phien_dang_nhap cho tới khi cạn connection pool.
+            //
+            // Trần đặt rộng hơn login vì client hợp lệ gọi đường này nhiều hơn hẳn: access
+            // token sống 15 phút, cộng với việc mở nhiều tab và quay lại sau khi máy ngủ dậy.
+            // 30/phút vẫn còn cách rất xa lưu lượng thật của một người dùng.
+            if (isRateLimited(clientIp + ":refresh", requestCounts, REFRESH_LIMIT_PER_MIN)) {
+                sendRateLimitResponse(response, "Quá nhiều lượt làm mới phiên đăng nhập. Vui lòng thử lại sau 1 phút.");
                 return;
             }
         } else if (path.startsWith("/api/auth/register")) {
