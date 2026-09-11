@@ -68,6 +68,16 @@ regex = '''(?i)hash[-_]?secret\s*[:=]\s*["']?[A-Za-z0-9]{16,}'''
 keywords = ["hash-secret", "hash_secret", "hashsecret"]
 
 [[rules]]
+id = "vnpay-response-signature-dump"
+description = "Body querydr thô còn nguyên vnp_SecureHash — mẫu HMAC của hash-secret đang dùng"
+# Vì sao cần: dò thứ tự trường của chữ ký phản hồi querydr (§5.3) phải làm trên một body
+# JSON thô lấy từ log, và body đó mang một chữ ký thật. File hay bị lưu tạm ngay ở gốc repo
+# rồi quên mất, mà không rule mặc định nào của gitleaks nhận ra một chuỗi hex trần. Đây là
+# lớp chặn cuối trước khi nó vào lịch sử công khai vĩnh viễn.
+regex = '''(?i)vnp_securehash["']?\s*[:=]\s*["']?[0-9a-f]{64,}'''
+keywords = ["vnp_securehash"]
+
+[[rules]]
 id = "gmail-app-password"
 description = "App password của Google (16 chữ thường, liền hoặc chia 4 nhóm 4)"
 # Bộ rule mặc định của gitleaks không có rule nào cho dạng này — đó là lý do hai app

@@ -210,34 +210,53 @@ dùng để kiểm chứng luồng thật được**, đừng tốn thời gian 
 
 ### 5.3 — `Chữ ký phản hồi querydr không khớp`
 
-**Triệu chứng.** Cảnh báo này xuất hiện ở **mọi** giao dịch.
+**Triệu chứng.** Cảnh báo này từng xuất hiện ở **mọi** giao dịch, suốt nhiều tháng.
 
-**Trạng thái: chưa sửa xong.** Công thức nối 14 trường bằng `|` — hằng số
-`RESPONSE_HASH_FIELDS` trong `VNPayQueryService` — đang sai ở đâu đó. Đây là thứ duy nhất trong lớp này không hồi quy được bằng unit test — phải
-có phản hồi thật từ cổng mới biết đúng sai.
+**Nguyên nhân: `vnp_OrderInfo`.** Cổng **có** ký trường này trong phản hồi querydr, còn ta thì
+bỏ hẳn nó ra ngoài chuỗi nối. Nó nằm sau `vnp_TransactionStatus` và trước cặp khuyến mãi — tức
+**không** theo thứ tự các khoá trong body JSON, nơi nó đứng ngay sau `vnp_Amount`. Đoán theo thứ
+tự body là trượt, và đó là lý do nhiều tháng không ai dò ra bằng mắt.
 
-**Nó vô hại, và cố ý vô hại.** Hàm chỉ ghi log, không phủ quyết kết luận. Thứ thật sự chứng thực
-phản hồi là TLS tới đúng tên miền của cổng — kẻ giả mạo callback không nằm trên đường ta gọi ra.
-Để một sai sót về thứ tự trường phủ quyết được thì nó sẽ chặn đứng **mọi** thanh toán: cái giá
-quá đắt cho một lớp phòng thủ dư.
+**Đã sửa ngày 11/09/2026.** Thứ tự đúng, 15 trường:
 
-**Cách dò tiếp.** Khi checksum lệch, `logChecksumEvidence` in ra chuỗi ký ta dựng, **body JSON
-thô**, và hai chữ ký. Có body thô rồi thì thử lại các thứ tự khác **offline**, không cần thêm
-giao dịch thật nào nữa. Ba bước:
+```
+vnp_ResponseId|vnp_Command|vnp_ResponseCode|vnp_Message|vnp_TmnCode|vnp_TxnRef|vnp_Amount|
+vnp_BankCode|vnp_PayDate|vnp_TransactionNo|vnp_TransactionType|vnp_TransactionStatus|
+vnp_OrderInfo|vnp_PromotionCode|vnp_PromotionAmount
+```
+
+Hai trường khuyến mãi gần như luôn vắng mặt trong phản hồi, nhưng cổng **vẫn ký chúng dưới dạng
+chuỗi rỗng**, nên chuỗi ký kết thúc bằng hai dấu gạch đứng và không được lược bớt. Thứ tự nằm ở
+hằng số `RESPONSE_HASH_FIELDS`; `VNPayQueryServiceTest` khoá lại đúng chuỗi ấy bằng một chuỗi
+mong đợi viết tay, chứ không dựng lại từ cùng danh sách trường — dựng từ cùng nguồn thì test tự
+đúng với mọi thứ tự và không chặn được gì.
+
+**Vẫn chỉ ghi log, không phủ quyết.** Lý do không đổi: thứ chứng thực phản hồi là TLS tới đúng
+tên miền của cổng, còn chữ ký chỉ là lớp đối chiếu thêm. Để nó phủ quyết thì một sai sót thứ tự
+sẽ chặn đứng **mọi** thanh toán, mà chính trường hợp này cho thấy một sai sót như vậy sống được
+nhiều tháng. Điều đã đổi là ý nghĩa của cảnh báo: trước đây nó kêu ở mọi giao dịch nên không ai
+đọc, giờ nó im ở giao dịch bình thường và chỉ kêu khi có chuyện thật.
+
+**Cách dò lại, nếu một ngày nào đó nó kêu trở lại.** `logChecksumEvidence` in ra chuỗi ký ta
+dựng, **body JSON thô**, và hai chữ ký. Ba bước:
 
 1. Lấy khối `Phản hồi querydr thô: {...}` trong log Render của một giao dịch **mã 00**, lưu
-   thành một file `.json`.
+   thành một file `.json` **ngoài repo** — xem cảnh báo bên dưới.
 2. Chạy `scripts/vnpay-querydr-checksum-probe.py` với `VNP_HASH_SECRET` là khoá **đang hiệu
-   lực lúc phản hồi đó được ký**. Script thử 42 cách nối: thứ tự tài liệu có và không có các
-   trường tuỳ chọn, thứ tự khoá trong body, thứ tự chữ cái, dạng `key=value`, rồi cả họ "sai
-   đúng một vị trí" (bỏ một trường, đảo một cặp kề nhau).
-3. Trúng ứng viên nào thì sửa `RESPONSE_HASH_FIELDS` trong `VNPayQueryService` cho khớp, và
-   xoá đoạn "chưa sửa xong" ở trên.
+   lực lúc phản hồi đó được ký**. Script thử vài chục cách nối: thứ tự tài liệu có và không có các
+   trường tuỳ chọn, thứ tự khoá trong body, thứ tự chữ cái, dạng `key=value`, họ "sai đúng một
+   vị trí", và họ đã tìm ra đáp án lần này — chèn một trường lạ của body vào mọi vị trí có thể.
+3. Trúng ứng viên nào thì sửa `RESPONSE_HASH_FIELDS` cho khớp, và sửa luôn chuỗi mong đợi
+   trong `VNPayQueryServiceTest` cùng bản sao `DOCUMENTED` trong script.
 
-> ⚠️ Hai cái bẫy. **Thế hệ khoá:** khoá đã xoay ngày 11/09/2026, nên một phản hồi bắt được
-> trước mốc đó chỉ khớp với khoá cũ — dò bằng khoá mới thì mọi ứng viên đều trượt và không
-> học được gì. **Bảng `nhat_ky_thanh_toan` không dùng được:** `redactSignatures` đã bôi
-> `vnp_SecureHash` trước khi ghi, có chủ đích (§8). Nguồn duy nhất có chữ ký là log Render.
+> ⚠️ **File phản hồi thô là thứ phải xoá sau khi dùng.** Nó chứa một `vnp_SecureHash` thật, tức
+> một mẫu HMAC của hash-secret đang hiệu lực, kèm mã giao dịch và số tiền thật. Đừng lưu nó
+> trong repo: một lần `git add -A` là nó vào lịch sử công khai vĩnh viễn. Chính vì lý do này mà
+> `redactSignatures` bôi chữ ký trước khi ghi vào `nhat_ky_thanh_toan` (§8) — nên bảng đó cũng
+> **không** dùng để dò được, nguồn duy nhất có chữ ký là log Render.
+
+> ⚠️ **Thế hệ khoá.** Khoá đã xoay ngày 11/09/2026. Một phản hồi bắt được trước mốc đó chỉ khớp
+> với khoá cũ; dò bằng khoá mới thì mọi ứng viên đều trượt và không học được gì.
 
 > 🔍 Đọc `vnp_ResponseCode` trong body **trước**. Khác `00` (94 trùng yêu cầu, 02 sai TmnCode…)
 > thì phản hồi vốn đã thiếu trường, và checksum lệch chỉ là **hệ quả** — không phải lỗi thứ tự.
@@ -455,8 +474,12 @@ là cửa thoát hiểm chỉ nới cho lỗi *"khoá đã lộ"*, **không** n�
 > trùng của booking 49 và 52 (§5.7).
 >
 > **Đã xong ngày 11/09/2026:** tách lời gọi `querydr` ra khỏi transaction (việc số 5); xoay
-> `VNP_HASH_SECRET` (việc số 1); trỏ IPN Url trên portal về backend Render (§9); bật chạy đủ
-> bộ test backend trong CI thay cho `-DskipTests`.
+> `VNP_HASH_SECRET` (việc số 1); dò ra thứ tự trường của chữ ký phản hồi querydr (việc số 2,
+> §5.3); trỏ IPN Url trên portal về backend Render (§9); bật chạy đủ bộ test backend trong CI
+> thay cho `-DskipTests`.
+>
+> Một giao dịch sandbox thật cùng ngày (booking 67, 424.150đ) đi trọn luồng và cho phản hồi
+> querydr mã 00: khoá mới trên Render và trên portal đang khớp nhau.
 >
 > Danh sách dưới đây là phần còn lại.
 
@@ -465,10 +488,9 @@ là cửa thoát hiểm chỉ nới cho lỗi *"khoá đã lộ"*, **không** n�
    không ai vô tình khôi phục lại được từ một file `.env` cũ. Việc còn lại là kiểm tra biến
    môi trường trên Render **không còn** `ALLOW_KNOWN_LEAKED_SECRETS=true`: cửa thoát hiểm mở
    sẵn trên môi trường thật thì tự nó vô hiệu hoá chính lớp chặn.
-2. **Dò đúng thứ tự trường của chữ ký phản hồi querydr** (§5.3). Bộ dò offline đã có sẵn:
-   `scripts/vnpay-querydr-checksum-probe.py`, thử 42 cách nối trên một phản hồi thật. Thứ duy
-   nhất còn thiếu là **một body thô mã 00 bắt sau ngày xoay khoá** — làm một giao dịch sandbox
-   là có. Thứ tự đang dùng nằm ở hằng số `RESPONSE_HASH_FIELDS`, sửa đúng một chỗ là xong.
+2. ~~Dò đúng thứ tự trường của chữ ký phản hồi querydr.~~ **Đã làm ngày 11/09/2026** bằng
+   `scripts/vnpay-querydr-checksum-probe.py` trên một phản hồi sandbox thật. Thủ phạm là
+   `vnp_OrderInfo` — chi tiết và cách dò lại ở §5.3.
 3. ~~Đặt `spring.datasource.hikari.minimum-idle: 0`.~~ **Đã làm.** Trước đó
    `idle-timeout: 30000` không có tác dụng vì HikariCP mặc định `minimumIdle = maximumPoolSize`,
    và `idleTimeout` chỉ áp dụng khi `minimumIdle < maximumPoolSize`; pool giữ 10 kết nối mở
@@ -542,6 +564,8 @@ Các lời giải thích chi tiết nhất nằm ngay tại chỗ, dưới dạn
 - `PaymentService.askGatewayFirst` — vì sao câu hỏi gửi sang cổng phải xong trước khi transaction mở
 - `BookingCleanupService.cancelUnpaidBookings` — ba bước, ba transaction, và lời gọi mạng nằm giữa
 - `VNPayQueryService` (Javadoc lớp) — vì sao fail-open
+- `VNPayQueryService.RESPONSE_HASH_FIELDS` — thứ tự trường của chữ ký phản hồi, và vì sao
+  `vnp_OrderInfo` nằm ở chỗ không ai ngờ
 - `VNPayUtil.validateHash` — vì sao chấp nhận cả hai cách mã hoá khoảng trắng
 - `PaymentRepository.existsByTransactionRefAndPaymentStatusNot` — cái bẫy ở §5.5
 - `PaymentLog` (Javadoc lớp) — vì sao cần một bảng chứ không chỉ log ứng dụng

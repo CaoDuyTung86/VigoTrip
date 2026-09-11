@@ -307,10 +307,15 @@ public class VNPayQueryService {
      * Đối chiếu chữ ký của phản hồi. CỐ Ý chỉ ghi log chứ không đổi kết luận.
      *
      * Thứ thật sự chứng thực phản hồi này là TLS tới đúng tên miền của cổng — kẻ giả mạo
-     * callback không nằm trên đường ta gọi ra. Chữ ký chỉ là lớp đối chiếu thêm, mà công
-     * thức nối chuỗi của nó lại không hồi quy được bằng unit test (phải có phản hồi thật từ
-     * cổng mới biết đúng sai). Để nó phủ quyết thì một sai sót về thứ tự trường sẽ chặn đứng
-     * mọi thanh toán — cái giá quá đắt cho một lớp phòng thủ dư.
+     * callback không nằm trên đường ta gọi ra. Chữ ký chỉ là lớp đối chiếu thêm. Để nó phủ
+     * quyết thì một sai sót về thứ tự trường sẽ chặn đứng mọi thanh toán — cái giá quá đắt
+     * cho một lớp phòng thủ dư, và {@link #RESPONSE_HASH_FIELDS} đã sai suốt nhiều tháng
+     * đúng theo kiểu đó mà không ai biết.
+     *
+     * Từ 11/09/2026 thứ tự trường đã khớp với phản hồi thật, nên cảnh báo này chuyển từ
+     * tiếng ồn nền thành tín hiệu: nó im lặng ở mọi giao dịch bình thường, và kêu lên đúng
+     * lúc phản hồi không phải thứ cổng đã ký. Vẫn không phủ quyết, vì lý do ở đoạn trên
+     * không đổi — nhưng giờ nó đáng để đọc.
      */
     private void logChecksumMismatch(JsonNode body, String txnRef) {
         String provided = text(body, "vnp_SecureHash");
@@ -331,16 +336,21 @@ public class VNPayQueryService {
      * Thứ tự trường của chuỗi ký PHẢN HỒI querydr. Nối bằng dấu gạch đứng, không sort,
      * không URL-encode — khác hẳn chuỗi ký lúc tạo URL thanh toán.
      *
-     * Tách thành hằng số có tên vì đây là thứ đang bị nghi sai (§5.3): sửa xong thì chỉ
-     * một danh sách này đổi, và ai đọc sau cũng thấy ngay nó là một giả định chứ không
-     * phải một sự thật đã kiểm chứng. Dò bằng {@code scripts/vnpay-querydr-checksum-probe.py}
-     * trên một phản hồi thật, đừng đoán.
+     * ĐÃ ĐỐI CHIẾU với một phản hồi thật của sandbox ngày 11/09/2026, không phải suy đoán
+     * từ tài liệu. Chỗ từng sai suốt nhiều tháng (§5.3) là {@code vnp_OrderInfo}: cổng CÓ
+     * ký trường này, ở vị trí sau {@code vnp_TransactionStatus} và trước cặp khuyến mãi,
+     * trong khi ta bỏ hẳn nó ra ngoài. Hai trường khuyến mãi thường vắng trong phản hồi
+     * nhưng vẫn được ký dưới dạng chuỗi rỗng, nên KHÔNG được lược bớt.
+     *
+     * Đổi danh sách này là đổi một sự thật đã kiểm chứng: dò lại bằng
+     * {@code scripts/vnpay-querydr-checksum-probe.py} trên một phản hồi thật trước đã.
+     * {@code VNPayQueryServiceTest} khoá đúng chuỗi này để không ai xô lệch nó vô tình.
      */
     private static final List<String> RESPONSE_HASH_FIELDS = List.of(
             "vnp_ResponseId", "vnp_Command", "vnp_ResponseCode", "vnp_Message",
             "vnp_TmnCode", "vnp_TxnRef", "vnp_Amount", "vnp_BankCode", "vnp_PayDate",
             "vnp_TransactionNo", "vnp_TransactionType", "vnp_TransactionStatus",
-            "vnp_PromotionCode", "vnp_PromotionAmount");
+            "vnp_OrderInfo", "vnp_PromotionCode", "vnp_PromotionAmount");
 
     /** Dựng chuỗi ký của một phản hồi querydr theo {@link #RESPONSE_HASH_FIELDS}. */
     static String responseHashData(JsonNode body) {

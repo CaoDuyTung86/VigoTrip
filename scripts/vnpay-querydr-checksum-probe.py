@@ -30,13 +30,13 @@ import os
 import sys
 import urllib.parse
 
-# Thứ tự VNPayService đang dùng. Nếu một ứng viên khác thắng, sửa RESPONSE_HASH_FIELDS
-# trong VNPayQueryService.java cho khớp rồi cập nhật §5.3.
+# Thứ tự VNPayQueryService đang dùng, đã đối chiếu với một phản hồi sandbox thật ngày
+# 11/09/2026. Giữ hai bản sao khớp nhau: ở đây và ở RESPONSE_HASH_FIELDS bên Java.
 DOCUMENTED = [
     "vnp_ResponseId", "vnp_Command", "vnp_ResponseCode", "vnp_Message",
     "vnp_TmnCode", "vnp_TxnRef", "vnp_Amount", "vnp_BankCode", "vnp_PayDate",
     "vnp_TransactionNo", "vnp_TransactionType", "vnp_TransactionStatus",
-    "vnp_PromotionCode", "vnp_PromotionAmount",
+    "vnp_OrderInfo", "vnp_PromotionCode", "vnp_PromotionAmount",
 ]
 
 OPTIONAL = ["vnp_BankCode", "vnp_PromotionCode", "vnp_PromotionAmount"]
@@ -88,6 +88,15 @@ def candidates(body):
         encoded = ["%s=%s" % (f, urllib.parse.quote_plus(text(body, f)).replace("+", "%20"))
                    for f in fields if text(body, f)]
         yield "key=value đã encode, bỏ giá trị rỗng, thứ tự " + name, "&".join(encoded)
+
+    # Trường cổng trả về mà danh sách tài liệu không có. Đây là nghi can số một khi body
+    # chứa thứ ta chưa từng ký: không biết nó nằm ở vị trí nào trong chuỗi ký, nên thử hết.
+    # Giữ nguyên các trường tài liệu vắng mặt dưới dạng chuỗi rỗng, vì cổng vẫn ký chúng.
+    for extra in [k for k in present if k not in DOCUMENTED]:
+        for i in range(len(DOCUMENTED) + 1):
+            fields = DOCUMENTED[:i] + [extra] + DOCUMENTED[i:]
+            label = "trước " + DOCUMENTED[i] if i < len(DOCUMENTED) else "ở cuối"
+            yield "thứ tự tài liệu, chèn %s %s" % (extra, label), pipe(body, fields)
 
     for i, field in enumerate(DOCUMENTED):
         yield "thứ tự tài liệu, bỏ " + field, pipe(body, DOCUMENTED[:i] + DOCUMENTED[i + 1:])

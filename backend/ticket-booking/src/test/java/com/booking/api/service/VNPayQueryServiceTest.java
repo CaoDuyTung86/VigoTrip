@@ -2,6 +2,7 @@ package com.booking.api.service;
 
 import com.booking.api.config.VNPayConfig;
 import com.booking.api.util.VNPayUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,34 @@ class VNPayQueryServiceTest {
         // kiểm chứng querydr vẫn đứng một mình.
         service = new VNPayQueryService(config, builder.build(), mock(PaymentLogService.class));
         ReflectionTestUtils.setField(service, "verifyCallback", true);
+    }
+
+    /**
+     * Khoá đúng chuỗi ký của phản hồi querydr, sau khi nó được dò ra từ một phản hồi thật
+     * của sandbox (§5.3 trong docs/THANH_TOAN_VNPAY.md).
+     *
+     * Test này CỐ Ý viết lại cả chuỗi mong đợi bằng tay thay vì dựng nó từ cùng danh sách
+     * trường mà mã nguồn dùng — dựng từ cùng nguồn thì nó tự đúng với mọi thứ tự, và không
+     * chặn được gì. Ba chi tiết nó giữ, mỗi cái đều từng là một lần sai thật:
+     * {@code vnp_OrderInfo} nằm sau {@code vnp_TransactionStatus} chứ không theo thứ tự
+     * trong body JSON; hai trường khuyến mãi vắng mặt vẫn được ký thành chuỗi rỗng nên
+     * chuỗi kết thúc bằng hai dấu gạch đứng; và trường cổng không trả về thì là rỗng chứ
+     * không bị lược bỏ.
+     */
+    @Test
+    @DisplayName("Chuỗi ký phản hồi querydr giữ nguyên thứ tự đã đối chiếu với cổng thật")
+    void chuoiKyPhanHoiGiuNguyenThuTu() throws Exception {
+        String raw = """
+                {"vnp_ResponseId":"r1","vnp_Command":"querydr","vnp_ResponseCode":"00",
+                 "vnp_Message":"QueryDR success","vnp_TmnCode":"TMN123","vnp_TxnRef":"abc123def456",
+                 "vnp_Amount":"25000000","vnp_OrderInfo":"Thanh_toan_booking_1","vnp_BankCode":"NCB",
+                 "vnp_PayDate":"20260830101500","vnp_TransactionNo":"15677609",
+                 "vnp_TransactionType":"01","vnp_TransactionStatus":"00"}""";
+
+        String hashData = VNPayQueryService.responseHashData(new ObjectMapper().readTree(raw));
+
+        assertThat(hashData).isEqualTo("r1|querydr|00|QueryDR success|TMN123|abc123def456|25000000|NCB|"
+                + "20260830101500|15677609|01|00|Thanh_toan_booking_1||");
     }
 
     private Map<String, String> successCallback() {
