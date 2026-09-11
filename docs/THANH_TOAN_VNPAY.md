@@ -212,8 +212,8 @@ dùng để kiểm chứng luồng thật được**, đừng tốn thời gian 
 
 **Triệu chứng.** Cảnh báo này xuất hiện ở **mọi** giao dịch.
 
-**Trạng thái: chưa sửa xong.** Công thức nối 14 trường bằng `|` trong `logChecksumMismatch`
-đang sai ở đâu đó. Đây là thứ duy nhất trong lớp này không hồi quy được bằng unit test — phải
+**Trạng thái: chưa sửa xong.** Công thức nối 14 trường bằng `|` — hằng số
+`RESPONSE_HASH_FIELDS` trong `VNPayQueryService` — đang sai ở đâu đó. Đây là thứ duy nhất trong lớp này không hồi quy được bằng unit test — phải
 có phản hồi thật từ cổng mới biết đúng sai.
 
 **Nó vô hại, và cố ý vô hại.** Hàm chỉ ghi log, không phủ quyết kết luận. Thứ thật sự chứng thực
@@ -223,7 +223,21 @@ quá đắt cho một lớp phòng thủ dư.
 
 **Cách dò tiếp.** Khi checksum lệch, `logChecksumEvidence` in ra chuỗi ký ta dựng, **body JSON
 thô**, và hai chữ ký. Có body thô rồi thì thử lại các thứ tự khác **offline**, không cần thêm
-giao dịch thật nào nữa.
+giao dịch thật nào nữa. Ba bước:
+
+1. Lấy khối `Phản hồi querydr thô: {...}` trong log Render của một giao dịch **mã 00**, lưu
+   thành một file `.json`.
+2. Chạy `scripts/vnpay-querydr-checksum-probe.py` với `VNP_HASH_SECRET` là khoá **đang hiệu
+   lực lúc phản hồi đó được ký**. Script thử 42 cách nối: thứ tự tài liệu có và không có các
+   trường tuỳ chọn, thứ tự khoá trong body, thứ tự chữ cái, dạng `key=value`, rồi cả họ "sai
+   đúng một vị trí" (bỏ một trường, đảo một cặp kề nhau).
+3. Trúng ứng viên nào thì sửa `RESPONSE_HASH_FIELDS` trong `VNPayQueryService` cho khớp, và
+   xoá đoạn "chưa sửa xong" ở trên.
+
+> ⚠️ Hai cái bẫy. **Thế hệ khoá:** khoá đã xoay ngày 11/09/2026, nên một phản hồi bắt được
+> trước mốc đó chỉ khớp với khoá cũ — dò bằng khoá mới thì mọi ứng viên đều trượt và không
+> học được gì. **Bảng `nhat_ky_thanh_toan` không dùng được:** `redactSignatures` đã bôi
+> `vnp_SecureHash` trước khi ghi, có chủ đích (§8). Nguồn duy nhất có chữ ký là log Render.
 
 > 🔍 Đọc `vnp_ResponseCode` trong body **trước**. Khác `00` (94 trùng yêu cầu, 02 sai TmnCode…)
 > thì phản hồi vốn đã thiếu trường, và checksum lệch chỉ là **hệ quả** — không phải lỗi thứ tự.
@@ -425,6 +439,11 @@ Mỗi lượt tra cứu ghi một dòng `INFO` kèm email người tra — nếu
 `https://<host>/api/payment/vnpay-ipn`, giao thức GET, HMACSHA512. Nhớ bấm **Hoàn thành** để
 lưu — đây chính là chỗ đã gây ra §5.1.
 
+Giá trị đang đặt trên portal từ 11/09/2026: `https://datxe-com.onrender.com/api/payment/vnpay-ipn`,
+tức trỏ thẳng vào backend Render chứ không qua Vercel. Cố ý: rewrite của Vercel là để phục vụ
+trình duyệt của khách, còn IPN là cuộc gọi máy-tới-máy từ cổng, thêm một chặng trung gian chỉ
+thêm một chỗ hỏng và một chỗ nữa có thể đổi thân yêu cầu trước khi chữ ký được kiểm.
+
 `StartupSecretsValidator` chặn khởi động khi phát hiện khoá đã lộ. `ALLOW_KNOWN_LEAKED_SECRETS`
 là cửa thoát hiểm chỉ nới cho lỗi *"khoá đã lộ"*, **không** nới cho lỗi *"thiếu khoá"*.
 
@@ -435,14 +454,21 @@ là cửa thoát hiểm chỉ nới cho lỗi *"khoá đã lộ"*, **không** n�
 > **Đã xong ngày 06/09/2026:** nhật ký giao dịch (§8), index chống trùng (§4), dọn hai cặp dòng
 > trùng của booking 49 và 52 (§5.7).
 >
-> **Đã xong ngày 11/09/2026:** tách lời gọi `querydr` ra khỏi transaction (việc số 5).
+> **Đã xong ngày 11/09/2026:** tách lời gọi `querydr` ra khỏi transaction (việc số 5); xoay
+> `VNP_HASH_SECRET` (việc số 1); trỏ IPN Url trên portal về backend Render (§9); bật chạy đủ
+> bộ test backend trong CI thay cho `-DskipTests`.
 >
 > Danh sách dưới đây là phần còn lại.
 
-1. **Xoay `VNP_HASH_SECRET`.** Giá trị đang dùng đã lộ công khai trong lịch sử Git. Đăng ký
-   terminal sandbox mới là cách nhanh nhất. Xong thì **xoá `ALLOW_KNOWN_LEAKED_SECRETS`**.
-2. **Dò đúng thứ tự trường của chữ ký phản hồi querydr** (§5.3) — đã có sẵn bằng chứng thô
-   trong log, làm offline được.
+1. ~~Xoay `VNP_HASH_SECRET`.~~ **Đã làm ngày 11/09/2026.** Giá trị cũ đã lộ công khai trong
+   lịch sử Git; hash của nó vẫn nằm trong `LEAKED_SHA256` của `StartupSecretsValidator` nên
+   không ai vô tình khôi phục lại được từ một file `.env` cũ. Việc còn lại là kiểm tra biến
+   môi trường trên Render **không còn** `ALLOW_KNOWN_LEAKED_SECRETS=true`: cửa thoát hiểm mở
+   sẵn trên môi trường thật thì tự nó vô hiệu hoá chính lớp chặn.
+2. **Dò đúng thứ tự trường của chữ ký phản hồi querydr** (§5.3). Bộ dò offline đã có sẵn:
+   `scripts/vnpay-querydr-checksum-probe.py`, thử 42 cách nối trên một phản hồi thật. Thứ duy
+   nhất còn thiếu là **một body thô mã 00 bắt sau ngày xoay khoá** — làm một giao dịch sandbox
+   là có. Thứ tự đang dùng nằm ở hằng số `RESPONSE_HASH_FIELDS`, sửa đúng một chỗ là xong.
 3. ~~Đặt `spring.datasource.hikari.minimum-idle: 0`.~~ **Đã làm.** Trước đó
    `idle-timeout: 30000` không có tác dụng vì HikariCP mặc định `minimumIdle = maximumPoolSize`,
    và `idleTimeout` chỉ áp dụng khi `minimumIdle < maximumPoolSize`; pool giữ 10 kết nối mở

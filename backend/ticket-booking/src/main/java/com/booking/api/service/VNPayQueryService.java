@@ -18,8 +18,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 /**
  * Hỏi thẳng cổng VNPay xem một giao dịch có thật hay không, bằng lệnh {@code querydr}
@@ -315,13 +317,7 @@ public class VNPayQueryService {
         if (provided.isEmpty()) {
             return;
         }
-        String hashData = String.join("|",
-                text(body, "vnp_ResponseId"), text(body, "vnp_Command"), text(body, "vnp_ResponseCode"),
-                text(body, "vnp_Message"), text(body, "vnp_TmnCode"), text(body, "vnp_TxnRef"),
-                text(body, "vnp_Amount"), text(body, "vnp_BankCode"), text(body, "vnp_PayDate"),
-                text(body, "vnp_TransactionNo"), text(body, "vnp_TransactionType"),
-                text(body, "vnp_TransactionStatus"), text(body, "vnp_PromotionCode"),
-                text(body, "vnp_PromotionAmount"));
+        String hashData = responseHashData(body);
         String expected = VNPayUtil.hmacSHA512(vnPayConfig.getHashSecret(), hashData);
         if (!expected.equalsIgnoreCase(provided)) {
             log.warn("Chữ ký phản hồi querydr của giao dịch {} không khớp. Kết luận vẫn dựa trên nội dung "
@@ -329,6 +325,28 @@ public class VNPayQueryService {
                     + "thì hãy kiểm tra lại thứ tự trường trong chuỗi nối.", txnRef);
             logChecksumEvidence(body, hashData, expected, provided);
         }
+    }
+
+    /**
+     * Thứ tự trường của chuỗi ký PHẢN HỒI querydr. Nối bằng dấu gạch đứng, không sort,
+     * không URL-encode — khác hẳn chuỗi ký lúc tạo URL thanh toán.
+     *
+     * Tách thành hằng số có tên vì đây là thứ đang bị nghi sai (§5.3): sửa xong thì chỉ
+     * một danh sách này đổi, và ai đọc sau cũng thấy ngay nó là một giả định chứ không
+     * phải một sự thật đã kiểm chứng. Dò bằng {@code scripts/vnpay-querydr-checksum-probe.py}
+     * trên một phản hồi thật, đừng đoán.
+     */
+    private static final List<String> RESPONSE_HASH_FIELDS = List.of(
+            "vnp_ResponseId", "vnp_Command", "vnp_ResponseCode", "vnp_Message",
+            "vnp_TmnCode", "vnp_TxnRef", "vnp_Amount", "vnp_BankCode", "vnp_PayDate",
+            "vnp_TransactionNo", "vnp_TransactionType", "vnp_TransactionStatus",
+            "vnp_PromotionCode", "vnp_PromotionAmount");
+
+    /** Dựng chuỗi ký của một phản hồi querydr theo {@link #RESPONSE_HASH_FIELDS}. */
+    static String responseHashData(JsonNode body) {
+        return RESPONSE_HASH_FIELDS.stream()
+                .map(field -> text(body, field))
+                .collect(Collectors.joining("|"));
     }
 
     /**
