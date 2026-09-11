@@ -1,0 +1,42 @@
+MIT License
+
+Copyright (c) 2026 VigoTrip project team (Đồ án tốt nghiệp, Đại học CMC)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## Không nằm trong giấy phép trên
+
+Giấy phép MIT ở trên áp dụng cho **mã nguồn và tài liệu** do nhóm viết ra. Nó KHÔNG áp dụng
+cho những thứ nhóm không sở hữu và cũng không có quyền cấp phép lại:
+
+- **Logo và nhãn hiệu của bên thứ ba** — `my-react-app/public/logos/` (Vietnam Airlines,
+  VietJet Air, Bamboo Airways) và các biểu tượng trong `my-react-app/src/Picture/`
+  (Apple Pay, Google Pay, JCB, Visa, Google, Facebook). Đây là nhãn hiệu của chủ sở hữu
+  tương ứng, có mặt ở đây chỉ để một bản demo học thuật trông giống thật.
+- **Ảnh minh hoạ** — `my-react-app/public/destinations/` và `my-react-app/public/suat an/`.
+  Ảnh điểm đến và ảnh suất ăn sưu tầm cho mục đích minh hoạ trong đồ án, quyền thuộc về tác
+  giả gốc.
+
+Dùng lại mã nguồn thì thay những tệp đó bằng tài sản của chính bạn. Tên "VigoTrip" cùng logo
+của dự án cũng không nằm trong giấy phép.
+
+Các thư viện bên thứ ba đi kèm giữ nguyên giấy phép của chúng — xem `pom.xml` và
+`package.json`.

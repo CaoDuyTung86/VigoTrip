@@ -4,6 +4,24 @@ Dự án đồ án tốt nghiệp cung cấp giải pháp đặt vé toàn diệ
 
 ---
 
+## ⚠️ Trạng thái: ngừng hỗ trợ từ 19/09/2026
+
+Dự án đã bảo vệ xong và **đóng băng** kể từ mốc trên. Cụ thể là:
+
+- **Không có ai trả lời issue hay pull request.** Không phải chậm, mà là không.
+- **Không có bản vá bảo mật.** Phụ thuộc trong `pom.xml` và `package.json` đứng yên từ ngày
+  đóng băng, và lỗ hổng công bố sau đó sẽ không được vá.
+- **Bản chạy thử có thể tắt bất cứ lúc nào.** Các đường dẫn trong tài liệu này trỏ tới tài
+  khoản miễn phí của nhóm; khoá của cổng thanh toán, của mô hình ngôn ngữ và của dịch vụ gửi
+  thư đều sẽ bị thu hồi. Đừng xây bất cứ thứ gì dựa trên chúng.
+- **Mã nguồn vẫn ở đây và vẫn dùng lại được**, theo giấy phép MIT. Xem [LICENSE](./LICENSE).
+
+Muốn chạy tiếp thì fork về, tự đăng ký khoá của mình, và đọc mục 10 "Việc còn lại" trong
+[docs/THANH_TOAN_VNPAY.md](./docs/THANH_TOAN_VNPAY.md) trước — nó liệt kê đúng những chỗ còn
+thiếu, bằng lời của người đã đi qua chúng.
+
+---
+
 ## Tính Năng Nổi Bật
 
 - **AI Chatbot với Hybrid RAG:** Tri thức lưu trong CSDL kèm vector embedding, truy hồi lai giữa tìm kiếm ngữ nghĩa (cosine) và BM25, hợp nhất bằng Reciprocal Rank Fusion. Đo được: recall@3 94.7%, MRR 0.795 trên bộ 57 câu hỏi vàng.
@@ -108,6 +126,17 @@ Chi tiết đầy đủ — quy tắc "ai thắng" giữa client và server, chu
 6. **Tìm hiểu AI Business Intelligence:** Cách phần Thống kê doanh thu + Báo cáo AI hoạt động (SQL tính số → LLM chỉ diễn giải), kỳ báo cáo, phân quyền đối tác và đo chất lượng tới đâu: [docs/AI_BI.md](./docs/AI_BI.md).
 7. **Demo & kiểm thử bản deploy:** Kịch bản demo theo từng màn kèm checklist smoke test sau mỗi lần deploy: [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md).
 8. **Luồng thanh toán VNPay:** Luồng Return/IPN, ba lớp phòng thủ trước khi giao vé, các sự cố đã gặp (và vì sao sửa theo cách hiện tại), cùng cách chẩn đoán bằng log: [docs/THANH_TOAN_VNPAY.md](./docs/THANH_TOAN_VNPAY.md).
+---
+
+## Giấy phép
+
+Mã nguồn và tài liệu: [MIT](./LICENSE). Dùng lại, sửa, thương mại hoá đều được, miễn giữ lại
+thông báo bản quyền — và hiểu rằng phần mềm được cấp "nguyên trạng", không bảo hành.
+
+Logo hãng bay, biểu tượng phương thức thanh toán và ảnh minh hoạ **không** nằm trong giấy phép
+đó: chúng thuộc về chủ sở hữu tương ứng, có mặt ở đây chỉ để một bản demo học thuật trông giống
+thật. Dùng lại mã nguồn thì thay chúng bằng tài sản của bạn. Chi tiết ở cuối [LICENSE](./LICENSE).
+
 ---
 
 _Phát triển bởi nhóm sinh viên Đồ án Tốt nghiệp trường Đại Học CMC - 2026_

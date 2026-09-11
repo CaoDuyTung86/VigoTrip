@@ -560,6 +560,35 @@ là cửa thoát hiểm chỉ nới cho lỗi *"khoá đã lộ"*, **không** n�
    `LATE_NEEDS_REFUND` (lỗi hệ thống, không cần con người phán xét); khách chủ động xin hủy vé
    thì vẫn để người duyệt. Bắt buộc idempotent — một `vnp_TxnRef` chỉ được hoàn đúng một lần.
 8. ~~Để Neon thật sự ngủ được.~~ **Đã làm** — xem §12.
+9. **Thêm cổng thanh toán thứ hai** (MoMo, ZaloPay, PayOS…). *(không làm trước khi đóng băng)*
+   Ghi lại ở đây vì câu hỏi "có phải dựng lại từ đầu không" đáng được trả lời bằng con số.
+
+   **Không phải từ đầu.** Phần đắt nhất của tài liệu này không thuộc về VNPay: ba lớp phòng
+   thủ (§3), index duy nhất trên `transaction_ref` (§4), nhật ký giao dịch (§8), lượt dọn đơn
+   quá hạn, và việc tách cửa sổ cổng khỏi cửa sổ của ta (§5.4). Cổng nào cũng cần đúng những
+   thứ đó, vì chúng sinh ra từ bản chất của thanh toán bất đồng bộ chứ không từ đặc thù một
+   nhà cung cấp.
+
+   **Phần phải viết lại** là lớp tiếp xúc, khoảng 580 dòng:
+
+   | Tệp | Dòng | Vì sao phải thay |
+   |---|---|---|
+   | `VNPayUtil` | 140 | Cách nối chuỗi ký và quy tắc mã hoá, mỗi cổng một kiểu |
+   | `VNPayQueryService` | 426 | API tra cứu giao dịch, mã lỗi, và chữ ký phản hồi |
+   | `VNPayConfig` | 17 | Cấu hình |
+
+   Cộng thêm 59 chỗ chạm tới tiền tố `vnp_` nằm rải trong `PaymentService` — dựng URL thanh
+   toán, đọc tham số callback, quy đổi đơn vị tiền và định dạng thời gian.
+
+   **Đường đi nếu làm thật:** rút một giao diện `PaymentGateway` gồm bốn việc — tạo phiên
+   thanh toán, kiểm chữ ký callback, đọc callback thành một kết quả chuẩn hoá, và hỏi lại
+   trạng thái giao dịch. `PaymentService` chỉ nói chuyện với giao diện đó. Thêm một cột trên
+   bảng `thanh_toan` ghi cổng nào đã xử lý, vì `transaction_ref` chỉ duy nhất trong phạm vi
+   một cổng. Mỗi cổng một cặp endpoint callback riêng, đừng gộp.
+
+   **Đừng làm việc này trước khi đóng băng.** Nó cùng hạng với việc số 7: đủ lớn để nuốt trọn
+   thời gian còn lại rồi để dở dang, mà một cổng chạy đúng thì đã chứng minh xong điều cần
+   chứng minh.
 
 ### Khi nào mới cần chạy nhiều instance
 
