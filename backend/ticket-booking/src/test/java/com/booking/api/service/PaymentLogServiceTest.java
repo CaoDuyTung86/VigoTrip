@@ -14,14 +14,18 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -49,6 +53,50 @@ class PaymentLogServiceTest {
     void setUp() {
         ReflectionTestUtils.setField(service, "enabled", true);
         ReflectionTestUtils.setField(service, "retentionDays", 180);
+    }
+
+    /**
+     * Ca thật đã gặp: tra theo mã giao dịch ra bốn dòng, tra theo mã đơn chỉ ra hai. Hai
+     * dòng chênh nhau là các lượt hỏi cổng, thứ trả lời cho câu hỏi quan trọng nhất lúc có
+     * tranh chấp. Người vận hành cầm mã đơn phải thấy đủ, không phải tự bắc cầu bằng tay.
+     */
+    @Test
+    @DisplayName("Tra theo mã đơn kéo theo cả các dòng QUERYDR vốn không mang mã đơn")
+    void findByBookingId_IncludesQueryRowsLinkedByTransactionRef() {
+        PaymentLog ipn = row(1L, 68L, "8c8644860d7f", PaymentLog.Channel.IPN, 19);
+        PaymentLog ret = row(2L, 68L, "8c8644860d7f", PaymentLog.Channel.RETURN, 19);
+        PaymentLog query = row(3L, null, "8c8644860d7f", PaymentLog.Channel.QUERYDR, 18);
+
+        when(repository.findByBookingIdOrderByCreatedAtAsc(eq(68L), any()))
+                .thenReturn(List.of(ipn, ret));
+        when(repository.findByTransactionRefInOrderByCreatedAtAsc(eq(Set.of("8c8644860d7f")), any()))
+                .thenReturn(List.of(query, ipn, ret));
+
+        List<PaymentLog> found = service.findByBookingId(68L);
+
+        assertEquals(List.of(3L, 1L, 2L), found.stream().map(PaymentLog::getId).toList(),
+                "phải đủ ba dòng, không trùng lặp, và theo đúng thứ tự đã xảy ra");
+    }
+
+    /** Đơn chưa có dòng nào thì không đi bước bắc cầu — không có mã giao dịch để bắc. */
+    @Test
+    @DisplayName("Đơn không có dấu vết nào thì không truy vấn thêm lần hai")
+    void findByBookingId_SkipsSecondQueryWhenNothingFound() {
+        when(repository.findByBookingIdOrderByCreatedAtAsc(eq(70L), any())).thenReturn(List.of());
+
+        assertTrue(service.findByBookingId(70L).isEmpty());
+        verify(repository, never()).findByTransactionRefInOrderByCreatedAtAsc(any(), any());
+    }
+
+    private static PaymentLog row(Long id, Long bookingId, String txnRef,
+                                  PaymentLog.Channel channel, int second) {
+        return PaymentLog.builder()
+                .id(id)
+                .bookingId(bookingId)
+                .transactionRef(txnRef)
+                .channel(channel)
+                .createdAt(LocalDateTime.of(2026, 9, 11, 12, 18, second))
+                .build();
     }
 
     @Test
@@ -102,12 +150,29 @@ class PaymentLogServiceTest {
     @Test
     @DisplayName("Phản hồi querydr lưu xuống DB đã sạch chữ ký")
     void recordQuery_StoresRedactedResponse() {
-        service.recordQuery("TXN1", "CONFIRMED", Map.of("vnp_TxnRef", "TXN1"),
+        service.recordQuery("TXN1", true, "CONFIRMED", Map.of("vnp_TxnRef", "TXN1"),
                 "{\"vnp_TransactionStatus\":\"00\",\"vnp_SecureHash\":\"9f8e7d6c5b4a\"}");
 
         ArgumentCaptor<PaymentLog> entry = ArgumentCaptor.forClass(PaymentLog.class);
         verify(writer).write(entry.capture());
         assertFalse(entry.getValue().getResponsePayload().contains("9f8e7d6c5b4a"));
+        assertEquals(Boolean.TRUE, entry.getValue().getSignatureValid(),
+                "kết luận về chữ ký phải sống lâu hơn log của container");
+    }
+
+    /**
+     * Phản hồi mã 94 chỉ có hai trường, không mang chữ ký. Ghi "sai" cho nó là dựng lên một
+     * dấu hiệu tấn công không có thật, nên cột phải để trống chứ không ép về false.
+     */
+    @Test
+    @DisplayName("Phản hồi không có chữ ký thì cột signature_valid để trống, không phải sai")
+    void recordQuery_LeavesSignatureUnknownWhenThereIsNothingToCheck() {
+        service.recordQuery("TXN1", null, "UNAVAILABLE", Map.of(),
+                "{\"vnp_ResponseCode\":\"94\",\"vnp_Message\":\"Request is duplicated\"}");
+
+        ArgumentCaptor<PaymentLog> entry = ArgumentCaptor.forClass(PaymentLog.class);
+        verify(writer).write(entry.capture());
+        assertNull(entry.getValue().getSignatureValid());
     }
 
     @Test
@@ -170,7 +235,7 @@ class PaymentLogServiceTest {
     void disabled_WritesNothing() {
         ReflectionTestUtils.setField(service, "enabled", false);
 
-        service.recordQuery("TXN1", "CONFIRMED", Map.of(), "{}");
+        service.recordQuery("TXN1", true, "CONFIRMED", Map.of(), "{}");
 
         verify(writer, never()).write(any());
     }

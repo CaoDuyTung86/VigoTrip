@@ -98,7 +98,7 @@ Chi tiết đầy đủ — quy tắc "ai thắng" giữa client và server, chu
 ## Hướng Dẫn Cài Đặt
 
 1. **Yêu cầu hệ thống:** Đã cài đặt Docker và Docker Compose.
-2. **Cấu hình:** Sao chép file `.env.example` thành `.env` và điền các thông số cần thiết (DB, GEMINI_API_KEY, VNPay Config, JWT_SECRET).
+2. **Cấu hình:** Sao chép file `.env.example` thành `.env` và điền sáu biến chặn khởi động: `SPRING_DATASOURCE_PASSWORD`, `JWT_SECRET`, `VNP_TMN_CODE`, `VNP_HASH_SECRET`, `ADMIN_PASSWORD`, `PROVIDER_PASSWORD`. Khoá AI và khoá gửi thư là tuỳ chọn — thiếu thì mất tính năng tương ứng chứ hệ thống vẫn chạy. Danh sách đầy đủ kèm cách lấy từng giá trị: [docs/AI_ONBOARDING.md](./docs/AI_ONBOARDING.md).
 3. **Khởi chạy:**
    ```bash
    docker-compose up -d

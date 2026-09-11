@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Chặn ứng dụng khởi động khi thiếu bí mật bắt buộc, hoặc khi bí mật đang dùng là một
@@ -64,6 +65,20 @@ public class StartupSecretsValidator {
     );
 
     /**
+     * Giá trị mẫu trong {@code .env.example}, dạng {@code your_..._here}.
+     *
+     * Vì sao cần một nhánh riêng: nhánh "thiếu biến" chỉ bắt chuỗi rỗng, nên một người mới
+     * sao chép nguyên {@code .env.example} thành {@code .env} sẽ đi qua được lớp kiểm tra
+     * này với `VNP_TMN_CODE=your_vnpay_tmn_code_here`. Ứng dụng khởi động bình thường, và
+     * sai sót chỉ lộ ra ở lần bấm thanh toán đầu tiên dưới dạng một mã lỗi của cổng —
+     * xa chỗ sai và không nhắc gì tới file cấu hình.
+     *
+     * Đây là lỗi cấu hình, không phải rủi ro được chấp nhận có hiểu biết, nên nó đi vào
+     * danh sách "thiếu" chứ KHÔNG nới được bằng ALLOW_KNOWN_LEAKED_SECRETS.
+     */
+    private static final Pattern PLACEHOLDER = Pattern.compile("(?i)your[_-].*[_-]here.*");
+
+    /**
      * Cửa thoát hiểm CÓ CHỦ Ý cho tình huống khoá đã lộ nhưng chưa xoay kịp (nhà cung cấp
      * chưa cấp lại, hạn nộp đã tới). Bật lên thì ứng dụng vẫn khởi động, nhưng phải là một
      * quyết định có ý thức: tên biến nói đúng việc nó làm, và mỗi lần khởi động đều in một
@@ -83,6 +98,9 @@ public class StartupSecretsValidator {
             String value = env.getProperty(key);
             if (value == null || value.isBlank()) {
                 missing.add("  - Thiếu %s (khoá cấu hình: %s)".formatted(envVar, key));
+            } else if (PLACEHOLDER.matcher(value).matches()) {
+                missing.add("  - %s vẫn là giá trị mẫu của .env.example (\"%s\"), chưa phải giá trị thật"
+                        .formatted(envVar, value));
             } else if (LEAKED_SHA256.contains(sha256(value))) {
                 leaked.add(envVar);
             }

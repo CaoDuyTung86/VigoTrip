@@ -194,6 +194,11 @@ public class VNPayQueryService {
         Map<String, String> payload = buildQueryPayload(txnRef, transactionDate);
         String raw = null;
         Verdict verdict = Verdict.UNAVAILABLE;
+        // Ba trạng thái, không phải hai: khớp, lệch, và "không có gì để đối chiếu" (phản hồi
+        // mã 94 chỉ có hai trường, lượt gọi hỏng thì không có phản hồi nào). Giữ null cho
+        // trạng thái thứ ba thay vì ép về false — ghi "chữ ký sai" cho một phản hồi vốn
+        // không mang chữ ký là dựng lên một dấu hiệu tấn công không có thật.
+        Boolean signatureValid = null;
         try {
             raw = restClient.post()
                     .uri(vnPayConfig.getApiUrl())
@@ -205,6 +210,7 @@ public class VNPayQueryService {
             if (body == null) {
                 log.warn("Cổng VNPay trả về phản hồi rỗng cho giao dịch {}", txnRef);
             } else {
+                signatureValid = verifyResponseSignature(body, txnRef);
                 verdict = interpret(body, txnRef, expectedAmount, purpose);
             }
         } catch (Exception e) {
@@ -216,7 +222,7 @@ public class VNPayQueryService {
                 raw = "LOI_KHI_GOI_CONG: " + e;
             }
         } finally {
-            paymentLogService.recordQuery(txnRef, verdict.name(), payload, raw);
+            paymentLogService.recordQuery(txnRef, signatureValid, verdict.name(), payload, raw);
         }
         return verdict;
     }
@@ -257,8 +263,6 @@ public class VNPayQueryService {
     }
 
     Verdict interpret(JsonNode body, String txnRef, long expectedAmount, Purpose purpose) {
-        logChecksumMismatch(body, txnRef);
-
         String responseCode = text(body, "vnp_ResponseCode");
         if (RSP_NOT_FOUND.equals(responseCode)) {
             if (purpose == Purpose.CALLBACK) {
@@ -316,20 +320,26 @@ public class VNPayQueryService {
      * tiếng ồn nền thành tín hiệu: nó im lặng ở mọi giao dịch bình thường, và kêu lên đúng
      * lúc phản hồi không phải thứ cổng đã ký. Vẫn không phủ quyết, vì lý do ở đoạn trên
      * không đổi — nhưng giờ nó đáng để đọc.
+     *
+     * Kết luận cũng được ghi vào cột {@code signature_valid} của nhật ký giao dịch, nên nó
+     * còn đọc được sau khi log của container đã bị xoay vòng. Trả về {@code null} khi phản
+     * hồi không mang chữ ký để đối chiếu.
      */
-    private void logChecksumMismatch(JsonNode body, String txnRef) {
+    private Boolean verifyResponseSignature(JsonNode body, String txnRef) {
         String provided = text(body, "vnp_SecureHash");
         if (provided.isEmpty()) {
-            return;
+            return null;
         }
         String hashData = responseHashData(body);
         String expected = VNPayUtil.hmacSHA512(vnPayConfig.getHashSecret(), hashData);
-        if (!expected.equalsIgnoreCase(provided)) {
-            log.warn("Chữ ký phản hồi querydr của giao dịch {} không khớp. Kết luận vẫn dựa trên nội dung "
-                    + "phản hồi (TLS đã bảo đảm nguồn gốc); nếu cảnh báo này xuất hiện ở MỌI giao dịch "
-                    + "thì hãy kiểm tra lại thứ tự trường trong chuỗi nối.", txnRef);
-            logChecksumEvidence(body, hashData, expected, provided);
+        if (expected.equalsIgnoreCase(provided)) {
+            return true;
         }
+        log.warn("Chữ ký phản hồi querydr của giao dịch {} không khớp. Kết luận vẫn dựa trên nội dung "
+                + "phản hồi (TLS đã bảo đảm nguồn gốc); nếu cảnh báo này xuất hiện ở MỌI giao dịch "
+                + "thì hãy kiểm tra lại thứ tự trường trong chuỗi nối.", txnRef);
+        logChecksumEvidence(body, hashData, expected, provided);
+        return false;
     }
 
     /**

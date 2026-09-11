@@ -11,10 +11,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Ghi nhật ký giao dịch: mọi callback từ cổng, mọi lượt ta hỏi cổng, mọi quyết định hoàn tiền.
@@ -94,12 +98,20 @@ public class PaymentLogService {
                 .responsePayload(truncate(redactSignatures(response))));
     }
 
-    /** Ghi lại một lượt hỏi cổng bằng querydr, cả lúc hỏi được lẫn lúc không. */
-    public void recordQuery(String transactionRef, String outcome,
+    /**
+     * Ghi lại một lượt hỏi cổng bằng querydr, cả lúc hỏi được lẫn lúc không.
+     *
+     * {@code signatureValid} nhận cả ba trạng thái: khớp, lệch, và {@code null} nghĩa là
+     * phản hồi không mang chữ ký nào để đối chiếu — phản hồi mã 94 chỉ có hai trường, còn
+     * lượt gọi hỏng thì không có phản hồi. Đây là cùng một quy ước với hai kênh callback,
+     * nhờ vậy màn hình tra cứu đọc một cột duy nhất cho cả ba kênh.
+     */
+    public void recordQuery(String transactionRef, Boolean signatureValid, String outcome,
                             Map<String, String> request, String response) {
         save(PaymentLog.builder()
                 .channel(PaymentLog.Channel.QUERYDR)
                 .transactionRef(trim(transactionRef, 64))
+                .signatureValid(signatureValid)
                 .outcome(trim(outcome, 64))
                 .requestPayload(flatten(request))
                 .responsePayload(truncate(redactSignatures(response))));
@@ -197,14 +209,45 @@ public class PaymentLogService {
                 transactionRef.trim(), PageRequest.of(0, MAX_LOOKUP_ROWS));
     }
 
-    /** Dấu vết theo đơn — dùng khi khách chỉ nhớ mã đơn chứ không có mã giao dịch. */
+    /**
+     * Dấu vết theo đơn — dùng khi khách chỉ nhớ mã đơn chứ không có mã giao dịch.
+     *
+     * Hai bước chứ không một. Các dòng QUERYDR không mang mã đơn: lượt hỏi cổng xuất phát
+     * từ {@code VNPayQueryService}, nơi chỉ biết mã giao dịch. Nếu chỉ lọc theo mã đơn thì
+     * người vận hành thấy hai dòng callback mà không thấy ta đã hỏi lại cổng những gì —
+     * đúng phần quan trọng nhất khi phân xử "khách nói đã trả, hệ thống nói chưa". Nên tìm
+     * theo đơn trước, rồi bắc cầu qua chính những mã giao dịch vừa thấy.
+     *
+     * Không nới bề mặt tấn công: các mã giao dịch dùng ở bước hai đều lấy từ những dòng đã
+     * thuộc về đơn này, chứ không phải do người gọi khai. Và một mã giao dịch chỉ thuộc về
+     * một đơn duy nhất, vì index {@code ux_thanh_toan_transaction_ref} bắt nó là duy nhất.
+     */
     @Transactional(readOnly = true)
     public List<PaymentLog> findByBookingId(Long bookingId) {
         if (bookingId == null) {
             return List.of();
         }
-        return repository.findByBookingIdOrderByCreatedAtAsc(
-                bookingId, PageRequest.of(0, MAX_LOOKUP_ROWS));
+        PageRequest limit = PageRequest.of(0, MAX_LOOKUP_ROWS);
+        List<PaymentLog> byBooking = repository.findByBookingIdOrderByCreatedAtAsc(bookingId, limit);
+
+        Set<String> refs = byBooking.stream()
+                .map(PaymentLog::getTransactionRef)
+                .filter(ref -> ref != null && !ref.isBlank())
+                .collect(Collectors.toSet());
+        if (refs.isEmpty()) {
+            return byBooking;
+        }
+
+        Map<Long, PaymentLog> merged = new LinkedHashMap<>();
+        byBooking.forEach(row -> merged.put(row.getId(), row));
+        repository.findByTransactionRefInOrderByCreatedAtAsc(refs, limit)
+                .forEach(row -> merged.putIfAbsent(row.getId(), row));
+
+        return merged.values().stream()
+                .sorted(Comparator.comparing(PaymentLog::getCreatedAt)
+                        .thenComparing(PaymentLog::getId))
+                .limit(MAX_LOOKUP_ROWS)
+                .toList();
     }
 
     /** Cắt cho vừa cột, kèm dấu hiệu để người đọc biết là bị cắt chứ không phải cổng gửi thiếu. */

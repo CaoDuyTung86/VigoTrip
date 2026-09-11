@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -30,6 +31,14 @@ public interface PaymentLogRepository extends JpaRepository<PaymentLog, Long> {
 
     /** Dấu vết theo đơn — dùng khi khách chỉ nhớ mã đơn chứ không có mã giao dịch. */
     List<PaymentLog> findByBookingIdOrderByCreatedAtAsc(Long bookingId, Pageable pageable);
+
+    /**
+     * Dấu vết của một nhóm mã giao dịch. Chỉ phục vụ việc tra theo đơn: các dòng QUERYDR
+     * không mang mã đơn (lượt hỏi cổng chỉ biết mã giao dịch), nên tra theo đơn phải bắc
+     * cầu qua chính những mã giao dịch đã tìm thấy ở bước trước.
+     */
+    List<PaymentLog> findByTransactionRefInOrderByCreatedAtAsc(Collection<String> transactionRefs,
+                                                               Pageable pageable);
 
     @Modifying
     @Query("DELETE FROM PaymentLog p WHERE p.createdAt < :cutoff")

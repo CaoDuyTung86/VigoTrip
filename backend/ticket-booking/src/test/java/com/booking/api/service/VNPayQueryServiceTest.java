@@ -15,7 +15,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -40,6 +44,7 @@ class VNPayQueryServiceTest {
     private VNPayConfig config;
     private VNPayQueryService service;
     private MockRestServiceServer gateway;
+    private PaymentLogService paymentLogService;
 
     @BeforeEach
     void setUp() {
@@ -52,7 +57,8 @@ class VNPayQueryServiceTest {
         gateway = MockRestServiceServer.bindTo(builder).build();
         // Nhật ký giao dịch không phải đối tượng của bộ test này; bơm mock để lớp
         // kiểm chứng querydr vẫn đứng một mình.
-        service = new VNPayQueryService(config, builder.build(), mock(PaymentLogService.class));
+        paymentLogService = mock(PaymentLogService.class);
+        service = new VNPayQueryService(config, builder.build(), paymentLogService);
         ReflectionTestUtils.setField(service, "verifyCallback", true);
     }
 
@@ -118,6 +124,48 @@ class VNPayQueryServiceTest {
         assertThat(service.verifySuccessfulCallback(successCallback(), AMOUNT))
                 .isEqualTo(VNPayQueryService.Verdict.CONFIRMED);
         gateway.verify();
+    }
+
+    /**
+     * Kết luận về chữ ký phản hồi phải sống lâu hơn log của container: nó đi vào cột
+     * {@code signature_valid} của nhật ký giao dịch, nơi màn hình tra cứu đọc ra. Trước
+     * ngày 11/09/2026 cột này luôn trống với dòng querydr, nên giao diện gắn nhãn "Không
+     * có chữ ký" cho cả những phản hồi có chữ ký và đã được kiểm là khớp.
+     */
+    @Test
+    @DisplayName("Chữ ký phản hồi khớp thì nhật ký ghi lại đúng kết luận đó")
+    void recordsSignatureVerdictWhenGatewaySignsTheReply() throws Exception {
+        expectQuery(signedGatewayReply());
+
+        assertThat(service.verifySuccessfulCallback(successCallback(), AMOUNT))
+                .isEqualTo(VNPayQueryService.Verdict.CONFIRMED);
+        verify(paymentLogService).recordQuery(eq(TXN_REF), eq(Boolean.TRUE), eq("CONFIRMED"), any(), any());
+    }
+
+    /**
+     * Phản hồi mã 94 chỉ có hai trường, không mang chữ ký nào để đối chiếu. Ghi "sai" cho
+     * nó là dựng lên một dấu hiệu tấn công không có thật, nên cột phải để trống.
+     */
+    @Test
+    @DisplayName("Phản hồi không mang chữ ký thì để trống kết luận, không ghi là sai")
+    void leavesSignatureUnknownWhenReplyCarriesNone() {
+        expectQuery("""
+                {"vnp_ResponseCode":"94","vnp_Message":"Request is duplicated"}""");
+
+        assertThat(service.verifySuccessfulCallback(successCallback(), AMOUNT))
+                .isEqualTo(VNPayQueryService.Verdict.UNAVAILABLE);
+        verify(paymentLogService).recordQuery(eq(TXN_REF), isNull(), eq("UNAVAILABLE"), any(), any());
+    }
+
+    /** Phản hồi đầy đủ trường, ký bằng chính hash-secret của merchant trong bộ test này. */
+    private String signedGatewayReply() throws Exception {
+        String unsigned = """
+                {"vnp_ResponseId":"r1","vnp_Command":"querydr","vnp_ResponseCode":"00",                "vnp_Message":"Query success","vnp_TmnCode":"%s","vnp_TxnRef":"%s",                "vnp_Amount":%d,"vnp_OrderInfo":"Thanh_toan_booking_1","vnp_BankCode":"NCB",                "vnp_PayDate":"%s","vnp_TransactionNo":"15677691","vnp_TransactionType":"01",                "vnp_TransactionStatus":"00"}"""
+                .formatted(TMN_CODE, TXN_REF, AMOUNT, PAY_DATE);
+        String signature = VNPayUtil.hmacSHA512(HASH_SECRET,
+                VNPayQueryService.responseHashData(new ObjectMapper().readTree(unsigned)));
+        return unsigned.substring(0, unsigned.length() - 1)
+                + ",\"vnp_SecureHash\":\"" + signature + "\"}";
     }
 
     @Test

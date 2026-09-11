@@ -32,11 +32,33 @@ Check if `.env` exists. If not, copy `.env.example` to `.env`.
 To run this project, you MUST create a `.env` file in the root directory. Use `.env.example` as a template.
 
 ### Required Secrets:
-- `SPRING_DATASOURCE_PASSWORD`: SQL Server password.
-- `SPRING_MAIL_PASSWORD`: Gmail App Password (2-Factor Auth required).
-- `JWT_SECRET`: Secret key for token signing (min 32 chars).
-- `VNP_HASH_SECRET`: Provided by VNPay Sandbox.
-- `GEMINI_API_KEY`: For the AI Chatbot feature.
+
+Sáu biến dưới đây **chặn khởi động** nếu thiếu. Danh sách này phải khớp với
+`StartupSecretsValidator.REQUIRED` — sửa một bên thì sửa cả bên kia, vì sai lệch ở đây nghĩa
+là người mới điền xong vẫn thấy ứng dụng chết mà không hiểu tại sao.
+
+| Biến | Lấy ở đâu |
+| :-- | :-- |
+| `SPRING_DATASOURCE_PASSWORD` | Mật khẩu SQL Server. Tự đặt, container sẽ dùng chính nó |
+| `JWT_SECRET` | `openssl rand -base64 48`. **Phải là base64 hợp lệ**, không phải "chuỗi 32 ký tự bất kỳ": gõ tay một chuỗi có dấu `-` là ứng dụng không khởi động |
+| `VNP_TMN_CODE` | Đăng ký terminal ở sandbox.vnpayment.vn |
+| `VNP_HASH_SECRET` | Cùng chỗ với `VNP_TMN_CODE` |
+| `ADMIN_PASSWORD` | Tự đặt. `AdminSeeder` đồng bộ lại tài khoản này ở **mỗi** lần khởi động |
+| `PROVIDER_PASSWORD` | Tự đặt, như trên |
+
+**Không** bắt buộc, thiếu thì mất tính năng chứ ứng dụng vẫn chạy:
+
+- `GEMINI_API_KEY`, `GROQ_API_KEY` — nhà cung cấp nào bỏ trống khoá sẽ bị loại khỏi
+  `LlmRouter` lúc khởi động. Không khai cái nào thì chatbot không còn nhà cung cấp để gọi,
+  phần còn lại của hệ thống không bị ảnh hưởng. Truy hồi RAG tự lùi về BM25 thuần.
+- `SPRING_MAIL_PASSWORD` / `BREVO_API_KEY` — không có thì không gửi được thư xác nhận vé
+  và thư nhắc chuyến. Đặt vé vẫn xong, vé vẫn xem được trong tài khoản.
+- `VITE_TURNSTILE_SITE_KEY` — biến của **frontend**, nằm ở `my-react-app/.env.*` chứ không
+  phải `.env` gốc. Thiếu thì widget CAPTCHA không hiện mà backend vẫn chặn, nên khách vãng
+  lai nhận "Captcha verification failed" ở mọi tin nhắn chatbot.
+
+Đọc `.env.example` ở gốc repo để biết chi tiết từng biến — nó là nguồn đầy đủ nhất, file này
+chỉ tóm tắt phần chặn khởi động.
 
 ---
 

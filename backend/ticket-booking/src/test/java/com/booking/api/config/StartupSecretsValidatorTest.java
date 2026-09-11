@@ -55,6 +55,23 @@ class StartupSecretsValidatorTest {
                 .hasMessageContaining("JWT_SECRET");
     }
 
+    /**
+     * Ca của người mới: sao chép nguyên `.env.example` rồi chạy luôn. Trước đây bộ này đi
+     * lọt vì giá trị mẫu không rỗng, và sai sót chỉ lộ ra ở lần bấm thanh toán đầu tiên.
+     */
+    @Test
+    @DisplayName("Giá trị mẫu của .env.example bị coi như thiếu, không cho khởi động")
+    void failsWhenSecretIsStillThePlaceholder() {
+        MockEnvironment env = validEnv();
+        env.setProperty("vnpay.tmn-code", "your_vnpay_tmn_code_here");
+
+        assertThatThrownBy(() -> new StartupSecretsValidator(env).validate())
+                .isInstanceOf(IllegalStateException.class)
+                .satisfies(e -> assertThat(e.getMessage())
+                        .contains("VNP_TMN_CODE")
+                        .contains("giá trị mẫu"));
+    }
+
     @Test
     @DisplayName("Báo một lần tất cả biến còn thiếu, không bắt sửa từng cái một")
     void reportsEveryMissingSecretAtOnce() {

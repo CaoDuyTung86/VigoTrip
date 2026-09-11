@@ -410,6 +410,13 @@ Cột đáng chú ý: `signature_valid` (chữ ký hợp lệ hay không), `outc
 `RspCode` với IPN, chuỗi kết quả với Return, verdict với querydr), `source_ip`, và hai cột
 payload giữ **nguyên văn** thứ nhận được / gửi đi.
 
+`signature_valid` có **ba** trạng thái, không phải hai: đúng, sai, và **trống** nghĩa là không có
+chữ ký nào để đối chiếu. Trống là trạng thái thật, không phải thiếu sót: phản hồi querydr mã 94
+chỉ có hai trường, và một lượt gọi hỏng thì không có phản hồi nào. Ghi "sai" cho những lượt đó là
+dựng lên một dấu hiệu tấn công không có thật. Từ 11/09/2026 cột này được điền cho **cả** dòng
+`QUERYDR`; trước đó nó luôn trống, nên giao diện gắn nhãn "Không có chữ ký" cho cả những phản hồi
+có chữ ký và đã được kiểm là khớp.
+
 **Ba tính chất được thiết kế có chủ đích:**
 
 1. **Ghi bằng transaction riêng** (`REQUIRES_NEW`, xem `PaymentLogWriter`). Nếu dùng chung
@@ -420,9 +427,30 @@ payload giữ **nguyên văn** thứ nhận được / gửi đi.
 3. **Không lưu chữ ký.** `vnp_SecureHash` bị lọc khỏi cả hai chiều — kết luận về chữ ký đã nằm
    ở cột riêng, còn bản thân chữ ký chỉ là mẫu HMAC của hash-secret đang dùng.
 
+**Một lượt thanh toán thành công trông như thế nào trong bảng.** Bốn dòng, và **bốn là đúng**:
+
+| Thứ tự | Kênh | `outcome` | Ghi chú |
+|---|---|---|---|
+| 1 | `QUERYDR` | `CONFIRMED` | Lượt callback về trước hỏi cổng. Chữ ký phản hồi: hợp lệ |
+| 2 | `QUERYDR` | `UNAVAILABLE` | Lượt callback về sau hỏi cổng, nhận `94 Request is duplicated`. Phản hồi này không mang chữ ký |
+| 3 | `IPN` | `00` | Cổng gọi ngầm, ta trả `RspCode=00` |
+| 4 | `RETURN` | `SUCCESS` | Trình duyệt khách quay về |
+
+Dòng thứ hai **không phải lỗi.** Return và IPN là hai lượt độc lập, thường về cách nhau chưa tới
+một giây, và cả hai đều hỏi cổng **trước** khi mở transaction (§10 việc 5). Lượt sau chạm vào cơ
+chế chống trùng yêu cầu của cổng nên nhận mã `94`. Ta xếp `94` vào `UNAVAILABLE` chứ không phải
+`CONTRADICTED` — "không hỏi được" khác "chưa trả tiền" — nên nó không ảnh hưởng tới kết luận, và
+lượt về sau vẫn bị chặn đúng chỗ bởi khoá dòng đơn cùng phép kiểm "đã xử lý chưa" bên trong
+transaction. Cái giá là một lời gọi mạng thừa mỗi giao dịch, nằm ngoài transaction nên không
+giữ connection nào. Tránh nó thì phải điều phối giữa hai lượt callback, đắt hơn thứ tiết kiệm được.
+
 **Tra cứu.** Hai đường, cùng dữ liệu:
 
-- **Tab admin** `/admin/payment-logs` (chỉ `ROLE_ADMIN`). Nhập mã giao dịch hoặc mã đơn.
+- **Tab admin** `/admin/payment-logs` (chỉ `ROLE_ADMIN`). Nhập mã giao dịch hoặc mã đơn. Hai
+  đường cho cùng một kết quả: các dòng `QUERYDR` không mang mã đơn, vì lượt hỏi cổng xuất phát
+  từ `VNPayQueryService` nơi chỉ biết mã giao dịch, nên tra theo đơn sẽ tìm theo đơn trước rồi
+  bắc cầu qua chính những mã giao dịch vừa thấy. Trước ngày 11/09/2026 nó chưa bắc cầu, nên tra
+  theo đơn chỉ ra hai dòng callback và giấu mất hai lượt hỏi cổng.
 - **SQL trực tiếp**, khi cần lọc phức tạp hơn:
   ```sql
   SELECT * FROM nhat_ky_thanh_toan
