@@ -39,6 +39,15 @@ public class ChatService implements AIService.ToolHandler {
      * mà một chunk RAG chép lại thì không đổi theo.
      */
     private final com.booking.api.repository.AdditionalServiceRepository additionalServiceRepository;
+    /**
+     * Dự báo thời tiết cho nơi khách sắp đến.
+     *
+     * Cùng một nguồn với khối thời tiết ở bảng tóm tắt đơn, nên con số trợ lý đọc ra không thể
+     * lệch với con số khách nhìn thấy lúc thanh toán. Không có nó thì câu "cuối tuần này đi Đà
+     * Nẵng thời tiết sao" chỉ nhận được một câu chung chung, hoặc tệ hơn là một con số model tự
+     * nghĩ ra.
+     */
+    private final com.booking.api.weather.WeatherService weatherService;
     private final AIService aiService;
     private final org.springframework.web.client.RestTemplate aiRestTemplate;
     private final com.booking.api.ai.rag.HybridRetriever hybridRetriever;
@@ -420,7 +429,148 @@ public class ChatService implements AIService.ToolHandler {
                     df.format(orderAmount), result.get("message"));
         }
 
+        if ("get_weather_forecast".equals(functionName)) {
+            return weatherToolResult(arguments);
+        }
+
         return "Công cụ không hợp lệ.";
+    }
+
+    /** Ngày trong kết quả công cụ viết theo kiểu khách đọc, không phải kiểu ISO của máy. */
+    private static final DateTimeFormatter WEATHER_DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    /**
+     * Nhiều nhất bao nhiêu ngày cho một lần hỏi.
+     *
+     * Bằng đúng tầm dự báo của {@code WeatherService}: xin nhiều hơn cũng chỉ nhận về bấy nhiêu,
+     * nên chặn ngay tại đây thay vì để model tưởng mình xin được mười lăm ngày.
+     */
+    private static final int WEATHER_MAX_DAYS = com.booking.api.weather.WeatherService.FORECAST_HORIZON_DAYS;
+
+    /**
+     * Câu chặn nằm ở CUỐI mọi kết quả thời tiết, kể cả kết quả rỗng.
+     *
+     * Model rất sẵn lòng nối "mưa to" với "chuyến này có thể trễ", và một câu như thế đứng cạnh
+     * nút thanh toán sẽ biến một dự báo sai thành khiếu nại về tiền. Khối thời tiết trên giao
+     * diện đã có một dòng tách hai thứ đó ra; đây là dòng tương đương cho trợ lý. Đặt kèm từng
+     * kết quả chứ không chỉ đặt trong system prompt, vì luật đứng ngay cạnh dữ liệu thì khó bị
+     * bỏ qua hơn luật nằm cách đó hai nghìn chữ.
+     */
+    private static final String WEATHER_GUARD =
+            "CHỈ MÔ TẢ THỜI TIẾT. Tuyệt đối KHÔNG suy ra từ đây rằng chuyến đi sẽ hoãn, huỷ, trễ giờ "
+            + "hay khách nên đổi ngày: dự báo thời tiết không nói được điều đó. Muốn biết chuyến có "
+            + "thay đổi gì không thì phải xem thông báo của hãng.";
+
+    /**
+     * Dự báo thời tiết cho một nơi, một hoặc nhiều ngày liên tiếp.
+     *
+     * <p>Mọi đường không trả được số liệu đều kết thúc bằng một câu nói rõ là CHƯA CÓ dự báo,
+     * chứ không phải một câu mơ hồ để model tự lấp. Nơi lạ, ngày đã qua, ngày ngoài tầm bảy
+     * ngày và nguồn dữ liệu không trả lời là bốn chuyện khác nhau, nên bốn câu khác nhau — gộp
+     * hết vào một câu "không có dữ liệu" thì khách hỏi Sa Pa tháng sau và khách hỏi một thành
+     * phố ta chưa hỗ trợ nhận được cùng một lời đáp vô nghĩa.
+     */
+    private String weatherToolResult(Map<String, Object> arguments) {
+        String place = textArg(arguments, "place");
+        if (place == null) {
+            return "Cần biết khách hỏi thời tiết ở đâu. " + WEATHER_GUARD;
+        }
+
+        java.util.Optional<String> code = com.booking.api.catalog.PlaceCatalog.resolveCode(place);
+        if (code.isEmpty()) {
+            return "Chưa có dữ liệu thời tiết cho \"" + place + "\" — nơi này không nằm trong danh mục "
+                    + "điểm đi/đến của VigoTrip. Chỉ tra được: "
+                    + String.join(", ", com.booking.api.catalog.PlaceCatalog.vietnameseNames())
+                    + ". " + WEATHER_GUARD;
+        }
+        com.booking.api.catalog.PlaceCatalog.Place noiDen =
+                com.booking.api.catalog.PlaceCatalog.find(code.get()).orElseThrow();
+
+        java.time.LocalDate today = java.time.LocalDate.now();
+        String rawDate = textArg(arguments, "date");
+        java.time.LocalDate from = today;
+        if (rawDate != null) {
+            // Model hay kèm cả giờ ("2026-09-14T00:00:00") dù schema chỉ xin ngày.
+            String datePart = rawDate.length() > 10 ? rawDate.substring(0, 10) : rawDate;
+            try {
+                from = java.time.LocalDate.parse(datePart);
+            } catch (java.time.format.DateTimeParseException e) {
+                log.warn("[Weather-Tool] Không đọc được ngày '{}' model gửi lên", rawDate);
+                return "Không đọc được ngày \"" + rawDate + "\". Hãy hỏi lại khách xem là ngày nào. "
+                        + WEATHER_GUARD;
+            }
+        }
+
+        int days = intArg(arguments, "days", 1);
+        days = Math.max(1, Math.min(WEATHER_MAX_DAYS, days));
+        java.time.LocalDate to = from.plusDays(days - 1L);
+
+        if (to.isBefore(today)) {
+            return "Ngày " + from.format(WEATHER_DATE_FMT) + " đã qua rồi, không còn là dự báo nữa. "
+                    + "Chỉ tra được thời tiết từ hôm nay trở đi. " + WEATHER_GUARD;
+        }
+        java.time.LocalDate limit = today.plusDays(WEATHER_MAX_DAYS);
+        if (from.isAfter(limit)) {
+            return "Chưa có dự báo cho ngày " + from.format(WEATHER_DATE_FMT)
+                    + ": chỉ dự báo được trong vòng " + WEATHER_MAX_DAYS + " ngày tới, tức là đến hết ngày "
+                    + limit.format(WEATHER_DATE_FMT) + ". Hãy nói thẳng với khách là chưa có dự báo cho "
+                    + "ngày đó và mời khách hỏi lại khi gần ngày đi. TUYỆT ĐỐI không đoán thay. "
+                    + WEATHER_GUARD;
+        }
+
+        List<com.booking.api.weather.WeatherForecast> forecasts =
+                weatherService.forecastRange(code.get(), from, to);
+        if (forecasts.isEmpty()) {
+            return "Lúc này chưa lấy được dự báo cho " + noiDen.nameVi()
+                    + ". Hãy nói với khách là mình chưa tra được thời tiết ngay bây giờ. " + WEATHER_GUARD;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("DỰ BÁO THỜI TIẾT TẠI ").append(noiDen.nameVi())
+                .append(" (mã điểm ").append(code.get()).append("), nguồn ")
+                .append(com.booking.api.weather.WeatherService.SOURCE).append(":\n");
+        for (com.booking.api.weather.WeatherForecast f : forecasts) {
+            sb.append("- ").append(f.date().format(WEATHER_DATE_FMT)).append(": ")
+                    .append(com.booking.api.weather.WmoLabels.vi(f.weatherCode()))
+                    .append(String.format(Locale.US, ", %.0f-%.0f°C", f.temperatureMinC(), f.temperatureMaxC()));
+            if (f.precipitationProbability() != null) {
+                sb.append(", khả năng mưa ").append(f.precipitationProbability()).append("%");
+            }
+            sb.append("\n");
+        }
+
+        // Xin bảy ngày mà chỉ có ba thì phải nói ra. Im lặng cắt bốn ngày cuối là để khách tưởng
+        // mình đã hỏi xong cả tuần.
+        java.time.LocalDate lastCovered = forecasts.get(forecasts.size() - 1).date();
+        if (lastCovered.isBefore(to)) {
+            sb.append("Từ ngày ").append(lastCovered.plusDays(1).format(WEATHER_DATE_FMT))
+                    .append(" trở đi CHƯA CÓ dự báo (ngoài tầm ").append(WEATHER_MAX_DAYS)
+                    .append(" ngày) — phải nói rõ với khách là chưa có, không được đoán.\n");
+        }
+        sb.append(WEATHER_GUARD);
+        return sb.toString();
+    }
+
+    /** Đọc một tham số chuỗi của tool; trả null cho mọi kiểu "không có", kể cả chuỗi "null". */
+    private static String textArg(Map<String, Object> arguments, String key) {
+        if (arguments == null || !arguments.containsKey(key)) {
+            return null;
+        }
+        String value = String.valueOf(arguments.get(key)).trim();
+        return value.isEmpty() || "null".equals(value) ? null : value;
+    }
+
+    /** Đọc một tham số số nguyên; giá trị lạ thì dùng mặc định thay vì làm hỏng cả lượt hỏi. */
+    private static int intArg(Map<String, Object> arguments, String key, int fallback) {
+        String raw = textArg(arguments, key);
+        if (raw == null) {
+            return fallback;
+        }
+        try {
+            return (int) Math.round(Double.parseDouble(raw));
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     /**
@@ -619,7 +769,9 @@ public class ChatService implements AIService.ToolHandler {
                 + "- Mọi thông tin về VigoTrip trong câu trả lời phải lấy từ kết quả công cụ hoặc từ phần KIẾN THỨC VỀ DỊCH VỤ bên dưới. TUYỆT ĐỐI KHÔNG suy đoán và KHÔNG dùng hiểu biết chung về các hãng vận chuyển ngoài đời thực.\n"
                 + "- Không có căn cứ thì nói thẳng là mình chưa có thông tin đó, rồi hướng khách sang trang phù hợp hoặc tổng đài. Một câu 'mình chưa có thông tin này' LUÔN tốt hơn một câu trả lời nghe hợp lý nhưng không có căn cứ.\n"
                 + "- TUYỆT ĐỐI KHÔNG tự nghĩ ra: tên hay giá món ăn và dịch vụ mua kèm (phải gọi `get_addon_services`), số ghế còn trống, giờ đến, thời gian hành trình, tiện nghi trên phương tiện (wifi, giường nằm, ổ cắm sạc), số sao đánh giá của chuyến, số tiền hoàn và thời điểm hoàn của một đơn, phương thức thanh toán của một đơn, mã giảm giá.\n"
-                + "- Về một chuyến đi, chỉ được nói đúng những mục mà công cụ trả về: tuyến, hãng, loại phương tiện, giờ đi và giá. Khách hỏi mục khác thì mời khách mở trang chi tiết chuyến.\n\n"
+                + "- Về một chuyến đi, chỉ được nói đúng những mục mà công cụ trả về: tuyến, hãng, loại phương tiện, giờ đi và giá. Khách hỏi mục khác thì mời khách mở trang chi tiết chuyến.\n"
+                + "- THỜI TIẾT KHÔNG NÓI ĐƯỢC GÌ VỀ CHUYẾN ĐI. Chỉ được thuật lại đúng con số mà `get_weather_forecast` trả về. TUYỆT ĐỐI KHÔNG suy ra khả năng hoãn, huỷ, trễ giờ, cũng không khuyên khách đổi ngày hay đổi phương tiện vì thời tiết, kể cả khi dự báo là mưa to hay dông. Muốn biết chuyến có thay đổi gì không thì phải xem thông báo của hãng, mà bạn không có công cụ nào đọc được thông báo đó.\n"
+                + "- Ngoài tầm bảy ngày thì KHÔNG CÓ dự báo. Khi công cụ nói chưa có, hãy nói thẳng với khách là chưa có và mời khách hỏi lại khi gần ngày đi; tuyệt đối không lấy thời tiết trung bình của mùa đó ra nói thay.\n\n"
 
                 + "PHONG CÁCH GIAO TIẾP:\n"
                 + "- Xưng hô lịch sự, nhã nhặn và tự nhiên (mình/tôi - bạn/quý khách). TUYỆT ĐỐI KHÔNG tự xưng là 'Son', không xưng hô kiểu trẻ con hay dùng từ ngữ thiếu chuyên nghiệp như 'bật mí', 'Dạ để Son tìm'.\n"
@@ -637,6 +789,7 @@ public class ChatService implements AIService.ToolHandler {
                 + "- Bạn có công cụ `get_booking_by_id` để tra cứu chính xác một mã đơn hàng. Hãy gọi khi khách cung cấp ID cụ thể.\n"
                 + "- Bạn có công cụ `check_voucher` để kiểm tra một mã giảm giá có áp dụng được cho đơn hàng của khách không và giảm bao nhiêu tiền. Hãy gọi khi khách hỏi 'mã X có dùng được không', 'đơn Y đồng thì giảm bao nhiêu', hoặc khi khách đã cho biết giá vé/tổng tiền.\n"
                 + "- Bạn có công cụ `get_addon_services` để lấy danh mục dịch vụ mua kèm: suất ăn, gói hành lý ký gửi, bảo hiểm du lịch, xe đưa đón. BẮT BUỘC gọi công cụ này trước khi nói bất cứ điều gì về món ăn, đồ ăn trên chuyến, gói hành lý mua thêm, bảo hiểm hay đưa đón, kể cả câu hỏi chung như 'gợi ý món ăn' hay 'có món gì ngon'. TUYỆT ĐỐI KHÔNG tự nghĩ ra tên món hoặc giá.\n"
+                + "- Bạn có công cụ `get_weather_forecast` để tra dự báo thời tiết tại một nơi. BẮT BUỘC gọi công cụ này trước khi nói bất cứ điều gì về thời tiết, nhiệt độ hay mưa nắng. Tham số `place` truyền thẳng tên nơi khách nói (ví dụ Đà Nẵng) hoặc mã điểm, `date` là ngày YYYY-MM-DD, `days` là số ngày liên tiếp cần xem (khách hỏi cả cuối tuần thì truyền 2).\n"
                 + "- Khi khách hỏi tìm vé mà thiếu thông tin (điểm đi, điểm đến, ngày đi) → bạn có thể hỏi thêm điểm đi/đến hoặc gọi `search_trips` với thông tin hiện có.\n\n"
                 
                 + "KIẾN THỨC VỀ DỊCH VỤ (RAG Context):\n"

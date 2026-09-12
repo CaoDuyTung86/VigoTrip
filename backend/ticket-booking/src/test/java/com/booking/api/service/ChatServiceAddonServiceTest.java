@@ -55,7 +55,7 @@ class ChatServiceAddonServiceTest {
 
         chatService = new ChatService(tripRepository, bookingRepository, voucherService,
                 routeRepository, additionalServiceRepository,
-                aiService, mock(RestTemplate.class), hybridRetriever,
+                mock(com.booking.api.weather.WeatherService.class), aiService, mock(RestTemplate.class), hybridRetriever,
                 mock(ChatHistoryService.class), mock(ChatMetricService.class),
                 new ChatMessageRefRegistry(24, 50000));
     }

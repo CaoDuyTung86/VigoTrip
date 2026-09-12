@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -76,17 +77,64 @@ public class WeatherService {
         PlaceCatalog.Place noiDen = place.get();
         return openMeteoClient
                 .daily(noiDen.cityId(), noiDen.latitude(), noiDen.longitude(), date)
-                .map(daily -> new WeatherForecast(
-                        placeCode.trim().toUpperCase(),
-                        noiDen.cityId(),
-                        noiDen.nameVi(),
-                        noiDen.nameEn(),
-                        date,
-                        daily.weatherCode(),
-                        daily.temperatureMinC(),
-                        daily.temperatureMaxC(),
-                        daily.precipitationProbability(),
-                        SOURCE));
+                .map(daily -> toForecast(placeCode, noiDen, date, daily));
+    }
+
+    /**
+     * Dự báo cho nhiều ngày liên tiếp.
+     *
+     * <p>Sinh ra cho trợ lý AI: khách hỏi "cuối tuần này đi Đà Nẵng thời tiết thế nào" là hỏi về
+     * hai ngày, và trả lời bằng một ngày rồi im về ngày còn lại thì không phải là trả lời.
+     *
+     * <p><b>Cắt bớt chứ không từ chối.</b> Khoảng ngày vượt quá tầm bảy ngày thì phần trong tầm
+     * vẫn được trả về, phần ngoài tầm biến mất. Nơi gọi so số ngày nhận được với số ngày đã xin
+     * để biết mình bị cắt, rồi nói rõ với khách là phần sau chưa có dự báo — im lặng bỏ đi vài
+     * ngày mà không nói gì mới là chỗ khách hiểu nhầm.
+     *
+     * @param place mã điểm hoặc tên nơi đến; tên đi qua {@link PlaceCatalog#resolveCode}
+     * @return danh sách theo thứ tự ngày, rỗng khi không có gì để trả
+     */
+    public List<WeatherForecast> forecastRange(String place, LocalDate from, LocalDate to) {
+        if (!enabled || from == null || to == null) {
+            return List.of();
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate start = from.isBefore(today) ? today : from;
+        LocalDate end = to.isAfter(today.plusDays(FORECAST_HORIZON_DAYS))
+                ? today.plusDays(FORECAST_HORIZON_DAYS)
+                : to;
+        if (end.isBefore(start)) {
+            return List.of();
+        }
+
+        Optional<String> code = PlaceCatalog.resolveCode(place);
+        if (code.isEmpty()) {
+            log.debug("[Weather] Không tra được nơi \"{}\" trong danh mục, bỏ qua dự báo.", place);
+            return List.of();
+        }
+        PlaceCatalog.Place noiDen = PlaceCatalog.find(code.get()).orElseThrow();
+
+        return openMeteoClient
+                .range(noiDen.cityId(), noiDen.latitude(), noiDen.longitude(), start, end)
+                .stream()
+                .map(day -> toForecast(code.get(), noiDen, day.date(), day.forecast()))
+                .toList();
+    }
+
+    private WeatherForecast toForecast(String placeCode, PlaceCatalog.Place place, LocalDate date,
+                                       OpenMeteoClient.DailyForecast daily) {
+        return new WeatherForecast(
+                placeCode.trim().toUpperCase(),
+                place.cityId(),
+                place.nameVi(),
+                place.nameEn(),
+                date,
+                daily.weatherCode(),
+                daily.temperatureMinC(),
+                daily.temperatureMaxC(),
+                daily.precipitationProbability(),
+                SOURCE);
     }
 
     /** Hôm nay tính là trong tầm; quá khứ thì không, vì cái đã xảy ra không còn là dự báo. */

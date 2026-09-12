@@ -1,6 +1,9 @@
 package com.booking.api.catalog;
 
+import com.booking.api.ai.rag.TextNormalizer;
+
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -49,11 +52,57 @@ public final class PlaceCatalog {
 
     private static final Map<String, Place> BY_CODE = new LinkedHashMap<>();
 
+    /**
+     * Tên đã chuẩn hoá -&gt; mã điểm chính.
+     *
+     * <p>Người dùng gõ "Đà Nẵng", "da nang" hay "sân bay Đà Nẵng" chứ không gõ {@code DAD}. Trước
+     * đây chỉ có đường tra theo mã, nên mọi thứ nhận đầu vào từ người dùng đều phải nhờ model
+     * đoán hộ cái mã — mà model đoán trượt thì ra một nơi khác hẳn: nó từng được dạy rằng
+     * {@code QNH} là Quy Nhơn, trong khi {@code QNH} là Quảng Ninh.
+     *
+     * <p>Giá trị là MÃ chứ không phải {@link Place}, để nơi gọi còn biết đường ghi lại mã chính
+     * thức của nơi vừa tra được.
+     */
+    private static final Map<String, String> CODE_BY_NAME = new LinkedHashMap<>();
+
+    /** Danh sách tên tiếng Việt theo thứ tự khai báo, dùng để mách lại khi tra không ra. */
+    private static final List<String> VIETNAMESE_NAMES;
+
     private static void register(Place place, String... codes) {
         for (String code : codes) {
             BY_CODE.put(code.toUpperCase(), place);
         }
+        // Mã đầu tiên là mã chính: Huế khai HUI trước HUE thì tra theo tên trả về HUI. Với thời
+        // tiết thì hai mã cho cùng một kết quả, nên chọn mã nào cũng được, miễn là ổn định.
+        alias(codes[0], place.nameVi(), place.nameEn());
     }
+
+    /** Thêm cách gọi khác cho một mã đã đăng ký. */
+    private static void alias(String code, String... names) {
+        for (String name : names) {
+            CODE_BY_NAME.put(nameKey(name), code.toUpperCase());
+        }
+    }
+
+    /**
+     * Khoá tra tên: bỏ dấu, thường hoá, rồi bỏ luôn khoảng trắng và dấu câu.
+     *
+     * <p>Bỏ khoảng trắng để "Hà Nội", "ha noi" và "hanoi" rơi vào cùng một khoá — người Việt gõ
+     * dính hay gõ rời đều rất phổ biến, và ép chọn một cách viết là ép sai.
+     */
+    private static String nameKey(String raw) {
+        return TextNormalizer.normalize(raw == null ? "" : raw).replaceAll("[^a-z0-9]", "");
+    }
+
+    /**
+     * Những chữ đứng trước tên nơi mà không thay đổi nơi đó là đâu.
+     *
+     * <p>"sân bay Đà Nẵng", "ga Huế", "bến xe Miền Đông" — phần đầu nói về loại công trình chứ
+     * không nói về thành phố. Danh mục này mới chỉ có thành phố, nên cắt phần đầu đi là tra
+     * được; khi bảng {@code diem_don_tra} ra đời thì phần đầu ấy mới thành thông tin thật.
+     */
+    private static final List<String> NAME_PREFIXES = List.of(
+            "thanhpho", "tp", "sanbay", "gatau", "ga", "benxe", "city", "airport", "station");
 
     static {
         register(new Place("hanoi", "Hà Nội", "Hanoi", 21.0285, 105.8542), "HAN");
@@ -70,6 +119,28 @@ public final class PlaceCatalog {
         register(new Place("nhatrang", "Nha Trang", "Nha Trang", 12.2388, 109.1967), "CXR", "NTR");
         register(new Place("dalat", "Đà Lạt", "Da Lat", 11.9404, 108.4583), "DLI", "DLT");
         register(new Place("vinh", "Vinh", "Vinh", 18.6796, 105.6813), "VII", "VIN");
+
+        // Cách gọi khác. Tên chính thức không phải lúc nào cũng là tên người ta gõ: gần như không
+        // ai gõ "TP. Hồ Chí Minh", và giao diện đặt vé gọi QNH là "Quảng Ninh" trong khi toạ độ ở
+        // đây là Hạ Long — hai tên cùng một nơi thì phải cùng tra ra một chỗ.
+        alias("SGN", "Sài Gòn", "Saigon", "Sai Gon", "HCM", "TPHCM", "TP HCM", "Ho Chi Minh",
+                "Thành phố Hồ Chí Minh");
+        alias("HAN", "Thủ đô Hà Nội", "Ha Noi");
+        alias("QNH", "Quảng Ninh", "Quang Ninh", "Bãi Cháy", "Bai Chay");
+        alias("DAD", "Danang");
+        alias("HPH", "Haiphong");
+        alias("SAP", "Sapa", "Lào Cai", "Lao Cai");
+        alias("PQC", "Phu Quoc", "Đảo Phú Quốc");
+        alias("VCL", "Chulai", "Quảng Nam", "Quang Nam", "Tam Kỳ", "Tam Ky");
+        alias("DLI", "Dalat", "Lâm Đồng", "Lam Dong");
+        alias("CXR", "Nhatrang", "Khánh Hòa", "Khanh Hoa");
+        alias("HUI", "Thừa Thiên Huế", "Thua Thien Hue");
+        alias("VII", "Nghệ An", "Nghe An");
+
+        VIETNAMESE_NAMES = BY_CODE.values().stream()
+                .map(Place::nameVi)
+                .distinct()
+                .toList();
     }
 
     private PlaceCatalog() {
@@ -86,6 +157,61 @@ public final class PlaceCatalog {
     /** Mọi mã đang khai báo. Dùng cho kiểm thử đối chiếu với danh mục tuyến. */
     public static Set<String> codes() {
         return Set.copyOf(BY_CODE.keySet());
+    }
+
+    /**
+     * Tra mã điểm từ đúng những gì người dùng gõ ra: một mã, một tên tiếng Việt, một tên tiếng
+     * Anh, hay một cách gọi khác.
+     *
+     * <p>Nhận cả mã lẫn tên trong cùng một cửa vì nơi gọi không biết trước mình đang cầm cái gì:
+     * chuỗi này đến từ câu chat của khách, đã qua tay model. Bắt nơi gọi phân biệt trước là bắt
+     * nó đoán, mà đoán ở đây thì trượt.
+     *
+     * <p>Rỗng nghĩa là danh mục KHÔNG có nơi đó — nơi gọi phải nói thẳng là chưa hỗ trợ, tuyệt
+     * đối không được chọn đại một nơi gần giống.
+     */
+    public static Optional<String> resolveCode(String text) {
+        if (text == null || text.isBlank()) {
+            return Optional.empty();
+        }
+        String direct = text.trim().toUpperCase();
+        if (BY_CODE.containsKey(direct)) {
+            return Optional.of(direct);
+        }
+
+        String key = nameKey(text);
+        if (key.isEmpty()) {
+            return Optional.empty();
+        }
+        String found = CODE_BY_NAME.get(key);
+        if (found != null) {
+            return Optional.of(found);
+        }
+
+        for (String prefix : NAME_PREFIXES) {
+            if (key.startsWith(prefix) && key.length() > prefix.length()) {
+                String stripped = CODE_BY_NAME.get(key.substring(prefix.length()));
+                if (stripped != null) {
+                    return Optional.of(stripped);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** Như {@link #resolveCode(String)} nhưng trả thẳng địa điểm. */
+    public static Optional<Place> resolve(String text) {
+        return resolveCode(text).flatMap(PlaceCatalog::find);
+    }
+
+    /**
+     * Tên tiếng Việt của mọi nơi đang có trong danh mục, mỗi nơi một lần.
+     *
+     * <p>Dùng để mách lại khi tra không ra: câu "chưa hỗ trợ nơi này" mà kèm danh sách nơi tra
+     * được thì khách còn biết hỏi lại, chứ cụt lủn thì khách chỉ biết bỏ cuộc.
+     */
+    public static List<String> vietnameseNames() {
+        return VIETNAMESE_NAMES;
     }
 
     /**

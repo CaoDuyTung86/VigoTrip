@@ -180,7 +180,7 @@ sequenceDiagram
 của người dùng chứ không theo số lời gọi HTTP — và là lý do ta giới hạn kết quả trả về chỉ 4
 chuyến (`ChatService`), vì toàn bộ kết quả phải nhét vào prompt của vòng 2.
 
-### 4.3 Năm tool của hệ thống
+### 4.3 Sáu tool của hệ thống
 
 | Tool | Việc | Tham số |
 |---|---|---|
@@ -189,6 +189,7 @@ chuyến (`ChatService`), vì toàn bộ kết quả phải nhét vào prompt c�
 | `get_booking_by_id` | Chi tiết một đơn | mã đơn |
 | `check_voucher` | Mã giảm giá có dùng được không, giảm bao nhiêu | mã, tổng tiền đơn |
 | `get_addon_services` | Danh mục dịch vụ mua kèm | nhóm (suất ăn / hành lý / bảo hiểm / đưa đón) |
+| `get_weather_forecast` | Dự báo thời tiết tại một nơi | tên nơi hoặc mã điểm, ngày bắt đầu, số ngày |
 
 `get_addon_services` tồn tại vì một lý do rất cụ thể: suất ăn, gói hành lý, bảo hiểm và xe
 đưa đón nằm trong bảng `dich_vu_bo_sung` mà trước đó không cơ chế nào chạm tới. Khách hỏi
@@ -200,6 +201,40 @@ món — giá và danh mục đổi được trong lúc vận hành, chunk thì 
 Mô tả tool nhúng luôn bảng quy đổi tên thành phố sang mã: `Hà Nội=HAN, Sài Gòn=SGN,
 Đà Nẵng=DAD...`. Nhờ vậy model tự dịch "Hà Nội đi Đà Nẵng" thành `origin=HAN, destination=DAD`.
 Bằng chứng thực nghiệm: xem [mục 7.4](#74-bằng-chứng-thực-nghiệm).
+
+**Nhưng bảng quy đổi trong mô tả tool là một chỗ dựa mỏng, và nó đã gãy một lần.** Bảng ấy từng
+ghi `Quy Nhơn=QNH`, trong khi `QNH` trong hệ thống là Quảng Ninh (ga Hạ Long, bến xe Bãi Cháy).
+Khách hỏi Quy Nhơn thì model ngoan ngoãn truyền `QNH` và nhận về dữ liệu của một tỉnh cách đó
+hơn tám trăm cây số — không có lỗi nào được ném ra, không có gì trên màn hình cho thấy là sai.
+Sai kiểu này không sửa được bằng cách viết mô tả cẩn thận hơn: chừng nào việc đổi tên sang mã
+còn nằm trong trí nhớ của model thì nó còn đoán, và đoán thì có lúc trượt.
+
+Nên `get_weather_forecast` đi theo hướng ngược lại: nó nhận **tên** khách nói, và việc đổi tên
+sang mã do `PlaceCatalog.resolveCode` làm — một bảng tra có thật, tra được cả tên tiếng Việt có
+dấu lẫn không dấu, tên tiếng Anh, các cách gọi khác ("Sài Gòn", "TPHCM", "Quảng Ninh", "Hạ Long")
+và cả những chữ chỉ loại công trình đứng trước ("sân bay Đà Nẵng", "ga Huế"). Tra không ra thì
+trả rỗng và tool nói thẳng là chưa hỗ trợ nơi đó, kèm danh sách nơi tra được — chứ tuyệt đối
+không chọn đại một nơi gần giống. Đây cũng là bước đầu tiên của phần chuẩn hoá địa điểm mà mục
+Map trên lộ trình cần đến.
+
+**Tool thời tiết có một luật riêng mà năm tool kia không có: cấm suy diễn.** Kết quả trả về mô
+tả thời tiết và chỉ mô tả thời tiết. Chữ "mưa to" nằm cạnh nút thanh toán vốn đã rất dễ bị đọc
+thành "chuyến này sẽ hoãn", mà model thì rất sẵn lòng nối hai vế đó lại; khi dự báo sai, câu nối
+ấy biến thành khiếu nại về tiền. Câu cấm suy diễn được gắn vào **cuối mọi kết quả của tool**, kể
+cả kết quả rỗng, chứ không chỉ nằm trong system prompt — luật đứng ngay cạnh dữ liệu thì khó bị
+bỏ qua hơn luật nằm cách đó hai nghìn chữ.
+
+Bốn đường không có số liệu được tách thành bốn câu trả lời khác nhau, vì chúng là bốn chuyện
+khác nhau: nơi không có trong danh mục, ngày đã qua, ngày nằm ngoài tầm bảy ngày, và nguồn dữ
+liệu không trả lời. Gộp cả bốn vào một câu "không có dữ liệu" thì khách hỏi Sa Pa tháng sau và
+khách hỏi một thành phố ta chưa hỗ trợ nhận được cùng một lời đáp vô nghĩa. Riêng ba đường đầu
+được chặn trước khi đi ra mạng: đã biết chắc là không có thì không có lý do gì bắt khách chờ
+thêm bốn giây.
+
+Xin nhiều ngày một lúc chỉ tốn **một** lời gọi ra Open-Meteo, nhờ `OpenMeteoClient.range` dùng
+cặp `start_date`/`end_date` của nhà cung cấp. Nếu lặp `daily()` bảy lần thì một lượt chat có thể
+treo gần nửa phút khi nguồn dữ liệu chậm — mà chậm không phải chuyện hiếm với một dịch vụ miễn
+phí không cần khoá.
 
 ### 4.4 Quy tắc Zero-Trust (rất quan trọng)
 

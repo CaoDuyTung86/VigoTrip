@@ -288,7 +288,8 @@ public class AIService {
             "Tra cứu chuyến đi (vé máy bay, xe khách, tàu hỏa) theo điểm đi, điểm đến hoặc loại phương tiện. " +
             "QUAN TRỌNG: Điểm đi và điểm đến phải dùng MÃ sân bay/bến xe/ga tàu, KHÔNG dùng tên thành phố. " +
             "Bảng quy đổi: Hà Nội=HAN, TP.HCM/Sài Gòn/HCM=SGN, Đà Nẵng=DAD, Hải Phòng=HPH, Huế=HUE, " +
-            "Vinh=VIN, Sapa=SAP, Quy Nhơn=QNH, Nha Trang=NTR, Đà Lạt=DLT. " +
+            "Vinh=VIN, Sa Pa=SAP, Quảng Ninh/Hạ Long=QNH, Nha Trang=NTR, Đà Lạt=DLT, " +
+            "Phú Quốc=PQC, Chu Lai=VCL. " +
             "Ví dụ: tuyến Hà Nội đi Sài Gòn thì origin='HAN', destination='SGN'.");
 
         Map<String, Object> props = new HashMap<>();
@@ -370,6 +371,42 @@ public class AIService {
             )
         ));
         tools.add(Map.of("type", "function", "function", addonServicesFn));
+
+        // Tool 6: get_weather_forecast
+        // Nhận TÊN nơi chứ không bắt model đổi sang mã trước: khách gõ "Đà Nẵng", và để model tự
+        // đoán mã là để nó đoán sai. Việc đổi tên sang mã thuộc về PlaceCatalog, nơi có danh sách
+        // thật, chứ không thuộc về trí nhớ của một mô hình ngôn ngữ.
+        Map<String, Object> weatherFn = new HashMap<>();
+        weatherFn.put("name", "get_weather_forecast");
+        weatherFn.put("description",
+            "Tra dự báo thời tiết thật tại một nơi, cho một hoặc nhiều ngày liên tiếp. " +
+            "BẮT BUỘC gọi trước khi nói bất cứ điều gì về thời tiết, nhiệt độ, mưa nắng hay chuyện " +
+            "nên mang áo mưa. Chỉ có dự báo trong vòng 7 ngày tới; xa hơn thế thì công cụ nói rõ là " +
+            "chưa có, và phải nói thẳng với khách là chưa có chứ không được đoán thay. " +
+            "Kết quả CHỈ MÔ TẢ THỜI TIẾT, không được dùng để suy ra chuyến đi có hoãn, huỷ hay trễ.");
+        weatherFn.put("parameters", Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "place", Map.of(
+                    "type", "string",
+                    "description", "Nơi cần xem thời tiết. Truyền thẳng tên khách nói, ví dụ Đà Nẵng, "
+                            + "Sa Pa, Sài Gòn; mã điểm như DAD cũng được. KHÔNG tự đổi tên thành mã."
+                ),
+                "date", Map.of(
+                    "type", "string",
+                    "description", "Ngày bắt đầu theo định dạng YYYY-MM-DD. Khách không nói ngày thì truyền "
+                            + "giá trị rỗng '' (hiểu là hôm nay). Khách nói 'ngày mai' hay 'cuối tuần này' thì "
+                            + "tự quy ra ngày cụ thể dựa vào thời gian hiện tại đã cho ở đầu hướng dẫn."
+                ),
+                "days", Map.of(
+                    "type", "integer",
+                    "description", "Số ngày liên tiếp cần xem tính từ `date`, từ 1 đến 7, mặc định 1. "
+                            + "Khách hỏi cả cuối tuần thì truyền 2, hỏi cả tuần tới thì truyền 7."
+                )
+            ),
+            "required", List.of("place")
+        ));
+        tools.add(Map.of("type", "function", "function", weatherFn));
 
         return tools;
     }
