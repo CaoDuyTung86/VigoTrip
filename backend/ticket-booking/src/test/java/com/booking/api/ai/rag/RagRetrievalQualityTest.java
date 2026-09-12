@@ -57,8 +57,10 @@ class RagRetrievalQualityTest {
      * Thêm ngôn ngữ mới vào rag-eval.yml thì phải thêm ngưỡng ở đây, nếu không test fail
      * ngay — cố ý làm vậy để không ai lỡ thêm câu hỏi mà quên chốt chặn.
      */
-    private static final Map<String, Double> MIN_RECALL_AT_3 = Map.of("vi", 0.85, "en", 0.85);
-    private static final Map<String, Double> MIN_MRR = Map.of("vi", 0.70, "en", 0.70);
+    private static final Map<String, Double> MIN_RECALL_AT_3 = Map.of(
+            "vi", 0.85, "en", 0.85, "ja", 0.85, "zh", 0.85);
+    private static final Map<String, Double> MIN_MRR = Map.of(
+            "vi", 0.70, "en", 0.70, "ja", 0.70, "zh", 0.70);
 
     /** Khóa của dòng chấm gộp mọi ngôn ngữ trong bảng kết quả. */
     private static final String ALL_LANGS = "gộp";

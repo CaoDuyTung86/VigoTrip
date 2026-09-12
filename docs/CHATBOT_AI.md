@@ -628,10 +628,10 @@ chép lại nội dung chunk.
 
 Corpus: **56 chunk**. Đo bằng `RagRetrievalQualityTest`.
 
-> **Bảng này là số của lần đo trên corpus chỉ có tiếng Việt.** Bộ đo nay có thêm 37 câu hỏi
-> tiếng Anh và corpus có thêm `faq-en.yml`; `RagRetrievalQualityTest` in ba dòng riêng cho
-> `vi`, `en` và gộp. Số mới nhất của nhánh BM25 nằm ở §10.3. Ba kiến trúc so sánh dưới đây
-> vẫn giữ nguyên vì chúng đo chế độ live, cần `GEMINI_API_KEY` và chạy thủ công.
+> **Bảng này là số của lần đo trên corpus chỉ có tiếng Việt.** Bộ đo nay có 130 câu hỏi
+> trên bốn ngôn ngữ và corpus có 224 chunk; `RagRetrievalQualityTest` in một dòng riêng cho
+> mỗi ngôn ngữ rồi mới gộp. Số mới nhất của nhánh BM25 nằm ở §10.3. Ba kiến trúc so sánh
+> dưới đây vẫn giữ nguyên vì chúng đo chế độ live, cần `GEMINI_API_KEY` và chạy thủ công.
 
 | Cấu hình | P@1 | R@3 | R@5 | P@3 | F1@3 | MRR |
 |---|---|---|---|---|---|---|
@@ -1150,7 +1150,7 @@ Thành thật về ngưỡng — biết trước điểm gãy quan trọng hơn 
 | **~5.000 chunk** | Quét cosine tuyến tính bắt đầu thấy được (~vài ms) | Vẫn ổn; chưa cần làm gì |
 | **~50.000 chunk** | Quét tuyến tính quá chậm; RAM ~150 MB vượt ngân sách | Viết `QdrantVectorStore` cắm vào interface có sẵn |
 | **Nhiều instance backend** | Bộ đếm ngân sách và circuit breaker nằm trong RAM từng tiến trình → mỗi instance có trần riêng | Chuyển sang bộ đếm dùng chung (Redis) |
-| **Tri thức đa ngôn ngữ đầy đủ** | `vi` và `en` đã có nội dung, bộ đo và bộ lọc theo `lang`; nhưng bảng từ đồng nghĩa vẫn chỉ có tiếng Việt, và tokenizer BM25 chỉ nhận `a-z0-9` nên `ja`/`zh` sẽ không sinh token nào | Tách `SynonymExpander` theo ngôn ngữ, rồi mới đụng tokenizer cho `ja`/`zh` (§10.3) |
+| **Tri thức đa ngôn ngữ đầy đủ** | Cả 4 ngôn ngữ đã đủ bộ: nội dung, bộ đo, bộ lọc theo `lang`, bảng từ đồng nghĩa và thống kê BM25 riêng | Nhờ người bản ngữ đọc lại `faq-ja.yml`/`faq-zh.yml`, và bổ sung câu hỏi vàng cho hai ngôn ngữ này (§10.3) |
 | **Thêm tool ghi dữ liệu** | Failover chạy lại action → có thể ghi hai lần | Thêm khóa idempotent, hoặc không failover cho tool ghi |
 | **Lưu lượng chat lớn** | Mỗi lượt ghi thêm 1 dòng `chi_so_chat`; dashboard quét cả kỳ mỗi lần mở | Gộp sẵn theo ngày vào bảng tổng hợp thay vì `GROUP BY` khi đọc |
 
@@ -1198,7 +1198,7 @@ cả 4":
 |---|---|---|
 | **Sinh câu trả lời** | ✅ Tốt cả 4 | LLM vốn đa ngôn ngữ |
 | **Truy hồi ngữ nghĩa** | 🟡 Khá | `gemini-embedding-001` là model **cross-lingual** — câu hỏi tiếng Anh khớp được chunk tiếng Việt, nhưng độ chính xác thấp hơn cùng ngôn ngữ |
-| **Truy hồi từ khóa (BM25)** | 🔴 Chỉ tiếng Việt | Chuẩn hóa và từ điển đồng nghĩa chỉ làm cho tiếng Việt |
+| **Truy hồi từ khóa (BM25)** | ✅ Cả 4 | Mỗi ngôn ngữ có corpus, bảng từ đồng nghĩa và thống kê BM25 riêng; chữ Nhật và chữ Trung cắt theo bigram |
 
 **Cross-lingual embedding** nghĩa là model ánh xạ mọi ngôn ngữ vào **cùng một không gian
 vector**. Câu tiếng Nhật 「ペットを連れて行けますか」 và chunk tiếng Việt "Mang thú cưng lên xe
@@ -1206,9 +1206,10 @@ khách" cho ra hai vector gần nhau, dù không chung ký tự nào. Đây là 
 tiếng Việt vẫn phục vụ được câu hỏi tiếng Nhật.
 
 Nhưng lưu ý: **bộ đo `rag-eval.yml` hiện chỉ có câu hỏi tiếng Việt.** Nên các con số ở mục 6.5
-**Bộ đo nay đã có 37 câu hỏi tiếng Anh** bên cạnh 57 câu tiếng Việt, chấm điểm riêng từng
-ngôn ngữ (xem §10.3). Nhưng `ja` và `zh` thì vẫn chưa có câu nào, nên các con số ở mục 6.5
-không nói gì về hai ngôn ngữ đó. Đây là giới hạn đã biết, không phải thứ nên giấu đi.
+**Bộ đo nay có đủ bốn ngôn ngữ**: 57 câu tiếng Việt, 37 tiếng Anh, 18 tiếng Nhật và 18
+tiếng Trung, chấm điểm riêng từng ngôn ngữ (xem §10.3). Giới hạn còn lại đã đổi chỗ: nội
+dung `ja` và `zh` chưa qua tay người bản ngữ đọc lại, và mỗi ngôn ngữ đó mới có 18 câu hỏi
+vàng — đủ để bắt thoái lui, chưa đủ để tuyên bố một con số chính xác đến từng điểm phần trăm.
 
 ### 10.3 Nâng cấp khi cần
 
@@ -1225,14 +1226,28 @@ hiểu là `vi`). `RagRetrievalQualityTest` chấm điểm riêng từng ngôn n
 và mỗi ngôn ngữ có ngưỡng chốt chặn riêng — gộp một ngưỡng chung thì ngôn ngữ nhiều câu hỏi
 hơn sẽ che cho ngôn ngữ kia tụt mà build vẫn xanh.
 
-**Số đo nhánh BM25 (offline, corpus hỗn hợp 112 chunk):**
+**Số đo nhánh BM25 (offline), theo từng bước một. Ba bước đầu đo trên corpus 112 chunk
+(`vi` + `en`), bước cuối trên corpus đủ 224 chunk của cả bốn ngôn ngữ:**
 
-| Cấu hình | Câu hỏi | Số câu | P@1 | R@3 | R@5 | MRR |
-|---|---|---|---|---|---|---|
-| Không lọc | `vi` | 57 | 73.7% | 93.0% | 100% | 0.847 |
-| Không lọc | `en` | 37 | 78.4% | 89.2% | 100% | 0.855 |
-| **Lọc theo `lang`** | `vi` | 57 | 73.7% | 93.0% | 100% | 0.847 |
-| **Lọc theo `lang`** | `en` | 37 | **81.1%** | **91.9%** | 100% | **0.876** |
+| Bước | `vi` P@1 / R@3 / MRR | `en` P@1 / R@3 / MRR |
+|---|---|---|
+| Chưa lọc, bảng từ đồng nghĩa chung | 73.7% / 93.0% / 0.847 | 78.4% / 89.2% / 0.855 |
+| Lọc theo `lang` | 73.7% / 93.0% / 0.847 | 81.1% / 91.9% / 0.876 |
+| Bảng từ đồng nghĩa riêng theo ngôn ngữ | 71.9% / 93.0% / 0.835 | 86.5% / 94.6% / 0.914 |
+| Thêm `ja` + `zh`, thống kê BM25 tách riêng | **71.9% / 94.7% / 0.829** | **86.5% / 94.6% / 0.914** |
+
+**Trạng thái hiện tại, đường mà lượt chat thật đi qua** (corpus 224 chunk, 130 câu hỏi vàng):
+
+| Câu hỏi | Số câu | P@1 | R@3 | R@5 | MRR |
+|---|---|---|---|---|---|
+| `vi` | 57 | 71.9% | 94.7% | 96.5% | 0.829 |
+| `en` | 37 | 86.5% | 94.6% | 100% | 0.914 |
+| `ja` | 18 | 72.2% | 94.4% | 100% | 0.844 |
+| `zh` | 18 | 66.7% | 100% | 100% | 0.824 |
+| gộp | 130 | 75.4% | 95.4% | 98.5% | 0.855 |
+
+Ngưỡng chốt chặn giống nhau cho cả bốn: R@3 ≥ 0.85 và MRR ≥ 0.70. Production lấy
+`top-k = 4`, nên cột R@5 mới là cột sát với câu hỏi "chunk đúng có vào được prompt không".
 
 Hai điều đáng ghi lại từ lần đo này:
 
@@ -1266,22 +1281,72 @@ câu hỏi tiếng Nhật với chunk tiếng Việt. Mỗi chỉ mục tự quy
 thực sự có, nên nếu embedding của phần tiếng Anh chưa sinh xong thì nhánh ngữ nghĩa tự bỏ lọc
 trong khi nhánh từ khóa vẫn lọc — suy giảm từng nhánh thay vì hỏng cả lượt.
 
-**Thống kê BM25 vẫn tính trên toàn corpus,** không tách theo ngôn ngữ. IDF là hệ số theo term,
-áp chung cho mọi tài liệu đang so, nên đổi mẫu số chỉ dịch chuyển điểm gần như đều nhau; số đo
-xác nhận điều đó, dòng `vi` không xê dịch một chữ số nào sau khi bật lọc.
+**Thống kê BM25 ban đầu để chung cho toàn corpus,** với lập luận rằng IDF là hệ số theo
+term nên đổi mẫu số chỉ dịch chuyển điểm gần như đều nhau. Ở mốc hai ngôn ngữ, số đo có vẻ
+xác nhận: dòng `vi` không xê dịch một chữ số nào sau khi bật lọc. **Lập luận đó sai, và
+mốc bốn ngôn ngữ đã lật nó** — xem phần thống kê riêng theo ngôn ngữ bên dưới.
 
 Lọc không cải thiện tiếng Việt, đúng như dự đoán: câu hỏi tiếng Việt vốn hiếm khi khớp chunk
 tiếng Anh nên chẳng có gì để loại. Phần được là ở tiếng Anh, nơi vài chunk tiếng Việt vẫn lọt
 vào top-5 nhờ token trùng sau khi bỏ dấu (`the` của "thẻ", `to` của "tô").
 
-Việc tiếp theo là **tách `SynonymExpander` theo ngôn ngữ**. Bảng từ đồng nghĩa hiện ánh xạ
-vài từ tiếng Anh sang từ khóa tiếng Việt (`luggage` → `hanh ly`, `pet` → `thu cung`), hợp lý
-hồi corpus chỉ có tiếng Việt. Từ khi có bộ lọc thì nó thành vô ích ở chiều đó — chỉ mục đã bị
-lọc chỉ còn chunk tiếng Anh, nhét thêm từ khóa tiếng Việt vào truy vấn không khớp được gì.
+#### Bảng từ đồng nghĩa tách theo ngôn ngữ
 
-Với `ja`/`zh` thì chưa đủ: `TextNormalizer.tokenize()` cắt theo `[^a-z0-9]+`, nên chữ Nhật
-và chữ Trung cho ra **không token nào** — chunk sẽ vô hình với BM25 và chỉ sống nhờ nhánh
-ngữ nghĩa. Muốn hỗ trợ thật thì phải đụng vào tokenizer trước, không phải chỉ dịch nội dung.
+`SynonymExpander` nay giữ hai bảng. Bảng cũ ánh xạ vài từ tiếng Anh sang từ khóa tiếng Việt
+(`luggage` → `hanh ly`, `pet` → `thu cung`), hợp lý hồi corpus chỉ có tiếng Việt; từ khi có
+bộ lọc thì chiều đó thành vô ích, vì chỉ mục mà câu hỏi tiếng Anh được chấm trên đó chỉ còn
+chunk tiếng Anh.
+
+Bảng tiếng Anh còn gánh một việc nữa: **thay cho bộ tách từ gốc.** BM25 ở đây so khớp mặt
+chữ nên `cancel` không khớp `cancellation`, `paid` không khớp `payment`. Cắm một stemmer
+tiếng Anh thật sẽ kéo theo thư viện mới và đụng luôn token tiếng Việt; với corpus cỡ này,
+liệt tay vài chục biến thể hay gặp rẻ hơn và kiểm soát được.
+
+Đi kèm là một sửa lỗi âm thầm hơn: **so khớp khóa theo ranh giới từ thay vì chuỗi con.**
+Trước đây khóa `cho` (chó) khớp luôn vào `chọn`, khóa `cun` (cún) khớp vào `cùng`, nên một
+câu hỏi về chọn ghế bị nhét thêm cả loạt từ về thú cưng. Bộ đo tìm ra 5 câu tiếng Việt dính
+kiểu khớp nhầm này.
+
+**Tiếng Việt tụt nhẹ sau bước này: P@1 73.7% → 71.9%, MRR 0.847 → 0.835.** Đây là một câu
+duy nhất, "chọn ghế xong bao lâu phải trả tiền", rơi từ hạng 1 xuống hạng 3. Lý do đáng ghi
+lại vì nó ngược đời: chunk đúng có tiêu đề "Thời gian giữ chỗ chờ thanh toán", và cách khớp
+chuỗi con cũ vô tình ném token `cho` (từ `chó`) vào truy vấn, token này lại khớp đúng chữ
+`chỗ` trong tiêu đề. Hạng 1 đó là ăn may từ một phép khớp sai, không phải thứ đáng giữ. Có
+thể bịa một mục từ điển để kéo riêng câu này lên lại, nhưng như thế là đo chính mình.
+Tiếng Anh đổi lại được **P@1 +5.4 điểm, MRR +0.038**, và cả hai ngôn ngữ vẫn trên ngưỡng
+chốt chặn.
+
+#### Tiếng Nhật và tiếng Trung: tokenizer trước, nội dung sau
+
+`TextNormalizer.tokenize()` cắt theo `[^a-z0-9]+`, nên trước bước này một câu tiếng Nhật cho
+ra **không token nào** — chunk sẽ vô hình với BM25 dù có dịch nội dung tử tế đến đâu. Vì vậy
+thứ tự bắt buộc là sửa tokenizer trước.
+
+**Cắt theo bigram ký tự, không tách từ.** Tiếng Nhật và tiếng Trung không có dấu cách giữa
+các từ. Tách từ cho đúng cần từ điển hình thái (MeCab, Kuromoji, Jieba), tức thêm vài chục MB
+phụ thuộc cho một corpus vài trăm chunk. Bigram là cách làm chuẩn mực cho đúng tình huống
+này: `手荷物` cho ra `手荷` và `荷物`, nên câu hỏi viết `荷物` vẫn khớp được tài liệu viết
+`手荷物` mà không ai phải biết ranh giới từ nằm ở đâu. Đổi lại có nhiễu — vài cặp cắt ngang
+ranh giới từ thật — nhưng cặp nhiễu rải đều khắp corpus nên tự mất trọng số qua IDF.
+
+Một cái bẫy nhỏ: `normalize()` tách rồi bỏ dấu phụ để phục vụ tiếng Việt, mà **dấu đục của
+tiếng Nhật cũng là dấu phụ** — đi qua đó thì `が` thành `か`, tức đổi hẳn âm. Nhánh CJK vì
+thế dùng NFKC riêng, không dùng chung `normalize()`.
+
+**Thống kê BM25 phải tách theo ngôn ngữ.** Đây là chỗ lập luận cũ ở trên bị lật. IDF thì
+đúng là áp đều, nhưng **chuẩn hóa độ dài thì không**: hệ số `B = 0.75` chấm điểm mỗi tài liệu
+theo độ dài của nó SO VỚI trung bình corpus. Chunk tiếng Nhật và tiếng Trung dài hơn hẳn vì
+bigram sinh nhiều token, nên vừa thêm hai ngôn ngữ vào là trung bình chung bị kéo lên và thứ
+hạng giữa các chunk tiếng Việt đổi theo, dù không một chunk tiếng Việt nào thay đổi. Bộ đo
+bắt đúng lỗi này: R@3 của tiếng Việt tụt từ 93.0% xuống 91.2%.
+
+`LexicalIndex` nay giữ một bộ thống kê cho mỗi ngôn ngữ và một bộ chung cho trường hợp không
+lọc. Kết quả: **R@3 tiếng Việt lên 94.7%**, đúng bằng con số đo được hồi corpus chỉ có mỗi
+tiếng Việt. Đó mới là tính chất cần có — thêm một ngôn ngữ vào corpus không được phép làm
+xê dịch chất lượng của ngôn ngữ khác.
+
+**Nội dung `ja`/`zh` vẫn cần người bản ngữ đọc lại.** Số liệu chính sách đã đối chiếu với
+`faq-vi.yml`, còn văn phong thì chưa ai kiểm. Hai file đều ghi rõ điều này ở đầu file.
 
 ---
 

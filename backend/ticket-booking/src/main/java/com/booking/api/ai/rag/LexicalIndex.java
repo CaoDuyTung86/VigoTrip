@@ -35,16 +35,32 @@ public class LexicalIndex {
     private record Document(KnowledgeChunk chunk, Map<String, Integer> termFrequencies, int length) {
     }
 
+    /**
+     * Thống kê BM25 của MỘT tập tài liệu: số tài liệu, độ dài trung bình, và số tài liệu
+     * chứa mỗi term.
+     *
+     * Có một bộ cho toàn corpus và một bộ cho mỗi ngôn ngữ. Ban đầu chỉ có bộ chung, với
+     * lập luận rằng IDF áp đều cho mọi tài liệu đang so nên đổi mẫu số không đổi thứ hạng.
+     * Lập luận đó đúng với IDF nhưng SAI với chuẩn hóa độ dài: hệ số B = 0.75 chấm điểm
+     * tài liệu theo độ dài của nó SO VỚI trung bình, mà trung bình đó lại phụ thuộc vào
+     * việc trong corpus có gì. Thêm chunk tiếng Nhật và tiếng Trung — vốn dài hơn hẳn vì
+     * bigram sinh nhiều token — kéo trung bình chung lên, và thứ hạng giữa các chunk tiếng
+     * Việt đổi theo dù chẳng có chunk tiếng Việt nào thay đổi. Bộ đo bắt được đúng lỗi này:
+     * R@3 của tiếng Việt tụt từ 93.0% xuống 91.2% chỉ vì corpus có thêm hai ngôn ngữ.
+     */
+    private record Stats(int documentCount, double averageLength, Map<String, Integer> documentFrequencies) {
+
+        static final Stats EMPTY = new Stats(0, 0.0, Map.of());
+    }
+
     private volatile List<Document> documents = List.of();
-    private volatile Map<String, Integer> documentFrequencies = Map.of();
-    private volatile double averageLength = 0.0;
+    private volatile Stats corpusStats = Stats.EMPTY;
+    private volatile Map<String, Stats> statsByLang = Map.of();
     private volatile Set<String> languages = Set.of();
 
     public void load(List<KnowledgeChunk> chunks) {
         List<Document> docs = new ArrayList<>();
-        Map<String, Integer> df = new HashMap<>();
-        Set<String> langs = new HashSet<>();
-        long totalLength = 0;
+        Map<String, List<Document>> byLang = new HashMap<>();
 
         for (KnowledgeChunk chunk : chunks) {
             // Gộp cả tiêu đề và nội dung: tiêu đề thường chứa đúng từ người dùng hỏi.
@@ -55,26 +71,39 @@ public class LexicalIndex {
             for (String token : tokens) {
                 tf.merge(token, 1, Integer::sum);
             }
-            for (String term : tf.keySet()) {
-                df.merge(term, 1, Integer::sum);
-            }
 
-            docs.add(new Document(chunk, tf, tokens.size()));
-            totalLength += tokens.size();
+            Document document = new Document(chunk, tf, tokens.size());
+            docs.add(document);
 
             String lang = LangFilter.normalize(chunk.getLang());
             if (lang != null) {
-                langs.add(lang);
+                byLang.computeIfAbsent(lang, k -> new ArrayList<>()).add(document);
             }
         }
 
+        Map<String, Stats> perLang = new HashMap<>();
+        byLang.forEach((lang, langDocs) -> perLang.put(lang, computeStats(langDocs)));
+
         this.documents = List.copyOf(docs);
-        this.documentFrequencies = Map.copyOf(df);
-        this.averageLength = docs.isEmpty() ? 0.0 : (double) totalLength / docs.size();
-        this.languages = Set.copyOf(langs);
+        this.corpusStats = computeStats(docs);
+        this.statsByLang = Map.copyOf(perLang);
+        this.languages = Set.copyOf(byLang.keySet());
 
         log.info("[LexicalIndex] Đánh chỉ mục {} chunk, {} token phân biệt, ngôn ngữ {}.",
-                docs.size(), df.size(), langs);
+                docs.size(), corpusStats.documentFrequencies().size(), languages);
+    }
+
+    private Stats computeStats(List<Document> docs) {
+        Map<String, Integer> df = new HashMap<>();
+        long totalLength = 0;
+        for (Document doc : docs) {
+            for (String term : doc.termFrequencies().keySet()) {
+                df.merge(term, 1, Integer::sum);
+            }
+            totalLength += doc.length();
+        }
+        double averageLength = docs.isEmpty() ? 0.0 : (double) totalLength / docs.size();
+        return new Stats(docs.size(), averageLength, Map.copyOf(df));
     }
 
     /** Ngôn ngữ thực sự có mặt trong chỉ mục. Dùng để biết lọc theo một mã có ra gì không. */
@@ -106,22 +135,28 @@ public class LexicalIndex {
             return List.of();
         }
 
-        List<String> queryTokens = SynonymExpander.expand(query);
-        if (queryTokens.isEmpty()) {
-            return List.of();
-        }
-
         String filter = LangFilter.normalize(lang);
         if (filter != null && !languages.contains(filter)) {
             filter = null;
         }
+
+        // Mở rộng bằng bảng từ đồng nghĩa của ĐÚNG ngôn ngữ sắp lọc, không phải ngôn ngữ
+        // người gọi yêu cầu. Hai thứ này lệch nhau khi lọc bị bỏ: lúc đó truy vấn được
+        // chấm trên toàn corpus nên cũng phải được với sang mọi bảng từ.
+        List<String> queryTokens = SynonymExpander.expand(query, filter);
+        if (queryTokens.isEmpty()) {
+            return List.of();
+        }
+
+        // Lọc ngôn ngữ nào thì chấm bằng thống kê của ngôn ngữ đó.
+        Stats stats = filter == null ? corpusStats : statsByLang.getOrDefault(filter, corpusStats);
 
         List<ScoredChunk> scored = new ArrayList<>();
         for (Document doc : snapshot) {
             if (!LangFilter.accepts(filter, doc.chunk())) {
                 continue;
             }
-            double score = score(doc, queryTokens, snapshot.size());
+            double score = score(doc, queryTokens, stats);
             if (score > 0) {
                 scored.add(new ScoredChunk(doc.chunk(), score));
             }
@@ -131,17 +166,18 @@ public class LexicalIndex {
         return scored.size() > topK ? new ArrayList<>(scored.subList(0, topK)) : scored;
     }
 
-    private double score(Document doc, List<String> queryTokens, int totalDocs) {
+    private double score(Document doc, List<String> queryTokens, Stats stats) {
         double score = 0.0;
         for (String term : queryTokens) {
             Integer termFreq = doc.termFrequencies().get(term);
             if (termFreq == null) {
                 continue;
             }
-            int docFreq = documentFrequencies.getOrDefault(term, 0);
+            int docFreq = stats.documentFrequencies().getOrDefault(term, 0);
             // IDF của Robertson, cộng 1 để không bao giờ âm với term xuất hiện ở mọi tài liệu.
-            double idf = Math.log(1 + (totalDocs - docFreq + 0.5) / (docFreq + 0.5));
+            double idf = Math.log(1 + (stats.documentCount() - docFreq + 0.5) / (docFreq + 0.5));
 
+            double averageLength = stats.averageLength();
             double normalizedLength = averageLength > 0 ? doc.length() / averageLength : 1.0;
             double denominator = termFreq + K1 * (1 - B + B * normalizedLength);
             score += idf * (termFreq * (K1 + 1)) / denominator;
