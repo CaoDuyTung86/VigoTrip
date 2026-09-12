@@ -73,13 +73,41 @@ class HybridRetrieverTest {
     private HybridRetriever retriever;
 
     private static KnowledgeChunk chunk(long id, String docId, String title, String content, float[] vector) {
+        return chunk(id, docId, title, content, vector, "vi");
+    }
+
+    private static KnowledgeChunk chunk(long id, String docId, String title, String content,
+                                        float[] vector, String lang) {
         return KnowledgeChunk.builder()
                 .id(id).docId(docId).title(title).content(content)
-                .lang("vi").active(true)
+                .lang(lang).active(true)
                 .embeddingBase64(VectorCodec.encode(vector))
                 .embeddingModel("stub-embedding")
                 .dimensions(vector.length)
                 .build();
+    }
+
+    /**
+     * Nạp lại chỉ mục bằng corpus song ngữ: mỗi chủ đề có một chunk tiếng Việt và một
+     * chunk tiếng Anh mang CÙNG vector. Cùng vector là chủ ý — nó khiến nhánh ngữ nghĩa
+     * không thể tự phân biệt hai bản dịch, nên nếu kết quả vẫn ra đúng ngôn ngữ thì đó
+     * là công của bộ lọc chứ không phải may mắn của điểm cosine.
+     */
+    private void loadBilingualCorpus() {
+        when(repository.findByActiveTrue()).thenReturn(List.of(
+                chunk(1, "pets-bus", "Mang thú cưng lên xe khách",
+                        "Xe khách cho phép mang thú cưng nhỏ trong lồng chuyên dụng dưới gầm xe.",
+                        PETS_VECTOR),
+                chunk(2, "baggage-plane", "Quy định hành lý máy bay",
+                        "Vé máy bay gồm 7kg hành lý xách tay và 20kg hành lý ký gửi.",
+                        BAGGAGE_VECTOR),
+                chunk(11, "pets-bus-en", "Taking a pet on a bus",
+                        "Buses accept small pets in a proper carrier placed under the coach.",
+                        PETS_VECTOR, "en"),
+                chunk(12, "baggage-plane-en", "Flight baggage allowance",
+                        "A flight ticket includes 7kg of carry-on baggage and 20kg of checked baggage.",
+                        BAGGAGE_VECTOR, "en")));
+        retriever.reload();
     }
 
     @BeforeEach
@@ -188,6 +216,61 @@ class HybridRetrieverTest {
     void handlesBlankQuery() {
         assertThat(retriever.retrieve("", 3)).isEmpty();
         assertThat(retriever.retrieve(null, 3)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Lọc theo ngôn ngữ: chỉ trả chunk đúng ngôn ngữ người đang hỏi")
+    void filtersByRequestedLanguage() {
+        loadBilingualCorpus();
+
+        assertThat(docIds(retriever.retrieveForLanguage("hành lý thú cưng", "vi")))
+                .containsExactlyInAnyOrder("pets-bus", "baggage-plane");
+        assertThat(docIds(retriever.retrieveForLanguage("pet baggage", "en")))
+                .containsExactlyInAnyOrder("pets-bus-en", "baggage-plane-en");
+    }
+
+    @Test
+    @DisplayName("Bộ lọc áp cho cả nhánh ngữ nghĩa, kể cả khi hai bản dịch cùng vector")
+    void filtersSemanticBranchToo() {
+        loadBilingualCorpus();
+
+        // "thú cưng" tra ra PETS_VECTOR, mà vector này thuộc về cả bản Việt lẫn bản Anh.
+        assertThat(docIds(retriever.retrieveSemanticOnly("thú cưng", 5, "en")))
+                .containsExactly("pets-bus-en");
+        assertThat(docIds(retriever.retrieveSemanticOnly("thú cưng", 5, "vi")))
+                .containsExactly("pets-bus");
+    }
+
+    @Test
+    @DisplayName("Ngôn ngữ chưa có nội dung dịch thì không lọc, thay vì trả về rỗng")
+    void fallsBackWhenLanguageHasNoContent() {
+        loadBilingualCorpus();
+
+        // ja chưa có chunk nào. Trả rỗng nghĩa là người hỏi tiếng Nhật mất sạch tri thức,
+        // trong khi embedding đa ngôn ngữ vẫn thừa sức khớp câu hỏi đó với chunk tiếng Việt.
+        assertThat(docIds(retriever.retrieveForLanguage("hành lý", "ja")))
+                .as("ja chưa có bản dịch nên phải lùi về toàn corpus")
+                .contains("baggage-plane");
+    }
+
+    @Test
+    @DisplayName("Không truyền ngôn ngữ thì tìm trên toàn corpus")
+    void noLanguageMeansNoFilter() {
+        loadBilingualCorpus();
+
+        assertThat(docIds(retriever.retrieveForLanguage("hành lý baggage", null)))
+                .contains("baggage-plane", "baggage-plane-en");
+        assertThat(docIds(retriever.retrieveForLanguage("hành lý baggage", "  ")))
+                .contains("baggage-plane", "baggage-plane-en");
+    }
+
+    @Test
+    @DisplayName("Mã ngôn ngữ viết hoa hay thừa khoảng trắng vẫn khớp")
+    void normalizesLanguageCode() {
+        loadBilingualCorpus();
+
+        assertThat(docIds(retriever.retrieveForLanguage("pet baggage", " EN ")))
+                .containsExactlyInAnyOrder("pets-bus-en", "baggage-plane-en");
     }
 
     @Test

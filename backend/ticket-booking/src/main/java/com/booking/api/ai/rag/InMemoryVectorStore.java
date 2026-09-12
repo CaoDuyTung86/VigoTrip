@@ -7,8 +7,10 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Kho vector giữ trong bộ nhớ, quét cosine tuần tự.
@@ -53,10 +55,12 @@ public class InMemoryVectorStore implements VectorStore {
     }
 
     private volatile List<Entry> entries = List.of();
+    private volatile Set<String> languages = Set.of();
 
     @Override
     public void load(List<KnowledgeChunk> chunks) {
         List<Entry> loaded = new ArrayList<>();
+        Set<String> langs = new HashSet<>();
         int skipped = 0;
 
         for (KnowledgeChunk chunk : chunks) {
@@ -66,9 +70,15 @@ public class InMemoryVectorStore implements VectorStore {
                 continue;
             }
             loaded.add(new Entry(chunk, vector));
+
+            String lang = LangFilter.normalize(chunk.getLang());
+            if (lang != null) {
+                langs.add(lang);
+            }
         }
 
         this.entries = List.copyOf(loaded);
+        this.languages = Set.copyOf(langs);
 
         if (skipped > 0) {
             log.info("[VectorStore] Nạp {} vector, bỏ qua {} chunk chưa có embedding.", loaded.size(), skipped);
@@ -79,13 +89,26 @@ public class InMemoryVectorStore implements VectorStore {
 
     @Override
     public List<ScoredChunk> search(float[] queryVector, int topK, double minSimilarity) {
+        return search(queryVector, topK, minSimilarity, null);
+    }
+
+    @Override
+    public List<ScoredChunk> search(float[] queryVector, int topK, double minSimilarity, String lang) {
         List<Entry> snapshot = this.entries;
         if (queryVector == null || snapshot.isEmpty() || topK <= 0) {
             return List.of();
         }
 
+        String filter = LangFilter.normalize(lang);
+        if (filter != null && !languages.contains(filter)) {
+            filter = null;
+        }
+
         List<ScoredChunk> scored = new ArrayList<>();
         for (Entry entry : snapshot) {
+            if (!LangFilter.accepts(filter, entry.chunk())) {
+                continue;
+            }
             double similarity = VectorCodec.cosineSimilarity(queryVector, entry.vector());
             if (similarity >= minSimilarity) {
                 scored.add(new ScoredChunk(entry.chunk(), similarity));
@@ -99,5 +122,10 @@ public class InMemoryVectorStore implements VectorStore {
     @Override
     public int size() {
         return entries.size();
+    }
+
+    @Override
+    public Set<String> languages() {
+        return languages;
     }
 }

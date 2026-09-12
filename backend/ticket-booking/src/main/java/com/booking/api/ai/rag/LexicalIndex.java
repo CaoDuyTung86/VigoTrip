@@ -7,8 +7,10 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Nhánh tìm kiếm từ khóa, chấm điểm BM25 trên token đã bỏ dấu.
@@ -36,10 +38,12 @@ public class LexicalIndex {
     private volatile List<Document> documents = List.of();
     private volatile Map<String, Integer> documentFrequencies = Map.of();
     private volatile double averageLength = 0.0;
+    private volatile Set<String> languages = Set.of();
 
     public void load(List<KnowledgeChunk> chunks) {
         List<Document> docs = new ArrayList<>();
         Map<String, Integer> df = new HashMap<>();
+        Set<String> langs = new HashSet<>();
         long totalLength = 0;
 
         for (KnowledgeChunk chunk : chunks) {
@@ -57,17 +61,46 @@ public class LexicalIndex {
 
             docs.add(new Document(chunk, tf, tokens.size()));
             totalLength += tokens.size();
+
+            String lang = LangFilter.normalize(chunk.getLang());
+            if (lang != null) {
+                langs.add(lang);
+            }
         }
 
         this.documents = List.copyOf(docs);
         this.documentFrequencies = Map.copyOf(df);
         this.averageLength = docs.isEmpty() ? 0.0 : (double) totalLength / docs.size();
+        this.languages = Set.copyOf(langs);
 
-        log.info("[LexicalIndex] Đánh chỉ mục {} chunk, {} token phân biệt.", docs.size(), df.size());
+        log.info("[LexicalIndex] Đánh chỉ mục {} chunk, {} token phân biệt, ngôn ngữ {}.",
+                docs.size(), df.size(), langs);
+    }
+
+    /** Ngôn ngữ thực sự có mặt trong chỉ mục. Dùng để biết lọc theo một mã có ra gì không. */
+    public Set<String> languages() {
+        return languages;
     }
 
     /** topK chunk có điểm BM25 dương, sắp xếp giảm dần. */
     public List<ScoredChunk> search(String query, int topK) {
+        return search(query, topK, null);
+    }
+
+    /**
+     * Như trên nhưng chỉ chấm những chunk thuộc ngôn ngữ {@code lang}.
+     *
+     * Mã ngôn ngữ mà chỉ mục KHÔNG có chunk nào thì bị bỏ qua và tìm trên toàn corpus.
+     * Với `ja`/`zh` chưa có nội dung dịch, trả về rỗng sẽ tệ hơn hẳn so với trả về chunk
+     * tiếng Việt: người hỏi vẫn nhận được câu trả lời đúng, chỉ là LLM phải dịch lại.
+     *
+     * Thống kê BM25 (số tài liệu, độ dài trung bình, document frequency) vẫn tính trên
+     * TOÀN corpus chứ không tính lại theo từng ngôn ngữ. IDF là hệ số theo term, áp
+     * chung cho mọi tài liệu đang so, nên đổi mẫu số chỉ dịch chuyển điểm gần như đều
+     * nhau và thứ hạng trong cùng một ngôn ngữ hầu như không đổi — không đáng để phải
+     * dựng và bảo trì một bộ thống kê riêng cho mỗi ngôn ngữ.
+     */
+    public List<ScoredChunk> search(String query, int topK, String lang) {
         List<Document> snapshot = this.documents;
         if (snapshot.isEmpty() || topK <= 0) {
             return List.of();
@@ -78,8 +111,16 @@ public class LexicalIndex {
             return List.of();
         }
 
+        String filter = LangFilter.normalize(lang);
+        if (filter != null && !languages.contains(filter)) {
+            filter = null;
+        }
+
         List<ScoredChunk> scored = new ArrayList<>();
         for (Document doc : snapshot) {
+            if (!LangFilter.accepts(filter, doc.chunk())) {
+                continue;
+            }
             double score = score(doc, queryTokens, snapshot.size());
             if (score > 0) {
                 scored.add(new ScoredChunk(doc.chunk(), score));

@@ -835,7 +835,8 @@ public class ChatService implements AIService.ToolHandler {
         }
 
         String effectiveKey = (username != null && !username.isBlank()) ? username : sessionKey;
-        List<com.booking.api.entity.KnowledgeChunk> ragChunks = hybridRetriever.retrieve(userMessage);
+        List<com.booking.api.entity.KnowledgeChunk> ragChunks =
+                hybridRetriever.retrieveForLanguage(userMessage, language);
         String systemInstruction = buildSystemInstruction(username, effectiveKey, userMessage, language, ragChunks);
 
         long startedAt = System.currentTimeMillis();
@@ -917,7 +918,8 @@ public class ChatService implements AIService.ToolHandler {
         }
 
         String effectiveKey = (username != null && !username.isBlank()) ? username : sessionKey;
-        List<com.booking.api.entity.KnowledgeChunk> ragChunks = hybridRetriever.retrieve(userMessage);
+        List<com.booking.api.entity.KnowledgeChunk> ragChunks =
+                hybridRetriever.retrieveForLanguage(userMessage, language);
         String systemInstruction = buildSystemInstruction(username, effectiveKey, userMessage, language, ragChunks);
 
         // Gom lại toàn bộ câu trả lời trong lúc stream để còn lưu lịch sử — người dùng

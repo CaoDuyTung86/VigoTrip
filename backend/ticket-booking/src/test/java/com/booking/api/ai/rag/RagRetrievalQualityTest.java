@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,11 +47,29 @@ import static org.mockito.Mockito.when;
  */
 class RagRetrievalQualityTest {
 
-    /** Ngưỡng tối thiểu cho nhánh từ khóa, đặt dưới mức đo được để bắt thoái lui thật. */
-    private static final double MIN_RECALL_AT_3 = 0.85;
-    private static final double MIN_MRR = 0.70;
+    /**
+     * Ngưỡng tối thiểu cho nhánh từ khóa, đặt dưới mức đo được để bắt thoái lui thật.
+     *
+     * Tách theo NGÔN NGỮ CỦA CÂU HỎI chứ không gộp một ngưỡng chung: hai ngôn ngữ đang
+     * dùng chung một chỉ mục nhưng chất lượng không như nhau, gộp lại thì ngôn ngữ nhiều
+     * câu hỏi hơn sẽ che cho ngôn ngữ kia tụt mà bảng vẫn xanh.
+     *
+     * Thêm ngôn ngữ mới vào rag-eval.yml thì phải thêm ngưỡng ở đây, nếu không test fail
+     * ngay — cố ý làm vậy để không ai lỡ thêm câu hỏi mà quên chốt chặn.
+     */
+    private static final Map<String, Double> MIN_RECALL_AT_3 = Map.of("vi", 0.85, "en", 0.85);
+    private static final Map<String, Double> MIN_MRR = Map.of("vi", 0.70, "en", 0.70);
 
-    private record EvalCase(String query, Set<String> expected) {
+    /** Khóa của dòng chấm gộp mọi ngôn ngữ trong bảng kết quả. */
+    private static final String ALL_LANGS = "gộp";
+
+    private record EvalCase(String query, Set<String> expected, String lang) {
+    }
+
+    /** Mã ngôn ngữ đã chuẩn hóa; bỏ trống trong YAML thì hiểu là tiếng Việt. */
+    private static String lang(Object raw) {
+        String value = raw == null ? "" : String.valueOf(raw).trim().toLowerCase();
+        return value.isBlank() ? "vi" : value;
     }
 
     /**
@@ -91,7 +110,7 @@ class RagRetrievalQualityTest {
                             .title(map.get("title") == null ? "" : String.valueOf(map.get("title")))
                             .content(String.valueOf(map.get("content")).trim())
                             .category(map.get("category") == null ? "" : String.valueOf(map.get("category")))
-                            .lang("vi")
+                            .lang(lang(map.get("lang")))
                             .active(true)
                             .build());
                 }
@@ -108,7 +127,8 @@ class RagRetrievalQualityTest {
                 Map<String, Object> map = (Map<String, Object>) entry;
                 cases.add(new EvalCase(
                         String.valueOf(map.get("query")),
-                        Set.copyOf((List<String>) map.get("expected"))));
+                        Set.copyOf((List<String>) map.get("expected")),
+                        lang(map.get("lang"))));
             }
         }
         return cases;
@@ -117,10 +137,12 @@ class RagRetrievalQualityTest {
     // ------------------------------------------------------------------ tính chỉ số
 
     /**
-     * @param retrieve nhận (câu hỏi, k) và trả về danh sách docId đã xếp hạng
+     * @param retrieve nhận (câu hỏi vàng, k) và trả về danh sách docId đã xếp hạng.
+     *                 Nhận cả EvalCase chứ không chỉ chuỗi câu hỏi, vì cấu hình có lọc
+     *                 ngôn ngữ cần biết câu hỏi này thuộc ngôn ngữ nào.
      */
     private Metrics evaluate(String name, List<EvalCase> cases,
-                             BiFunction<String, Integer, List<String>> retrieve) {
+                             BiFunction<EvalCase, Integer, List<String>> retrieve) {
         int hitsAt1 = 0;
         int hitsAt3 = 0;
         int hitsAt5 = 0;
@@ -129,7 +151,7 @@ class RagRetrievalQualityTest {
         List<String> misses = new ArrayList<>();
 
         for (EvalCase evalCase : cases) {
-            List<String> top5 = retrieve.apply(evalCase.query(), 5);
+            List<String> top5 = retrieve.apply(evalCase, 5);
             List<String> top3 = top5.size() > 3 ? top5.subList(0, 3) : top5;
 
             boolean hitAt1 = !top5.isEmpty() && evalCase.expected().contains(top5.get(0));
@@ -172,22 +194,48 @@ class RagRetrievalQualityTest {
                 misses);
     }
 
+    /**
+     * Chấm một cấu hình truy hồi riêng cho từng ngôn ngữ câu hỏi, rồi chấm thêm một dòng gộp.
+     *
+     * Corpus KHÔNG bị tách theo ngôn ngữ: mọi câu hỏi đều chạy trên đúng chỉ mục hỗn hợp mà
+     * production đang dùng. Đây là số nền để so sánh khi HybridRetriever có bộ lọc theo lang.
+     *
+     * @return bảng theo thứ tự mã ngôn ngữ, dòng gộp nằm cuối khi có từ hai ngôn ngữ trở lên
+     */
+    private Map<String, Metrics> evaluateByLang(String baseName, List<EvalCase> cases,
+                                                BiFunction<EvalCase, Integer, List<String>> retrieve) {
+        Map<String, Metrics> byLang = new LinkedHashMap<>();
+        List<String> langs = cases.stream().map(EvalCase::lang).distinct().sorted().toList();
+
+        for (String lang : langs) {
+            List<EvalCase> subset = cases.stream().filter(c -> c.lang().equals(lang)).toList();
+            byLang.put(lang, evaluate(baseName + " · " + lang, subset, retrieve));
+        }
+        if (langs.size() > 1) {
+            byLang.put(ALL_LANGS, evaluate(baseName + " · " + ALL_LANGS, cases, retrieve));
+        }
+        return byLang;
+    }
+
     private void printTable(List<Metrics> results) {
         System.out.println();
-        System.out.println("================ CHẤT LƯỢNG TRUY HỒI RAG ================");
-        System.out.printf("%-16s %8s %8s %8s %8s %8s %8s%n",
-                "Cấu hình", "P@1", "R@3", "R@5", "P@3", "F1@3", "MRR");
-        System.out.println("---------------------------------------------------------");
+        System.out.println("==================== CHẤT LƯỢNG TRUY HỒI RAG ====================");
+        System.out.printf("%-22s %5s %8s %8s %8s %8s %8s %8s%n",
+                "Cấu hình", "Câu", "P@1", "R@3", "R@5", "P@3", "F1@3", "MRR");
+        System.out.println("-----------------------------------------------------------------");
         for (Metrics m : results) {
-            System.out.printf("%-16s %7.1f%% %7.1f%% %7.1f%% %7.3f %7.3f %7.3f%n",
-                    m.name(), m.precisionAt1() * 100, m.recallAt3() * 100, m.recallAt5() * 100,
+            System.out.printf("%-22s %5d %7.1f%% %7.1f%% %7.1f%% %7.3f %7.3f %7.3f%n",
+                    m.name(), m.queries(),
+                    m.precisionAt1() * 100, m.recallAt3() * 100, m.recallAt5() * 100,
                     m.precisionAt3(), m.f1At3(), m.mrr());
         }
-        System.out.println("---------------------------------------------------------");
+        System.out.println("-----------------------------------------------------------------");
         System.out.println("P@1 = tỉ lệ kết quả đầu tiên đã đúng (gần nhất với 'accuracy')");
         System.out.println("R@k = tỉ lệ câu hỏi tìm được chunk đúng trong top-k");
         System.out.println("P@3 bị chặn trên ở 0.333 vì hầu hết câu hỏi chỉ có 1 chunk đúng");
-        System.out.println("=========================================================");
+        System.out.println("Dòng '· vi' và '· en' chấm theo ngôn ngữ CÂU HỎI; corpus luôn là corpus hỗn hợp");
+        System.out.println("'+ lọc lang' = chỉ chấm chunk cùng ngôn ngữ với câu hỏi (đường production đi)");
+        System.out.println("=================================================================");
 
         for (Metrics m : results) {
             if (!m.misses().isEmpty()) {
@@ -353,6 +401,37 @@ class RagRetrievalQualityTest {
 
     // ------------------------------------------------------------------ test
 
+    /**
+     * Chốt chặn cho một cấu hình: từng ngôn ngữ phải tự đạt ngưỡng của nó.
+     *
+     * Dòng gộp bị bỏ qua có chủ ý. Nó chỉ để đọc — một ngôn ngữ tụt vẫn có thể được ngôn
+     * ngữ kia kéo cho qua ngưỡng, đúng thứ mà việc tách ngưỡng sinh ra để chống.
+     */
+    private void assertMeetsThresholds(Map<String, Metrics> byLang) {
+        for (Map.Entry<String, Metrics> entry : byLang.entrySet()) {
+            String lang = entry.getKey();
+            if (ALL_LANGS.equals(lang)) {
+                continue;
+            }
+            Metrics metrics = entry.getValue();
+
+            assertThat(MIN_RECALL_AT_3)
+                    .as("rag-eval.yml có câu hỏi tiếng \"%s\" nhưng chưa khai ngưỡng cho "
+                            + "ngôn ngữ này trong MIN_RECALL_AT_3/MIN_MRR", lang)
+                    .containsKey(lang);
+
+            assertThat(metrics.recallAt3())
+                    .as("recall@3 của cấu hình \"%s\" tụt dưới ngưỡng — kiểm tra thay đổi ở "
+                            + "knowledge base, LexicalIndex/SynonymExpander hoặc bộ lọc ngôn ngữ",
+                            metrics.name())
+                    .isGreaterThanOrEqualTo(MIN_RECALL_AT_3.get(lang));
+            assertThat(metrics.mrr())
+                    .as("MRR của cấu hình \"%s\" tụt dưới ngưỡng — chunk đúng đang bị xếp hạng "
+                            + "thấp đi", metrics.name())
+                    .isGreaterThanOrEqualTo(MIN_MRR.get(lang));
+        }
+    }
+
     @Test
     @DisplayName("Chất lượng truy hồi đạt ngưỡng, và in bảng chỉ số đầy đủ")
     void measureRetrievalQuality() throws IOException {
@@ -376,10 +455,17 @@ class RagRetrievalQualityTest {
         // --- Luôn chạy: nhánh từ khóa BM25 (offline) ---
         LexicalIndex lexicalIndex = new LexicalIndex();
         lexicalIndex.load(knowledgeBase);
-        Metrics lexical = evaluate("BM25 (từ khóa)", cases,
-                (query, k) -> lexicalIndex.search(query, k).stream()
+        Map<String, Metrics> lexical = evaluateByLang("BM25", cases,
+                (evalCase, k) -> lexicalIndex.search(evalCase.query(), k).stream()
                         .map(s -> s.chunk().getDocId()).toList());
-        results.add(lexical);
+        results.addAll(lexical.values());
+
+        // --- Cùng chỉ mục đó nhưng lọc theo ngôn ngữ câu hỏi: đây là đường mà lượt chat
+        // thật đi qua từ khi ChatService gọi retrieveForLanguage().
+        Map<String, Metrics> lexicalFiltered = evaluateByLang("BM25 + lọc lang", cases,
+                (evalCase, k) -> lexicalIndex.search(evalCase.query(), k, evalCase.lang()).stream()
+                        .map(s -> s.chunk().getDocId()).toList());
+        results.addAll(lexicalFiltered.values());
 
         // --- Chỉ chạy khi bật chế độ live: nhánh ngữ nghĩa và nhánh lai ---
         if (liveModeEnabled()) {
@@ -408,17 +494,25 @@ class RagRetrievalQualityTest {
                     new LexicalIndex(), embeddingClient, props, new SimpleMeterRegistry());
             retriever.reload();
 
-            results.add(evaluate("Vector (ngữ nghĩa)", cases,
-                    (query, k) -> retriever.retrieveSemanticOnly(query, k).stream()
-                            .map(KnowledgeChunk::getDocId).toList()));
+            results.addAll(evaluateByLang("Vector", cases,
+                    (evalCase, k) -> retriever.retrieveSemanticOnly(evalCase.query(), k).stream()
+                            .map(KnowledgeChunk::getDocId).toList()).values());
 
-            results.add(evaluate("Hybrid (RRF)", cases,
-                    (query, k) -> retriever.retrieve(query, k).stream()
-                            .map(KnowledgeChunk::getDocId).toList()));
+            results.addAll(evaluateByLang("Vector + lọc lang", cases,
+                    (evalCase, k) -> retriever.retrieveSemanticOnly(evalCase.query(), k, evalCase.lang())
+                            .stream().map(KnowledgeChunk::getDocId).toList()).values());
+
+            results.addAll(evaluateByLang("Hybrid (RRF)", cases,
+                    (evalCase, k) -> retriever.retrieve(evalCase.query(), k).stream()
+                            .map(KnowledgeChunk::getDocId).toList()).values());
+
+            results.addAll(evaluateByLang("Hybrid + lọc lang", cases,
+                    (evalCase, k) -> retriever.retrieve(evalCase.query(), k, evalCase.lang()).stream()
+                            .map(KnowledgeChunk::getDocId).toList()).values());
 
             System.out.printf("[Live] Lời gọi API embedding: %d (không cache sẽ là %d), "
                     + "số lần phải thử lại vì 429: %d, số lời gọi hỏng hẳn: %d%n",
-                    embeddingClient.apiCalls, 1 + cases.size() * 2,
+                    embeddingClient.apiCalls, 1 + cases.size() * 4,
                     embeddingClient.rateLimitRetries, embeddingClient.hardFailures);
 
             // Chốt chặn quan trọng nhất của chế độ live. Suy giảm êm về BM25 là hành vi
@@ -439,12 +533,7 @@ class RagRetrievalQualityTest {
 
         printTable(results);
 
-        assertThat(lexical.recallAt3())
-                .as("recall@3 của nhánh từ khóa tụt dưới ngưỡng — kiểm tra thay đổi ở "
-                        + "knowledge base hoặc LexicalIndex/SynonymExpander")
-                .isGreaterThanOrEqualTo(MIN_RECALL_AT_3);
-        assertThat(lexical.mrr())
-                .as("MRR của nhánh từ khóa tụt dưới ngưỡng — chunk đúng đang bị xếp hạng thấp đi")
-                .isGreaterThanOrEqualTo(MIN_MRR);
+        assertMeetsThresholds(lexical);
+        assertMeetsThresholds(lexicalFiltered);
     }
 }

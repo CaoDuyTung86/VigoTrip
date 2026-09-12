@@ -628,6 +628,11 @@ chép lại nội dung chunk.
 
 Corpus: **56 chunk**. Đo bằng `RagRetrievalQualityTest`.
 
+> **Bảng này là số của lần đo trên corpus chỉ có tiếng Việt.** Bộ đo nay có thêm 37 câu hỏi
+> tiếng Anh và corpus có thêm `faq-en.yml`; `RagRetrievalQualityTest` in ba dòng riêng cho
+> `vi`, `en` và gộp. Số mới nhất của nhánh BM25 nằm ở §10.3. Ba kiến trúc so sánh dưới đây
+> vẫn giữ nguyên vì chúng đo chế độ live, cần `GEMINI_API_KEY` và chạy thủ công.
+
 | Cấu hình | P@1 | R@3 | R@5 | P@3 | F1@3 | MRR |
 |---|---|---|---|---|---|---|
 | **BM25** (chỉ từ khóa) | 66.7% | 94.7% | 98.2% | 0.339 | 0.500 | 0.803 |
@@ -932,10 +937,14 @@ Router ghi các metric sau, dùng được ngay với hạ tầng giám sát s�
 | `llm_fallback_total{from,to}` | Số lần phải chuyển nhà cung cấp |
 | `llm_latency_seconds` | Độ trễ |
 | `llm_budget_used_today` | Đã dùng bao nhiêu trong trần ngày |
-| `rag_retrievals_total{mode,outcome}` | `mode` = `hybrid` hay `lexical_only` |
+| `rag_retrievals_total{mode,outcome,lang}` | `mode` = `hybrid` hay `lexical_only`; `lang` = ngôn ngữ người hỏi |
 
 `rag_retrievals_total{mode="lexical_only"}` tăng đột biến là tín hiệu API embedding đang hỏng —
 chatbot vẫn chạy nhưng kém đi, và nếu không có metric này thì **không ai biết**.
+
+Nhãn `lang` trả lời một câu khác: ngôn ngữ nào hay truy hồi hụt. `outcome="empty"` dồn vào một
+mã ngôn ngữ nghĩa là tri thức ngôn ngữ đó đang thiếu, không phải hệ thống hỏng. Số nhãn bằng số
+ngôn ngữ giao diện hỗ trợ nên không có nguy cơ nổ nhãn.
 
 Đây là lớp giám sát **hạ tầng**: nó trả lời "hệ thống có chạy không". Câu hỏi khác — "chatbot có
 hữu ích không" — cần số liệu nghiệp vụ và có bảng điều khiển riêng ở [mục 12.5](#125-bảng-điều-khiển-vận-hành).
@@ -1141,7 +1150,7 @@ Thành thật về ngưỡng — biết trước điểm gãy quan trọng hơn 
 | **~5.000 chunk** | Quét cosine tuyến tính bắt đầu thấy được (~vài ms) | Vẫn ổn; chưa cần làm gì |
 | **~50.000 chunk** | Quét tuyến tính quá chậm; RAM ~150 MB vượt ngân sách | Viết `QdrantVectorStore` cắm vào interface có sẵn |
 | **Nhiều instance backend** | Bộ đếm ngân sách và circuit breaker nằm trong RAM từng tiến trình → mỗi instance có trần riêng | Chuyển sang bộ đếm dùng chung (Redis) |
-| **Tri thức đa ngôn ngữ đầy đủ** | BM25 chỉ được chuẩn hóa cho tiếng Việt | Thêm chunk đã dịch, dùng cột `lang` sẵn có |
+| **Tri thức đa ngôn ngữ đầy đủ** | `vi` và `en` đã có nội dung, bộ đo và bộ lọc theo `lang`; nhưng bảng từ đồng nghĩa vẫn chỉ có tiếng Việt, và tokenizer BM25 chỉ nhận `a-z0-9` nên `ja`/`zh` sẽ không sinh token nào | Tách `SynonymExpander` theo ngôn ngữ, rồi mới đụng tokenizer cho `ja`/`zh` (§10.3) |
 | **Thêm tool ghi dữ liệu** | Failover chạy lại action → có thể ghi hai lần | Thêm khóa idempotent, hoặc không failover cho tool ghi |
 | **Lưu lượng chat lớn** | Mỗi lượt ghi thêm 1 dòng `chi_so_chat`; dashboard quét cả kỳ mỗi lần mở | Gộp sẵn theo ngày vào bảng tổng hợp thay vì `GROUP BY` khi đọc |
 
@@ -1197,14 +1206,82 @@ khách" cho ra hai vector gần nhau, dù không chung ký tự nào. Đây là 
 tiếng Việt vẫn phục vụ được câu hỏi tiếng Nhật.
 
 Nhưng lưu ý: **bộ đo `rag-eval.yml` hiện chỉ có câu hỏi tiếng Việt.** Nên các con số ở mục 6.5
-**không** nói gì về chất lượng truy hồi tiếng Anh/Nhật/Trung. Muốn khẳng định, phải bổ sung
-câu hỏi đa ngôn ngữ vào bộ đo. Đây là giới hạn đã biết, không phải thứ nên giấu đi.
+**Bộ đo nay đã có 37 câu hỏi tiếng Anh** bên cạnh 57 câu tiếng Việt, chấm điểm riêng từng
+ngôn ngữ (xem §10.3). Nhưng `ja` và `zh` thì vẫn chưa có câu nào, nên các con số ở mục 6.5
+không nói gì về hai ngôn ngữ đó. Đây là giới hạn đã biết, không phải thứ nên giấu đi.
 
 ### 10.3 Nâng cấp khi cần
 
-Entity `KnowledgeChunk` đã có sẵn cột `lang`. Muốn hỗ trợ đầy đủ: thêm `faq-en.yml`,
-`faq-ja.yml`... với cùng `docId` gốc, rồi lọc theo ngôn ngữ khi truy hồi. Hạ tầng đã sẵn sàng,
-chỉ thiếu nội dung.
+Entity `KnowledgeChunk` đã có sẵn cột `lang`. `faq-en.yml` đã có, mỗi mục ứng một mục của
+`faq-vi.yml` và mang `docId` gốc cộng hậu tố `-en`.
+
+**Hậu tố là bắt buộc, không phải quy ước cho đẹp.** `KnowledgeBaseSeeder` đối chiếu chunk
+theo `docId` (`Map<String, KnowledgeChunk>` khóa bằng `docId`), còn `KnowledgeService` từ
+chối thẳng `docId` trùng. Hai bản dịch dùng chung một `docId` sẽ ghi đè lên nhau và bản
+tiếng Việt biến mất khỏi chỉ mục.
+
+`rag-eval.yml` cũng đã có **37 câu hỏi tiếng Anh**, mang thêm trường `lang` (bỏ trống thì
+hiểu là `vi`). `RagRetrievalQualityTest` chấm điểm riêng từng ngôn ngữ rồi mới in dòng gộp,
+và mỗi ngôn ngữ có ngưỡng chốt chặn riêng — gộp một ngưỡng chung thì ngôn ngữ nhiều câu hỏi
+hơn sẽ che cho ngôn ngữ kia tụt mà build vẫn xanh.
+
+**Số đo nhánh BM25 (offline, corpus hỗn hợp 112 chunk):**
+
+| Cấu hình | Câu hỏi | Số câu | P@1 | R@3 | R@5 | MRR |
+|---|---|---|---|---|---|---|
+| Không lọc | `vi` | 57 | 73.7% | 93.0% | 100% | 0.847 |
+| Không lọc | `en` | 37 | 78.4% | 89.2% | 100% | 0.855 |
+| **Lọc theo `lang`** | `vi` | 57 | 73.7% | 93.0% | 100% | 0.847 |
+| **Lọc theo `lang`** | `en` | 37 | **81.1%** | **91.9%** | 100% | **0.876** |
+
+Hai điều đáng ghi lại từ lần đo này:
+
+**Chunk tiếng Anh không cướp hạng của câu hỏi tiếng Việt.** Đo riêng corpus chỉ tiếng Việt
+cho P@1 71.9%, R@3 94.7%, R@5 96.5%, MRR 0.829 — thêm 56 chunk tiếng Anh vào thì P@1 và MRR
+còn nhích lên. Sau khi bỏ dấu, hai ngôn ngữ gần như không chung token; token dùng chung
+(`vnpay`, `qr`, `visa`, `kg`, `email`) xuất hiện ở cả hai nửa corpus nên mất bớt trọng số
+IDF, nhường chỗ cho token thực sự đặc trưng.
+
+**Lần chạy đầu tiên của bộ đo tiếng Anh cho R@3 chỉ 70.3%, MRR 0.669.** Sáu câu trượt hẳn
+khỏi top-5, tất cả vì cùng một lý do: chunk viết bằng từ của tài liệu (`excess baggage fee`,
+`no-show`, `hotline`) còn khách gõ từ của đời thường (`suitcase too heavy`, `miss the bus`,
+`talk to someone on the phone`). Bổ sung đúng những cách nói đó vào `faq-en.yml` đưa R@3 lên
+89.2% mà không đụng một dòng code nào. Đây chính là lý do phải có bộ đo TRƯỚC khi chỉnh truy
+hồi: nếu không đo, sáu câu này sẽ bị quy oan cho BM25.
+
+**Bộ lọc ngôn ngữ đã được cắm vào truy hồi.** `ChatService` gọi
+`HybridRetriever.retrieveForLanguage(câu hỏi, language)` với đúng mã ngôn ngữ mà nó đã ép vào
+system prompt, nên tri thức đưa cho LLM giờ cùng ngôn ngữ với người đang hỏi.
+
+Ba quyết định đáng ghi lại:
+
+**Lọc TRƯỚC khi xếp hạng, không cắt sau.** Mỗi nhánh lấy 10 ứng viên; nếu lọc sau thì một câu
+hỏi tiếng Anh có thể chỉ còn 2-3 ứng viên để hợp nhất, trong khi corpus vẫn thừa chunk tiếng
+Anh xếp ngay dưới. Bộ lọc vì thế nằm trong `LexicalIndex.search` và `VectorStore.search`, không
+nằm ở chỗ gọi.
+
+**Ngôn ngữ chưa có bản dịch thì không lọc.** `ja` và `zh` chưa có chunk nào; lọc cho bằng được
+sẽ trả về rỗng và người hỏi mất sạch tri thức, trong khi embedding đa ngôn ngữ vẫn khớp được
+câu hỏi tiếng Nhật với chunk tiếng Việt. Mỗi chỉ mục tự quyết định dựa trên ngôn ngữ nó đang
+thực sự có, nên nếu embedding của phần tiếng Anh chưa sinh xong thì nhánh ngữ nghĩa tự bỏ lọc
+trong khi nhánh từ khóa vẫn lọc — suy giảm từng nhánh thay vì hỏng cả lượt.
+
+**Thống kê BM25 vẫn tính trên toàn corpus,** không tách theo ngôn ngữ. IDF là hệ số theo term,
+áp chung cho mọi tài liệu đang so, nên đổi mẫu số chỉ dịch chuyển điểm gần như đều nhau; số đo
+xác nhận điều đó, dòng `vi` không xê dịch một chữ số nào sau khi bật lọc.
+
+Lọc không cải thiện tiếng Việt, đúng như dự đoán: câu hỏi tiếng Việt vốn hiếm khi khớp chunk
+tiếng Anh nên chẳng có gì để loại. Phần được là ở tiếng Anh, nơi vài chunk tiếng Việt vẫn lọt
+vào top-5 nhờ token trùng sau khi bỏ dấu (`the` của "thẻ", `to` của "tô").
+
+Việc tiếp theo là **tách `SynonymExpander` theo ngôn ngữ**. Bảng từ đồng nghĩa hiện ánh xạ
+vài từ tiếng Anh sang từ khóa tiếng Việt (`luggage` → `hanh ly`, `pet` → `thu cung`), hợp lý
+hồi corpus chỉ có tiếng Việt. Từ khi có bộ lọc thì nó thành vô ích ở chiều đó — chỉ mục đã bị
+lọc chỉ còn chunk tiếng Anh, nhét thêm từ khóa tiếng Việt vào truy vấn không khớp được gì.
+
+Với `ja`/`zh` thì chưa đủ: `TextNormalizer.tokenize()` cắt theo `[^a-z0-9]+`, nên chữ Nhật
+và chữ Trung cho ra **không token nào** — chunk sẽ vô hình với BM25 và chỉ sống nhờ nhánh
+ngữ nghĩa. Muốn hỗ trợ thật thì phải đụng vào tokenizer trước, không phải chỉ dịch nội dung.
 
 ---
 

@@ -54,7 +54,7 @@ class ChatServiceZeroTrustTest {
                 .thenReturn(Map.of("valid", false, "message", "Mã giảm giá đã hết hạn."));
         when(routeRepository.findDistinctOrigins()).thenReturn(List.of("HAN"));
         when(routeRepository.findDistinctDestinations()).thenReturn(List.of("SGN"));
-        when(hybridRetriever.retrieve(anyString())).thenReturn(List.of());
+        when(hybridRetriever.retrieveForLanguage(anyString(), any())).thenReturn(List.of());
         when(bookingRepository.findByUserEmailOrderByBookingDateDesc(anyString())).thenReturn(List.of());
         when(bookingRepository.findByIdAndUserEmail(any(), anyString())).thenReturn(Optional.empty());
 

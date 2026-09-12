@@ -51,7 +51,7 @@ class ChatServiceAddonServiceTest {
         when(voucherService.getPublicVouchers(any(), any(), any())).thenReturn(List.of());
         when(routeRepository.findDistinctOrigins()).thenReturn(List.of("HAN"));
         when(routeRepository.findDistinctDestinations()).thenReturn(List.of("SGN"));
-        when(hybridRetriever.retrieve(anyString())).thenReturn(List.of());
+        when(hybridRetriever.retrieveForLanguage(anyString(), any())).thenReturn(List.of());
 
         chatService = new ChatService(tripRepository, bookingRepository, voucherService,
                 routeRepository, additionalServiceRepository,
