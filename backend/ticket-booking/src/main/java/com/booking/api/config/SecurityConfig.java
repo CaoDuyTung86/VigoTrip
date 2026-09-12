@@ -67,6 +67,9 @@ public class SecurityConfig {
                         // nội dung là voucher vốn đã công khai ở trang /uu-dai. Chỉ mở GET —
                         // ghi tin là việc của /api/admin/** (nhịp hai).
                         .requestMatchers(HttpMethod.GET, "/api/announcements").permitAll()
+                        // Dự báo thời tiết cho điểm đến: khách xem chi tiết chuyến trước khi đăng
+                        // nhập cũng phải thấy, và nội dung không phụ thuộc người xem là ai.
+                        .requestMatchers(HttpMethod.GET, "/api/weather").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/payment/vnpay-return", "/api/payment/vnpay-ipn").permitAll()
                         // Trang /admin/reviews cho cả provider lẫn admin vào, nên quyền ở đây

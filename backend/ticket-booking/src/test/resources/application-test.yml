@@ -44,6 +44,11 @@ vnpay:
 
 app:
   frontend-url: http://localhost:5173
+  # Test KHÔNG được gọi mạng. Tắt hẳn ở đây thì dù có test nào chạm vào đường dự báo thời tiết,
+  # nó cũng dừng ngay tại service chứ không đi ra Open-Meteo. Phần logic được phủ riêng bởi
+  # WeatherServiceTest và OpenMeteoClientTest với RestTemplate giả lập.
+  weather:
+    enabled: false
   admin:
     email: admin@gmail.com
     password: Abc123456!

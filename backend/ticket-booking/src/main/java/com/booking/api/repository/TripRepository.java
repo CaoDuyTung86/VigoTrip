@@ -108,6 +108,24 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     List<Object[]> findSupplySlots(@Param("from") LocalDateTime from,
                                    @Param("to") LocalDateTime to);
 
+    /**
+     * Chuyến chưa khởi hành, để {@code TripSupplyService.realignFutureTrips} tính lại giờ đến và giá.
+     *
+     * JOIN FETCH tuyến và phương tiện vì bước tính lại đọc mã điểm đi - đến và loại phương tiện của
+     * từng chuyến; không nạp sẵn thì mỗi chuyến thêm hai truy vấn con, mà đây là vòng chạy trên cả
+     * cửa sổ tồn kho chứ không phải trên một hàng.
+     *
+     * Sắp theo id chứ không theo giờ chạy: bước tính lại vừa đọc vừa ghi trên chính tập kết quả
+     * này, nên khoá sắp xếp phải là thứ nó không bao giờ đụng tới. Giờ đến và giá thì có sửa, id
+     * thì không.
+     */
+    @Query(value = "SELECT t FROM Trip t JOIN FETCH t.route JOIN FETCH t.vehicle "
+            + "WHERE t.departureTime >= :from AND t.status = :status ORDER BY t.id ASC",
+            countQuery = "SELECT COUNT(t) FROM Trip t WHERE t.departureTime >= :from AND t.status = :status")
+    Page<Trip> findFutureTripsByStatus(@Param("from") LocalDateTime from,
+                                       @Param("status") String status,
+                                       Pageable pageable);
+
     @Query("SELECT t FROM Trip t " +
            "WHERE t.departureTime >= :startOfDay " +
            "AND t.departureTime <= :endOfDay " +

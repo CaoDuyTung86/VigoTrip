@@ -3,6 +3,7 @@ import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
 import Header from "../LayOut/Header";
 import Sidebar from "../components/Sidebar";
+import WeatherPanel from "../components/WeatherPanel";
 import { useLanguage } from "../context/LanguageContext";
 import { TbTrain, TbBus } from "react-icons/tb";
 import { FaPlane, FaQrcode } from "react-icons/fa";
@@ -485,6 +486,11 @@ const MyBookings = () => {
                             <div>{t.departurePrefix || "Khởi hành:"} <b style={{ color: "var(--text-main)", fontWeight: 700 }}>{new Date(bk.departureTime).toLocaleString(dateLocale)}</b></div>
                             <div>{t.seatPrefix || "Ghế:"} <b style={{ color: "#f97316", fontWeight: 700 }}>{bk.seatNumbers ? bk.seatNumbers.join(", ") : "N/A"}</b></div>
                           </div>
+
+                          {/* Thời tiết nơi sắp tới. Chỉ hiện với vé còn hạn đi trong vòng bảy
+                              ngày — đây đúng là lúc khách đọc xong còn làm được gì đó (mang ô,
+                              đi sớm hơn); với vé đã đi rồi thì không còn là dự báo nữa. */}
+                          <WeatherPanel place={bk.destination} date={bk.departureTime} compact />
 
                           {/* Passengers */}
                           {bk.ticketDetails && bk.ticketDetails.length > 0 && (

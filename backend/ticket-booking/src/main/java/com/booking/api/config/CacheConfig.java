@@ -42,6 +42,15 @@ public class CacheConfig {
                 .maximumSize(4)
                 .build());
 
+        // Dự báo thời tiết theo (thành phố, ngày). TTL 60 phút vì dự báo cho MỘT NGÀY không đổi
+        // từng phút, dù thời tiết thì đổi từng giờ. Cache giữ CẢ kết quả rỗng: lúc Open-Meteo
+        // trục trặc, không cache thì mỗi lượt xem trang lại phải chờ hết giờ chờ mới chịu bỏ cuộc.
+        // Sức chứa 500 đủ cho 12 thành phố nhân 8 ngày trong tầm dự báo, còn dư nhiều.
+        cacheManager.registerCustomCache("weather", Caffeine.newBuilder()
+                .expireAfterWrite(60, TimeUnit.MINUTES)
+                .maximumSize(500)
+                .build());
+
         cacheManager.registerCustomCache("routes", Caffeine.newBuilder()
                 .expireAfterWrite(30, TimeUnit.MINUTES)
                 .maximumSize(100)

@@ -139,6 +139,11 @@ mã "riêng" lên bảng điện tử thì cái tính riêng của nó thành ra
 Câu trả lời ngắn: **kỹ thuật thì dễ, chỗ đặt mới là vấn đề.** Nên làm, nhưng đặt ở trang chi
 tiết chuyến / vé của tôi, KHÔNG đặt trên dải tin chạy.
 
+> **Đã làm.** Khối dự báo nay nằm ở bảng tóm tắt đơn của cả ba luồng đặt vé và ở `MyBookings`,
+> dựng trên `WeatherService` + `OpenMeteoClient` phía backend và `components/WeatherPanel.jsx`
+> phía giao diện. Dải tin chạy **không** đụng tới, đúng như phần phân tích bên dưới. Mục này giữ
+> lại nguyên văn vì nó là lý do của từng quyết định trong bản đã làm.
+
 ### 6.1 Vì sao không nên nhét vào dải tin
 
 1. **Sai loại thông tin.** Dải tin là kênh *một nội dung cho mọi người*. Thời tiết chỉ có
@@ -163,16 +168,21 @@ Nơi người dùng đã có sẵn **địa điểm** và **ngày**:
 Ở ba chỗ đó, "Đà Nẵng ngày 14/09: 29°C, mưa rào" là thứ khách đọc rồi hành động được (mang ô,
 đi sớm hơn). Trên dải tin thì không.
 
-### 6.3 Điều kiện cần — và đây mới là phần tốn công
+### 6.3 Điều kiện cần — phần lớn đã trả xong
 
-**Toạ độ.** Mọi API thời tiết đều hỏi `lat/lon`. Hiện `tuyen_duong.origin/destination` là
-chuỗi tự do, không toạ độ, và một thành phố mang hai mã tuỳ phương tiện (`HUI`/`HUE`,
-`CXR`/`NTR`, `DLI`/`DLT`, `VII`/`VIN`). Đây **đúng là điều kiện cần của mục Map & Realtime
-Tracking** trong roadmap: bảng `dia_diem` + `diem_don_tra` kèm `latitude`, `longitude`. Làm
-thời tiết trước Map nghĩa là tự bỏ tiền trả trước cho cùng một món nợ.
+**Toạ độ.** Mọi API thời tiết đều hỏi `lat/lon`. Trước đây `tuyen_duong.origin/destination` là
+chuỗi tự do không toạ độ, và một thành phố mang hai mã tuỳ phương tiện (`HUI`/`HUE`,
+`CXR`/`NTR`, `DLI`/`DLT`, `VII`/`VIN`) nên không gộp lại được.
 
-Đường tắt nếu muốn có kết quả sớm: một bảng tra cứng ~20 thành phố trong mã nguồn. Chạy được
-ngay, nhưng nó chính là cái bẫy mã trùng nói trên, và sẽ phải xoá đi khi bảng `dia_diem` ra đời.
+Món nợ đó **đã trả** khi làm lại nguồn cung chuyến: `PlaceCatalog` giữ 12 thành phố kèm
+`latitude`/`longitude`, và hai mã của cùng một nơi trỏ về cùng một `cityId`. Nó ra đời vì lý do
+khác hẳn — sinh chuyến cần cự ly thật để suy ra thời gian chạy và giá — nhưng đúng là thứ mà
+thời tiết cần. Một test khoá lại rằng thêm mã điểm vào danh mục tuyến thì phải thêm cả toạ độ,
+nên danh sách này không lệch đi được.
+
+Còn nợ lại: bảng `dia_diem` + `diem_don_tra` trong CSDL của mục **Map & Realtime Tracking**.
+Khi làm, bảng đó nên seed **từ** `PlaceCatalog` rồi mới xoá lớp hằng số, chứ đừng gõ lại toạ độ
+lần nữa. Riêng phần dự báo thời tiết thì không phải chờ tới đó: nó chỉ cần (thành phố, ngày).
 
 ### 6.4 Đánh đổi lớn nhất: tầm dự báo ngắn hơn tầm đặt vé
 
@@ -207,8 +217,21 @@ xác.
    `MAINTENANCE`/`INFO` do người trực nhập tay qua bảng `thong_bao` của nhịp hai — có người
    chịu trách nhiệm cho câu chữ, thay vì một con số máy tự kéo về.
 
-Ước lượng công: **khoảng một ngày** nếu đã có toạ độ; phần chuẩn hoá địa điểm mới là phần
-nặng, và phần đó thuộc về mục Map chứ không thuộc về thời tiết.
+Bản đã làm theo đúng bốn điểm trên, kèm mấy chỗ chốt thêm lúc viết:
+
+- Tầm hiện dự báo chốt ở **7 ngày** (`WeatherService.FORECAST_HORIZON_DAYS`). Ngoài tầm thì
+  endpoint trả 204 và giao diện ẩn hẳn khối — không ô trống, không vòng xoay chờ.
+- Endpoint trả **mã WMO**, không trả chuỗi mô tả. Ánh xạ sang biểu tượng và chữ nằm ở
+  `utils/weather.js` nên mỗi ngôn ngữ có câu chữ của mình, thay vì bản tiếng Việt hiện
+  "light rain shower".
+- Có một dòng cố định ngay trong khối: *"Đây là dự báo thời tiết, không phải dự đoán giờ chạy
+  của chuyến."* Đó là cách xử lý rủi ro lớn nhất ở bảng 6.5, đặt đúng chỗ dễ hiểu nhầm nhất.
+- Cache 60 phút theo (thành phố, ngày) và **cache cả lượt hỏng**: Open-Meteo trục trặc thì một
+  cặp im lặng trong một tiếng, thay vì mỗi lượt xem trang lại chờ hết giờ chờ.
+- `WEATHER_ENABLED=false` tắt sạch tính năng mà không ảnh hưởng gì tới luồng đặt vé.
+
+Ước lượng công: **khoảng một ngày**. Phần chuẩn hoá địa điểm vốn là phần nặng nhất thì nay đã
+có sẵn `PlaceCatalog`, nên chỉ còn lớp gọi Open-Meteo, cache, và khối hiển thị.
 
 ---
 

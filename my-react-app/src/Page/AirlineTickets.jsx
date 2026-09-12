@@ -19,6 +19,7 @@ import useBookingDraft from "../hooks/useBookingDraft";
 import { RESTORABLE_STEPS, readDraft, verifyHeldSeats } from "../utils/bookingDraft";
 
 import HoldCountdownBanner from "../components/HoldCountdownBanner";
+import WeatherPanel from "../components/WeatherPanel";
 import {
   canSelectSeats,
   isSeatLockedByOthers,
@@ -1864,6 +1865,9 @@ const AirlineTickets = () => {
                       <div style={{ fontWeight: 800, color: "var(--summary-vip-price)", fontSize: 15 }}>{money(Number((selectedTrip.price || 0) * 2.5))}</div>
                     </div>
                     <div style={{ marginTop: 8, color: selectedSeatIds.length >= (passengers || 1) ? "#22c55e" : "var(--text-muted)" }}>{t.seatsSelectedCount.replace('{selected}', selectedSeatIds.length).replace('{total}', passengers || 1)}</div>
+                    {/* Thời tiết nơi sắp tới, ngay dưới phần tóm tắt đơn. Tự ẩn khi chuyến đi
+                        quá bảy ngày nữa mới khởi hành — dự báo xa hơn thì không đáng tin. */}
+                    <WeatherPanel place={selectedTrip.destination} date={selectedTrip.departureTime} />
                   </div>
                 </div>
               </div>

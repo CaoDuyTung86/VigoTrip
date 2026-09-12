@@ -37,6 +37,19 @@ spring:
         format_sql: true
         dialect: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.SQLServerDialect}
         use_nationalized_character_data: true
+        # Gom lệnh ghi thành lô thay vì mỗi hàng một vòng gọi tới CSDL.
+        #
+        # Có tác dụng rõ nhất ở bước tính lại giá chuyến lúc khởi động: cửa sổ tồn kho 30 ngày
+        # cỡ tám nghìn rưỡi chuyến, lượt chạy đầu sau khi đổi cách tính phải UPDATE gần hết
+        # chỗ đó. Với Neon đặt ở xa thì tám nghìn rưỡi vòng gọi lẻ là vài phút chết cứng lúc
+        # khởi động; gom lô đưa nó về vài giây.
+        #
+        # Không giúp gì cho INSERT: khoá chính đang dùng GenerationType.IDENTITY, mà Hibernate
+        # bắt buộc phải lấy khoá vừa sinh ngay sau mỗi dòng nên tự tắt gom lô cho INSERT.
+        # order_updates đi kèm batch_size: không sắp cùng bảng lại với nhau thì lô bị cắt vụn.
+        jdbc:
+          batch_size: 50
+        order_updates: true
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
@@ -127,6 +140,34 @@ payment:
 # Frontend URL (dùng cho redirect sau thanh toán VNPay)
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  trip-supply:
+    # Bật thì mỗi lần khởi động sẽ tính lại giờ đến và giá của mọi chuyến CHƯA khởi hành theo
+    # mô hình hiện hành (cự ly thật giữa hai thành phố, mùa vụ đi lại, khung giờ). Phải bật ít
+    # nhất một lần sau khi đổi cách tính, vì bước bù chuyến chỉ THÊM phần còn thiếu chứ không
+    # bao giờ sửa chuyến đã có — không tính lại thì dữ liệu cũ còn nằm đó tới hết tầm 30 ngày.
+    #
+    # Chạy lần hai trở đi gần như không ghi gì: mô hình tất định nên chuyến đã khớp thì bỏ qua.
+    #
+    # Tắt nếu có sửa giá tay trên màn quản trị và muốn giữ nguyên: hàm tính lại không phân biệt
+    # được chuyến do hệ thống sinh với chuyến do người sửa, nên nó kéo hết về mức của mô hình.
+    realign-on-startup: ${TRIP_REALIGN_ON_STARTUP:true}
+  weather:
+    # Dự báo thời tiết cho điểm đến, hiện ở trang chi tiết chuyến và danh sách vé sắp đi.
+    #
+    # Open-Meteo miễn phí cho dùng phi thương mại và KHÔNG cần khoá, nên đây là tính năng ngoài
+    # duy nhất không thêm biến bí mật nào. Giấy phép CC-BY-4.0 bắt ghi nguồn: dòng "Open-Meteo"
+    # nằm ngay dưới khối thời tiết, đừng bỏ đi.
+    #
+    # Tắt bằng enabled=false thì endpoint vẫn còn nhưng luôn trả 204, và giao diện tự ẩn khối
+    # thời tiết — giống hệt cách hệ thống xử lý khi thiếu khoá AI hay khoá gửi thư.
+    enabled: ${WEATHER_ENABLED:true}
+    base-url: ${WEATHER_BASE_URL:https://api.open-meteo.com/v1/forecast}
+    # Múi giờ để Open-Meteo cắt ngày cho đúng. Lấy giờ Đông Dương vì mọi điểm trong danh mục
+    # đều ở Việt Nam; cắt theo UTC thì dự báo "ngày 14" lệch mất bảy tiếng.
+    timezone: Asia/Bangkok
+    # Ngắn có chủ ý: khối thời tiết ẩn đi thì không sao, giữ thread request của Render thì có sao.
+    connect-timeout-seconds: 3
+    read-timeout-seconds: 4
   # Các origin frontend được phép nhận redirect sau khi VNPay trả kết quả.
   # Cổng chỉ gọi ngược về backend, nên backend là bên quyết định đưa khách về đâu; trả về
   # sai tên miền là khách rơi vào một phiên khác (cookie đăng nhập gắn theo tên miền) và bị
