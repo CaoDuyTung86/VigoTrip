@@ -4,21 +4,16 @@ Dự án đồ án tốt nghiệp cung cấp giải pháp đặt vé toàn diệ
 
 ---
 
-## ⚠️ Trạng thái: ngừng hỗ trợ từ 19/09/2026
+## ⚠️ Trạng thái: dự kiến tạm ngừng hỗ trợ từ 19/09/2026
 
 Dự án đã bảo vệ xong và **đóng băng** kể từ mốc trên. Cụ thể là:
 
-- **Không có ai trả lời issue hay pull request.** Không phải chậm, mà là không.
 - **Không có bản vá bảo mật.** Phụ thuộc trong `pom.xml` và `package.json` đứng yên từ ngày
   đóng băng, và lỗ hổng công bố sau đó sẽ không được vá.
 - **Bản chạy thử có thể tắt bất cứ lúc nào.** Các đường dẫn trong tài liệu này trỏ tới tài
   khoản miễn phí của nhóm; khoá của cổng thanh toán, của mô hình ngôn ngữ và của dịch vụ gửi
   thư đều sẽ bị thu hồi. Đừng xây bất cứ thứ gì dựa trên chúng.
 - **Mã nguồn vẫn ở đây và vẫn dùng lại được**, theo giấy phép MIT. Xem [LICENSE](./LICENSE).
-
-Muốn chạy tiếp thì fork về, tự đăng ký khoá của mình, và đọc mục 10 "Việc còn lại" trong
-[docs/THANH_TOAN_VNPAY.md](./docs/THANH_TOAN_VNPAY.md) trước — nó liệt kê đúng những chỗ còn
-thiếu, bằng lời của người đã đi qua chúng.
 
 ---
 
