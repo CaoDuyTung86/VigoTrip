@@ -634,6 +634,32 @@ public class ChatService implements AIService.ToolHandler {
     }
 
     /**
+     * Khối hướng dẫn chọn công cụ trong system prompt.
+     *
+     * <p>Tách ra khỏi chuỗi nối của {@link #buildSystemInstruction} để bộ đo
+     * {@code ToolSelectionQualityTest} chấm được ĐÚNG chỉ dẫn mà production gửi đi. Để nguyên
+     * tại chỗ thì bộ đo chỉ còn cách chép lại khối này, và một bản chép sẽ lệch khỏi bản thật
+     * ngay lần sửa prompt kế tiếp — bảng điểm vẫn xanh trong khi thứ được đo không còn là thứ
+     * đang chạy.
+     *
+     * @param locationsStr danh sách mã điểm đang có chuyến, do bên gọi lấy từ routeRepository
+     */
+    static String toolUsageGuide(String locationsStr) {
+        return "HƯỚNG DẪN DÙNG CÔNG CỤ (TOOLS):\n"
+                + "- Bạn có công cụ `search_trips` để tìm chuyến đi từ hệ thống. Hãy chủ động gọi công cụ này khi khách hỏi về chuyến đi, tuyến đường, hoặc giá vé.\n"
+                + "- QUAN TRỌNG - Khi gọi `search_trips`, phải dùng MÃ sân bay/ga/bến xe, KHÔNG dùng tên thành phố. Các mã hiện đang hoạt động: " + locationsStr + "\n"
+                + "  Ví dụ: 'Hà Nội đi Sài Gòn' → origin='HAN', destination='SGN'\n"
+                + "- LƯU Ý KHỨ HỒI: Hiện tại tính năng vé khứ hồi đang được bảo trì. Nếu khách hỏi vé khứ hồi, hãy xin lỗi và hướng dẫn khách tìm/đặt vé 1 chiều.\n"
+                + "- Bạn có công cụ `get_user_bookings` để tra cứu vé đã đặt của khách. Hãy gọi công cụ này khi khách hỏi về đơn hàng hoặc vé của họ (có thể phân tích ngày từ câu hỏi để tra cứu).\n"
+                + "- Bạn có công cụ `get_booking_by_id` để tra cứu chính xác một mã đơn hàng. Hãy gọi khi khách cung cấp ID cụ thể.\n"
+                + "- Bạn có công cụ `check_voucher` để kiểm tra một mã giảm giá có áp dụng được cho đơn hàng của khách không và giảm bao nhiêu tiền. Hãy gọi khi khách hỏi 'mã X có dùng được không', 'đơn Y đồng thì giảm bao nhiêu', hoặc khi khách đã cho biết giá vé/tổng tiền.\n"
+                + "- Bạn có công cụ `get_addon_services` để lấy danh mục dịch vụ mua kèm: suất ăn, gói hành lý ký gửi, bảo hiểm du lịch, xe đưa đón. BẮT BUỘC gọi công cụ này trước khi nói bất cứ điều gì về món ăn, đồ ăn trên chuyến, gói hành lý mua thêm, bảo hiểm hay đưa đón, kể cả câu hỏi chung như 'gợi ý món ăn' hay 'có món gì ngon'. TUYỆT ĐỐI KHÔNG tự nghĩ ra tên món hoặc giá.\n"
+                + "- Bạn có công cụ `get_weather_forecast` để tra dự báo thời tiết tại một nơi. BẮT BUỘC gọi công cụ này trước khi nói bất cứ điều gì về thời tiết, nhiệt độ hay mưa nắng. Tham số `place` truyền thẳng tên nơi khách nói (ví dụ Đà Nẵng) hoặc mã điểm, `date` là ngày YYYY-MM-DD, `days` là số ngày liên tiếp cần xem (khách hỏi cả cuối tuần thì truyền 2).\n"
+                + "- Khi khách hỏi tìm vé mà thiếu thông tin (điểm đi, điểm đến, ngày đi) → bạn có thể hỏi thêm điểm đi/đến hoặc gọi `search_trips` với thông tin hiện có.\n\n"
+                + "- GỌI NHIỀU CÔNG CỤ NỐI TIẾP NHAU ĐƯỢC. Sau khi nhận kết quả của một công cụ, nếu để trả lời trọn vẹn còn cần tra thêm thì cứ gọi tiếp công cụ thứ hai chứ đừng bỏ dở nửa sau câu hỏi và cũng đừng đoán. Ví dụ khách hỏi 'vé sắp đi của tôi tới đâu, chỗ đó thời tiết thế nào': gọi `get_user_bookings` trước để biết điểm đến, có điểm đến rồi mới gọi `get_weather_forecast` cho đúng nơi đó. Nếu một công cụ báo đã hết lượt tra cứu trong lượt này thì dừng lại, trả lời bằng những gì đã có và nói rõ phần nào chưa tra được.\n\n";
+    }
+
+    /**
      * @param ragChunks các đoạn tri thức đã truy hồi. Nhận từ ngoài vào thay vì tự gọi
      *                  hybridRetriever ở đây, để bên gọi đếm được số đoạn tìm thấy mà
      *                  không phải truy hồi hai lần.
@@ -780,18 +806,7 @@ public class ChatService implements AIService.ToolHandler {
                 + "- TUYỆT ĐỐI CẤM sử dụng các từ ngữ mang tính kỹ thuật hoặc lộ cấu trúc hệ thống như 'trong danh sách được cung cấp', 'cơ sở dữ liệu', 'theo dữ liệu của bạn'. Hãy trả lời hoàn toàn tự nhiên như một nhân viên hỗ trợ trực tiếp. Quy tắc này chỉ cấm CÁCH NÓI, không cấm việc thừa nhận thiếu thông tin: khi không có căn cứ thì vẫn phải nói rõ là mình chưa có thông tin đó, chỉ cần diễn đạt tự nhiên ('mình chưa có thông tin này', 'phần này mình chưa nắm được') thay vì nhắc tới dữ liệu hay hệ thống.\n"
                 + "- ĐA NGÔN NGỮ (MULTILINGUAL): Bắt buộc trả lời 100% bằng đúng ngôn ngữ mà người dùng sử dụng để hỏi (ví dụ: người dùng hỏi tiếng Anh thì trả lời tiếng Anh, hỏi tiếng Nhật thì trả lời tiếng Nhật, tiếng Trung thì trả lời tiếng Trung, tiếng Việt thì trả lời tiếng Việt).\n\n"
                 
-                + "HƯỚNG DẪN DÙNG CÔNG CỤ (TOOLS):\n"
-                + "- Bạn có công cụ `search_trips` để tìm chuyến đi từ hệ thống. Hãy chủ động gọi công cụ này khi khách hỏi về chuyến đi, tuyến đường, hoặc giá vé.\n"
-                + "- QUAN TRỌNG - Khi gọi `search_trips`, phải dùng MÃ sân bay/ga/bến xe, KHÔNG dùng tên thành phố. Các mã hiện đang hoạt động: " + locationsStr + "\n"
-                + "  Ví dụ: 'Hà Nội đi Sài Gòn' → origin='HAN', destination='SGN'\n"
-                + "- LƯU Ý KHỨ HỒI: Hiện tại tính năng vé khứ hồi đang được bảo trì. Nếu khách hỏi vé khứ hồi, hãy xin lỗi và hướng dẫn khách tìm/đặt vé 1 chiều.\n"
-                + "- Bạn có công cụ `get_user_bookings` để tra cứu vé đã đặt của khách. Hãy gọi công cụ này khi khách hỏi về đơn hàng hoặc vé của họ (có thể phân tích ngày từ câu hỏi để tra cứu).\n"
-                + "- Bạn có công cụ `get_booking_by_id` để tra cứu chính xác một mã đơn hàng. Hãy gọi khi khách cung cấp ID cụ thể.\n"
-                + "- Bạn có công cụ `check_voucher` để kiểm tra một mã giảm giá có áp dụng được cho đơn hàng của khách không và giảm bao nhiêu tiền. Hãy gọi khi khách hỏi 'mã X có dùng được không', 'đơn Y đồng thì giảm bao nhiêu', hoặc khi khách đã cho biết giá vé/tổng tiền.\n"
-                + "- Bạn có công cụ `get_addon_services` để lấy danh mục dịch vụ mua kèm: suất ăn, gói hành lý ký gửi, bảo hiểm du lịch, xe đưa đón. BẮT BUỘC gọi công cụ này trước khi nói bất cứ điều gì về món ăn, đồ ăn trên chuyến, gói hành lý mua thêm, bảo hiểm hay đưa đón, kể cả câu hỏi chung như 'gợi ý món ăn' hay 'có món gì ngon'. TUYỆT ĐỐI KHÔNG tự nghĩ ra tên món hoặc giá.\n"
-                + "- Bạn có công cụ `get_weather_forecast` để tra dự báo thời tiết tại một nơi. BẮT BUỘC gọi công cụ này trước khi nói bất cứ điều gì về thời tiết, nhiệt độ hay mưa nắng. Tham số `place` truyền thẳng tên nơi khách nói (ví dụ Đà Nẵng) hoặc mã điểm, `date` là ngày YYYY-MM-DD, `days` là số ngày liên tiếp cần xem (khách hỏi cả cuối tuần thì truyền 2).\n"
-                + "- Khi khách hỏi tìm vé mà thiếu thông tin (điểm đi, điểm đến, ngày đi) → bạn có thể hỏi thêm điểm đi/đến hoặc gọi `search_trips` với thông tin hiện có.\n\n"
-                + "- GỌI NHIỀU CÔNG CỤ NỐI TIẾP NHAU ĐƯỢC. Sau khi nhận kết quả của một công cụ, nếu để trả lời trọn vẹn còn cần tra thêm thì cứ gọi tiếp công cụ thứ hai chứ đừng bỏ dở nửa sau câu hỏi và cũng đừng đoán. Ví dụ khách hỏi 'vé sắp đi của tôi tới đâu, chỗ đó thời tiết thế nào': gọi `get_user_bookings` trước để biết điểm đến, có điểm đến rồi mới gọi `get_weather_forecast` cho đúng nơi đó. Nếu một công cụ báo đã hết lượt tra cứu trong lượt này thì dừng lại, trả lời bằng những gì đã có và nói rõ phần nào chưa tra được.\n\n"
+                + toolUsageGuide(locationsStr)
                 
                 + "KIẾN THỨC VỀ DỊCH VỤ (RAG Context):\n"
                 + (ragContext.length() > 0 ? ragContext.toString() : "- Không có FAQ bổ sung.\n")
