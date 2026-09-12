@@ -12,7 +12,7 @@ import { PiAirplaneTilt } from "react-icons/pi";
 import { MdOutlineTrain } from "react-icons/md";
 import { IoIosBus } from "react-icons/io";
 import { useNavigate, useLocation } from "react-router-dom";
-import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users, Tag, Menu, X, ScrollText } from "lucide-react";
+import { User, Ticket, LogOut, Navigation, MapPin, Undo2, QrCode, DollarSign, MessageSquare, Users, Tag, Menu, X, ScrollText, Megaphone } from "lucide-react";
 import BotAvatar from "../components/BotAvatar";
 
 const Header = () => {
@@ -52,6 +52,9 @@ const Header = () => {
     { label: t.routeManagement || "Quản lý tuyến đường", path: "/admin/routes", icon: <MapPin size={16} color="#8b5cf6" /> },
     { label: t.userManagement || "Quản lý người dùng", path: "/admin/users", icon: <Users size={16} color="#06b6d4" /> },
     { label: t.voucherManagement || t.adminVouchers || "Quản lý voucher", path: "/admin/vouchers", icon: <Tag size={16} color="#f59e0b" /> },
+    // Chỉ có ở adminItems: tin trên bảng tin là tiếng nói chung của cả site, không phải
+    // của riêng một hãng, nên tài khoản provider không đăng được.
+    { label: t.announcementManagement, path: "/admin/announcements", icon: <Megaphone size={16} color="#22d3ee" /> },
     { label: t.refunds || "Hoàn tiền & Hủy vé", path: "/provider/refunds", icon: <Undo2 size={16} color="#ef4444" /> },
     { label: t.revenue || "Thống kê doanh thu", path: "/admin/revenue", icon: <DollarSign size={16} color="#fbbf24" /> },
     { label: t.providerReviews || "Đánh giá & Feedback", path: "/admin/reviews", icon: <MessageSquare size={16} color="#60a5fa" /> },

@@ -14,6 +14,14 @@ public interface AdminMapper {
     @Mapping(target = "provider", ignore = true)
     Voucher toEntity(VoucherRequest request);
 
+    /**
+     * Tin nhập tay cho dải tin chạy. Trường {@code kind} là chuỗi trong request và enum trong
+     * entity — MapStruct tự sinh phép chuyển, giá trị lạ sẽ bị chặn ngay ở lớp này thay vì
+     * chui xuống CSDL thành một loại tin mà giao diện không biết vẽ ra sao.
+     */
+    @Mapping(target = "id", ignore = true)
+    Announcement toEntity(AnnouncementRequest request);
+
     Route toEntity(RouteRequest request);
     void updateEntity(RouteRequest request, @MappingTarget Route route);
 

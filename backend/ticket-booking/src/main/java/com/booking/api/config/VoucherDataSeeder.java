@@ -63,6 +63,9 @@ public class VoucherDataSeeder {
             aiPromo.setCurrentUsage(0);
             aiPromo.setDescription("Mã riêng từ Chatbot AI — Giảm 10% (tối đa 50.000đ)");
             aiPromo.setIsActive(true);
+            // Mã duy nhất KHÔNG lên dải tin chạy: chatbot phát nó cho từng người trong hội
+            // thoại riêng, rao lên bảng điện tử thì cái tính riêng ấy thành vô nghĩa.
+            aiPromo.setShowOnTicker(false);
             voucherRepository.save(aiPromo);
 
             Voucher vip = new Voucher();

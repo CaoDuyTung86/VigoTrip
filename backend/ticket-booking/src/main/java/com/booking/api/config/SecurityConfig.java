@@ -63,9 +63,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/trips/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/additional-services/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reviews/trip/**").permitAll()
-                        // Dải tin chạy trên Header: khách chưa đăng nhập cũng phải thấy, và
-                        // nội dung là voucher vốn đã công khai ở trang /uu-dai. Chỉ mở GET —
-                        // ghi tin là việc của /api/admin/** (nhịp hai).
+                        // Dải tin chạy trên Header: khách chưa đăng nhập cũng phải thấy. Nội
+                        // dung gồm voucher vốn đã công khai ở trang /uu-dai và tin Admin nhập
+                        // tay vốn viết ra để rao cho mọi người. Chỉ mở GET — ghi tin là việc
+                        // của POST/PUT/PATCH/DELETE /api/admin/announcements.
                         .requestMatchers(HttpMethod.GET, "/api/announcements").permitAll()
                         // Dự báo thời tiết cho điểm đến: khách xem chi tiết chuyến trước khi đăng
                         // nhập cũng phải thấy, và nội dung không phụ thuộc người xem là ai.

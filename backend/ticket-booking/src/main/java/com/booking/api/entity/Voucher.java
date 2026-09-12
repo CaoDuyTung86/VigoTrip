@@ -56,4 +56,20 @@ public class Voucher {
 
     @Column(name = "is_active")
     private Boolean isActive = true;
+
+    /**
+     * Có đưa mã này lên dải tin chạy hay không.
+     *
+     * <p>Tách khỏi {@code isActive} vì hai câu hỏi khác nhau: "mã còn dùng được không" và "có
+     * rao mã này cho mọi người không". Trước khi có cờ này thì mọi mã đang bật đều lên dải tin,
+     * kể cả mã mang tính cá nhân như mã chatbot phát riêng cho từng người — nó không rò rỉ gì
+     * (trang /uu-dai vốn đã liệt kê đúng danh sách ấy) nhưng đưa một mã "riêng" lên bảng điện
+     * tử thì cái tính riêng của nó thành ra vô nghĩa.
+     *
+     * <p>{@code null} được hiểu là BẬT. Cột này thêm sau bằng {@code ddl-auto=update} nên mọi
+     * bản ghi cũ đều mang null; hiểu null là tắt thì một lần nâng cấp sẽ xoá sạch dải tin của
+     * các môi trường đang chạy mà không ai yêu cầu điều đó.
+     */
+    @Column(name = "hien_thi_bang_tin")
+    private Boolean showOnTicker = true;
 }

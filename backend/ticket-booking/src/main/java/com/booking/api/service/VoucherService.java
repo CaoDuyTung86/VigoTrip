@@ -354,6 +354,9 @@ public class VoucherService {
         if (data.getIsActive() != null) {
             voucher.setIsActive(data.getIsActive());
         }
+        if (data.getShowOnTicker() != null) {
+            voucher.setShowOnTicker(data.getShowOnTicker());
+        }
         return voucherRepository.save(voucher);
     }
 

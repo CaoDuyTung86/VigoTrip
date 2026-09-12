@@ -1724,6 +1724,10 @@ body.dark .ann-ticker {
   letter-spacing: 0.1px;
 }
 .ann-item:hover { text-decoration: underline; }
+
+/* Tin nhập tay không khai đường dẫn: vẫn đọc được, nhưng không giả vờ bấm được. */
+.ann-item--plain { cursor: default; }
+.ann-item--plain:hover { text-decoration: none; }
 .ann-item:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;

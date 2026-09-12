@@ -1,9 +1,8 @@
 # Bảng tin chạy (Announcement Ticker)
 
 Dải chữ chạy ngang kiểu bảng điện tử nhà ga, nằm ngay dưới `Header` trên mọi trang có
-header. Tài liệu này ghi lại: nó dùng để làm gì (và cố ý KHÔNG làm gì), nhịp một đã dựng ra
-sao, nhịp hai còn thiếu gì, và phần trả lời cho câu hỏi "gắn thêm dự báo thời tiết vào thì
-có khả thi không".
+header. Tài liệu này ghi lại: nó dùng để làm gì (và cố ý KHÔNG làm gì), hai nhịp đã dựng ra
+sao, và phần trả lời cho câu hỏi "gắn thêm dự báo thời tiết vào thì có khả thi không".
 
 ---
 
@@ -11,8 +10,8 @@ có khả thi không".
 
 Chỉ tin **không khẩn cấp**, **dùng chung cho cả site**, và **đọc lướt cũng không mất gì**:
 
-- Voucher đang hiệu lực (nhịp một — đã có).
-- Tuyến mới mở bán, lịch bảo trì (nhịp hai — cần bảng `thong_bao`).
+- Voucher đang hiệu lực (nhịp một).
+- Tuyến mới mở bán, lịch bảo trì (nhịp hai, bảng `thong_bao`).
 
 Ba loại thông tin cố ý KHÔNG đi vào đây, vì mỗi loại đã có chỗ đúng của nó:
 
@@ -22,8 +21,8 @@ Ba loại thông tin cố ý KHÔNG đi vào đây, vì mỗi loại đã có ch
 | Phản hồi sau thao tác ("đã lưu voucher") | `ToastContext` | Có người nhận cụ thể và có thời điểm cụ thể |
 | Bất cứ thứ gì bỏ lỡ thì mất tiền hoặc mất chuyến | Không phải ở đây | Chữ đang trôi ngang là thứ đọc lướt. Đặt tin quan trọng vào đó là thiết kế ra một kênh mà người dùng được phép bỏ qua |
 
-Nguyên tắc xuyên suốt: **chữ chạy chỉ là mồi, không phải nơi chứa nội dung.** Mỗi mẩu tin là
-một liên kết mở trang đầy đủ để đọc lại.
+Nguyên tắc xuyên suốt: **chữ chạy chỉ là mồi, không phải nơi chứa nội dung.** Mẩu tin nào có
+trang đích thì là một liên kết mở trang đầy đủ để đọc lại.
 
 ---
 
@@ -74,8 +73,8 @@ vi: Mã VIP50 — giảm 50% · tối đa 500.000 đ · đơn từ 1.000.000 đ 
 en: Code VIP50 — 50% off · up to 500,000 VND · orders from 1,000,000 VND · until 31 Dec 2026
 ```
 
-Tin nhập tay (nhịp hai) thiếu bản tiếng Anh thì **hiện tiếng Việt chứ không ẩn tin**; thiếu
-bản tiếng Việt là lỗi nhập liệu và phải chặn ngay ở form.
+Tin nhập tay thiếu bản tiếng Anh thì **hiện tiếng Việt chứ không ẩn tin**; thiếu bản tiếng
+Việt là lỗi nhập liệu, bị chặn ở cả form lẫn `AnnouncementService.validate`.
 
 ---
 
@@ -85,7 +84,7 @@ bản tiếng Việt là lỗi nhập liệu và phải chặn ngay ở form.
 | --- | --- |
 | Dừng khi rê chuột hoặc focus bàn phím | `.ann-ticker:hover .ann-track, .ann-ticker:focus-within .ann-track { animation-play-state: paused }` — thuần CSS, không phụ thuộc sự kiện React nào có thể bị bỏ lỡ |
 | `prefers-reduced-motion` | `matchMedia` đổi sang danh sách tĩnh cuộn ngang được; thêm một luật `@media` làm chốt chặn thứ hai khi JS đó không chạy |
-| Mỗi tin đọc lại được | Mỗi mẩu là `<Link>` tới `/uu-dai?code=...`, trang ưu đãi cuộn tới và viền sáng đúng thẻ đó |
+| Mỗi tin đọc lại được | Tin voucher là `<Link>` tới `/uu-dai?code=...`, trang ưu đãi cuộn tới và viền sáng đúng thẻ đó. Tin nhập tay không khai đường dẫn thì là `<span>`, không phải liên kết trỏ bừa |
 | Trình đọc màn hình | `role="region"` + `aria-label`; bản sao dùng để nối vòng lặp mang `aria-hidden` và `tabIndex={-1}` nên mỗi tin chỉ đọc và chỉ dừng Tab một lần |
 | Tắt được | Nút ✕ nhớ theo **nội dung** (`vigotrip.ticker.dismissed` = danh sách id đang hiện), nên có tin mới là dải tin hiện lại. Nhớ theo kiểu "đã tắt hôm nay" thì một thông báo bảo trì đăng lúc 10h không bao giờ tới được người đã tắt lúc 9h |
 
@@ -115,22 +114,53 @@ khoản đổ đè lên nó.
 
 ## 5. Nhịp hai — bảng `thong_bao`
 
-Chưa làm. Phần còn thiếu:
+Đã làm. Tin nhập tay cho những thứ không có dữ liệu nào để suy ra: tuyến mới mở bán, lịch
+bảo trì.
 
-- Bảng `thong_bao`: `noi_dung_vi`, `noi_dung_en`, `duong_dan`, `loai` (ROUTE / MAINTENANCE /
-  INFO), `hieu_luc_tu`, `hieu_luc_den`, `thu_tu`, `dang_bat`.
-- Trang quản trị dựng theo khuôn `AdminVouchers`.
-- Hợp nhất hai nguồn trong `AnnouncementService.getActiveAnnouncements()` rồi mới cắt theo
-  `MAX_ITEMS`. Chỗ nối đã chừa sẵn, phần còn lại của hệ thống không phải đổi gì:
-  `AnnouncementDTO` đã có `textVi` / `textEn` cho tin nhập tay.
+### Bảng và màn quản trị
 
-Trường quan trọng nhất là cặp `hieu_luc_tu` / `hieu_luc_den` để tin **tự hết hạn** — tránh
-cảnh dải tin còn treo khuyến mãi Tết vào tháng Tư.
+- Bảng `thong_bao` (`entity/Announcement.java`): `noi_dung_vi`, `noi_dung_en`, `duong_dan`,
+  `loai` (ROUTE / MAINTENANCE / INFO), `hieu_luc_tu`, `hieu_luc_den`, `thu_tu`, `dang_bat`.
+- Trang `/admin/announcements` (`Page/AdminAnnouncements.jsx`) dựng theo khuôn
+  `AdminVouchers`: cùng bố cục form-trên-bảng-dưới, cùng lối "tắt chứ không xóa". Giống nhau
+  là cố ý — admin không phải học lại một màn hình mới chỉ vì dữ liệu bên dưới khác.
+- Đường ghi nằm dưới `/api/admin/announcements`, tức đã được `SecurityConfig` chặn sẵn cho
+  Admin. Đường đọc `GET /api/announcements` vẫn công khai như cũ.
 
-Một việc nữa nên làm cùng nhịp hai: thêm cờ `hien_thi_bang_tin` cho voucher. Hiện mọi voucher
-đang bật đều lên dải tin, kể cả mã mang tính cá nhân như mã chatbot phát cho từng người. Hiện
-tại điều đó không rò rỉ gì (trang `/uu-dai` vốn đã liệt kê đúng danh sách ấy), nhưng đưa một
-mã "riêng" lên bảng điện tử thì cái tính riêng của nó thành ra vô nghĩa.
+### Bốn quyết định đáng ghi lại
+
+**Cặp hiệu lực là trường quan trọng nhất.** Tin phải **tự hết hạn**. Nếu việc tắt tin phụ
+thuộc vào một người nhớ ra mà vào tắt thì sớm muộn dải tin cũng treo khuyến mãi Tết vào tháng
+Tư — kiểu lỗi không ai báo cáo, chỉ làm cả bảng tin mất uy tín dần.
+
+**Tin nhập tay đứng trước tin voucher.** Chỗ trong dải tin có hạn (`MAX_ITEMS` = 6), nên thứ
+tự hợp nhất chính là thứ tự ưu tiên. Tin nhập tay thắng vì có người quyết định đăng nó vào
+đúng lúc này, còn tin voucher tự sinh ra từ việc có một mã còn hạn. Một thông báo bảo trì bị
+bốn mã giảm giá đẩy khỏi dải tin là cái giá không đáng trả.
+
+**Đường dẫn là tuỳ chọn.** Trước đây client mặc định về `/uu-dai` khi thiếu trường `link`.
+Với tin voucher thì đúng, với tin nhập tay thì sai: một thông báo bảo trì dẫn người đọc sang
+trang khuyến mãi còn tệ hơn một mẩu tin bấm không được. Tin không khai đường dẫn nay render
+ra `<span>` chứ không phải `<a>` — dựng một thẻ liên kết trỏ đi đâu đó cho có cũng là nói dối
+trình đọc màn hình về việc có gì ở đầu bên kia.
+
+**Nguyên văn hai thứ tiếng, không phải khoá dịch.** Câu chữ do người đăng gõ ra, không bảng
+dịch nào chứa được nó. Bản tiếng Anh để trống thì hiện bản tiếng Việt: thà đọc một câu tiếng
+Việt còn hơn không biết là có thông báo.
+
+### Cờ `hien_thi_bang_tin` cho voucher
+
+Làm cùng nhịp hai. Nó tách hai câu hỏi vốn bị gộp làm một: "mã còn dùng được không" và "có
+rao mã này cho mọi người không". Trước đó mọi voucher đang bật đều lên dải tin, kể cả mã mang
+tính cá nhân như mã chatbot phát cho từng người — không rò rỉ gì (trang `/uu-dai` vốn đã liệt
+kê đúng danh sách ấy), nhưng đưa một mã "riêng" lên bảng điện tử thì cái tính riêng của nó
+thành ra vô nghĩa.
+
+`null` được hiểu là **bật**. Cột này thêm sau bằng `ddl-auto=update` nên mọi bản ghi cũ đều
+mang null; hiểu null là tắt thì một lần nâng cấp sẽ xoá sạch dải tin của các môi trường đang
+chạy mà không ai yêu cầu điều đó. Hệ quả cần biết: `VoucherDataSeeder` đặt `false` cho
+`AI_PROMO_10` ở môi trường mới, còn môi trường đã có sẵn dữ liệu thì mã đó vẫn đang hiện —
+bỏ tick "Hiện trên bảng tin" trong màn quản lý voucher một lần là xong.
 
 ---
 
@@ -238,12 +268,17 @@ có sẵn `PlaceCatalog`, nên chỉ còn lớp gọi Open-Meteo, cache, và kh�
 ## 7. Kiểm thử
 
 ```bash
-# Backend — lọc, sắp xếp, cắt ngọn, tham số gửi đi
+# Backend — hợp nhất hai nguồn, lọc, sắp xếp, cắt ngọn, chặn tin sai
 cd backend/ticket-booking && mvnw test -Dtest=AnnouncementServiceTest
 
-# Frontend — ghép câu, ẩn/hiện, nhớ tin đã tắt, backend lỗi thì im lặng
+# Frontend — ghép câu, ẩn/hiện, nhớ tin đã tắt, tin không đường dẫn, backend lỗi thì im lặng
 npm run test:run --prefix my-react-app
 ```
+
+Kiểm bằng mắt cho nhịp hai: vào `/admin/announcements`, đăng một tin có hạn kết thúc sau vài
+phút (phải thấy nó lên dải tin NGAY, không chờ hết 5 phút cache), đăng một tin không điền
+đường dẫn (phải là chữ thường, bấm không được), tắt tin (phải rụng khỏi dải tin ngay), và đặt
+hạn bắt đầu ở tương lai (bảng quản trị ghi "Chờ tới ngày", dải tin chưa có gì).
 
 Kiểm bằng mắt: mở trang chủ, rê chuột vào dải tin (phải dừng), nhấn Tab tới một mẩu tin
 (cũng phải dừng), bấm vào một mẩu (phải sang `/uu-dai` với đúng thẻ được viền sáng), đổi

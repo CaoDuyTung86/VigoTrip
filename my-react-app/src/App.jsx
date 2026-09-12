@@ -22,6 +22,7 @@ import AdminRoutes from "./Page/AdminRoutes";
 import AdminUsers from "./Page/AdminUsers";
 import AdminReviews from "./Page/AdminReviews";
 import AdminVouchers from "./Page/AdminVouchers";
+import AdminAnnouncements from "./Page/AdminAnnouncements";
 import VoucherPromotions from "./Page/VoucherPromotions";
 import AccountPage from "./Page/AccountPage";
 import AdminRevenue from "./Page/AdminRevenue";
@@ -81,6 +82,7 @@ function AppWrapper() {
           <Route path="/admin/routes" element={<AdminRoutes />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/vouchers" element={<AdminVouchers />} />
+          <Route path="/admin/announcements" element={<AdminAnnouncements />} />
           <Route path="/admin/reviews" element={<AdminReviews />} />
           <Route path="/admin/revenue" element={<AdminRevenue />} />
           <Route path="/admin/chatbot" element={<AdminChatbot />} />

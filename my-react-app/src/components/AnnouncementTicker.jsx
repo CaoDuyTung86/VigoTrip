@@ -154,16 +154,28 @@ export default function AnnouncementTicker() {
 
   if (hidden) return null;
 
-  const renderItem = (item, { duplicate = false } = {}) => (
-    <Link
-      key={`${duplicate ? "dup-" : ""}${item.id}`}
-      to={item.link || "/uu-dai"}
-      className="ann-item"
-      tabIndex={duplicate ? -1 : undefined}
-    >
-      {buildAnnouncementText(item, t, langCode)}
-    </Link>
-  );
+  // Tin nhập tay được phép không có đường dẫn. Khi đó nó là chữ thường, KHÔNG phải liên kết:
+  // trước đây chỗ này mặc định về /uu-dai khi thiếu trường link, mà một thông báo bảo trì dẫn
+  // người đọc sang trang khuyến mãi thì tệ hơn hẳn một mẩu tin bấm không được. Dựng thẻ <a>
+  // trỏ đi đâu đó cho có cũng là nói dối trình đọc màn hình về việc có gì ở đầu bên kia.
+  const renderItem = (item, { duplicate = false } = {}) => {
+    const key = `${duplicate ? "dup-" : ""}${item.id}`;
+    const text = buildAnnouncementText(item, t, langCode);
+
+    if (!item.link) {
+      return (
+        <span key={key} className="ann-item ann-item--plain">
+          {text}
+        </span>
+      );
+    }
+
+    return (
+      <Link key={key} to={item.link} className="ann-item" tabIndex={duplicate ? -1 : undefined}>
+        {text}
+      </Link>
+    );
+  };
 
   return (
     <div className="ann-ticker" role="region" aria-label={t.annLabel}>

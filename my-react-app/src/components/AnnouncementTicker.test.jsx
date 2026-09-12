@@ -17,6 +17,18 @@ const voucherItem = (overrides = {}) => ({
   ...overrides,
 });
 
+// Tin nhập tay (bảng thong_bao): nguyên văn hai thứ tiếng, không có params, và đường dẫn
+// là tuỳ chọn — mặc định ở đây là không có, vì đó mới là trường hợp dễ làm sai.
+const noticeItem = (overrides = {}) => ({
+  id: 'notice:1',
+  kind: 'MAINTENANCE',
+  textVi: 'Bảo trì hệ thống 02:00 - 04:00 ngày 20/09',
+  textEn: 'Maintenance 02:00 - 04:00 on 20 Sep',
+  link: null,
+  endsAt: '2026-09-20T04:00:00',
+  ...overrides,
+});
+
 const renderTicker = () =>
   render(
     <MemoryRouter>
@@ -93,6 +105,22 @@ describe('AnnouncementTicker', () => {
 
     await waitFor(() => expect(axios.get).toHaveBeenCalled());
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('tin nhập tay có đường dẫn thì bấm được và trỏ đúng chỗ', async () => {
+    axios.get.mockResolvedValue({ data: [noticeItem({ link: '/ve-tau-hoa' })] });
+    renderTicker();
+
+    const links = await screen.findAllByRole('link', { name: /Bảo trì/ });
+    expect(links[0]).toHaveAttribute('href', '/ve-tau-hoa');
+  });
+
+  it('tin nhập tay không có đường dẫn thì hiện chữ, không dựng liên kết giả về trang ưu đãi', async () => {
+    axios.get.mockResolvedValue({ data: [noticeItem()] });
+    renderTicker();
+
+    expect(await screen.findAllByText(/Bảo trì/)).not.toHaveLength(0);
+    expect(screen.queryByRole('link')).toBeNull();
   });
 });
 

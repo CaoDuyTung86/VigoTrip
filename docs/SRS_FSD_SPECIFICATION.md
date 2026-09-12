@@ -405,6 +405,22 @@ Các bảng chính trong Cơ sở dữ liệu SQL Server / PostgreSQL:
    - `reason` (NVarChar(500))
    - `processed_by` (FK -> `users`, nullable — admin xử lý)
    - `processed_at` (DateTime2, nullable)
+
+10. **`thong_bao` (Tin nhập tay cho dải tin chạy)**:
+    - `thong_bao_id` (PK, BigInt, Auto-Increment)
+    - `noi_dung_vi` (NVarChar(500), Not Null) — bản dự phòng khi thiếu bản dịch
+    - `noi_dung_en` (NVarChar(500), nullable)
+    - `duong_dan` (VarChar(300), nullable) — null thì mẩu tin không bấm được
+    - `loai` (VarChar(20)) -- `ROUTE`, `MAINTENANCE`, `INFO`
+    - `hieu_luc_tu` (DateTime2, nullable) — null là hiện ngay
+    - `hieu_luc_den` (DateTime2, nullable) — null là hiện tới khi có người tắt
+    - `thu_tu` (Int, Default `0`)
+    - `dang_bat` (Bit, Default `1`)
+   >
+   > Bảng này KHÔNG chứa tin suy ra từ voucher: dải tin hợp nhất hai nguồn lúc đọc, còn voucher
+   > vẫn nằm nguyên ở bảng `voucher` với cờ `hien_thi_bang_tin` quyết định có lên dải tin hay
+   > không. Cặp `hieu_luc_tu` / `hieu_luc_den` là lý do bảng tồn tại: tin phải tự hết hạn thay
+   > vì chờ một người nhớ ra mà vào tắt.
 ---
 
 ### 4.2. Danh sách API Endpoints Chính

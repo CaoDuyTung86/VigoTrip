@@ -3,6 +3,7 @@ package com.booking.api.controller;
 import com.booking.api.dto.AdminDTO.*;
 import com.booking.api.dto.ProviderRevenueDTO;
 import com.booking.api.dto.TripUpdateRequest;
+import com.booking.api.entity.Announcement;
 import com.booking.api.entity.Provider;
 import com.booking.api.entity.Route;
 import com.booking.api.entity.Trip;
@@ -12,6 +13,7 @@ import com.booking.api.entity.User;
 import com.booking.api.dto.UserResponse;
 import com.booking.api.mapper.AdminMapper;
 import com.booking.api.service.AdminService;
+import com.booking.api.service.AnnouncementService;
 import com.booking.api.service.UserService;
 import com.booking.api.service.VoucherService;
 import jakarta.validation.Valid;
@@ -32,6 +34,7 @@ public class AdminController {
     private final AdminMapper adminMapper;
     private final UserService userService;
     private final VoucherService voucherService;
+    private final AnnouncementService announcementService;
 
     // ==================== ROUTE ====================
 
@@ -244,6 +247,46 @@ public class AdminController {
     @DeleteMapping("/vouchers/{id}")
     public ResponseEntity<Void> deleteVoucher(@PathVariable Long id) {
         voucherService.deleteVoucher(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ==================== DẢI TIN CHẠY ====================
+
+    /*
+     * Tin nhập tay cho dải tin chạy — nhịp hai của bảng tin. Đường ĐỌC công khai nằm ở
+     * AnnouncementController (GET /api/announcements) vì khách vãng lai cũng phải thấy dải tin;
+     * đường GHI thì nằm ở đây, dưới /api/admin/** nên SecurityConfig đã chặn sẵn cho Admin.
+     *
+     * Danh sách ở đây trả về cả tin đã tắt và tin hết hạn, khác hẳn danh sách công khai: màn
+     * quản trị phải thấy được thứ mình vừa tắt để bật lại, còn dải tin thì không.
+     */
+
+    @GetMapping("/announcements")
+    public ResponseEntity<List<Announcement>> getAllAnnouncements() {
+        return ResponseEntity.ok(announcementService.getAllForAdmin());
+    }
+
+    @PostMapping("/announcements")
+    public ResponseEntity<Announcement> createAnnouncement(@RequestBody AnnouncementRequest request) {
+        return ResponseEntity.ok(announcementService.create(adminMapper.toEntity(request)));
+    }
+
+    @PutMapping("/announcements/{id}")
+    public ResponseEntity<Announcement> updateAnnouncement(@PathVariable Long id,
+                                                           @RequestBody AnnouncementRequest request) {
+        return ResponseEntity.ok(announcementService.update(id, adminMapper.toEntity(request)));
+    }
+
+    /** Bật/tắt một mẩu tin, giữ lại bản ghi — cùng lối với bật/tắt voucher ở trên. */
+    @PatchMapping("/announcements/{id}/active")
+    public ResponseEntity<Announcement> setAnnouncementActive(@PathVariable Long id,
+                                                              @RequestParam boolean active) {
+        return ResponseEntity.ok(announcementService.setActive(id, active));
+    }
+
+    @DeleteMapping("/announcements/{id}")
+    public ResponseEntity<Void> deleteAnnouncement(@PathVariable Long id) {
+        announcementService.delete(id);
         return ResponseEntity.noContent().build();
     }
 }

@@ -40,6 +40,9 @@ const emptyForm = {
   maxUsage: "",
   description: "",
   isActive: true,
+  // Mặc định BẬT: phần lớn mã sinh ra là để rao. Mã riêng cho từng người mới là ngoại lệ,
+  // và ngoại lệ thì để người tạo tự tắt.
+  showOnTicker: true,
   providerId: "",
 };
 
@@ -75,6 +78,7 @@ const buildPayload = (form) => ({
   maxUsage: form.maxUsage === "" ? null : Number(form.maxUsage),
   description: form.description.trim(),
   isActive: form.isActive,
+  showOnTicker: form.showOnTicker,
   providerId: form.providerId === "" ? null : Number(form.providerId),
 });
 
@@ -267,6 +271,8 @@ const AdminVouchers = () => {
         maxUsage: voucher.maxUsage ?? "",
         description: voucher.description || "",
         isActive: voucher.isActive !== false,
+        // undefined của bản ghi cũ (cột thêm sau) được hiểu là bật, khớp với backend.
+        showOnTicker: voucher.showOnTicker !== false,
         providerId: voucher.provider?.id ?? "",
       },
     });
@@ -501,6 +507,17 @@ const AdminVouchers = () => {
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--text-main)", cursor: "pointer" }}>
               <input type="checkbox" checked={form.isActive} onChange={(e) => setForm((p) => ({ ...p, isActive: e.target.checked }))} />
               {t.admVchActivateNow}
+            </label>
+          </div>
+          {/* Tách khỏi "kích hoạt": mã còn dùng được và mã được rao lên bảng tin là hai câu
+              hỏi khác nhau. Mã chatbot phát riêng cho từng người thì bật nhưng không rao. */}
+          <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <label
+              title={t.admVchShowOnTickerHint}
+              style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--text-main)", cursor: "pointer" }}
+            >
+              <input type="checkbox" checked={form.showOnTicker} onChange={(e) => setForm((p) => ({ ...p, showOnTicker: e.target.checked }))} />
+              {t.admVchShowOnTicker}
             </label>
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
@@ -804,6 +821,19 @@ const AdminVouchers = () => {
                     onChange={(e) => setEditModal((p) => ({ ...p, form: { ...p.form, isActive: e.target.checked } }))}
                   />
                   {t.admVchIsActive}
+                </label>
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <label
+                  title={t.admVchShowOnTickerHint}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--text-main)", cursor: "pointer" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={editModal.form.showOnTicker}
+                    onChange={(e) => setEditModal((p) => ({ ...p, form: { ...p.form, showOnTicker: e.target.checked } }))}
+                  />
+                  {t.admVchShowOnTicker}
                 </label>
               </div>
               <div style={{ gridColumn: "1 / -1" }}>

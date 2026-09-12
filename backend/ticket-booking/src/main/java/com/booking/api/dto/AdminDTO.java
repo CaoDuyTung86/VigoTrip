@@ -50,5 +50,26 @@ public class AdminDTO {
         private Boolean isActive;
         /** Hãng phương tiện áp dụng riêng; null = áp dụng cho tất cả các hãng. */
         private Long providerId;
+        /** Có rao mã này trên dải tin chạy hay không; null = bật, xem Voucher.showOnTicker. */
+        private Boolean showOnTicker;
+    }
+
+    /**
+     * Một mẩu tin nhập tay cho dải tin chạy (bảng {@code thong_bao}).
+     *
+     * <p>Chỉ Admin gửi được: ghi tin là việc của {@code /api/admin/**}, còn đường đọc
+     * {@code GET /api/announcements} thì công khai.
+     */
+    @Data
+    public static class AnnouncementRequest {
+        private String contentVi;
+        private String contentEn;
+        private String link;
+        /** ROUTE | MAINTENANCE | INFO. Để trống thì hiểu là INFO. */
+        private String kind;
+        private LocalDateTime startsAt;
+        private LocalDateTime endsAt;
+        private Integer sortOrder;
+        private Boolean active;
     }
 }
