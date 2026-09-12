@@ -26,9 +26,11 @@ import java.util.function.Function;
  * code Java rồi deploy lại (xem lịch sử comment trong AIService).
  *
  * LƯU Ý QUAN TRỌNG: {@link #execute} chạy LẠI TOÀN BỘ action trên nhà cung cấp kế
- * tiếp. Action vì thế phải idempotent. Hiện các tool đều là truy vấn CHỈ ĐỌC
- * (search_trips, get_user_bookings, get_booking_by_id) nên chạy lại vô hại — nếu sau
- * này thêm tool có ghi dữ liệu thì phải xem lại chỗ này.
+ * tiếp — nay là cả vòng function calling nhiều lượt, không chỉ một cặp hỏi-đáp. Action
+ * vì thế phải idempotent. Cả sáu tool hiện có đều là truy vấn CHỈ ĐỌC nên chạy lại vô
+ * hại; đắt hơn một chút vì sổ nhớ lời gọi trong ToolTurn cũng làm lại từ đầu, nhưng
+ * failover là đường hiếm. Thêm một tool có GHI dữ liệu thì phải xem lại chỗ này trước
+ * mọi thứ khác: chạy lại lúc đó là đặt vé hai lần.
  */
 @Component
 @RequiredArgsConstructor

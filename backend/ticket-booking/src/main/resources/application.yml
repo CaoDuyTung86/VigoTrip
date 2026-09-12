@@ -330,6 +330,16 @@ llm:
     max-pairs: ${LLM_HISTORY_MAX_PAIRS:3}
     max-content-length: ${LLM_HISTORY_MAX_CONTENT:200}
 
+  tools:
+    # Số lần gọi model trong một lượt chat. 2 = hỏi rồi trả lời, không nối được chuỗi;
+    # 3 cho phép tra một thứ rồi tra tiếp dựa trên kết quả vừa tra được, ví dụ đọc đơn
+    # hàng xong mới biết hỏi thời tiết ở nơi nào. Lượt cuối luôn gọi KHÔNG kèm tool nên
+    # model buộc phải trả lời bằng chữ.
+    max-rounds: ${LLM_TOOL_MAX_ROUNDS:3}
+    # Trần tổng số lần chạy tool trong một lượt, cộng dồn qua mọi vòng. Trần vòng lặp một
+    # mình không đủ vì model xin được nhiều tool trong cùng một vòng.
+    max-calls-per-turn: ${LLM_TOOL_MAX_CALLS:8}
+
   circuit-breaker:
     failure-threshold: ${LLM_CIRCUIT_FAILURE_THRESHOLD:3}
     # Hết ngần này giây thì mạch chuyển HALF_OPEN: đúng MỘT request được dùng làm phép

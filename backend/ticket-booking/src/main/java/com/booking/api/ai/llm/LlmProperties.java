@@ -20,6 +20,36 @@ public class LlmProperties {
     private CircuitBreaker circuitBreaker = new CircuitBreaker();
     private Retry retry = new Retry();
     private History history = new History();
+    private Tools tools = new Tools();
+
+    @Data
+    public static class Tools {
+        /**
+         * Số lần gọi model tối đa trong MỘT lượt chat.
+         *
+         * Trước đây con số này bị đóng cứng ở 2: gọi model, chạy tool, gọi model lần nữa để lấy
+         * câu trả lời. Hai lượt là đủ cho câu hỏi mà mọi thứ cần tra đều đã nằm sẵn trong câu
+         * hỏi, nhưng không đủ cho câu hỏi mà kết quả tra lần một mới cho biết lần hai phải tra
+         * gì: "vé sắp đi của tôi tới đâu, chỗ đó thời tiết thế nào" phải đọc đơn hàng xong mới
+         * biết hỏi thời tiết ở nơi nào.
+         *
+         * Ba là mức đủ cho gần hết các chuỗi có thật trong nghiệp vụ này (tra một thứ, rồi tra
+         * tiếp một thứ dựa trên kết quả đó) mà chưa biến một lượt chat thành một tràng lời gọi.
+         * Lượt cuối LUÔN gọi không kèm định nghĩa tool, nên model buộc phải trả lời bằng chữ
+         * thay vì xin thêm một lần tra nữa mà ta không phục vụ.
+         */
+        private int maxRounds = 3;
+
+        /**
+         * Tổng số lần chạy tool trong một lượt chat, cộng dồn qua mọi vòng.
+         *
+         * Trần vòng lặp một mình không đủ: model được phép xin nhiều tool trong CÙNG một vòng,
+         * nên hai vòng vẫn có thể thành mười lăm lượt truy vấn cơ sở dữ liệu. Chạm trần thì
+         * những lời gọi sau nhận về một câu báo đã hết lượt tra, chứ không phải một lỗi — model
+         * đọc câu đó rồi trả lời bằng những gì đã có.
+         */
+        private int maxCallsPerTurn = 8;
+    }
 
     @Data
     public static class History {

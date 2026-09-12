@@ -176,9 +176,38 @@ sequenceDiagram
     B->>U: Câu trả lời
 ```
 
-**Một lượt chat có tool = 2 lời gọi API.** Đây là lý do trần ngân sách được tính theo request
-của người dùng chứ không theo số lời gọi HTTP — và là lý do ta giới hạn kết quả trả về chỉ 4
-chuyến (`ChatService`), vì toàn bộ kết quả phải nhét vào prompt của vòng 2.
+**Một lượt chat có tool tốn từ 2 lời gọi API trở lên.** Đây là lý do trần ngân sách được tính
+theo request của người dùng chứ không theo số lời gọi HTTP — và là lý do ta giới hạn kết quả trả
+về chỉ 4 chuyến (`ChatService`), vì toàn bộ kết quả phải nhét vào prompt của vòng sau.
+
+#### Vì sao hai vòng là chưa đủ
+
+Sơ đồ trên là đường đi của một câu hỏi mà mọi thứ cần tra đã nằm sẵn trong chính câu hỏi. Có một
+loại câu hỏi khác, rất tự nhiên với khách, mà hai vòng chịu thua: loại mà **kết quả tra lần một
+mới cho biết lần hai phải tra gì**.
+
+> *"Vé sắp đi của tôi tới đâu, chỗ đó thời tiết thế nào?"*
+
+Phải đọc đơn hàng xong mới biết hỏi thời tiết ở nơi nào. Với đúng hai vòng, model chỉ có hai lối
+thoát và cả hai đều tệ: bỏ nửa sau của câu hỏi, hoặc đoán bừa một thành phố rồi trả lời như thật.
+
+Nên vòng lặp nay chạy tới `llm.tools.max-rounds` lần, mặc định **ba**. Ba là mức đủ cho gần hết
+các chuỗi có thật trong nghiệp vụ này — tra một thứ, rồi tra tiếp một thứ dựa trên kết quả đó —
+mà chưa biến một lượt chat thành một tràng lời gọi.
+
+Ba chốt chặn đi kèm, vì nới trần thì mở ra hai đường hỏng mới:
+
+| Chốt | Chặn cái gì |
+|---|---|
+| **Vòng cuối gọi KHÔNG kèm định nghĩa tool** | Không có định nghĩa thì model không xin gọi tool được, nên buộc phải trả lời bằng chữ. Còn để tool ở vòng cuối thì ta nhận về một lời xin gọi tool mà mình đã hết lượt phục vụ, và thứ gửi cho khách là một câu trả lời rỗng. |
+| **Trần tổng số lần chạy tool mỗi lượt** (`max-calls-per-turn`, mặc định 8) | Trần số vòng một mình không đủ: model xin được nhiều tool trong CÙNG một vòng, nên hai vòng vẫn có thể thành mười lăm truy vấn cơ sở dữ liệu cho một câu hỏi. Chạm trần thì lời gọi sau nhận một câu báo hết lượt chứ không phải một lỗi. |
+| **Nhớ lời gọi đã chạy trong lượt** | Model rất hay xin lại đúng tool với đúng tham số nó vừa xin ở vòng trước, nhất là khi kết quả lần đầu rỗng. Trả lại kết quả cũ vừa tiết kiệm một truy vấn, vừa cắt vòng quẩn: hỏi lại một câu và nhận đúng một đáp án thì model thôi hỏi. |
+
+**Cái giá phải trả nằm ở streaming.** Muốn biết model còn xin tra thêm gì nữa không thì phải hỏi
+nó kèm định nghĩa tool, mà lời gọi kèm tool thì không stream được — hai thứ này loại trừ nhau.
+Nên lượt chat nào có dùng tool sẽ nhận câu trả lời theo kiểu gõ chữ thay vì stream thật; chỉ vòng
+cuối, lúc đã chắc không còn tool nào, mới stream thật. Đổi lại là khả năng trả lời trọn vẹn những
+câu hỏi trước đây phải bỏ dở nửa sau.
 
 ### 4.3 Sáu tool của hệ thống
 

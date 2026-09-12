@@ -52,7 +52,11 @@ public class AIService {
 
     /**
      * Budget đếm theo REQUEST của người dùng, không theo số lời gọi HTTP.
-     * Một lượt chat có function calling thực tế tốn 2 lời gọi tới nhà cung cấp.
+     *
+     * Một lượt chat có function calling tốn từ 2 tới {@code llm.tools.max-rounds} lời gọi tới
+     * nhà cung cấp, tuỳ câu hỏi có phải tra nối tiếp hay không. Trần ngân sách vì thế đo số lượt
+     * hỏi chứ không đo hoá đơn — đúng với cái tên {@code daily-request-cap}, và đủ dùng vì trần
+     * số vòng đã chặn phần đuôi tệ nhất của một lượt.
      */
     public String getAIAnalysis(String systemInstruction, String dataToAnalyze) {
         if (!budgetGuard.tryConsume()) {
@@ -121,50 +125,101 @@ public class AIService {
     // ------------------------------------------------------------ tool calling
 
     /**
-     * Vòng function calling hai bước: gọi model kèm định nghĩa tool; nếu model xin gọi
-     * tool thì chạy tool, nhét kết quả vào hội thoại rồi gọi model lần hai để lấy câu
-     * trả lời cuối.
+     * Vòng function calling nhiều lượt.
+     *
+     * <p>Mỗi lượt: gọi model kèm định nghĩa tool; model xin gọi tool thì chạy tool, nhét kết quả
+     * vào hội thoại rồi lặp lại. Model trả về chữ thay vì tool là lượt chat kết thúc.
+     *
+     * <p><b>Vì sao phải nhiều lượt.</b> Trước đây con số này đóng cứng ở hai: hỏi, chạy tool,
+     * hỏi lần nữa để lấy câu trả lời. Hai lượt phục vụ được mọi câu hỏi mà thứ cần tra đã nằm sẵn
+     * trong câu hỏi, nhưng chịu thua câu hỏi mà kết quả tra lần một mới cho biết lần hai phải tra
+     * gì. "Vé sắp đi của tôi tới đâu, chỗ đó thời tiết thế nào" là một câu như vậy: phải đọc đơn
+     * hàng xong mới biết hỏi thời tiết ở nơi nào. Với hai lượt, model chỉ có hai lối thoát và cả
+     * hai đều tệ — hoặc bỏ nửa sau của câu hỏi, hoặc đoán bừa một thành phố.
+     *
+     * <p><b>Lượt cuối luôn gọi KHÔNG kèm định nghĩa tool.</b> Không có định nghĩa thì model không
+     * xin gọi tool được, nên nó buộc phải trả lời bằng chữ. Nếu vẫn để tool ở lượt cuối, ta sẽ
+     * nhận về một lời xin gọi tool mà mình đã hết lượt để phục vụ, và thứ gửi cho khách sẽ là một
+     * câu trả lời rỗng.
      */
     private String runToolLoop(LlmProvider provider, String systemInstruction, List<MessageDto> history,
                                String userMessage, ToolHandler toolHandler) {
         List<Map<String, Object>> messages = buildMessages(systemInstruction, history, userMessage);
-        List<Map<String, Object>> tools = toolHandler != null ? buildToolsDefinition() : null;
-
-        Map<String, Object> reply = provider.chatCompletion(
-                messages, tools, provider.temperature(), provider.maxTokens());
-
-        List<Map<String, Object>> toolCalls = toolCallsOf(reply);
-        if (toolCalls.isEmpty() || toolHandler == null) {
-            return textOf(reply);
+        if (toolHandler == null) {
+            return textOf(provider.chatCompletion(
+                    messages, null, provider.temperature(), provider.maxTokens()));
         }
 
-        appendToolResults(messages, reply, toolCalls, toolHandler);
+        List<Map<String, Object>> tools = buildToolsDefinition();
+        ToolTurn turn = new ToolTurn(toolHandler, llmProperties.getTools().getMaxCallsPerTurn());
+        int maxRounds = roundLimit();
 
-        Map<String, Object> second = provider.chatCompletion(
-                messages, null, provider.temperature(), provider.maxTokens());
-        return textOf(second);
+        for (int round = 1; round <= maxRounds; round++) {
+            boolean lastRound = round == maxRounds;
+            Map<String, Object> reply = provider.chatCompletion(
+                    messages, lastRound ? null : tools, provider.temperature(), provider.maxTokens());
+
+            List<Map<String, Object>> toolCalls = toolCallsOf(reply);
+            if (lastRound || toolCalls.isEmpty()) {
+                return textOf(reply);
+            }
+            appendToolResults(messages, reply, toolCalls, turn);
+        }
+        // Không tới được: lượt cuối đã trả về ở nhánh trên.
+        return "Xin lỗi, AI không thể xử lý yêu cầu lúc này.";
     }
 
+    /**
+     * Bản stream của cùng vòng lặp trên.
+     *
+     * <p><b>Bước dò tool chạy KHÔNG stream.</b> Gom {@code tool_calls} từ các delta của một stream
+     * phức tạp hơn nhiều mà không được lợi gì, vì đằng nào cũng phải chờ tool chạy xong mới có
+     * câu trả lời.
+     *
+     * <p><b>Đánh đổi đã biết:</b> lượt nào có dùng tool sẽ nhận câu trả lời theo kiểu gõ chữ chứ
+     * không phải stream thật. Muốn biết model còn xin tra thêm gì nữa không thì phải hỏi nó kèm
+     * định nghĩa tool, mà hỏi kèm tool thì không stream được — hai thứ này loại trừ nhau. Chỉ
+     * lượt cuối, lúc đã chắc chắn không còn tool nào, mới stream thật.
+     */
     private void streamOnce(LlmProvider provider, String systemInstruction, List<MessageDto> history,
                             String userMessage, ToolHandler toolHandler, Consumer<String> chunkConsumer) {
         List<Map<String, Object>> messages = buildMessages(systemInstruction, history, userMessage);
-        List<Map<String, Object>> tools = toolHandler != null ? buildToolsDefinition() : null;
-
-        // Bước dò tool chạy KHÔNG stream: gom tool_calls từ các delta của stream phức
-        // tạp hơn nhiều mà không được lợi gì, vì đằng nào cũng phải chờ tool chạy xong.
-        Map<String, Object> reply = provider.chatCompletion(
-                messages, tools, provider.temperature(), provider.maxTokens());
-
-        List<Map<String, Object>> toolCalls = toolCallsOf(reply);
-        if (toolCalls.isEmpty() || toolHandler == null) {
-            // Đã có sẵn câu trả lời đầy đủ — phát lại theo kiểu gõ chữ để giữ trải
-            // nghiệm streaming ở phía người dùng.
-            typewrite(textOf(reply), chunkConsumer);
+        if (toolHandler == null) {
+            provider.streamCompletion(messages, provider.temperature(), provider.maxTokens(), chunkConsumer);
             return;
         }
 
-        appendToolResults(messages, reply, toolCalls, toolHandler);
-        provider.streamCompletion(messages, provider.temperature(), provider.maxTokens(), chunkConsumer);
+        List<Map<String, Object>> tools = buildToolsDefinition();
+        ToolTurn turn = new ToolTurn(toolHandler, llmProperties.getTools().getMaxCallsPerTurn());
+        int maxRounds = roundLimit();
+
+        for (int round = 1; round <= maxRounds; round++) {
+            if (round == maxRounds) {
+                provider.streamCompletion(messages, provider.temperature(), provider.maxTokens(), chunkConsumer);
+                return;
+            }
+            Map<String, Object> reply = provider.chatCompletion(
+                    messages, tools, provider.temperature(), provider.maxTokens());
+
+            List<Map<String, Object>> toolCalls = toolCallsOf(reply);
+            if (toolCalls.isEmpty()) {
+                // Đã có sẵn câu trả lời đầy đủ — phát lại theo kiểu gõ chữ để giữ trải nghiệm
+                // streaming ở phía người dùng.
+                typewrite(textOf(reply), chunkConsumer);
+                return;
+            }
+            appendToolResults(messages, reply, toolCalls, turn);
+        }
+    }
+
+    /**
+     * Trần số lượt, tối thiểu là hai.
+     *
+     * Một lượt nghĩa là chưa bao giờ gửi định nghĩa tool đi, tức là tắt hẳn function calling
+     * bằng một con số cấu hình — không phải điều ai đó định làm khi chỉnh trần này xuống.
+     */
+    private int roundLimit() {
+        return Math.max(2, llmProperties.getTools().getMaxRounds());
     }
 
     @SuppressWarnings("unchecked")
@@ -178,7 +233,7 @@ public class AIService {
 
     @SuppressWarnings("unchecked")
     private void appendToolResults(List<Map<String, Object>> messages, Map<String, Object> assistantMessage,
-                                   List<Map<String, Object>> toolCalls, ToolHandler toolHandler) {
+                                   List<Map<String, Object>> toolCalls, ToolTurn turn) {
         log.info("AI yêu cầu {} tool call", toolCalls.size());
         messages.add(assistantMessage);
 
@@ -197,13 +252,63 @@ public class AIService {
                 }
             }
 
-            String toolResult = toolHandler.executeTool(fnName, argsMap);
+            String toolResult = turn.run(fnName, argsMap);
 
             Map<String, Object> toolMsg = new HashMap<>();
             toolMsg.put("role", "tool");
             toolMsg.put("tool_call_id", callId);
             toolMsg.put("content", toolResult != null ? toolResult : "[]");
             messages.add(toolMsg);
+        }
+    }
+
+    /**
+     * Sổ chi tiêu tool cho MỘT lượt chat.
+     *
+     * <p>Hai thứ nó giữ, và cả hai chỉ thành vấn đề khi vòng lặp có nhiều hơn hai lượt.
+     *
+     * <p><b>Trần số lần chạy.</b> Trần số vòng một mình không đủ, vì model được phép xin nhiều
+     * tool trong CÙNG một vòng: hai vòng vẫn có thể thành mười lăm lượt truy vấn cơ sở dữ liệu
+     * cho một câu hỏi. Chạm trần thì lời gọi sau nhận về một câu báo hết lượt chứ không phải một
+     * lỗi — model đọc câu đó rồi trả lời bằng những gì đã tra được.
+     *
+     * <p><b>Nhớ lời gọi đã chạy.</b> Model rất hay xin lại đúng tool với đúng tham số nó vừa xin
+     * ở vòng trước, nhất là khi kết quả lần đầu không có gì. Trả lại kết quả cũ vừa tiết kiệm
+     * một lượt truy vấn, vừa cắt được vòng lặp quẩn: hỏi đi hỏi lại một câu và nhận về đúng một
+     * đáp án thì model thôi hỏi, chứ nếu mỗi lần lại là một lời gọi thật thì nó có thể quẩn cho
+     * tới khi hết trần.
+     *
+     * <p>Sổ này sống đúng một lượt chat rồi bỏ, nên không có chuyện kết quả của khách này rơi
+     * sang lượt của khách khác.
+     */
+    private final class ToolTurn {
+
+        private final ToolHandler handler;
+        private final int maxCalls;
+        private final Map<String, String> daChay = new HashMap<>();
+        private int used;
+
+        private ToolTurn(ToolHandler handler, int maxCalls) {
+            this.handler = handler;
+            this.maxCalls = Math.max(1, maxCalls);
+        }
+
+        private String run(String fnName, Map<String, Object> args) {
+            String key = fnName + "|" + args;
+            String cached = daChay.get(key);
+            if (cached != null) {
+                log.info("Tool {} đã chạy với đúng tham số này trong lượt hiện tại — dùng lại kết quả cũ", fnName);
+                return cached;
+            }
+            if (used >= maxCalls) {
+                log.warn("Lượt chat đã chạm trần {} lần chạy tool — từ chối {}", maxCalls, fnName);
+                return "Đã dùng hết số lần tra cứu cho phép trong lượt này. Hãy trả lời khách bằng "
+                        + "những gì đã tra được, và nói rõ phần nào chưa tra được.";
+            }
+            used++;
+            String result = handler.executeTool(fnName, args);
+            daChay.put(key, result != null ? result : "[]");
+            return result;
         }
     }
 
