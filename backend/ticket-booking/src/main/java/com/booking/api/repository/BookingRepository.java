@@ -40,6 +40,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            "JOIN FETCH tr.route " +
            "WHERE b.status = 'CONFIRMED' " +
            "AND (b.reminderSent IS NULL OR b.reminderSent = false) " +
+           // Tài khoản đã tắt thư nhắc thì bỏ qua mà KHÔNG giành cờ reminderSent: khách bật lại
+           // trước giờ đi thì lượt quét sau vẫn gửi. null = chưa từng chọn = bật.
+           "AND (u.tripReminderOptIn IS NULL OR u.tripReminderOptIn = true) " +
            "AND tr.departureTime > :now " +
            "AND tr.departureTime <= :cutoffTime")
     List<Booking> findConfirmedBookingsForReminder(@Param("now") java.time.LocalDateTime now,

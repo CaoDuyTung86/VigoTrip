@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "my-react-app", "run", "dev:local-api", "--", "--port", "5199"],
       "port": 5199
+    },
+    {
+      "name": "vigotrip-backend-local",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-NoProfile", "-Command", "Set-Location 'backend/ticket-booking'; ./mvnw.cmd spring-boot:run '-Dspring-boot.run.profiles=local'"],
+      "port": 8099
     }
   ]
 }

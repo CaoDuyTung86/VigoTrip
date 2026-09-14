@@ -49,6 +49,18 @@ public class UserController {
         return ResponseEntity.ok(userService.setChatHistoryOptIn(userDetails.getUsername(), optIn));
     }
 
+    /** Bật/tắt thư nhắc trước giờ khởi hành. Endpoint riêng, cùng lý do với /me/chat-consent. */
+    @PutMapping("/me/trip-reminders")
+    public ResponseEntity<UserResponse> setTripReminders(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, Boolean> body) {
+        Boolean optIn = body.get("tripReminderOptIn");
+        if (optIn == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(userService.setTripReminderOptIn(userDetails.getUsername(), optIn));
+    }
+
     /**
      * Ghi lại ngôn ngữ tài khoản đang dùng.
      *

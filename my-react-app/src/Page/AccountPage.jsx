@@ -5,7 +5,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
-import { User, Lock, Award, Settings, Info, ShieldCheck, AlertTriangle, CheckCircle } from "lucide-react";
+import { User, Lock, Award, Settings, Info, ShieldCheck, AlertTriangle, CheckCircle, Bell } from "lucide-react";
 
 const API = "";
 
@@ -37,6 +37,9 @@ const AccountPage = () => {
   const [chatConsentMsg, setChatConsentMsg] = useState(null);
   const [chatConsentLoading, setChatConsentLoading] = useState(false);
   const [confirmChatOffOpen, setConfirmChatOffOpen] = useState(false);
+
+  const [tripReminderMsg, setTripReminderMsg] = useState(null);
+  const [tripReminderLoading, setTripReminderLoading] = useState(false);
 
   // Không còn đọc token từ localStorage: nó đã chuyển vào bộ nhớ, và header Authorization
   // do bộ chặn axios trong utils/authSession.js tự gắn vào mọi request tới /api.
@@ -113,6 +116,25 @@ const AccountPage = () => {
     } finally {
       setChatConsentLoading(false);
       setConfirmChatOffOpen(false);
+    }
+  };
+
+  /**
+   * Bật/tắt thư nhắc trước giờ khởi hành. Không hỏi lại ở chiều nào: tắt không xoá gì, bật lại là
+   * như cũ. Trạng thái công tắc cũng lấy từ phản hồi của server, cùng lý do với công tắc bên trên.
+   */
+  const handleToggleTripReminders = async () => {
+    const next = !(profile?.tripReminderOptIn ?? true);
+    setTripReminderLoading(true);
+    setTripReminderMsg(null);
+    try {
+      const res = await axios.put(`${API}/api/users/me/trip-reminders`, { tripReminderOptIn: next });
+      setProfile(res.data);
+      setTripReminderMsg({ type: "success", text: t.acctChatPrivacySaved });
+    } catch (err) {
+      setTripReminderMsg({ type: "error", text: err.response?.data?.message || t.acctChatPrivacyFailed });
+    } finally {
+      setTripReminderLoading(false);
     }
   };
 
@@ -450,6 +472,62 @@ const AccountPage = () => {
                           ? <CheckCircle size={14} />
                           : <AlertTriangle size={14} />}
                         {chatConsentMsg.text}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Thư nhắc trước giờ khởi hành. Trợ lý AI cũng đổi được cài đặt này (qua nút xác
+                      nhận), nên nó phải có chỗ ở đây: một cài đặt chỉ đổi được qua chat thì khách
+                      không tìm lại được để bật lại. */}
+                  <div style={{
+                    marginTop: 16,
+                    padding: "20px 24px", borderRadius: 12,
+                    background: "var(--bg-input)", border: "1.5px solid var(--border-main)",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text-main)", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                          <Bell size={15} style={{ color: "var(--primary)" }} />
+                          {t.acctTripReminderLabel}
+                        </div>
+                        <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
+                          {t.acctTripReminderHint}
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleToggleTripReminders}
+                        disabled={tripReminderLoading}
+                        aria-pressed={profile?.tripReminderOptIn ?? true}
+                        aria-label={t.acctTripReminderLabel}
+                        style={{
+                          width: 56, height: 30, borderRadius: 15,
+                          border: "none",
+                          cursor: tripReminderLoading ? "not-allowed" : "pointer",
+                          opacity: tripReminderLoading ? 0.6 : 1,
+                          background: (profile?.tripReminderOptIn ?? true) ? "var(--primary)" : "#ccc",
+                          position: "relative", transition: "background 0.3s",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <div style={{
+                          width: 24, height: 24, borderRadius: "50%",
+                          background: "var(--bg-card)", position: "absolute",
+                          top: 3, left: (profile?.tripReminderOptIn ?? true) ? 29 : 3,
+                          transition: "left 0.3s",
+                          boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                        }} />
+                      </button>
+                    </div>
+                    {tripReminderMsg && (
+                      <div style={{
+                        marginTop: 12, fontSize: 13,
+                        color: tripReminderMsg.type === "success" ? "#16a34a" : "#dc2626",
+                        display: "flex", alignItems: "center", gap: 6,
+                      }}>
+                        {tripReminderMsg.type === "success"
+                          ? <CheckCircle size={14} />
+                          : <AlertTriangle size={14} />}
+                        {tripReminderMsg.text}
                       </div>
                     )}
                   </div>

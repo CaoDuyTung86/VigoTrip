@@ -47,7 +47,11 @@ const readDismissed = () => {
 
 const writeDismissed = (signature) => {
   try {
-    window.localStorage.setItem(DISMISS_KEY, signature);
+    if (signature) {
+      window.localStorage.setItem(DISMISS_KEY, signature);
+    } else {
+      window.localStorage.removeItem(DISMISS_KEY);
+    }
   } catch {
     /* không lưu được thì chỉ mất việc nhớ đã tắt, không ảnh hưởng gì khác */
   }
@@ -118,7 +122,8 @@ export default function AnnouncementTicker() {
   );
 
   const signature = useMemo(() => visibleItems.map((item) => item.id).join("|"), [visibleItems]);
-  const hidden = visibleItems.length === 0 || signature === dismissedSignature;
+  const dismissed = visibleItems.length > 0 && signature === dismissedSignature;
+  const hidden = visibleItems.length === 0 || dismissed;
 
   // Chiều cao dải tin được công bố ra :root để mọi chỗ chừa chỗ cho header (--header-offset)
   // tự giãn theo. Không có bước này thì dải tin đè lên dòng đầu của mỗi trang.
@@ -151,6 +156,22 @@ export default function AnnouncementTicker() {
     setDismissedSignature(signature);
     writeDismissed(signature);
   };
+
+  const handleReopen = () => {
+    setDismissedSignature("");
+    writeDismissed("");
+  };
+
+  // Đã ẩn mà vẫn còn tin: để lại một tai nhỏ dưới mép header để mở lại. Trước đây bấm ✕ nhầm là
+  // phải đợi có tin mới, hoặc mở DevTools xoá localStorage. Tai này không chiếm chỗ trong bố cục
+  // (--ticker-height vẫn gỡ) nên trang không nhảy khi ẩn/hiện. Không có tin thì không có tai.
+  if (dismissed) {
+    return (
+      <button type="button" className="ann-reopen" onClick={handleReopen} title={t.annShow} aria-label={t.annShow}>
+        <Megaphone size={14} />
+      </button>
+    );
+  }
 
   if (hidden) return null;
 

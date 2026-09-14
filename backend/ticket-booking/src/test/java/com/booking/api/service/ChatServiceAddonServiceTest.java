@@ -57,7 +57,7 @@ class ChatServiceAddonServiceTest {
                 routeRepository, additionalServiceRepository,
                 mock(com.booking.api.weather.WeatherService.class), aiService, mock(RestTemplate.class), hybridRetriever,
                 mock(ChatHistoryService.class), mock(ChatMetricService.class),
-                new ChatMessageRefRegistry(24, 50000));
+                new ChatMessageRefRegistry(24, 50000), mock(ChatActionService.class));
     }
 
     private static AdditionalService svc(String code, String category, String name, long price) {

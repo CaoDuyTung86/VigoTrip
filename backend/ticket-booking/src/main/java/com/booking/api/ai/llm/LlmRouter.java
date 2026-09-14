@@ -27,10 +27,12 @@ import java.util.function.Function;
  *
  * LƯU Ý QUAN TRỌNG: {@link #execute} chạy LẠI TOÀN BỘ action trên nhà cung cấp kế
  * tiếp — nay là cả vòng function calling nhiều lượt, không chỉ một cặp hỏi-đáp. Action
- * vì thế phải idempotent. Cả sáu tool hiện có đều là truy vấn CHỈ ĐỌC nên chạy lại vô
- * hại; đắt hơn một chút vì sổ nhớ lời gọi trong ToolTurn cũng làm lại từ đầu, nhưng
- * failover là đường hiếm. Thêm một tool có GHI dữ liệu thì phải xem lại chỗ này trước
- * mọi thứ khác: chạy lại lúc đó là đặt vé hai lần.
+ * vì thế phải idempotent. Mọi tool tra cứu đều CHỈ ĐỌC nên chạy lại vô hại; đắt hơn một
+ * chút vì sổ nhớ lời gọi trong ToolTurn cũng làm lại từ đầu, nhưng failover là đường hiếm.
+ * Tool dẫn tới ghi dữ liệu (save_voucher, update_mail_preferences) cố ý KHÔNG ghi trong vòng lặp này: chúng chỉ tạo đề
+ * xuất, gộp trùng theo lượt chat, và việc ghi chạy ở endpoint xác nhận khi khách bấm nút —
+ * xem ChatActionService. Tool nào sau này muốn ghi thẳng trong vòng lặp thì chạy lại lúc
+ * failover là ghi hai lần.
  */
 @Component
 @RequiredArgsConstructor

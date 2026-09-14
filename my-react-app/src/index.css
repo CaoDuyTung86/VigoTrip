@@ -1749,6 +1749,33 @@ body.dark .ann-ticker {
 }
 .ann-close:hover { background: var(--bg-hover); color: var(--text-main); }
 
+/* Tai mở lại dải tin đã ẩn. Fixed và không đặt --ticker-height: nó treo dưới mép header chứ
+   không đẩy nội dung trang xuống. */
+.ann-reopen {
+  position: fixed;
+  top: var(--header-height);
+  right: calc(16px + var(--safe-right, 0px));
+  z-index: 999;
+  width: 34px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  background: var(--bg-card);
+  color: var(--primary);
+  cursor: pointer;
+  opacity: 0.85;
+}
+.ann-reopen:hover { opacity: 1; }
+.ann-reopen:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* Chốt chặn thứ hai cho prefers-reduced-motion: component đã đổi sang danh sách tĩnh bằng
    matchMedia, nhưng nếu JS đó không chạy (test, môi trường không có matchMedia) thì luật
    này vẫn giữ cho chữ đứng yên. */

@@ -37,6 +37,13 @@ public class SavedVoucherService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public boolean isSaved(String email, Long voucherId) {
+        return userRepository.findByEmail(email)
+                .map(user -> savedVoucherRepository.existsByUserIdAndVoucherId(user.getId(), voucherId))
+                .orElse(false);
+    }
+
     @Transactional
     public void saveVoucher(String email, Long voucherId) {
         User user = userRepository.findByEmail(email)
@@ -44,7 +51,12 @@ public class SavedVoucherService {
         if (savedVoucherRepository.existsByUserIdAndVoucherId(user.getId(), voucherId)) {
             return;
         }
+        // Mã đã bị admin tắt thì coi như không tồn tại. Trước đây chỗ này nhận MỌI id, và
+        // GET /api/saved-vouchers trả lại nguyên mã của thứ đã lưu — nên chỉ cần đếm id từ 1 trở
+        // lên là đọc được cả những mã đang ẩn khỏi trang ưu đãi. Cùng một câu báo lỗi cho cả hai
+        // trường hợp, để câu trả lời không cho biết id đó có tồn tại hay không.
         Voucher voucher = voucherRepository.findById(voucherId)
+                .filter(v -> !Boolean.FALSE.equals(v.getIsActive()))
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy voucher với ID: " + voucherId));
         SavedVoucher sv = new SavedVoucher();
         sv.setUser(user);

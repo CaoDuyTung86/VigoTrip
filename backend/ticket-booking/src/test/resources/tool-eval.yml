@@ -65,6 +65,17 @@
         đến là có chủ ý: hướng dẫn trong prompt cho phép HỎI LẠI khi thiếu thông tin, nên
         một câu thiếu điểm đi thì không tra cũng không sai và ca đo sẽ không chấm được gì'
 
+- utterance: có vé khứ hồi Hà Nội đi Đà Nẵng không, đi 20/12 về 23/12
+  expect: [search_trips]
+  args:
+    search_trips:
+      origin: "HAN"
+      destination: "DAD"
+      departureDate: "2026-12-20"
+  lang: vi
+  note: khứ hồi đang bảo trì KHÔNG có nghĩa là không tra được — phải tra ngay chiều đi (gọi
+        thêm chiều về cũng đúng) chứ không chỉ xin lỗi rồi hướng dẫn khách tự tìm
+
 - utterance: vé máy bay HAN đi DAD ngày 2026-10-05 buổi sáng
   expect: [search_trips]
   args:
@@ -113,6 +124,24 @@
   lang: vi
   note: 300k phải thành 300000; tự tính nhẩm số tiền giảm thay vì gọi tool là lỗi nặng
         nhất của nhóm mã giảm giá
+
+- utterance: lưu giúp mình mã AUTUMN2026 vào tài khoản nhé
+  expect: [save_voucher]
+  args:
+    save_voucher:
+      code: "AUTUMN2026"
+  lang: vi
+  note: tool đầu tiên dẫn tới ghi dữ liệu. Nó chỉ dựng nút xác nhận, nhưng gọi thừa ở câu khác
+        vẫn là hiện ra một nút lưu mà khách không hề xin
+
+- utterance: đừng gửi email nhắc lịch khởi hành cho mình nữa
+  expect: [update_mail_preferences]
+  args:
+    update_mail_preferences:
+      tripReminders: "off|false"
+  lang: vi
+  note: chỉ tắt thư nhắc. Khách không hề nói "đừng gửi email nào nữa", và tool cũng không tắt
+        được thư xác nhận vé hay báo hoãn chuyến
 
 - utterance: có mã giảm giá nào không
   expect: []
@@ -275,6 +304,31 @@
       orderAmount: "500000"
   lang: en
 
+- utterance: please keep the WEEKEND15 code in my account for later
+  expect: [save_voucher]
+  args:
+    save_voucher:
+      code: "WEEKEND15"
+  lang: en
+  note: '"keep ... for later" là muốn lưu, không phải hỏi mã có dùng được không'
+
+- utterance: please send my notification emails in English from now on
+  expect: [update_mail_preferences]
+  args:
+    update_mail_preferences:
+      language: "en"
+  forbid:
+    update_mail_preferences:
+      tripReminders: "off|false"
+  lang: en
+  note: chỉ đổi ngôn ngữ. Điền tripReminders=off ở đây là dựng một nút tiện tay tắt luôn thư nhắc
+        mà khách không hề xin
+
+- utterance: can you reply in English please
+  expect: []
+  lang: en
+  note: muốn TRỢ LÝ trả lời bằng tiếng Anh, không phải đổi ngôn ngữ nhận thư của tài khoản
+
 - utterance: what meals can I add to my trip
   expect: [get_addon_services]
   lang: en
@@ -311,6 +365,17 @@
       departureDate: "${tomorrow}"
   lang: ja
   note: tên nơi viết bằng katakana — bảng quy đổi trong mô tả tool chỉ có tên tiếng Việt
+
+- utterance: サイゴンからダナンへの往復便はありますか？12月14日出発、12月16日に帰る予定で、出発は午後12時から5時の間がいいです
+  expect: [search_trips]
+  args:
+    search_trips:
+      origin: "SGN"
+      destination: "DAD"
+      departureDate: "2026-12-14"
+  lang: ja
+  note: ca có thật (13/09/2026) — model xin lỗi vì khứ hồi đang bảo trì rồi hứa 少々お待ちください
+        mà không gọi tool nào, và khách không có cách nào bảo nó tra tiếp
 
 - utterance: 予約した切符を確認したい
   expect: [get_user_bookings]

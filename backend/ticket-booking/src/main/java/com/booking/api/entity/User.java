@@ -76,6 +76,17 @@ public class User {
     private Boolean chatHistoryOptIn = true;
 
     /**
+     * Có nhận thư nhắc trước giờ khởi hành không.
+     *
+     * null = chưa từng chọn, hiểu là BẬT — cùng lẽ với chatHistoryOptIn: tắt mặc định thì mọi tài
+     * khoản cũ mất thư nhắc mà không ai chọn điều đó. Cờ này CHỈ chặn thư nhắc. Thư xác nhận vé,
+     * báo hoãn/huỷ chuyến và hoàn tiền vẫn gửi: thiếu chúng khách mất tin về chính chuyến đi và
+     * tiền của mình, nên đó không phải thứ để tắt.
+     */
+    @Column(name = "nhan_thu_nhac_chuyen")
+    private Boolean tripReminderOptIn = true;
+
+    /**
      * Ngôn ngữ người dùng đã chọn ('vi', 'en', 'ja', 'zh').
      *
      * Sống trong cơ sở dữ liệu chứ không chỉ trong localStorage vì nó phải dùng được ở

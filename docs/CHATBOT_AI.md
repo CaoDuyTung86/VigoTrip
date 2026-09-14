@@ -209,7 +209,7 @@ Nên lượt chat nào có dùng tool sẽ nhận câu trả lời theo kiểu g
 cuối, lúc đã chắc không còn tool nào, mới stream thật. Đổi lại là khả năng trả lời trọn vẹn những
 câu hỏi trước đây phải bỏ dở nửa sau.
 
-### 4.3 Sáu tool của hệ thống
+### 4.3 Tám tool của hệ thống
 
 | Tool | Việc | Tham số |
 |---|---|---|
@@ -219,6 +219,8 @@ câu hỏi trước đây phải bỏ dở nửa sau.
 | `check_voucher` | Mã giảm giá có dùng được không, giảm bao nhiêu | mã, tổng tiền đơn |
 | `get_addon_services` | Danh mục dịch vụ mua kèm | nhóm (suất ăn / hành lý / bảo hiểm / đưa đón) |
 | `get_weather_forecast` | Dự báo thời tiết tại một nơi | tên nơi hoặc mã điểm, ngày bắt đầu, số ngày |
+| `save_voucher` | Đề xuất lưu một mã giảm giá vào tài khoản — **không tự ghi**, khách bấm nút xác nhận mới lưu ([mục 4.5](#45-tool-có-ghi-dữ-liệu-đề-xuất-không-ghi)) | mã giảm giá |
+| `update_mail_preferences` | Đề xuất bật/tắt thư nhắc khởi hành và đổi ngôn ngữ nhận thư của chính tài khoản — cùng khuôn **không tự ghi** | bật/tắt thư nhắc, ngôn ngữ (rỗng = không đổi) |
 
 `get_addon_services` tồn tại vì một lý do rất cụ thể: suất ăn, gói hành lý, bảo hiểm và xe
 đưa đón nằm trong bảng `dich_vu_bo_sung` mà trước đó không cơ chế nào chạm tới. Khách hỏi
@@ -246,7 +248,7 @@ trả rỗng và tool nói thẳng là chưa hỗ trợ nơi đó, kèm danh sá
 không chọn đại một nơi gần giống. Đây cũng là bước đầu tiên của phần chuẩn hoá địa điểm mà mục
 Map trên lộ trình cần đến.
 
-**Tool thời tiết có một luật riêng mà năm tool kia không có: cấm suy diễn.** Kết quả trả về mô
+**Tool thời tiết có một luật riêng mà các tool khác không có: cấm suy diễn.** Kết quả trả về mô
 tả thời tiết và chỉ mô tả thời tiết. Chữ "mưa to" nằm cạnh nút thanh toán vốn đã rất dễ bị đọc
 thành "chuyến này sẽ hoãn", mà model thì rất sẵn lòng nối hai vế đó lại; khi dự báo sai, câu nối
 ấy biến thành khiếu nại về tiền. Câu cấm suy diễn được gắn vào **cuối mọi kết quả của tool**, kể
@@ -288,6 +290,115 @@ if (username != null && !username.isBlank()) {
 > tham số username đâu mà lo". Lý lẽ đó sai: schema chỉ là *gợi ý* cho model, không có gì
 > chặn model phát thêm trường lạ. Lỗ hổng chỉ lộ ra khi ngồi viết test cho quy tắc này.
 > Sáu test trong `ChatServiceZeroTrustTest` giờ khóa chặt nó lại.
+
+### 4.5 Tool có ghi dữ liệu: đề xuất, không ghi
+
+Sáu tool đầu đều chỉ đọc. `save_voucher` là tool đầu tiên dẫn tới việc **ghi** — lưu một mã giảm
+giá vào tài khoản khách — và nó được thiết kế để **tự nó không ghi gì cả**.
+
+Lý do là ghi dữ liệu mở ra ba đường hỏng mà tool chỉ đọc không có, và cả ba đều không chặn được
+bằng lời dặn trong prompt:
+
+1. **Ghi hai lần khi failover.** `LlmRouter.execute` chạy lại TOÀN BỘ vòng function calling trên
+   nhà cung cấp kế tiếp ([mục 7.2](#72-giải-pháp)). Tool đọc chạy lại thì vô hại; tool ghi chạy lại
+   là ghi lại.
+2. **Prompt injection thành hành động.** Model đọc rất nhiều thứ không phải do khách hiện tại
+   viết: lịch sử hội thoại (client tự gửi lên, sửa được), mô tả voucher và tin bảng tin (admin,
+   đối tác gõ), kho tri thức. Một câu độc trong đó mà dụ được model gọi tool ghi thì nó ghi thay
+   khách.
+3. **Nút xác nhận giả.** Nếu nút xác nhận nằm trong chữ model viết, model cũng viết được một nút
+   ghi "lưu mã giảm giá" mà thật ra trỏ vào việc khác.
+
+#### Luồng đi
+
+```mermaid
+sequenceDiagram
+    participant K as Khách
+    participant UI as Chatbot.jsx
+    participant CS as ChatService
+    participant M as Model
+    participant A as ChatActionService
+    K->>UI: "lưu giúp mình mã AUTUMN2026"
+    UI->>CS: /api/chat/stream (JWT)
+    CS->>M: câu hỏi + định nghĩa tool
+    M->>CS: save_voucher(code=AUTUMN2026)
+    CS->>A: proposeSaveVoucher(email TỪ JWT, mã)
+    A-->>CS: mã đề xuất 128 bit (chưa ghi gì)
+    CS->>M: "ĐÃ CHUẨN BỊ NÚT... MÃ CHƯA ĐƯỢC LƯU"
+    M-->>CS: câu trả lời bằng chữ
+    CS-->>UI: câu trả lời + [ACTION: mã] do SERVER gắn
+    UI->>A: GET /api/chat-actions/{mã}
+    A-->>UI: mã nào, giảm bao nhiêu (dữ liệu server)
+    K->>UI: bấm "Lưu mã"
+    UI->>A: POST /api/chat-actions/{mã}/confirm
+    A->>A: kiểm lại mã, tiêu hao đề xuất, lưu
+```
+
+Model chỉ quyết định được **có nút hay không**. Nội dung nút, danh tính người lưu và thời điểm
+ghi đều nằm ngoài tầm tay của nó.
+
+#### Rủi ro mới và chỗ chặn
+
+| Rủi ro | Chặn ở đâu |
+|---|---|
+| Ghi hai lần khi failover | Tool không ghi. Đề xuất gộp theo nội dung trong một lượt (`proposals` sống qua lần chạy lại, còn sổ nhớ lời gọi của `AIService` thì không), nên khách chỉ thấy một nút. Xác nhận dùng một lần bằng `ConcurrentMap.remove(key, value)`; `saveVoucher` vốn idempotent và bảng có ràng buộc duy nhất `(user_id, voucher_id)` |
+| Prompt injection dụ lưu thay khách | Kết quả chỉ là một nút, người thật vẫn phải bấm. Thẻ nút luôn ghi "Mã chỉ được lưu khi bạn bấm xác nhận" |
+| Model báo "đã lưu" trong khi chưa | Câu "MÃ CHƯA ĐƯỢC LƯU... TUYỆT ĐỐI KHÔNG nói là đã lưu" gắn vào chính kết quả tool, cùng lý do với câu cấm suy diễn của tool thời tiết |
+| Nút giả, mã đề xuất bịa | Thẻ `[ACTION]` do server gắn sau khi model nói xong. Giao diện hỏi lại server nội dung nút theo mã; mã 128 bit ngẫu nhiên nên đoán không ra |
+| Dùng đề xuất của người khác | Đề xuất gắn email lấy từ JWT lúc tạo — `username` model truyền vào bị xoá như mọi tool khác. Người khác GET/xác nhận/huỷ đều nhận 404 y như mã không tồn tại, và **không làm tiêu hao** đề xuất của chủ |
+| Dò mã ẩn qua tool | Chỉ tra trong danh sách công khai mà `check_voucher` và trang `/uu-dai` đã dùng; tool không trả lời được gì mà hai chỗ kia chưa trả lời |
+| Mã bị tắt trong lúc khách còn đọc | Kiểm lại ngay lúc bấm, trả 409 thay vì lưu một mã vừa bị tắt |
+| Dội đề xuất cho đầy RAM | Đề xuất chỉ sinh trong lượt chat nên đã qua rate limit của chat và trần ngân sách LLM; kho có trần 10.000 mục, hết hạn sau 10 phút |
+| Endpoint xác nhận bị mở cho khách vãng lai | `/api/chat-actions/**` khai `authenticated()` riêng, không nằm dưới `/api/chat/**` (nhánh `permitAll`) |
+
+#### Một lỗ có sẵn lộ ra trong lúc làm
+
+`POST /api/saved-vouchers/{id}` nhận **mọi** id, kể cả mã admin đã tắt, còn `GET /api/saved-vouchers`
+trả lại nguyên mã của thứ đã lưu. Tức là chỉ cần đăng nhập rồi đếm id từ 1 trở lên là đọc được mọi
+mã đang ẩn khỏi trang ưu đãi. Nó không liên quan tới chatbot — nhưng tool mới gọi đúng hàm đó, và
+ngồi xét "tool này có mở đường dò mã ẩn không" mới thấy đường đó đã mở sẵn. Nay mã đã tắt bị từ
+chối bằng đúng câu báo lỗi của một id không tồn tại (`SavedVoucherServiceTest`).
+
+#### Giới hạn còn lại
+
+- **Kho đề xuất nằm trong RAM của một instance.** Đúng với cách triển khai hiện tại; chạy nhiều
+  instance sau load balancer thì khách bấm trúng instance khác sẽ nhận "đề xuất không còn hiệu
+  lực". Phải chuyển sang CSDL hoặc Redis trước.
+- **Một cú bấm là đủ cho lưu mã, không đủ cho việc nặng hơn.** Khách vẫn có thể bị câu chữ dụ
+  bấm. Với lưu mã, hậu quả tệ nhất là một mã thừa trong danh sách, bỏ lưu bằng một cú bấm khác.
+  Với huỷ vé hay hoàn tiền thì không đảo ngược được, và đó là lý do hai việc ấy **không** đi qua
+  chat mà chat chỉ dẫn sang đúng trang có sẵn bước xác nhận của nó.
+- **Hội thoại khôi phục từ lịch sử vẫn còn thẻ nút**, nhưng nút lúc đó báo hết hiệu lực. Cố ý:
+  một nút biến mất không lời khó hiểu hơn một nút nói rõ là đã quá hạn.
+- **Chưa đo live.** `tool-eval.yml` có thêm hai ca `save_voucher` (vi, en). Phần offline đã chốt
+  rằng tool mới có ca đo và có tên trong khối hướng dẫn; tỉ lệ chọn đúng thì phải chờ lượt đo thật.
+
+#### Hành động thứ hai: cài đặt thư (`update_mail_preferences`)
+
+Cùng khuôn đề xuất → bấm xác nhận, cho hai cài đặt trên chính tài khoản đang chat: bật/tắt thư
+nhắc trước giờ khởi hành (cột mới `nguoi_dung.nhan_thu_nhac_chuyen`, `null` = bật) và ngôn ngữ
+nhận thư. Cả hai đảo ngược được, và công tắc thư nhắc có thêm ở **Tài khoản → Cài đặt** — một cài
+đặt chỉ đổi được qua chat thì khách không tìm lại được để bật lại.
+
+Khuôn giữ nguyên nên mọi dòng trong bảng rủi ro phía trên vẫn đúng. Bảng dưới là những chỗ mà
+"đúng khuôn" chưa đủ:
+
+| Rủi ro | Chặn ở đâu |
+|---|---|
+| Đổi ngôn ngữ qua chat bị **ghi đè ngầm** | Ngôn ngữ tài khoản cũng là ngôn ngữ giao diện. Ai đã bấm cờ trong phiên thì ở lần nạp hồ sơ sau, `syncLanguageFromProfile` đẩy ngôn ngữ trên máy **ngược** lên server — chỉ ghi DB là mất. Xác nhận xong, `ChatActionCard` gọi `changeLanguage` y như một cú bấm cờ; xác nhận hỏng thì không gọi |
+| Khách không biết giao diện sẽ đổi theo | Kết quả tool dặn model nói trước; thẻ nút ghi "giao diện trang cũng đổi theo" trước khi bấm |
+| Hứa thư tiếng Nhật/Trung trong khi thư đang rơi về tiếng Anh | `SupportedLocales.hasMailTranslation` hỏi thẳng classpath (`messages_ja.properties` có hay không) thay vì giữ danh sách tay. Chưa dịch thì kết quả tool và thẻ nút đều nói thư sẽ tới bằng tiếng Anh |
+| "Gửi thư bằng tiếng Anh" dựng nút tắt luôn thư nhắc | Tham số là chuỗi, rỗng = không nhắc tới, như mọi tool khác — tham số boolean không có chỗ cho "không nhắc tới". Chỉ `on`/`off`/`true`/`false` được hiểu; giá trị khác là không có chứ không đoán thành tắt. Ca đo tiếng Anh có `forbid` với `tripReminders: off\|false` |
+| Khách tưởng tắt thư nhắc là hết nhận thư | Chỉ thư nhắc bị chặn. Thư xác nhận vé, báo hoãn/huỷ và hoàn tiền vẫn gửi; model và thẻ nút đều phải nói điều đó khi đề xuất tắt |
+| Nút "đổi" mà bấm vào không đổi gì | Phần nào đã đúng như khách muốn thì bỏ khỏi đề xuất; đúng hết thì không dựng nút, model báo lại trạng thái đang có |
+| Bộ lập lịch vẫn gửi cho người đã tắt | Lọc ngay trong `findConfirmedBookingsForReminder`, và `TripReminderScheduler` kiểm lại **trước** khi giành cờ `reminderSent` — bật lại kịp giờ thì lượt quét sau vẫn gửi |
+| Hai phần đổi lệch nhau | `UserService.updateMailPreferences` đổi thư nhắc lẫn ngôn ngữ trong một giao dịch, và ĐẶT đúng giá trị ghi trên nút chứ không đảo trạng thái |
+
+Giới hạn riêng của hành động này: cờ thư nhắc thuộc về **tài khoản đặt vé**, còn thư đi tới email
+liên hệ của đơn. Đặt vé hộ người thân rồi tắt thư nhắc thì người thân cũng không nhận thư nhắc
+nữa. Câu lọc trong truy vấn không có test riêng (bộ test của scheduler giả lập repository); chốt
+kiểm lại trong scheduler thì có. Chưa đo live: `tool-eval.yml` thêm ba ca — tắt thư nhắc (vi), đổi
+ngôn ngữ (en), và "reply in English" không được gọi tool.
 
 ---
 
@@ -824,7 +935,7 @@ Những ca ấy có trường `allow`: gọi thêm thì không tính đúng cũn
 
 #### Tham số bị cấm, vì một lỗi đã xảy ra thật
 
-[Mục 4.3](#43-sáu-tool-của-hệ-thống) kể chuyện bảng quy đổi từng ghi `Quy Nhơn=QNH`, trong khi
+[Mục 4.3](#43-tám-tool-của-hệ-thống) kể chuyện bảng quy đổi từng ghi `Quy Nhơn=QNH`, trong khi
 `QNH` là Quảng Ninh. Mô hình truyền `QNH` rất tự tin, backend tra đúng bảng, trả về dữ liệu
 của một tỉnh cách đó hơn tám trăm cây số — và một bộ đo chỉ hỏi "có gọi đúng tool không" sẽ
 cho ca đó điểm tối đa.
@@ -851,7 +962,7 @@ Bốn chốt chặn chạy offline, cùng mọi test khác, không cần khóa A
    thì build đỏ, vì thứ không được đo là thứ âm thầm hỏng.
 3. Mô tả của `get_addon_services` và `get_weather_forecast` phải còn câu **BẮT BUỘC**. Đó là
    thứ duy nhất chặn mô hình tự trả lời từ trí nhớ về thực đơn và thời tiết.
-4. Khối hướng dẫn trong prompt phải nhắc tên đủ sáu tool. Thêm tool mà quên nhắc thì mô hình
+4. Khối hướng dẫn trong prompt phải nhắc tên đủ mọi tool. Thêm tool mà quên nhắc thì mô hình
    vẫn "thấy" nó nhưng mất phần chỉ dẫn khi nào nên gọi.
 
 #### Số liệu thật đo được
@@ -859,6 +970,14 @@ Bốn chốt chặn chạy offline, cùng mọi test khác, không cần khóa A
 Bộ câu hỏi vàng: `backend/ticket-booking/src/test/resources/tool-eval.yml` — **46 ca**, trong
 đó **13 ca không được gọi tool nào**. Đo ngày 13/09/2026 bằng `gemini-flash-lite-latest`,
 nhiệt độ 0.7 đúng như production.
+
+> **Bảng dưới là số của bộ 46 ca, trước khi có `save_voucher`.** Bộ ca nay là 53: thêm hai ca
+> lưu mã (vi, en), ba ca cài đặt thư (vi, en, và một ca "reply in English" không được gọi tool) và
+> hai ca khứ hồi (vi, ja). Ca tiếng Nhật là một câu trả lời hỏng có thật — trợ
+> lý xin lỗi vì khứ hồi đang bảo trì rồi hứa "少々お待ちください" mà không gọi tool nào. Nguyên nhân
+> nằm ở chính khối hướng dẫn: nó dặn "xin lỗi và **hướng dẫn khách** tìm vé một chiều", tức là dạy
+> model mô tả việc tra thay vì tra. Khối đó đã được viết lại, kèm luật "không bao giờ hứa tra
+> sau"; bốn ca mới chưa qua lượt đo live nào.
 
 | Câu hỏi | Số câu | Khớp bộ | P | R | F1 | Gọi thừa | Tham số khớp |
 |---|---|---|---|---|---|---|---|
@@ -1555,6 +1674,9 @@ người dùng — luôn đáng ngờ.**
 | Bơm rác vào bảng đánh giá | Chỉ nhận `messageRef` mà server đã thực sự cấp cho một lượt hỏi (`ChatMessageRefRegistry`, hoặc lịch sử DB của chính người đó) + rate limit riêng 30/phút cho `/api/chat/feedback` |
 | Nối phiên khách với tài khoản vừa đăng xuất | `chat_session_id` bị đổi mới mỗi lần đổi danh tính, không chỉ nội dung hội thoại |
 | Đối tác đọc câu hỏi của khách | `/chat/ops/issues` chỉ ADMIN; đối tác chỉ xem được số đo ẩn danh ở `/chat/ops/summary` |
+| Model bị dụ ghi dữ liệu thay khách | Tool ghi chỉ tạo đề xuất; ghi thật ở endpoint xác nhận khi người thật bấm, nội dung nút lấy từ server — xem [mục 4.5](#45-tool-có-ghi-dữ-liệu-đề-xuất-không-ghi) |
+| Đọc mã voucher đã tắt bằng cách lưu theo id | `SavedVoucherService.saveVoucher` từ chối mã đã tắt bằng đúng câu lỗi của id không tồn tại |
+| Liên kết trong câu trả lời trỏ ra ngoài site | `utils/chatMarkup.js` chỉ nhận đường dẫn bắt đầu bằng một dấu `/` — chặn cả `javascript:` lẫn dạng `//tên-miền` |
 
 > **Bẫy đã gặp và đã sửa:** bản đầu chỉ verify CAPTCHA khi client **có gửi** token —
 > `if (username == null && request.getCaptchaToken() != null)`. Khách chỉ cần **không gửi**

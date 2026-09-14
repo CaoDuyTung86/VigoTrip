@@ -52,7 +52,7 @@ class ChatServiceWeatherToolTest {
                 routeRepository, mock(AdditionalServiceRepository.class),
                 weatherService, mock(AIService.class), mock(RestTemplate.class), hybridRetriever,
                 mock(ChatHistoryService.class), mock(ChatMetricService.class),
-                new ChatMessageRefRegistry(24, 50000));
+                new ChatMessageRefRegistry(24, 50000), mock(ChatActionService.class));
     }
 
     private static WeatherForecast duBao(LocalDate ngay, int ma, double min, double max, Integer mua) {

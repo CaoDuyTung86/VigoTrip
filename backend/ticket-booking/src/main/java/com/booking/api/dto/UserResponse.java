@@ -28,6 +28,8 @@ public class UserResponse {
     private boolean awaitingEmailVerification;
     /** Đang cho phép lưu hội thoại với trợ lý AI hay không. Không bao giờ null ở đây. */
     private Boolean chatHistoryOptIn;
+    /** Có nhận thư nhắc trước giờ khởi hành không. Không bao giờ null ở đây. */
+    private Boolean tripReminderOptIn;
     /**
      * Ngôn ngữ đã chọn ('vi', 'en', 'ja', 'zh'). Không bao giờ null ở đây — tài khoản chưa
      * từng chọn được quy về 'vi' ngay tại biên, để client không phải đoán ý nghĩa của null.

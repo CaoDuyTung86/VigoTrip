@@ -513,6 +513,59 @@ public class AIService {
         ));
         tools.add(Map.of("type", "function", "function", weatherFn));
 
+        // Tool 7: save_voucher — tool đầu tiên dẫn tới GHI dữ liệu, nhưng chính nó không ghi gì.
+        // Nó chỉ tạo một đề xuất; khách bấm nút xác nhận thì một endpoint REST thường mới ghi. Nhờ vậy
+        // LlmRouter chạy lại cả vòng lặp khi failover không thành lưu hai lần, và prompt injection cùng
+        // lắm dựng được một nút mà người thật vẫn phải tự bấm. Xem ChatActionService.
+        Map<String, Object> saveVoucherFn = new HashMap<>();
+        saveVoucherFn.put("name", "save_voucher");
+        saveVoucherFn.put("description",
+            "Chuẩn bị nút xác nhận để khách LƯU một mã giảm giá vào tài khoản (mã đã lưu hiện sẵn ở bước thanh toán). " +
+            "CHỈ gọi khi khách chủ động muốn lưu, giữ lại hoặc cất một mã cụ thể. " +
+            "Công cụ KHÔNG tự lưu: mã chỉ được lưu khi khách bấm nút xác nhận hiện dưới câu trả lời. " +
+            "KHÔNG gọi khi khách chỉ hỏi mã có dùng được không (dùng check_voucher) hay hỏi đang có mã nào.");
+        saveVoucherFn.put("parameters", Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "code", Map.of(
+                    "type", "string",
+                    "description", "Mã giảm giá khách muốn lưu, ví dụ 'WELCOME20'. Chỉ truyền mã khách đã nói ra "
+                            + "hoặc mã vừa được giới thiệu trong hội thoại, không tự nghĩ ra mã."
+                )
+            ),
+            "required", List.of("code")
+        ));
+        tools.add(Map.of("type", "function", "function", saveVoucherFn));
+
+        // Tool 8: update_mail_preferences — cùng khuôn với save_voucher: chỉ đề xuất, khách bấm mới ghi.
+        // Hai tham số đều là chuỗi, rỗng = khách không nhắc tới, như mọi tool khác. Một tham số boolean
+        // không có chỗ cho "không nhắc tới": model mà điền nó thì câu "gửi thư bằng tiếng Anh" dựng ra
+        // một nút tiện tay tắt luôn thư nhắc. Ca đo tiếng Anh trong tool-eval.yml có forbid chặn đúng lỗi đó.
+        Map<String, Object> mailPreferencesFn = new HashMap<>();
+        mailPreferencesFn.put("name", "update_mail_preferences");
+        mailPreferencesFn.put("description",
+            "Chuẩn bị nút xác nhận để khách ĐỔI cài đặt thư của tài khoản: bật/tắt thư nhắc trước giờ khởi hành, và ngôn ngữ nhận thư. " +
+            "CHỈ gọi khi khách chủ động muốn đổi một trong hai cài đặt đó, ví dụ 'đừng gửi thư nhắc chuyến nữa' hay 'gửi email cho tôi bằng tiếng Anh'. " +
+            "KHÔNG gọi khi khách chỉ viết bằng thứ tiếng khác hoặc muốn trợ lý trả lời bằng thứ tiếng khác. " +
+            "Công cụ KHÔNG tự đổi: cài đặt chỉ đổi khi khách bấm nút xác nhận hiện dưới câu trả lời. " +
+            "Không tắt được thư xác nhận vé, thư báo hoãn/huỷ chuyến hay thư hoàn tiền.");
+        mailPreferencesFn.put("parameters", Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "tripReminders", Map.of(
+                    "type", "string",
+                    "description", "'on' để bật, 'off' để tắt thư nhắc trước giờ khởi hành. Khách không nhắc tới "
+                            + "thư nhắc thì truyền giá trị rỗng ''."
+                ),
+                "language", Map.of(
+                    "type", "string",
+                    "description", "Ngôn ngữ nhận thư: 'vi' (tiếng Việt), 'en' (tiếng Anh), 'ja' (tiếng Nhật), "
+                            + "'zh' (tiếng Trung). Khách không nhắc tới ngôn ngữ thì truyền giá trị rỗng ''."
+                )
+            )
+        ));
+        tools.add(Map.of("type", "function", "function", mailPreferencesFn));
+
         return tools;
     }
 }

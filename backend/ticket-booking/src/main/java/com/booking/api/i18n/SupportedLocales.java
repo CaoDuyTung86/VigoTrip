@@ -48,6 +48,22 @@ public final class SupportedLocales {
         return CODES.contains(cleaned) ? cleaned : null;
     }
 
+    /**
+     * Thư gửi bằng ngôn ngữ này có bản dịch thật không, hay đang rơi về bản mặc định tiếng Anh.
+     *
+     * <p>Hỏi thẳng classpath thay vì giữ một danh sách tay: thêm messages_ja.properties là tự đúng,
+     * còn danh sách tay thì sẽ có ngày báo "chưa dịch" về một thứ đã dịch, hoặc ngược lại.
+     */
+    public static boolean hasMailTranslation(String code) {
+        String normalized = normalize(code);
+        if (normalized == null) {
+            return false;
+        }
+        // messages.properties CHÍNH LÀ bản tiếng Anh (xem chú thích đầu file đó).
+        return "en".equals(normalized)
+                || SupportedLocales.class.getResource("/messages_" + normalized + ".properties") != null;
+    }
+
     /** Quy về Locale dùng được ngay; giá trị lạ hoặc null đều thành {@link #DEFAULT}. */
     public static Locale parse(String code) {
         String normalized = normalize(code);

@@ -62,7 +62,7 @@ class ChatServiceZeroTrustTest {
                 routeRepository, mock(AdditionalServiceRepository.class),
                 mock(com.booking.api.weather.WeatherService.class), aiService, mock(RestTemplate.class), hybridRetriever,
                 mock(ChatHistoryService.class), mock(ChatMetricService.class),
-                new ChatMessageRefRegistry(24, 50000));
+                new ChatMessageRefRegistry(24, 50000), mock(ChatActionService.class));
     }
 
     /** Chạy một lượt chat rồi lấy ra ToolHandler mà ChatService đã trao cho AIService. */

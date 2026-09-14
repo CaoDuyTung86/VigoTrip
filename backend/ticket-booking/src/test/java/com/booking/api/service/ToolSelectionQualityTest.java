@@ -465,6 +465,10 @@ class ToolSelectionQualityTest {
                     + "{\"category\":\"BAGGAGE\",\"name\":\"Gói 20kg ký gửi\",\"price\":250000}]";
             case "get_weather_forecast" -> "{\"place\":\"Đà Nẵng\",\"tempC\":28,\"condition\":\"mưa rào\"}"
                     + " Kết quả này CHỈ mô tả thời tiết, không được dùng để suy ra chuyến đi có hoãn hay huỷ.";
+            case "save_voucher" -> "ĐÃ CHUẨN BỊ NÚT XÁC NHẬN lưu mã. MÃ CHƯA ĐƯỢC LƯU: mã chỉ được lưu khi "
+                    + "khách bấm nút xác nhận hiện dưới câu trả lời. TUYỆT ĐỐI KHÔNG nói là đã lưu.";
+            case "update_mail_preferences" -> "ĐÃ CHUẨN BỊ NÚT XÁC NHẬN đổi cài đặt thư. CÀI ĐẶT CHƯA ĐỔI: cài "
+                    + "đặt chỉ đổi khi khách bấm nút xác nhận hiện dưới câu trả lời. TUYỆT ĐỐI KHÔNG nói là đã đổi.";
             default -> "[]";
         };
     }
@@ -913,7 +917,7 @@ class ToolSelectionQualityTest {
     }
 
     @Test
-    @DisplayName("Hướng dẫn trong system prompt nhắc tên đủ sáu tool")
+    @DisplayName("Hướng dẫn trong system prompt nhắc tên đủ mọi tool")
     void huongDanTrongPromptNhacDuTenTool() {
         String guide = ChatService.toolUsageGuide(EVAL_LOCATIONS);
 

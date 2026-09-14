@@ -86,7 +86,7 @@ Việt là lỗi nhập liệu, bị chặn ở cả form lẫn `AnnouncementSer
 | `prefers-reduced-motion` | `matchMedia` đổi sang danh sách tĩnh cuộn ngang được; thêm một luật `@media` làm chốt chặn thứ hai khi JS đó không chạy |
 | Mỗi tin đọc lại được | Tin voucher là `<Link>` tới `/uu-dai?code=...`, trang ưu đãi cuộn tới và viền sáng đúng thẻ đó. Tin nhập tay không khai đường dẫn thì là `<span>`, không phải liên kết trỏ bừa |
 | Trình đọc màn hình | `role="region"` + `aria-label`; bản sao dùng để nối vòng lặp mang `aria-hidden` và `tabIndex={-1}` nên mỗi tin chỉ đọc và chỉ dừng Tab một lần |
-| Tắt được | Nút ✕ nhớ theo **nội dung** (`vigotrip.ticker.dismissed` = danh sách id đang hiện), nên có tin mới là dải tin hiện lại. Nhớ theo kiểu "đã tắt hôm nay" thì một thông báo bảo trì đăng lúc 10h không bao giờ tới được người đã tắt lúc 9h |
+| Tắt được | Nút ✕ nhớ theo **nội dung** (`vigotrip.ticker.dismissed` = danh sách id đang hiện), nên có tin mới là dải tin hiện lại. Nhớ theo kiểu "đã tắt hôm nay" thì một thông báo bảo trì đăng lúc 10h không bao giờ tới được người đã tắt lúc 9h. Tắt rồi vẫn còn một tai nhỏ có biểu tượng loa treo dưới mép header (`.ann-reopen`) để mở lại ngay: trước đây bấm ✕ nhầm thì hoặc chờ có tin mới, hoặc mở DevTools xoá localStorage. Tai này không đặt `--ticker-height` nên trang không nhảy khi ẩn/hiện, và không có tin thì không có tai |
 
 Tốc độ chạy cố định 55 px/giây, thời lượng một vòng do `ResizeObserver` tính theo bề rộng
 nội dung thật — ít tin thì hết vòng nhanh, nhiều tin thì lâu hơn, nhưng tốc độ đọc không đổi.

@@ -107,4 +107,15 @@ class TripReminderSchedulerTest {
         verify(bookingRepository, times(1)).save(booking);
         org.junit.jupiter.api.Assertions.assertEquals(Boolean.FALSE, booking.getReminderSent());
     }
+
+    @Test
+    @DisplayName("Tài khoản đã tắt thư nhắc thì không gửi, và không giành cờ để bật lại vẫn kịp")
+    void skipsAccountsThatTurnedRemindersOff() {
+        booking.getUser().setTripReminderOptIn(false);
+
+        scheduler.sendTripReminders();
+
+        verify(bookingRepository, never()).claimReminder(anyLong());
+        verify(emailService, never()).sendTripReminderEmail(anyString(), anyLong(), anyString(), anyString(), any());
+    }
 }

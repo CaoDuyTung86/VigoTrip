@@ -46,6 +46,11 @@ public class TripReminderScheduler {
             if (firstTicket.getTrip() == null || firstTicket.getTrip().getDepartureTime() == null)
                 continue;
 
+            // Câu truy vấn đã lọc tài khoản tắt thư nhắc. Kiểm lại ở đây vì lọt qua đó là gửi đúng
+            // lá thư khách đã từ chối — và đứng TRƯỚC claimReminder, để bật lại kịp giờ thì vẫn nhận.
+            if (booking.getUser() != null && Boolean.FALSE.equals(booking.getUser().getTripReminderOptIn()))
+                continue;
+
             String route = firstTicket.getTrip().getRoute().getOrigin() + " → "
                     + firstTicket.getTrip().getRoute().getDestination();
             String departureStr = firstTicket.getTrip().getDepartureTime().format(fmt);

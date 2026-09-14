@@ -100,6 +100,17 @@ class MailLocalizationTest {
     }
 
     @Test
+    @DisplayName("Biết ngôn ngữ nào có thư đã dịch, ngôn ngữ nào đang rơi về tiếng Anh")
+    void knowsWhichLanguagesHaveTranslatedMail() {
+        assertTrue(SupportedLocales.hasMailTranslation("vi"));
+        assertTrue(SupportedLocales.hasMailTranslation("EN"));
+        // Đổi hai dòng này khi thêm messages_ja.properties / messages_zh.properties.
+        assertFalse(SupportedLocales.hasMailTranslation("ja"));
+        assertFalse(SupportedLocales.hasMailTranslation("zh"));
+        assertFalse(SupportedLocales.hasMailTranslation("klingon"));
+    }
+
+    @Test
     @DisplayName("Đơn của khách vãng lai không có tài khoản thì mail vẫn ra tiếng Việt")
     void guestBookingUsesDefaultLocale() {
         Booking guestBooking = new Booking();

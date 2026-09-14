@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Send, X, Search, User, Link as LinkIcon, HelpCircle, Tag, Ticket, CreditCard, RotateCcw, TrainTrack, Bus, Trash2, ThumbsUp, ThumbsDown, ShieldCheck } from 'lucide-react';
 import BotAvatar from './BotAvatar';
 import ConfirmDialog from './ConfirmDialog';
+import ChatActionCard from './ChatActionCard';
+import { parseChatMarkup, localizeLinkLabel, localizeButtonLabel } from '../utils/chatMarkup';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { Turnstile } from '@marsidev/react-turnstile';
@@ -741,45 +743,14 @@ const Chatbot = () => {
 
   // Mini Markdown & Table Parser
   const renderMessageContent = (text) => {
-    // Tách các nút [BTN: ...] ra khỏi nội dung
-    const buttonRegex = /\[BTN:\s*(.+?)\]/g;
-    const dynamicButtons = [];
-    let matchBtn;
-    let contentWithoutButtons = text;
-
-    while ((matchBtn = buttonRegex.exec(text)) !== null) {
-      dynamicButtons.push(matchBtn[1]);
-      contentWithoutButtons = contentWithoutButtons.replace(matchBtn[0], '');
-    }
-
-    // Tách các link [LINK: Tên | /đường-dẫn] ra khỏi nội dung
-    const linkRegex = /\[LINK:\s*([^|]+)\|\s*([^\]]+)\]/g;
-    const dynamicLinks = [];
-    let matchLink;
-
-    while ((matchLink = linkRegex.exec(contentWithoutButtons)) !== null) {
-      let rawUrl = matchLink[2].trim();
-      // Sanitize link: chỉ cho phép relative path nội bộ, chặn javascript scheme
-      let safeUrl = rawUrl;
-      if (!rawUrl.startsWith('/') || rawUrl.toLowerCase().includes('javascript:')) {
-        console.warn('Blocked unsafe URL from AI:', rawUrl);
-        safeUrl = '/'; // fallback an toàn
-      }
-      dynamicLinks.push({ text: matchLink[1].trim(), url: safeUrl });
-      contentWithoutButtons = contentWithoutButtons.replace(matchLink[0], '');
-    }
-
-    // Tách các voucher [VOUCHER: CODE] ra khỏi nội dung
-    const voucherRegex = /\[VOUCHER:\s*(.+?)\]/g;
-    const dynamicVouchers = [];
-    let matchVoucher;
-
-    while ((matchVoucher = voucherRegex.exec(contentWithoutButtons)) !== null) {
-      dynamicVouchers.push(matchVoucher[1].trim());
-      contentWithoutButtons = contentWithoutButtons.replace(matchVoucher[0], '');
-    }
-
-    contentWithoutButtons = contentWithoutButtons.trim();
+    const langCode = currentLanguage?.code || 'vi';
+    // Tách thẻ [BTN] [LINK] [VOUCHER] [ACTION] khỏi phần chữ — xem utils/chatMarkup.js (lọc đường
+    // dẫn ngoài site, dọn dấu câu treo, dịch nhãn nút mà model chép nguyên tiếng Việt từ prompt).
+    const markup = parseChatMarkup(text);
+    const dynamicButtons = markup.buttons.map(label => localizeButtonLabel(label, t, langCode));
+    const dynamicLinks = markup.links.map(link => ({ ...link, text: localizeLinkLabel(link, t, langCode) }));
+    const dynamicVouchers = markup.vouchers;
+    const contentWithoutButtons = markup.body;
 
     // 1. Xử lý Bảng (Table)
     let parsedContent = null;
@@ -941,6 +912,18 @@ const Chatbot = () => {
             ))}
           </div>
         )}
+
+        {/* Nút xác nhận hành động có ghi dữ liệu. Nội dung nút do ChatActionCard hỏi server. */}
+        {markup.actions.map(token => (
+          <ChatActionCard
+            key={token}
+            token={token}
+            onNavigate={(url) => {
+              setIsOpen(false);
+              navigate(url);
+            }}
+          />
+        ))}
 
         {/* Render Buttons */}
         {dynamicButtons.length > 0 && (

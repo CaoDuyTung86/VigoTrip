@@ -87,6 +87,39 @@ public class UserService {
         return toResponse(user);
     }
 
+    /**
+     * Bật/tắt thư nhắc trước giờ khởi hành. Khác công tắc lưu lịch sử chat, tắt ở đây không xoá
+     * gì nên bật lại là như cũ — không cần hỏi lại ở chiều nào.
+     */
+    @Transactional
+    public UserResponse setTripReminderOptIn(String email, boolean optIn) {
+        return updateMailPreferences(email, optIn, null);
+    }
+
+    /**
+     * Đổi cài đặt thư trong MỘT giao dịch; tham số null = giữ nguyên phần đó.
+     *
+     * <p>Nút xác nhận của trợ lý đổi được cả thư nhắc lẫn ngôn ngữ bằng một cú bấm (xem
+     * ChatActionService), nên hai thứ phải cùng đổi hoặc cùng không.
+     */
+    @Transactional
+    public UserResponse updateMailPreferences(String email, Boolean tripReminderOptIn, String language) {
+        if (language != null && !SupportedLocales.isSupported(language)) {
+            throw new IllegalArgumentException("Ngôn ngữ không được hỗ trợ: " + language);
+        }
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user với email: " + email));
+
+        if (tripReminderOptIn != null) {
+            user.setTripReminderOptIn(tripReminderOptIn);
+        }
+        if (language != null) {
+            user.setLanguage(SupportedLocales.normalize(language));
+        }
+        userRepository.save(user);
+        return toResponse(user);
+    }
+
     @Transactional
     public void changePassword(String email, String oldPassword, String newPassword) {
         User user = userRepository.findByEmail(email)
@@ -131,6 +164,7 @@ public class UserService {
                 // null = chưa từng chọn = đồng ý; quy về giá trị rõ ràng ngay tại biên,
                 // để phía client không phải đoán ý nghĩa của null.
                 .chatHistoryOptIn(user.getChatHistoryOptIn() == null || user.getChatHistoryOptIn())
+                .tripReminderOptIn(!Boolean.FALSE.equals(user.getTripReminderOptIn()))
                 .language(user.resolveLocale().getLanguage())
                 .build();
     }

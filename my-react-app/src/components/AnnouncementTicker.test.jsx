@@ -79,15 +79,28 @@ describe('AnnouncementTicker', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('bấm ẩn thì dải tin biến mất và được nhớ theo danh sách tin đang hiện', async () => {
+  it('bấm ẩn thì dải tin biến mất, được nhớ theo danh sách tin đang hiện, và để lại nút mở lại', async () => {
     axios.get.mockResolvedValue({ data: [voucherItem()] });
-    const { container } = renderTicker();
+    renderTicker();
 
     const closeButton = await screen.findByRole('button');
     fireEvent.click(closeButton);
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole('region')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Hiện bảng tin' })).toBeInTheDocument();
+    expect(document.documentElement.style.getPropertyValue('--ticker-height')).toBe('');
     expect(localStorage.getItem('vigotrip.ticker.dismissed')).toBe('voucher:1');
+  });
+
+  it('bấm mở lại thì dải tin quay về và quên việc đã ẩn', async () => {
+    localStorage.setItem('vigotrip.ticker.dismissed', 'voucher:1');
+    axios.get.mockResolvedValue({ data: [voucherItem()] });
+    renderTicker();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Hiện bảng tin' }));
+
+    expect(await screen.findAllByRole('link', { name: /SUMMER/ })).not.toHaveLength(0);
+    expect(localStorage.getItem('vigotrip.ticker.dismissed')).toBeNull();
   });
 
   it('tin mới xuất hiện thì dải tin hiện lại dù trước đó đã bị ẩn', async () => {
@@ -98,13 +111,14 @@ describe('AnnouncementTicker', () => {
     expect(await screen.findAllByRole('link', { name: /TET/ })).not.toHaveLength(0);
   });
 
-  it('đúng tập tin đã ẩn thì không hiện lại', async () => {
+  it('đúng tập tin đã ẩn thì không tự hiện lại, chỉ còn nút mở lại', async () => {
     localStorage.setItem('vigotrip.ticker.dismissed', 'voucher:1');
     axios.get.mockResolvedValue({ data: [voucherItem()] });
-    const { container } = renderTicker();
+    renderTicker();
 
-    await waitFor(() => expect(axios.get).toHaveBeenCalled());
-    expect(container).toBeEmptyDOMElement();
+    expect(await screen.findByRole('button', { name: 'Hiện bảng tin' })).toBeInTheDocument();
+    expect(screen.queryByRole('region')).toBeNull();
+    expect(screen.queryByRole('link')).toBeNull();
   });
 
   it('tin nhập tay có đường dẫn thì bấm được và trỏ đúng chỗ', async () => {

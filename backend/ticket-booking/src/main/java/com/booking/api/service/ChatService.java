@@ -54,6 +54,8 @@ public class ChatService implements AIService.ToolHandler {
     private final ChatHistoryService chatHistoryService;
     private final ChatMetricService chatMetricService;
     private final ChatMessageRefRegistry messageRefRegistry;
+    /** Đề xuất hành động có ghi dữ liệu (save_voucher, update_mail_preferences). Tool chỉ đề xuất; khách bấm mới ghi. */
+    private final ChatActionService chatActionService;
 
     private static final DateTimeFormatter VOUCHER_DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -80,12 +82,29 @@ public class ChatService implements AIService.ToolHandler {
     }
 
     public String executeTool(String functionName, Map<String, Object> arguments, String sessionKey) {
+        return executeTool(functionName, arguments, sessionKey, new java.util.LinkedHashMap<>());
+    }
+
+    /**
+     * @param proposals đề xuất ghi dữ liệu đã tạo trong lượt chat này, khoá theo NỘI DUNG (loại hành
+     *                  động + đối tượng) và trỏ tới mã đề xuất. Sống đúng một lượt chat; bên gọi dùng
+     *                  nó để gắn nút xác nhận vào cuối câu trả lời.
+     */
+    String executeTool(String functionName, Map<String, Object> arguments, String sessionKey,
+                       Map<String, String> proposals) {
         log.info("Executing Tool: {} with args: {} (sessionKey={})", functionName, arguments, sessionKey);
 
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
         DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.getDefault());
         symbols.setGroupingSeparator('.');
         DecimalFormat df = new DecimalFormat("#,###", symbols);
+
+        if ("save_voucher".equals(functionName)) {
+            return saveVoucherToolResult(arguments, proposals, df);
+        }
+        if ("update_mail_preferences".equals(functionName)) {
+            return mailPreferencesToolResult(arguments, proposals);
+        }
 
         if ("search_trips".equals(functionName)) {
             String origin = arguments != null && arguments.containsKey("origin")
@@ -396,26 +415,9 @@ public class ChatService implements AIService.ToolHandler {
                 if (!v.isAvailable()) {
                     return "Mã \"" + v.getCode() + "\" hiện KHÔNG dùng được: " + v.getUnavailableReason();
                 }
-                StringBuilder sb = new StringBuilder();
-                sb.append("Mã \"").append(v.getCode()).append("\" còn hiệu lực với tài khoản này. Điều kiện: giảm ")
-                        .append(String.format("%.0f", v.getDiscountPercent())).append("%");
-                if (v.getMaxDiscountAmount() != null) {
-                    sb.append(", tối đa ").append(df.format(v.getMaxDiscountAmount())).append(" VND");
-                }
-                if (v.getMinOrderAmount() != null) {
-                    sb.append(", đơn tối thiểu ").append(df.format(v.getMinOrderAmount())).append(" VND");
-                }
-                if (v.getMaxUsage() != null && v.getCurrentUsage() != null) {
-                    sb.append(", còn ").append(Math.max(0, v.getMaxUsage() - v.getCurrentUsage())).append(" lượt");
-                }
-                if (v.getExpiryDate() != null) {
-                    sb.append(", hạn dùng ").append(v.getExpiryDate().format(VOUCHER_DATE_FMT));
-                }
-                if (v.getProviderName() != null) {
-                    sb.append(", chỉ áp dụng cho hãng ").append(v.getProviderName());
-                }
-                sb.append(". CHƯA BIẾT tổng tiền đơn hàng nên chưa khẳng định được có áp dụng được không — hãy hỏi khách đơn khoảng bao nhiêu.");
-                return sb.toString();
+                return "Mã \"" + v.getCode() + "\" còn hiệu lực với tài khoản này. Điều kiện: "
+                        + voucherConditions(v, df)
+                        + ". CHƯA BIẾT tổng tiền đơn hàng nên chưa khẳng định được có áp dụng được không — hãy hỏi khách đơn khoảng bao nhiêu.";
             }
 
             // Đã có số tiền: dùng đúng hàm validate của luồng đặt vé để kết quả trong chat
@@ -551,6 +553,162 @@ public class ChatService implements AIService.ToolHandler {
         return sb.toString();
     }
 
+    /**
+     * Luật đi kèm MỌI kết quả đề xuất lưu mã, cùng lý do với {@link #WEATHER_GUARD}: luật đứng ngay
+     * cạnh dữ liệu thì khó bị bỏ qua. Chỗ dễ sai nhất ở đây là model báo "đã lưu" trong khi mới chỉ
+     * có một nút đang chờ bấm.
+     */
+    private static final String SAVE_VOUCHER_PENDING_RULE =
+            "MÃ CHƯA ĐƯỢC LƯU: nút xác nhận sẽ tự hiện ngay dưới câu trả lời và mã chỉ được lưu khi khách "
+            + "bấm nút đó. Hãy nêu ngắn gọn điều kiện của mã rồi mời khách bấm nút xác nhận. TUYỆT ĐỐI "
+            + "KHÔNG nói là đã lưu, và KHÔNG tự viết thẻ [LINK], [BTN] hay [VOUCHER] cho việc lưu này.";
+
+    /**
+     * Tool {@code save_voucher}: chỉ ĐỀ XUẤT, không ghi gì (xem {@link ChatActionService}).
+     *
+     * <p>Gộp đề xuất trùng trong cùng một lượt. Chỗ đáng lo không phải model gọi hai lần — sổ nhớ lời
+     * gọi của AIService đã chặn tham số trùng — mà là LlmRouter chạy lại CẢ vòng function calling khi
+     * chuyển nhà cung cấp: sổ nhớ đó làm lại từ đầu, còn {@code proposals} thì sống qua lần chạy lại,
+     * nên khách vẫn chỉ thấy một nút.
+     */
+    private String saveVoucherToolResult(Map<String, Object> arguments, Map<String, String> proposals,
+                                         DecimalFormat df) {
+        String code = textArg(arguments, "code");
+        String key = ChatActionService.TYPE_SAVE_VOUCHER + "|"
+                + (code == null ? "" : code.toUpperCase(Locale.ROOT));
+        if (code != null && proposals.containsKey(key)) {
+            return "Nút xác nhận lưu mã \"" + code + "\" đã được chuẩn bị trong lượt này, không cần gọi lại. "
+                    + SAVE_VOUCHER_PENDING_RULE;
+        }
+
+        // username ở đây là email từ JWT do securedToolHandler ép vào, không phải thứ model gửi.
+        ChatActionService.Proposal proposal =
+                chatActionService.proposeSaveVoucher(textArg(arguments, "username"), code);
+        if (!proposal.created()) {
+            return proposal.refusal();
+        }
+        proposals.put(key, proposal.token());
+        return "ĐÃ CHUẨN BỊ NÚT XÁC NHẬN lưu mã \"" + proposal.voucher().getCode() + "\" ("
+                + voucherConditions(proposal.voucher(), df) + "). " + SAVE_VOUCHER_PENDING_RULE;
+    }
+
+    /** Điều kiện của một mã theo đúng thứ tự trang ưu đãi hiển thị. Dùng chung cho check_voucher và save_voucher. */
+    private static String voucherConditions(VoucherPublicDTO v, DecimalFormat df) {
+        StringBuilder sb = new StringBuilder("giảm ")
+                .append(String.format("%.0f", v.getDiscountPercent())).append("%");
+        if (v.getMaxDiscountAmount() != null) {
+            sb.append(", tối đa ").append(df.format(v.getMaxDiscountAmount())).append(" VND");
+        }
+        if (v.getMinOrderAmount() != null) {
+            sb.append(", đơn tối thiểu ").append(df.format(v.getMinOrderAmount())).append(" VND");
+        }
+        if (v.getMaxUsage() != null && v.getCurrentUsage() != null) {
+            sb.append(", còn ").append(Math.max(0, v.getMaxUsage() - v.getCurrentUsage())).append(" lượt");
+        }
+        if ("NOT_STARTED".equals(v.getUnavailableReasonCode()) && v.getStartDate() != null) {
+            sb.append(", chỉ dùng được từ ngày ").append(v.getStartDate().format(VOUCHER_DATE_FMT));
+        }
+        if (v.getExpiryDate() != null) {
+            sb.append(", hạn dùng ").append(v.getExpiryDate().format(VOUCHER_DATE_FMT));
+        }
+        if (v.getProviderName() != null) {
+            sb.append(", chỉ áp dụng cho hãng ").append(v.getProviderName());
+        }
+        return sb.toString();
+    }
+
+    /** Cùng vai trò với {@link #SAVE_VOUCHER_PENDING_RULE}, cho nút đổi cài đặt thư. */
+    private static final String MAIL_PREFERENCES_PENDING_RULE =
+            "CÀI ĐẶT CHƯA ĐỔI: nút xác nhận sẽ tự hiện ngay dưới câu trả lời và cài đặt chỉ đổi khi khách "
+            + "bấm nút đó. Hãy nói ngắn gọn sẽ đổi gì rồi mời khách bấm nút xác nhận. TUYỆT ĐỐI KHÔNG nói là "
+            + "đã đổi, và KHÔNG tự viết thẻ [LINK] hay [BTN] cho việc này.";
+
+    /**
+     * Tool {@code update_mail_preferences}: chỉ ĐỀ XUẤT, không ghi gì. Gộp trùng theo lượt cùng lý do
+     * với {@link #saveVoucherToolResult}.
+     *
+     * <p>Kết quả dặn model đúng ba điều khách phải biết TRƯỚC khi bấm, vì sau khi bấm thì đã muộn:
+     * tắt thư nhắc không tắt thư về vé và tiền; ngôn ngữ tài khoản đổi luôn cả giao diện; và thư của
+     * ngôn ngữ chưa dịch sẽ tới bằng tiếng Anh.
+     */
+    private String mailPreferencesToolResult(Map<String, Object> arguments, Map<String, String> proposals) {
+        Boolean tripReminders = switchArg(arguments, "tripReminders");
+        String language = textArg(arguments, "language");
+        String key = ChatActionService.TYPE_MAIL_PREFERENCES + "|" + tripReminders + "|"
+                + (language == null ? "" : language.toLowerCase(Locale.ROOT));
+        if (proposals.containsKey(key)) {
+            return "Nút xác nhận đổi cài đặt thư này đã được chuẩn bị trong lượt này, không cần gọi lại. "
+                    + MAIL_PREFERENCES_PENDING_RULE;
+        }
+
+        // username ở đây là email từ JWT do securedToolHandler ép vào, không phải thứ model gửi.
+        ChatActionService.Proposal proposal = chatActionService.proposeMailPreferences(
+                textArg(arguments, "username"), tripReminders, language);
+        if (!proposal.created()) {
+            return proposal.refusal();
+        }
+        proposals.put(key, proposal.token());
+
+        ChatActionService.MailPreferences prefs = proposal.mailPreferences();
+        StringBuilder sb = new StringBuilder("ĐÃ CHUẨN BỊ NÚT XÁC NHẬN đổi cài đặt thư.");
+        if (prefs.tripReminders() != null) {
+            sb.append(" Thư nhắc trước giờ khởi hành sẽ ").append(prefs.tripReminders() ? "BẬT" : "TẮT")
+                    .append(" (đang ").append(prefs.currentTripReminders() ? "bật" : "tắt").append(").");
+            if (!prefs.tripReminders()) {
+                sb.append(" Tắt thư nhắc KHÔNG chặn thư xác nhận vé, thư báo hoãn/huỷ chuyến hay thư hoàn tiền — "
+                        + "nói rõ để khách không tưởng là sẽ không nhận thư nào nữa.");
+            }
+        } else if (tripReminders != null) {
+            sb.append(" Thư nhắc trước giờ khởi hành vốn đã ").append(prefs.currentTripReminders() ? "BẬT" : "TẮT")
+                    .append(" sẵn, phần này không đổi.");
+        }
+        if (prefs.language() != null) {
+            String name = ChatActionService.languageName(prefs.language());
+            sb.append(" Ngôn ngữ tài khoản sẽ đổi sang ").append(name).append(" (đang là ")
+                    .append(ChatActionService.languageName(prefs.currentLanguage()))
+                    .append("). Ngôn ngữ này dùng chung cho email VÀ giao diện trang, nên bấm xác nhận thì giao diện "
+                            + "cũng đổi sang ").append(name).append(" — phải nói rõ với khách.");
+            if (!prefs.languageHasMailTranslation()) {
+                sb.append(" Thư ").append(name).append(" CHƯA CÓ BẢN DỊCH nên email sẽ tới bằng tiếng Anh — phải nói "
+                        + "thẳng với khách, không được hứa thư ").append(name).append(".");
+            }
+        } else if (language != null) {
+            sb.append(" Ngôn ngữ tài khoản vốn đã là ")
+                    .append(ChatActionService.languageName(prefs.currentLanguage())).append(" sẵn, phần này không đổi.");
+        }
+        return sb.append(' ').append(MAIL_PREFERENCES_PENDING_RULE).toString();
+    }
+
+    /**
+     * Đọc tham số bật/tắt. Model gửi "on", "off", true hay "false" tuỳ nhà cung cấp; mọi giá trị
+     * khác — kể cả chuỗi rỗng khi khách không nhắc tới — là KHÔNG CÓ, không đoán thành tắt.
+     */
+    private static Boolean switchArg(Map<String, Object> arguments, String key) {
+        String raw = textArg(arguments, key);
+        if (raw == null) {
+            return null;
+        }
+        return switch (raw.toLowerCase(Locale.ROOT)) {
+            case "on", "true" -> Boolean.TRUE;
+            case "off", "false" -> Boolean.FALSE;
+            default -> null;
+        };
+    }
+
+    /**
+     * Thẻ nút xác nhận, do SERVER gắn vào cuối câu trả lời chứ không nhờ model chép lại.
+     *
+     * <p>Chép một chuỗi ngẫu nhiên 22 ký tự thì model có lúc sai một ký tự, có lúc quên hẳn. Và nếu
+     * thẻ nằm trong phần chữ model viết thì model cũng viết được thẻ cho một hành động không có thật.
+     */
+    static String actionMarkers(Map<String, String> proposals) {
+        StringBuilder sb = new StringBuilder();
+        for (String token : proposals.values()) {
+            sb.append("\n\n[ACTION: ").append(token).append("]");
+        }
+        return sb.toString();
+    }
+
     /** Đọc một tham số chuỗi của tool; trả null cho mọi kiểu "không có", kể cả chuỗi "null". */
     private static String textArg(Map<String, Object> arguments, String key) {
         if (arguments == null || !arguments.containsKey(key)) {
@@ -649,13 +807,16 @@ public class ChatService implements AIService.ToolHandler {
                 + "- Bạn có công cụ `search_trips` để tìm chuyến đi từ hệ thống. Hãy chủ động gọi công cụ này khi khách hỏi về chuyến đi, tuyến đường, hoặc giá vé.\n"
                 + "- QUAN TRỌNG - Khi gọi `search_trips`, phải dùng MÃ sân bay/ga/bến xe, KHÔNG dùng tên thành phố. Các mã hiện đang hoạt động: " + locationsStr + "\n"
                 + "  Ví dụ: 'Hà Nội đi Sài Gòn' → origin='HAN', destination='SGN'\n"
-                + "- LƯU Ý KHỨ HỒI: Hiện tại tính năng vé khứ hồi đang được bảo trì. Nếu khách hỏi vé khứ hồi, hãy xin lỗi và hướng dẫn khách tìm/đặt vé 1 chiều.\n"
+                + "- LƯU Ý KHỨ HỒI: Tính năng đặt vé khứ hồi trong MỘT lần đang bảo trì, nhưng từng chiều vẫn tra được. Khi khách hỏi vé khứ hồi: nói ngắn gọn là cần đặt hai vé một chiều, rồi GỌI NGAY `search_trips` cho chiều đi (và gọi thêm một lần cho chiều về nếu khách đã nói ngày về) ngay trong lượt trả lời này.\n"
                 + "- Bạn có công cụ `get_user_bookings` để tra cứu vé đã đặt của khách. Hãy gọi công cụ này khi khách hỏi về đơn hàng hoặc vé của họ (có thể phân tích ngày từ câu hỏi để tra cứu).\n"
                 + "- Bạn có công cụ `get_booking_by_id` để tra cứu chính xác một mã đơn hàng. Hãy gọi khi khách cung cấp ID cụ thể.\n"
                 + "- Bạn có công cụ `check_voucher` để kiểm tra một mã giảm giá có áp dụng được cho đơn hàng của khách không và giảm bao nhiêu tiền. Hãy gọi khi khách hỏi 'mã X có dùng được không', 'đơn Y đồng thì giảm bao nhiêu', hoặc khi khách đã cho biết giá vé/tổng tiền.\n"
+                + "- Bạn có công cụ `save_voucher` để lưu một mã giảm giá vào tài khoản khách. CHỈ gọi khi khách chủ động muốn lưu, giữ lại hoặc cất một mã cụ thể; khách chỉ hỏi mã có dùng được không thì dùng `check_voucher`. Công cụ này KHÔNG tự lưu mà hiện một nút xác nhận ngay dưới câu trả lời, mã chỉ được lưu khi khách bấm nút. Vì vậy TUYỆT ĐỐI KHÔNG nói là đã lưu.\n"
+                + "- Bạn có công cụ `update_mail_preferences` để đổi cài đặt thư của tài khoản khách: bật/tắt thư nhắc trước giờ khởi hành (`tripReminders` = 'on'/'off') và ngôn ngữ nhận thư (`language` = vi/en/ja/zh). CHỈ gọi khi khách chủ động muốn đổi một trong hai cài đặt đó; phần nào khách không nhắc tới thì truyền rỗng ''. KHÔNG gọi khi khách chỉ viết bằng thứ tiếng khác hoặc chỉ muốn bạn trả lời bằng thứ tiếng khác — khi đó cứ trả lời bằng thứ tiếng ấy. Công cụ này KHÔNG tự đổi mà hiện một nút xác nhận, nên TUYỆT ĐỐI KHÔNG nói là đã đổi.\n"
                 + "- Bạn có công cụ `get_addon_services` để lấy danh mục dịch vụ mua kèm: suất ăn, gói hành lý ký gửi, bảo hiểm du lịch, xe đưa đón. BẮT BUỘC gọi công cụ này trước khi nói bất cứ điều gì về món ăn, đồ ăn trên chuyến, gói hành lý mua thêm, bảo hiểm hay đưa đón, kể cả câu hỏi chung như 'gợi ý món ăn' hay 'có món gì ngon'. TUYỆT ĐỐI KHÔNG tự nghĩ ra tên món hoặc giá.\n"
                 + "- Bạn có công cụ `get_weather_forecast` để tra dự báo thời tiết tại một nơi. BẮT BUỘC gọi công cụ này trước khi nói bất cứ điều gì về thời tiết, nhiệt độ hay mưa nắng. Tham số `place` truyền thẳng tên nơi khách nói (ví dụ Đà Nẵng) hoặc mã điểm, `date` là ngày YYYY-MM-DD, `days` là số ngày liên tiếp cần xem (khách hỏi cả cuối tuần thì truyền 2).\n"
-                + "- Khi khách hỏi tìm vé mà thiếu thông tin (điểm đi, điểm đến, ngày đi) → bạn có thể hỏi thêm điểm đi/đến hoặc gọi `search_trips` với thông tin hiện có.\n\n"
+                + "- Khi khách hỏi tìm vé mà thiếu thông tin (điểm đi, điểm đến, ngày đi) → bạn có thể hỏi thêm điểm đi/đến hoặc gọi `search_trips` với thông tin hiện có.\n"
+                + "- KHÔNG BAO GIỜ HỨA TRA SAU. Tuyệt đối không trả lời kiểu 'mình sẽ tìm ngay, bạn chờ chút', 'please wait' hay '少々お待ちください' rồi dừng lại: khách không có cách nào bảo bạn tra tiếp, nên câu đó là một câu trả lời bỏ dở. Cần tra thì gọi công cụ ngay trong lượt này, rồi mới trả lời bằng kết quả.\n\n"
                 + "- GỌI NHIỀU CÔNG CỤ NỐI TIẾP NHAU ĐƯỢC. Sau khi nhận kết quả của một công cụ, nếu để trả lời trọn vẹn còn cần tra thêm thì cứ gọi tiếp công cụ thứ hai chứ đừng bỏ dở nửa sau câu hỏi và cũng đừng đoán. Ví dụ khách hỏi 'vé sắp đi của tôi tới đâu, chỗ đó thời tiết thế nào': gọi `get_user_bookings` trước để biết điểm đến, có điểm đến rồi mới gọi `get_weather_forecast` cho đúng nơi đó. Nếu một công cụ báo đã hết lượt tra cứu trong lượt này thì dừng lại, trả lời bằng những gì đã có và nói rõ phần nào chưa tra được.\n\n";
     }
 
@@ -854,14 +1015,18 @@ public class ChatService implements AIService.ToolHandler {
                 hybridRetriever.retrieveForLanguage(userMessage, language);
         String systemInstruction = buildSystemInstruction(username, effectiveKey, userMessage, language, ragChunks);
 
+        Map<String, String> proposals = new java.util.LinkedHashMap<>();
         long startedAt = System.currentTimeMillis();
         String reply;
         try {
             reply = aiService.getChatResponse(systemInstruction, safeHistory, userMessage,
-                    securedToolHandler(username, effectiveKey));
+                    securedToolHandler(username, effectiveKey, proposals));
         } catch (RuntimeException e) {
             recordMetric(language, username, false, startedAt, userMessage, null, ragChunks.size(), "ERROR");
             throw e;
+        }
+        if (!proposals.isEmpty()) {
+            reply = (reply == null ? "" : reply) + actionMarkers(proposals);
         }
 
         recordMetric(language, username, false, startedAt, userMessage, reply, ragChunks.size(),
@@ -897,8 +1062,12 @@ public class ChatService implements AIService.ToolHandler {
      * phát thêm trường đó — và executeTool sẽ dùng nguyên giá trị ấy để tra đơn hàng.
      * Khách chưa đăng nhập thì không có username nào được đặt, các tool sẽ trả lời là
      * chưa đăng nhập.
+     *
+     * Cùng một lẽ đó cho tool có ghi dữ liệu: đề xuất lưu mã luôn thuộc về tài khoản trong JWT, nên
+     * một model bị dụ truyền email người khác cũng không dựng được nút lưu vào tài khoản của họ.
      */
-    private AIService.ToolHandler securedToolHandler(String username, String effectiveKey) {
+    private AIService.ToolHandler securedToolHandler(String username, String effectiveKey,
+                                                     Map<String, String> proposals) {
         return (fnName, args) -> {
             Map<String, Object> safeArgs = args == null
                     ? new java.util.HashMap<>()
@@ -908,7 +1077,7 @@ public class ChatService implements AIService.ToolHandler {
             if (username != null && !username.isBlank()) {
                 safeArgs.put("username", username);
             }
-            return executeTool(fnName, safeArgs, effectiveKey);
+            return executeTool(fnName, safeArgs, effectiveKey, proposals);
         };
     }
 
@@ -940,13 +1109,21 @@ public class ChatService implements AIService.ToolHandler {
         // Gom lại toàn bộ câu trả lời trong lúc stream để còn lưu lịch sử — người dùng
         // vẫn nhận từng mẩu ngay, việc lưu chỉ xảy ra sau khi stream kết thúc.
         StringBuilder fullReply = new StringBuilder();
+        Map<String, String> proposals = new java.util.LinkedHashMap<>();
         long startedAt = System.currentTimeMillis();
         try {
             aiService.streamChatResponse(systemInstruction, safeHistory, userMessage,
-                    securedToolHandler(username, effectiveKey), chunk -> {
+                    securedToolHandler(username, effectiveKey, proposals), chunk -> {
                         fullReply.append(chunk);
                         chunkConsumer.accept(chunk);
                     });
+            // Mẩu cuối của stream, sau khi model đã nói xong. Đi vào fullReply luôn để hội thoại khôi
+            // phục lại vẫn còn thẻ — nút lúc đó sẽ báo hết hạn, còn hơn là biến mất không lời.
+            if (!proposals.isEmpty()) {
+                String markers = actionMarkers(proposals);
+                fullReply.append(markers);
+                chunkConsumer.accept(markers);
+            }
         } catch (RuntimeException e) {
             // Stream đứt giữa chừng vẫn là một lượt có thật và là lượt đáng quan tâm nhất
             // trên bảng điều khiển — đo trước rồi mới ném tiếp.

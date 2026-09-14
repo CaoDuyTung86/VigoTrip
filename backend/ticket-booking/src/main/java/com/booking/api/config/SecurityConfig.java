@@ -56,6 +56,10 @@ public class SecurityConfig {
                         // (/chat/ops/issues) đã bị chặn riêng ở dòng trên.
                         .requestMatchers(HttpMethod.GET, "/api/chat/ops/summary")
                         .hasAnyAuthority("ROLE_PROVIDER", "PROVIDER", "ROLE_ADMIN", "ADMIN")
+                        // Nút xác nhận hành động có ghi dữ liệu của trợ lý. anyRequest() ở cuối vốn
+                        // đã bắt đăng nhập, nhưng tên đường dẫn quá gần /api/chat/** — một lần nới
+                        // matcher kia thành "/api/chat*/**" là mở toang nó. Khai riêng để không lỡ.
+                        .requestMatchers("/api/chat-actions/**").authenticated()
                         .requestMatchers("/api/auth/**", "/api/chat/**", "/api/voucher/**", "/ws/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         // Ảnh QR nhúng trong mail: client mail không gửi kèm JWT được.
