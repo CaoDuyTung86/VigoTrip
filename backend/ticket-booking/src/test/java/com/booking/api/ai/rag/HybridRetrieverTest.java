@@ -155,33 +155,34 @@ class HybridRetrieverTest {
     }
 
     @Test
-    @DisplayName("Chunk xuất hiện ở CẢ hai nhánh được RRF đẩy lên đầu")
-    void chunkInBothBranchesOutranksSingleBranchHit() {
-        // "hành lý thú cưng": BM25 ưu tiên chunk hành lý (khớp 2 từ), còn nhánh ngữ nghĩa
-        // trỏ vào chunk thú cưng. Chunk thú cưng có mặt ở cả hai nhánh nên phải lên đầu.
-        List<KnowledgeChunk> result = retriever.retrieve("hành lý thú cưng", 3);
+    @DisplayName("Giữ thứ tự Vector, BM25 chỉ lấp chỗ trống và không lặp chunk")
+    void lexicalFillsRemainingSlotsAfterSemantic() {
+        // "hành lý thú cưng": BM25 xếp chunk hành lý đầu (khớp 2 từ), còn nhánh ngữ nghĩa chỉ
+        // trả chunk thú cưng (hai chunk kia trực giao, dưới ngưỡng). Thú cưng đứng đầu vì Vector
+        // xếp nó, hành lý được BM25 lấp vào chỗ thứ hai, thú cưng không bị lặp lại.
+        assertThat(docIds(retriever.retrieveLexicalOnly("hành lý thú cưng", 3))).first().isEqualTo("baggage-plane");
+        assertThat(docIds(retriever.retrieveSemanticOnly("hành lý thú cưng", 3))).containsExactly("pets-bus");
 
-        assertThat(docIds(result)).first().isEqualTo("pets-bus");
-        assertThat(docIds(result)).contains("baggage-plane");
+        assertThat(docIds(retriever.retrieve("hành lý thú cưng", 3))).containsExactly("pets-bus", "baggage-plane");
     }
 
     @Test
-    @DisplayName("Hòa điểm RRF thì nghe nhánh Vector")
-    void tieGoesToSemanticBranch() {
-        // BM25: "noi-dung-a" hạng 1 (lặp "vali" ba lần), "noi-dung-b" hạng 2. Vector: ngược
-        // lại (cosine 0.9 so với 0.8). Hạng (1, 2) và (2, 1) cho cùng 1/61 + 1/62 — bộ vàng
-        // có 7 câu tiếng Việt tụt P@1 vì đúng kiểu hòa này khi BM25 được duyệt trước.
+    @DisplayName("BM25 không đẩy được chunk nào lên trên chunk Vector xếp đầu")
+    void lexicalCannotOutrankSemanticTop() {
+        // "noi-dung-a" có mặt ở CẢ hai nhánh (BM25 hạng 1, Vector hạng 2); "noi-dung-b" chỉ có ở
+        // nhánh Vector nhưng đứng hạng 1. RRF cho a 1/61 + 1/62 > b 1/61 nên a lên đầu — đúng cơ
+        // chế làm P@1 holdout tiếng Việt tụt 8/55 câu. Bù BM25 giữ nguyên thứ tự Vector.
         when(repository.findByActiveTrue()).thenReturn(List.of(
                 chunk(21, "noi-dung-a", "Ghi chú", "Vali vali vali quy định.", new float[]{0.8f, 0.6f, 0}),
-                chunk(22, "noi-dung-b", "Ghi chú", "Vali quy định chung khác.", new float[]{0.9f, 0.43589f, 0})));
+                chunk(22, "noi-dung-b", "Ghi chú", "Chung khác.", new float[]{0.9f, 0.43589f, 0})));
         retriever.reload();
         StubEmbeddingClient client = new StubEmbeddingClient(Map.of("vali", PETS_VECTOR));
-        HybridRetriever tieRetriever = new HybridRetriever(repository, vectorStore, lexicalIndex,
+        HybridRetriever vectorFirst = new HybridRetriever(repository, vectorStore, lexicalIndex,
                 client, properties, new SimpleMeterRegistry());
 
-        assertThat(docIds(retriever.retrieveLexicalOnly("vali", 2))).containsExactly("noi-dung-a", "noi-dung-b");
-        assertThat(docIds(tieRetriever.retrieveSemanticOnly("vali", 2))).containsExactly("noi-dung-b", "noi-dung-a");
-        assertThat(docIds(tieRetriever.retrieve("vali", 2))).containsExactly("noi-dung-b", "noi-dung-a");
+        assertThat(docIds(retriever.retrieveLexicalOnly("vali", 2))).containsExactly("noi-dung-a");
+        assertThat(docIds(vectorFirst.retrieveSemanticOnly("vali", 2))).containsExactly("noi-dung-b", "noi-dung-a");
+        assertThat(docIds(vectorFirst.retrieve("vali", 2))).containsExactly("noi-dung-b", "noi-dung-a");
     }
 
     @Test

@@ -18,13 +18,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Truy hồi lai: hợp nhất tìm kiếm ngữ nghĩa (vector) và tìm kiếm từ khóa (BM25)
- * bằng Reciprocal Rank Fusion.
+ * Truy hồi lai: nhánh ngữ nghĩa (vector) là nhánh chính, nhánh từ khóa (BM25) bù chỗ trống.
  *
- * Chọn RRF thay vì cộng điểm có trọng số vì hai nhánh cho ra điểm trên hai thang hoàn
- * toàn khác nhau (cosine 0..1 so với BM25 không chặn trên). RRF chỉ dùng THỨ HẠNG nên
- * không cần chuẩn hóa cũng không cần tự tay chỉnh trọng số — thứ mà với corpus cỡ này
- * thì có chỉnh cũng chỉ là đoán mò.
+ * Kết quả giữ nguyên thứ tự của nhánh Vector. BM25 chỉ lấp những chỗ còn lại khi Vector trả
+ * chưa đủ topK (chunk dưới ngưỡng cosine bị loại), và không bao giờ đẩy một chunk lên trên
+ * chunk mà Vector đã xếp. Đây không phải "tăng trọng số cho Vector": không có điểm nào được
+ * cộng, BM25 đứng hẳn sau.
+ *
+ * Trước 14/09/2026 hai nhánh được hợp nhất bằng Reciprocal Rank Fusion. Trên bộ vàng hai cách
+ * ngang nhau (126/132 câu đúng hạng 1), nhưng trên câu hỏi chưa dùng để chọn cấu hình RRF thua:
+ * chunk sai có mặt ở CẢ hai nhánh cộng điểm vượt chunk đúng mà chỉ Vector xếp đầu. P@1 tiếng
+ * Việt + lọc lang: 49 câu người thật gõ 63.3% → 73.5%, 55 câu holdout 80.0% → 94.5%, 32 câu có
+ * mã voucher/mã đơn 81.2% → 90.6%. Xem experiments.md 14/09 bên vi-rag-eval.
  *
  * Suy giảm êm: nếu embedding không dùng được (thiếu API key, hoặc lời gọi hỏng),
  * nhánh ngữ nghĩa trả rỗng và kết quả rơi về đúng BM25 thuần — chatbot vẫn tra được
@@ -127,44 +132,21 @@ public class HybridRetriever {
     }
 
     /**
-     * Reciprocal Rank Fusion: mỗi chunk cộng 1/(k + hạng) từ mỗi nhánh có mặt nó.
-     * Chunk xuất hiện ở CẢ hai nhánh được đẩy lên trên một cách tự nhiên, không cần
-     * quy tắc riêng nào.
+     * Vector trước, BM25 bù sau: lấy nguyên thứ tự nhánh Vector, rồi lấp chỗ còn trống bằng
+     * chunk BM25 chưa có mặt. Nhánh Vector rỗng thì kết quả là BM25 thuần. Khớp
+     * {@code fusion="vector_fill"} bên vi-rag-eval.
      */
     private List<KnowledgeChunk> fuse(List<ScoredChunk> lexicalHits, List<ScoredChunk> semanticHits, int topK) {
-        Map<Long, Double> fusedScores = new LinkedHashMap<>();
         Map<Long, KnowledgeChunk> byId = new LinkedHashMap<>();
-        int k = properties.getRrfK();
-
-        // Nhánh Vector duyệt TRƯỚC: hòa điểm thì chunk xuất hiện trước thắng (LinkedHashMap +
-        // sort ổn định), và hòa xảy ra thường hơn tưởng — hạng (1, 2) và (2, 1) cho đúng cùng
-        // một điểm. Đứng riêng, Vector đúng hạng 1 nhiều hơn BM25 hẳn (95.5% so với 76.5% trên
-        // bộ vàng), nên hòa thì nghe Vector: P@1 tiếng Việt của Hybrid + lọc lang 84.7% → 96.6%.
-        // Xem experiments.md 14/09 bên vi-rag-eval.
-        accumulate(semanticHits, fusedScores, byId, k);
-        accumulate(lexicalHits, fusedScores, byId, k);
-
-        List<Map.Entry<Long, Double>> ranked = new ArrayList<>(fusedScores.entrySet());
-        ranked.sort(Map.Entry.<Long, Double>comparingByValue().reversed());
-
-        List<KnowledgeChunk> result = new ArrayList<>();
-        for (Map.Entry<Long, Double> entry : ranked) {
-            if (result.size() >= topK) {
-                break;
+        for (List<ScoredChunk> hits : List.of(semanticHits, lexicalHits)) {
+            for (ScoredChunk hit : hits) {
+                if (byId.size() >= topK) {
+                    return new ArrayList<>(byId.values());
+                }
+                byId.putIfAbsent(hit.chunk().getId(), hit.chunk());
             }
-            result.add(byId.get(entry.getKey()));
         }
-        return result;
-    }
-
-    private void accumulate(List<ScoredChunk> hits, Map<Long, Double> fusedScores,
-                            Map<Long, KnowledgeChunk> byId, int k) {
-        for (int rank = 0; rank < hits.size(); rank++) {
-            KnowledgeChunk chunk = hits.get(rank).chunk();
-            Long id = chunk.getId();
-            byId.putIfAbsent(id, chunk);
-            fusedScores.merge(id, 1.0 / (k + rank + 1.0), Double::sum);
-        }
+        return new ArrayList<>(byId.values());
     }
 
     /** Dùng cho bộ đo chất lượng truy hồi: chỉ nhánh từ khóa. */

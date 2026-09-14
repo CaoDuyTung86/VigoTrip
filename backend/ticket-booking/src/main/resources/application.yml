@@ -403,8 +403,6 @@ rag:
   candidates-per-branch: ${RAG_CANDIDATES:10}
   # Ngưỡng cosine cho nhánh ngữ nghĩa; dưới ngưỡng coi như không liên quan.
   min-similarity: ${RAG_MIN_SIMILARITY:0.55}
-  # Hằng số k của Reciprocal Rank Fusion (giá trị chuẩn trong tài liệu gốc).
-  rrf-k: ${RAG_RRF_K:60}
   seed-on-startup: ${RAG_SEED_ON_STARTUP:true}
 
   embedding:

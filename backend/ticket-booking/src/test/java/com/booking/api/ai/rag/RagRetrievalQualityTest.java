@@ -515,7 +515,7 @@ class RagRetrievalQualityTest {
                     (evalCase, k) -> retriever.retrieveSemanticOnly(evalCase.query(), k, evalCase.lang())
                             .stream().map(KnowledgeChunk::getDocId).toList()).values());
 
-            results.addAll(evaluateByLang("Hybrid (RRF)", cases,
+            results.addAll(evaluateByLang("Hybrid", cases,
                     (evalCase, k) -> retriever.retrieve(evalCase.query(), k).stream()
                             .map(KnowledgeChunk::getDocId).toList()).values());
 

@@ -9,7 +9,7 @@ import java.util.Locale;
  *
  * Gom vào một chỗ vì hai chỉ mục PHẢI hiểu mã ngôn ngữ giống hệt nhau. Nếu một bên coi
  * "EN " khác "en" thì cùng một truy vấn sẽ lọc ở nhánh này mà không lọc ở nhánh kia, và
- * kết quả hợp nhất bằng RRF sẽ lệch theo cách rất khó lần ra.
+ * kết quả hợp nhất hai nhánh sẽ lệch theo cách rất khó lần ra.
  */
 final class LangFilter {
 
