@@ -64,6 +64,29 @@ class SynonymExpanderTest {
     }
 
     @Test
+    @DisplayName("Khóa có dấu chỉ khớp khi câu hỏi viết đúng dấu")
+    void accentedKeyMatchesOnlyAccentedQuery() {
+        // "cho" không dấu hầu như luôn là từ chức năng, và "chỗ" bỏ dấu cũng thành "cho".
+        assertThat(SynonymExpander.expand("cho tôi hỏi mang được mấy cân hành lý", "vi"))
+                .doesNotContain("thu");
+        assertThat(SynonymExpander.expand("trả tiền rồi có đổi chỗ ngồi được không", "vi"))
+                .doesNotContain("thu");
+        assertThat(SynonymExpander.expand("chó nhà tôi đi xe khách được không", "vi"))
+                .contains("thu", "cung");
+
+        // Cái giá đã biết: gõ không dấu thì mất phần mở rộng.
+        assertThat(SynonymExpander.expand("mang cho len xe khach duoc khong", "vi"))
+                .doesNotContain("thu");
+    }
+
+    @Test
+    @DisplayName("Khóa có dấu khớp cả câu hỏi gửi ở dạng tổ hợp (NFD)")
+    void accentedKeyMatchesDecomposedQuery() {
+        // "o" + dấu sắc rời — một số bàn phím và trình duyệt gửi dạng này.
+        assertThat(SynonymExpander.expand("con chó nhà tôi", "vi")).contains("thu");
+    }
+
+    @Test
     @DisplayName("Ngôn ngữ chưa có bảng riêng thì áp mọi bảng")
     void unknownLanguageUsesEveryTable() {
         // Ngôn ngữ lạ cũng không bị lọc chỉ mục, nên truy vấn được với sang mọi kho từ.

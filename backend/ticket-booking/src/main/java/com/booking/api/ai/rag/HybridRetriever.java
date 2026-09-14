@@ -136,8 +136,13 @@ public class HybridRetriever {
         Map<Long, KnowledgeChunk> byId = new LinkedHashMap<>();
         int k = properties.getRrfK();
 
-        accumulate(lexicalHits, fusedScores, byId, k);
+        // Nhánh Vector duyệt TRƯỚC: hòa điểm thì chunk xuất hiện trước thắng (LinkedHashMap +
+        // sort ổn định), và hòa xảy ra thường hơn tưởng — hạng (1, 2) và (2, 1) cho đúng cùng
+        // một điểm. Đứng riêng, Vector đúng hạng 1 nhiều hơn BM25 hẳn (95.5% so với 76.5% trên
+        // bộ vàng), nên hòa thì nghe Vector: P@1 tiếng Việt của Hybrid + lọc lang 84.7% → 96.6%.
+        // Xem experiments.md 14/09 bên vi-rag-eval.
         accumulate(semanticHits, fusedScores, byId, k);
+        accumulate(lexicalHits, fusedScores, byId, k);
 
         List<Map.Entry<Long, Double>> ranked = new ArrayList<>(fusedScores.entrySet());
         ranked.sort(Map.Entry.<Long, Double>comparingByValue().reversed());

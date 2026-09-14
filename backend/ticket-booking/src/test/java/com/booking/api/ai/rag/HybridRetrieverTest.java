@@ -166,6 +166,25 @@ class HybridRetrieverTest {
     }
 
     @Test
+    @DisplayName("Hòa điểm RRF thì nghe nhánh Vector")
+    void tieGoesToSemanticBranch() {
+        // BM25: "noi-dung-a" hạng 1 (lặp "vali" ba lần), "noi-dung-b" hạng 2. Vector: ngược
+        // lại (cosine 0.9 so với 0.8). Hạng (1, 2) và (2, 1) cho cùng 1/61 + 1/62 — bộ vàng
+        // có 7 câu tiếng Việt tụt P@1 vì đúng kiểu hòa này khi BM25 được duyệt trước.
+        when(repository.findByActiveTrue()).thenReturn(List.of(
+                chunk(21, "noi-dung-a", "Ghi chú", "Vali vali vali quy định.", new float[]{0.8f, 0.6f, 0}),
+                chunk(22, "noi-dung-b", "Ghi chú", "Vali quy định chung khác.", new float[]{0.9f, 0.43589f, 0})));
+        retriever.reload();
+        StubEmbeddingClient client = new StubEmbeddingClient(Map.of("vali", PETS_VECTOR));
+        HybridRetriever tieRetriever = new HybridRetriever(repository, vectorStore, lexicalIndex,
+                client, properties, new SimpleMeterRegistry());
+
+        assertThat(docIds(retriever.retrieveLexicalOnly("vali", 2))).containsExactly("noi-dung-a", "noi-dung-b");
+        assertThat(docIds(tieRetriever.retrieveSemanticOnly("vali", 2))).containsExactly("noi-dung-b", "noi-dung-a");
+        assertThat(docIds(tieRetriever.retrieve("vali", 2))).containsExactly("noi-dung-b", "noi-dung-a");
+    }
+
+    @Test
     @DisplayName("Không có embedding client → lùi về BM25 thuần, vẫn trả kết quả")
     void fallsBackToLexicalWhenEmbeddingUnavailable() {
         embeddingClient.available = false;

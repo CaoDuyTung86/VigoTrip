@@ -4,8 +4,11 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Mở rộng truy vấn bằng từ đồng nghĩa, mỗi ngôn ngữ một bảng.
@@ -28,10 +31,14 @@ import java.util.Set;
  */
 public final class SynonymExpander {
 
+    private static final Pattern WORD = Pattern.compile("[\\p{L}\\p{N}]+");
+
     /** Cụm từ trong câu hỏi -> các từ khóa bổ sung ném vào truy vấn. */
     private static final Map<String, List<String>> VI_SYNONYMS = Map.ofEntries(
             Map.entry("thu cung", List.of("thu cung", "cho", "meo", "pet", "dong vat", "long")),
-            Map.entry("cho", List.of("thu cung", "cho")),
+            // Khóa VIẾT CÓ DẤU: "cho" không dấu hầu như luôn là "cho tôi hỏi", và "chỗ" bỏ
+            // dấu cũng thành "cho". Xem expand() và experiments.md 14/09 bên vi-rag-eval.
+            Map.entry("chó", List.of("thu cung", "cho")),
             Map.entry("meo", List.of("thu cung", "meo")),
             Map.entry("cun", List.of("thu cung", "cho")),
             Map.entry("poodle", List.of("thu cung", "cho")),
@@ -236,6 +243,12 @@ public final class SynonymExpander {
         // phải của phép so khớp đi qua đúng một bộ chuẩn hóa.
         String haystack = " " + String.join(" ", queryTokens) + " ";
 
+        // Khóa VIẾT CÓ DẤU so trên câu hỏi CÒN dấu. Dành cho từ mà dạng bỏ dấu trùng với
+        // từ thông dụng: "chó" bỏ dấu thành "cho" — cũng là "cho tôi hỏi", "chỗ ngồi". Cái
+        // giá: câu hỏi gõ không dấu mất phần mở rộng. NFC để câu hỏi gửi ở dạng tổ hợp
+        // (o + dấu sắc rời) vẫn khớp.
+        String accentedHaystack = accentedHaystack(query);
+
         // Khóa CJK thì ngược lại, PHẢI khớp chuỗi con: tiếng Nhật và tiếng Trung viết
         // liền không dấu cách nên không có ranh giới từ để mà dựa vào, và token của
         // chúng là bigram chứ không phải nguyên từ.
@@ -244,9 +257,15 @@ public final class SynonymExpander {
         for (Map<String, List<String>> table : tablesFor(lang)) {
             for (Map.Entry<String, List<String>> entry : table.entrySet()) {
                 String key = entry.getKey();
-                boolean matched = TextNormalizer.containsCjk(key)
-                        ? cjkHaystack.contains(key)
-                        : haystack.contains(" " + key + " ");
+                boolean matched;
+                if (TextNormalizer.containsCjk(key)) {
+                    matched = cjkHaystack.contains(key);
+                } else if (!TextNormalizer.removeAccents(key).equals(key)) {
+                    matched = accentedHaystack.contains(
+                            " " + Normalizer.normalize(key, Normalizer.Form.NFC) + " ");
+                } else {
+                    matched = haystack.contains(" " + key + " ");
+                }
                 if (matched) {
                     for (String synonym : entry.getValue()) {
                         tokens.addAll(TextNormalizer.tokenize(synonym));
@@ -255,6 +274,18 @@ public final class SynonymExpander {
             }
         }
         return new ArrayList<>(tokens);
+    }
+
+    /** Câu hỏi đã thường hóa và NFC, CÒN dấu, các từ nối bằng đúng một dấu cách. */
+    private static String accentedHaystack(String query) {
+        String text = Normalizer.normalize(query == null ? "" : query.toLowerCase(Locale.ROOT),
+                Normalizer.Form.NFC);
+        StringBuilder haystack = new StringBuilder(" ");
+        Matcher word = WORD.matcher(text);
+        while (word.find()) {
+            haystack.append(word.group()).append(' ');
+        }
+        return haystack.toString();
     }
 
     private static List<Map<String, List<String>>> tablesFor(String lang) {

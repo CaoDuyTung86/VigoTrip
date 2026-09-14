@@ -37,6 +37,14 @@
 - query: tôi xách theo con poodle nhỏ có sao không
   expected: [pets-bus, pets-plane]
 
+# Hai câu dưới đo cái giá của khóa "chó" chỉ khớp khi có dấu — xem experiments.md 14/09
+# bên vi-rag-eval.
+- query: mang cho len xe khach duoc khong
+  expected: [pets-bus]
+
+- query: chó nhà tôi đi xe khách được không
+  expected: [pets-bus]
+
 - query: mang meo len may bay duoc khong
   expected: [pets-plane]
 
