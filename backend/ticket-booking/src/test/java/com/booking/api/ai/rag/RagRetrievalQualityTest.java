@@ -261,11 +261,14 @@ class RagRetrievalQualityTest {
      * Bọc thêm cache quanh embedding client cho chế độ live.
      *
      * Bộ đo chạy cùng một câu hỏi qua hai cấu hình (Vector và Hybrid). Không cache thì
-     * mỗi câu hỏi bị embed hai lần, và với 57 câu là 114 request — vượt hạn mức free
-     * tier của Gemini, khiến kết quả đo sai lệch vì
-     * hệ thống rơi về BM25 giữa chừng. Cache đưa về đúng 57 request.
+     * mỗi câu hỏi bị embed bốn lần (132 câu là 528 request) — vượt hạn mức free tier của
+     * Gemini, khiến kết quả đo sai lệch vì hệ thống rơi về BM25 giữa chừng. Cache đưa về
+     * một request mỗi câu, cộng các lô chunk.
      */
     private static class CachingEmbeddingClient implements EmbeddingClient {
+
+        /** Bằng {@code EmbeddingProperties.batchSize} mặc định và bản Python. */
+        private static final int BATCH_SIZE = 32;
 
         /**
          * Giãn cách tối thiểu giữa hai lời gọi API. Ban đầu đặt 800ms theo hạn mức
@@ -374,14 +377,22 @@ class RagRetrievalQualityTest {
             return delegate.modelName();
         }
 
+        /**
+         * Thử lại theo TỪNG lô, không theo cả danh sách. Trước đây cả 224 chunk đi qua
+         * {@link #callWithRetry} một lượt: delegate tự chia lô 32 nhưng bắn 7 lô liền nhau
+         * không nghỉ, vượt 100 request/phút, và mỗi lần thử lại gửi lại từ lô đầu — lần đo
+         * ngày 14/09/2026 hỏng cả 4 lần thử. Chia lô ở đây thì lô đã xong nằm trong cache,
+         * giống {@code embed_all} bên vi-rag-eval.
+         */
         @Override
         public List<float[]> embedAll(List<String> texts) {
             List<String> missing = texts.stream().filter(t -> !cache.containsKey(t)).distinct().toList();
-            if (!missing.isEmpty()) {
+            for (int start = 0; start < missing.size(); start += BATCH_SIZE) {
+                List<String> batch = missing.subList(start, Math.min(missing.size(), start + BATCH_SIZE));
                 apiCalls++;
-                List<float[]> fresh = callWithRetry(missing);
-                for (int i = 0; i < missing.size(); i++) {
-                    cache.put(missing.get(i), fresh.get(i));
+                List<float[]> fresh = callWithRetry(batch);
+                for (int i = 0; i < batch.size(); i++) {
+                    cache.put(batch.get(i), fresh.get(i));
                 }
             }
             return texts.stream().map(cache::get).toList();
@@ -514,7 +525,9 @@ class RagRetrievalQualityTest {
 
             System.out.printf("[Live] Lời gọi API embedding: %d (không cache sẽ là %d), "
                     + "số lần phải thử lại vì 429: %d, số lời gọi hỏng hẳn: %d%n",
-                    embeddingClient.apiCalls, 1 + cases.size() * 4,
+                    embeddingClient.apiCalls,
+                    (knowledgeBase.size() + CachingEmbeddingClient.BATCH_SIZE - 1)
+                            / CachingEmbeddingClient.BATCH_SIZE + cases.size() * 4,
                     embeddingClient.rateLimitRetries, embeddingClient.hardFailures);
 
             // Chốt chặn quan trọng nhất của chế độ live. Suy giảm êm về BM25 là hành vi
