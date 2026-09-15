@@ -1,10 +1,12 @@
 package com.booking.api.ai.rag;
 
 import com.booking.api.ai.embedding.EmbeddingClient;
+import com.booking.api.ai.embedding.EmbeddingException;
 import com.booking.api.ai.embedding.EmbeddingProperties;
 import com.booking.api.ai.embedding.OpenAiCompatibleEmbeddingClient;
 import com.booking.api.entity.KnowledgeChunk;
 import com.booking.api.repository.KnowledgeChunkRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,8 +19,15 @@ import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +53,14 @@ import static org.mockito.Mockito.when;
  *    trong CI. Dùng khi cần số liệu so sánh ba kiến trúc cho báo cáo:
  *
  *      RAG_EVAL_LIVE=1 GEMINI_API_KEY=... ./mvnw test -Dtest=RagRetrievalQualityTest
+ *
+ *    Hoặc đọc vector từ cache đĩa của vi-rag-eval, KHÔNG tốn lời gọi API nào — dùng khi đã
+ *    hết hạn mức embedding trong ngày, hoặc khi cần so với bản Python trên CÙNG từng vector:
+ *
+ *      RAG_EVAL_LIVE=1 RAG_EVAL_EMBEDDING_CACHE="D:/clone repo/vi-rag-eval/cache/embeddings" \
+ *        ./mvnw test -Dtest=RagRetrievalQualityTest
+ *
+ *    Có cả hai biến thì đọc cache trước, văn bản nào chưa có mới gọi API.
  */
 class RagRetrievalQualityTest {
 
@@ -252,9 +269,13 @@ class RagRetrievalQualityTest {
     // ------------------------------------------------------------------ chế độ live
 
     private boolean liveModeEnabled() {
-        String flag = System.getenv("RAG_EVAL_LIVE");
-        String key = System.getenv("GEMINI_API_KEY");
-        return "1".equals(flag) && key != null && !key.isBlank();
+        return "1".equals(System.getenv("RAG_EVAL_LIVE"))
+                && (envSet("GEMINI_API_KEY") || envSet("RAG_EVAL_EMBEDDING_CACHE"));
+    }
+
+    private static boolean envSet(String name) {
+        String value = System.getenv(name);
+        return value != null && !value.isBlank();
     }
 
     /**
@@ -264,8 +285,15 @@ class RagRetrievalQualityTest {
      * mỗi câu hỏi bị embed bốn lần (132 câu là 528 request) — vượt hạn mức free tier của
      * Gemini, khiến kết quả đo sai lệch vì hệ thống rơi về BM25 giữa chừng. Cache đưa về
      * một request mỗi câu, cộng các lô chunk.
+     *
+     * Cache đĩa (tuỳ chọn) là thư mục {@code cache/embeddings} của vi-rag-eval, chỉ ĐỌC, không
+     * ghi: vector Java lấy từ API không được lẫn vào cache của phòng thí nghiệm. Khoá file khớp
+     * {@code EmbeddingClient._cache_path} bên Python — {@code sha256(model \0 số chiều \0 văn bản)}
+     * — nên model hoặc số chiều khác đi thì tự trượt cache chứ không đọc nhầm vector.
      */
     private static class CachingEmbeddingClient implements EmbeddingClient {
+
+        private static final ObjectMapper JSON = new ObjectMapper();
 
         /** Bằng {@code EmbeddingProperties.batchSize} mặc định và bản Python. */
         private static final int BATCH_SIZE = 32;
@@ -288,8 +316,13 @@ class RagRetrievalQualityTest {
         /** Số lần thử lại tối đa cho một lời gọi dính 429, với thời gian chờ tăng dần. */
         private static final int MAX_RETRIES = 3;
 
+        /** null khi không có API key: mọi vector phải có sẵn trong cache đĩa. */
         private final EmbeddingClient delegate;
+        private final Path diskCache;
+        private final String model;
+        private final int dimensions;
         private final Map<String, float[]> cache = new java.util.concurrent.ConcurrentHashMap<>();
+        private int diskHits = 0;
         private int apiCalls = 0;
         private int rateLimitRetries = 0;
 
@@ -305,8 +338,11 @@ class RagRetrievalQualityTest {
         private int hardFailures = 0;
         private long lastCallAt = 0;
 
-        CachingEmbeddingClient(EmbeddingClient delegate) {
+        CachingEmbeddingClient(EmbeddingClient delegate, Path diskCache, EmbeddingProperties props) {
             this.delegate = delegate;
+            this.diskCache = diskCache;
+            this.model = props.getModel();
+            this.dimensions = props.getDimensions();
         }
 
         private void throttle() {
@@ -364,17 +400,47 @@ class RagRetrievalQualityTest {
 
         @Override
         public boolean isAvailable() {
-            return delegate.isAvailable();
+            return delegate == null || delegate.isAvailable();
         }
 
         @Override
         public int dimensions() {
-            return delegate.dimensions();
+            return dimensions;
         }
 
         @Override
         public String modelName() {
-            return delegate.modelName();
+            return model;
+        }
+
+        private float[] readDisk(String text) {
+            if (diskCache == null) {
+                return null;
+            }
+            Path file = diskCache.resolve(cacheKey(text) + ".json");
+            if (!Files.exists(file)) {
+                return null;
+            }
+            try {
+                double[] raw = JSON.readValue(file.toFile(), double[].class);
+                assertThat(raw).as("vector trong %s sai số chiều", file).hasSize(dimensions);
+                float[] vector = new float[raw.length];
+                for (int i = 0; i < raw.length; i++) {
+                    vector[i] = (float) raw[i];
+                }
+                return vector;
+            } catch (IOException e) {
+                throw new UncheckedIOException("Không đọc được file cache " + file, e);
+            }
+        }
+
+        private String cacheKey(String text) {
+            byte[] raw = (model + "\0" + dimensions + "\0" + text).getBytes(StandardCharsets.UTF_8);
+            try {
+                return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(raw));
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException("JVM thiếu SHA-256", e);
+            }
         }
 
         /**
@@ -386,7 +452,24 @@ class RagRetrievalQualityTest {
          */
         @Override
         public List<float[]> embedAll(List<String> texts) {
-            List<String> missing = texts.stream().filter(t -> !cache.containsKey(t)).distinct().toList();
+            List<String> missing = new ArrayList<>();
+            for (String text : texts.stream().filter(t -> !cache.containsKey(t)).distinct().toList()) {
+                float[] vector = readDisk(text);
+                if (vector != null) {
+                    cache.put(text, vector);
+                    diskHits++;
+                } else {
+                    missing.add(text);
+                }
+            }
+            if (!missing.isEmpty() && delegate == null) {
+                // Không có key thì không được lặng lẽ trả rỗng: HybridRetriever sẽ lùi về BM25 và
+                // nhánh Vector bị chấm bằng kết quả BM25. Đếm vào hardFailures để test fail.
+                hardFailures++;
+                throw new EmbeddingException(missing.size() + " văn bản chưa có trong cache đĩa, "
+                        + "ví dụ: \"" + missing.get(0) + "\". Chạy bộ đo live bên vi-rag-eval để điền cache, "
+                        + "hoặc đặt thêm GEMINI_API_KEY.");
+            }
             for (int start = 0; start < missing.size(); start += BATCH_SIZE) {
                 List<String> batch = missing.subList(start, Math.min(missing.size(), start + BATCH_SIZE));
                 apiCalls++;
@@ -399,17 +482,27 @@ class RagRetrievalQualityTest {
         }
     }
 
-    private EmbeddingClient buildLiveEmbeddingClient() {
+    private CachingEmbeddingClient buildLiveEmbeddingClient() {
         EmbeddingProperties props = new EmbeddingProperties();
         props.setApiKey(System.getenv("GEMINI_API_KEY"));
-        String model = System.getenv("RAG_EMBEDDING_MODEL");
-        if (model != null && !model.isBlank()) {
-            props.setModel(model);
+        if (envSet("RAG_EMBEDDING_MODEL")) {
+            props.setModel(System.getenv("RAG_EMBEDDING_MODEL"));
         }
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(10));
-        factory.setReadTimeout(Duration.ofSeconds(60));
-        return new OpenAiCompatibleEmbeddingClient(props, new RestTemplate(factory));
+
+        EmbeddingClient api = null;
+        if (envSet("GEMINI_API_KEY")) {
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+            factory.setConnectTimeout(Duration.ofSeconds(10));
+            factory.setReadTimeout(Duration.ofSeconds(60));
+            api = new OpenAiCompatibleEmbeddingClient(props, new RestTemplate(factory));
+        }
+
+        Path diskCache = null;
+        if (envSet("RAG_EVAL_EMBEDDING_CACHE")) {
+            diskCache = Path.of(System.getenv("RAG_EVAL_EMBEDDING_CACHE"));
+            assertThat(diskCache).as("RAG_EVAL_EMBEDDING_CACHE trỏ tới thư mục không tồn tại").isDirectory();
+        }
+        return new CachingEmbeddingClient(api, diskCache, props);
     }
 
     // ------------------------------------------------------------------ test
@@ -482,7 +575,7 @@ class RagRetrievalQualityTest {
 
         // --- Chỉ chạy khi bật chế độ live: nhánh ngữ nghĩa và nhánh lai ---
         if (liveModeEnabled()) {
-            CachingEmbeddingClient embeddingClient = new CachingEmbeddingClient(buildLiveEmbeddingClient());
+            CachingEmbeddingClient embeddingClient = buildLiveEmbeddingClient();
             System.out.printf("%n[Live] Đang sinh embedding cho %d chunk bằng model %s...%n",
                     knowledgeBase.size(), embeddingClient.modelName());
 
@@ -523,8 +616,9 @@ class RagRetrievalQualityTest {
                     (evalCase, k) -> retriever.retrieve(evalCase.query(), k, evalCase.lang()).stream()
                             .map(KnowledgeChunk::getDocId).toList()).values());
 
-            System.out.printf("[Live] Lời gọi API embedding: %d (không cache sẽ là %d), "
+            System.out.printf("[Live] Vector đọc từ cache đĩa: %d, lời gọi API embedding: %d (không cache sẽ là %d), "
                     + "số lần phải thử lại vì 429: %d, số lời gọi hỏng hẳn: %d%n",
+                    embeddingClient.diskHits,
                     embeddingClient.apiCalls,
                     (knowledgeBase.size() + CachingEmbeddingClient.BATCH_SIZE - 1)
                             / CachingEmbeddingClient.BATCH_SIZE + cases.size() * 4,
@@ -535,15 +629,15 @@ class RagRetrievalQualityTest {
             // BM25 trá hình mà không có dấu hiệu nào trên bảng kết quả. Thà fail còn hơn
             // in ra một con số không biết là của cái gì.
             assertThat(embeddingClient.hardFailures)
-                    .as("có %d lời gọi embedding hỏng hẳn vì rate limit — nhánh Vector đã "
-                            + "âm thầm rơi về BM25 nên số đo KHÔNG dùng được. Chờ vài phút "
-                            + "rồi chạy lại, hoặc tăng MIN_INTERVAL_MS.",
+                    .as("có %d lời gọi embedding hỏng hẳn (rate limit, hoặc câu hỏi chưa có trong "
+                            + "cache đĩa) — nhánh Vector đã âm thầm rơi về BM25 nên số đo KHÔNG dùng "
+                            + "được. Xem dòng [Live] phía trên để biết thiếu gì.",
                             embeddingClient.hardFailures)
                     .isZero();
         } else {
             System.out.println();
-            System.out.println("[Bỏ qua nhánh ngữ nghĩa] Đặt RAG_EVAL_LIVE=1 và GEMINI_API_KEY "
-                    + "để đo thêm cấu hình Vector và Hybrid.");
+            System.out.println("[Bỏ qua nhánh ngữ nghĩa] Đặt RAG_EVAL_LIVE=1 cùng GEMINI_API_KEY "
+                    + "hoặc RAG_EVAL_EMBEDDING_CACHE để đo thêm cấu hình Vector và Hybrid.");
         }
 
         printTable(results);
