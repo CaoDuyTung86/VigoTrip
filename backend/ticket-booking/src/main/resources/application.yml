@@ -311,6 +311,23 @@ llm:
         model: ${GROQ_CHAT_MODEL:openai/gpt-oss-120b}
         max-tokens: 800
         temperature: 0.7
+      # Model tự host qua Ollama, chạy ngay trên máy chạy backend. Mặc định TẮT vì api-key
+      # trống: muốn bật thì đặt OLLAMA_API_KEY=ollama (Ollama không kiểm khoá, chỉ cần khác
+      # rỗng) và chạy `ollama serve`. Đứng cuối chuỗi nên chỉ được dùng khi Gemini và Groq
+      # đều hỏng hoặc hết hạn mức.
+      # Số đo tuần 10 của vi-rag-eval trên RTX 4060 8 GB, qwen3.5:9b bản Q4_K_M: bịa 2/30 câu
+      # so với 1/30 của Gemini Flash-Lite, 30.7 token/giây, p95 3.4 giây, 5.5 GB VRAM.
+      # Tool calling thì ToolSelectionQualityTest mới trả lời.
+      - name: ollama
+        base-url: ${OLLAMA_BASE_URL:http://127.0.0.1:11434/v1}
+        api-key: ${OLLAMA_API_KEY:}
+        model: "${OLLAMA_CHAT_MODEL:qwen3.5:9b}"
+        max-tokens: 800
+        temperature: 0.7
+        # Thiếu dòng này thì model biết suy nghĩ tiêu hết max-tokens cho phần reasoning và
+        # trả content rỗng — xem javadoc của LlmProperties.Provider.extraBody.
+        extra-body:
+          reasoning_effort: none
     analysis:
       - name: gemini
         base-url: https://generativelanguage.googleapis.com/v1beta/openai

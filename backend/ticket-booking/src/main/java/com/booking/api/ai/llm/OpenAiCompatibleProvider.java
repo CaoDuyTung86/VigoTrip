@@ -88,17 +88,31 @@ public class OpenAiCompatibleProvider implements LlmProvider {
         return headers;
     }
 
+    /**
+     * Thân request chung cho cả hai đường gọi.
+     *
+     * extraBody đổ vào TRƯỚC rồi mới tới các trường cố định, nên một khoá gõ nhầm trong YAML
+     * không thể đổi model hay nuốt mất messages — nó chỉ thêm được thứ endpoint hiểu mà lớp
+     * này chưa biết, ví dụ reasoning_effort của model biết suy nghĩ.
+     */
+    private Map<String, Object> newBody(List<Map<String, Object>> messages,
+                                        double temperature,
+                                        int maxTokens) {
+        Map<String, Object> body = new HashMap<>(config.getExtraBody());
+        body.put("model", config.getModel());
+        body.put("messages", messages);
+        body.put("max_tokens", maxTokens);
+        body.put("temperature", temperature);
+        return body;
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public Map<String, Object> chatCompletion(List<Map<String, Object>> messages,
                                               List<Map<String, Object>> tools,
                                               double temperature,
                                               int maxTokens) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", config.getModel());
-        body.put("messages", messages);
-        body.put("max_tokens", maxTokens);
-        body.put("temperature", temperature);
+        Map<String, Object> body = newBody(messages, temperature, maxTokens);
         if (tools != null && !tools.isEmpty()) {
             body.put("tools", tools);
             body.put("tool_choice", "auto");
@@ -142,11 +156,7 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                                  double temperature,
                                  int maxTokens,
                                  Consumer<String> chunkConsumer) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", config.getModel());
-        body.put("messages", messages);
-        body.put("max_tokens", maxTokens);
-        body.put("temperature", temperature);
+        Map<String, Object> body = newBody(messages, temperature, maxTokens);
         body.put("stream", true);
 
         try {

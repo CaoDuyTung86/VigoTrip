@@ -298,7 +298,20 @@ class ToolSelectionQualityTest {
      */
     private static final class ThrottledProvider implements LlmProvider {
 
-        private static final long MIN_INTERVAL_MS = 1_500;
+        /**
+         * Nhịp tối thiểu giữa hai lời gọi, đặt theo hạn mức CHẶT nhất trong các nhà cung cấp
+         * được đo — hiện là Gemini Flash-Lite free tier, 15 lượt/phút, tức 4 giây một lượt.
+         *
+         * <p>Trước đây để 1.500 ms (40 lượt/phút) cho "nhanh", và nó phản tác dụng: gần như lượt
+         * nào cũng ăn 429, mỗi lần 429 lại nằm chờ RETRY_AFTER_429_MS = 20 giây. Đo ngày 16/09
+         * thì một lượt chạy 53 ca mất gần một tiếng mà vẫn chưa xong nhà cung cấp đầu tiên. Đi
+         * đúng nhịp 4 giây thì cùng bấy nhiêu ca gọn trong khoảng mười phút. Bài học: với endpoint
+         * có hạn mức, throttle nhanh hơn hạn mức KHÔNG phải là chạy nhanh hơn.
+         *
+         * <p>Model local không có hạn mức, nhưng nhịp này áp chung cho mọi nhà cung cấp cho đơn
+         * giản — 53 ca nhân 4 giây là khoảng bốn phút, chấp nhận được.
+         */
+        private static final long MIN_INTERVAL_MS = 4_000;
         private static final long RETRY_AFTER_429_MS = 20_000;
         private static final int MAX_RETRIES = 3;
 
@@ -768,6 +781,23 @@ class ToolSelectionQualityTest {
             config.setApiKey(groq);
             config.setModel(env("GROQ_CHAT_MODEL", "openai/gpt-oss-120b"));
             config.setMaxTokens(800);
+            providers.add(config);
+        }
+
+        // Model tự host. Không có khoá thật để dò như hai nhà trên, nên lấy OLLAMA_MODEL làm
+        // công tắc: đặt biến đó thì đo, không đặt thì thôi. Server phải đang chạy.
+        String ollama = System.getenv("OLLAMA_MODEL");
+        if (ollama != null && !ollama.isBlank()) {
+            LlmProperties.Provider config = new LlmProperties.Provider();
+            config.setName("ollama");
+            config.setBaseUrl(env("OLLAMA_BASE_URL", "http://127.0.0.1:11434/v1"));
+            // Ollama không kiểm khoá, nhưng isConfigured() loại nhà cung cấp có khoá rỗng.
+            config.setApiKey("ollama");
+            config.setModel(ollama);
+            config.setMaxTokens(800);
+            // Tắt suy nghĩ, đúng cấu hình đã đo ở tuần 10 của vi-rag-eval. Để bật thì model
+            // tiêu hết 800 token cho phần reasoning và không kịp trả tool_calls.
+            config.setExtraBody(Map.of("reasoning_effort", "none"));
             providers.add(config);
         }
         return providers;

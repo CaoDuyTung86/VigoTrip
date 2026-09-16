@@ -5,7 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Cấu hình tầng LLM. Trước đây tên model, URL và giới hạn token là hằng số
@@ -78,6 +80,20 @@ public class LlmProperties {
         private String model;
         private int maxTokens = 800;
         private double temperature = 0.7;
+        /**
+         * Khoá thêm vào thân request, gửi nguyên văn cho endpoint.
+         *
+         * Có vì các endpoint tương thích OpenAI không còn đồng nhất như lúc lớp này ra đời:
+         * model biết suy nghĩ cần một khoá riêng để tắt phần suy nghĩ, không tắt thì nó tiêu
+         * hết maxTokens cho phần reasoning và trả content rỗng. Ví dụ với Ollama:
+         *
+         *   extra-body:
+         *     reasoning_effort: none
+         *
+         * Khoá ở đây KHÔNG đè được model, messages, max_tokens, temperature, tools hay stream —
+         * những trường đó vẫn do cấu hình chính quyết định.
+         */
+        private Map<String, Object> extraBody = new LinkedHashMap<>();
 
         public boolean isConfigured() {
             return apiKey != null && !apiKey.isBlank()

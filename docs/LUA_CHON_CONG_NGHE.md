@@ -579,6 +579,7 @@ Liệt kê ở đây để **chủ động** nói ra, thay vì bị đào ra.
 | Tổng quan hệ thống, môi trường triển khai | `AI_ONBOARDING.md`, `README.md` |
 | Chatbot RAG, LLM gateway, circuit breaker | `CHATBOT_AI.md` |
 | AI Business Intelligence | `AI_BI.md` |
+| Model tự host, Ollama, quantize, chi phí deploy | `MODEL_TU_HOST.md` |
 | Giữ ghế thời gian thực & vá lỗ hổng WebSocket | `REALTIME_WEBSOCKET.md` |
 | Thanh toán & hoàn tiền VNPay | `THANH_TOAN_VNPAY.md` |
 | Đa ngôn ngữ | `DA_NGON_NGU.md` |
