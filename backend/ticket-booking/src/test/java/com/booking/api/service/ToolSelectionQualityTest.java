@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -31,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -118,6 +120,26 @@ class ToolSelectionQualityTest {
     /** Danh sách mã điểm nhồi vào hướng dẫn tool. Cố định để bộ đo không phụ thuộc cơ sở dữ liệu. */
     private static final String EVAL_LOCATIONS = "HAN, SGN, DAD, HPH, HUE, VIN, SAP, QNH, NTR, DLT, PQC, VCL";
 
+    /**
+     * Đúng tập mã mà prompt nói là "đang hoạt động", tách sẵn để chấm.
+     *
+     * <p>Thêm ngày 16/09 sau khi thăm dò ca Quy Nhơn (xem experiments.md mục 16/09 (c)). Ca đó
+     * chỉ cấm đúng một giá trị là QNH, nên bộ đo chấm ĐẠT cho 12/12 lần model truyền
+     * {@code destination=UIH} — mã IATA thật của sân bay Phù Cát, đúng ngoài đời nhưng không có
+     * trong hệ thống. Tức là hành vi xảy ra gần như mọi lần thì lọt lưới, còn biến thể hiếm mới
+     * bị bắt. Cấm theo từng giá trị không đủ; phải chấm theo LUẬT.
+     *
+     * <p>Luật: {@code search_trips} chỉ được nhận mã nằm trong danh sách prompt vừa đưa cho nó.
+     * Mã lạ không ném ra ngoại lệ nào — truy vấn chỉ không khớp tuyến nào rồi trả rỗng, và mã đó
+     * còn đọng lại trong sessionCache làm điểm đến mặc định cho các lượt sau. Không đếm thì không
+     * có cách nào thấy.
+     */
+    private static final Set<String> ACTIVE_CODES = Arrays.stream(EVAL_LOCATIONS.split(","))
+            .map(String::trim).filter(c -> !c.isEmpty()).collect(Collectors.toUnmodifiableSet());
+
+    /** Tham số của search_trips mang mã điểm; các tool khác nhận tên nơi nên không chấm ở đây. */
+    private static final Set<String> LOCATION_ARGS = Set.of("origin", "destination");
+
     private static final String EVAL_USER = "khach@vigotrip.test";
 
     // ------------------------------------------------------------------ mô hình dữ liệu
@@ -168,6 +190,10 @@ class ToolSelectionQualityTest {
      *                     mọi tham số của nó tính là trượt.
      * @param forbidHits   số lần truyền đúng giá trị bị cấm. Phải bằng 0; khác 0 là lỗi âm thầm
      *                     kiểu Quy Nhơn=QNH: gọi đúng tool, tra đúng cơ sở dữ liệu, sai tỉnh.
+     * @param maLaHits     số lần truyền mã điểm KHÔNG có trong danh sách đang hoạt động. Cùng họ
+     *                     với forbidHits nhưng chấm theo luật thay vì theo từng giá trị liệt kê
+     *                     sẵn, nên bắt được cả mã đúng ngoài đời mà hệ thống không có — xem
+     *                     {@link #ACTIVE_CODES}.
      * @param hardFailures số ca không nhận được câu trả lời nào vì nhà cung cấp hỏng. Khác 0 thì
      *                     mọi con số còn lại của cấu hình đó KHÔNG dùng được.
      */
@@ -175,8 +201,63 @@ class ToolSelectionQualityTest {
                            double exactSet, double microP, double microR, double microF1,
                            double macroF1, double falseCall, int noToolCases, int falseCalls,
                            double missed, double argAccuracy,
-                           int forbidHits, double avgProviderCalls, double avgToolRuns,
+                           int forbidHits, int maLaHits,
+                           double avgProviderCalls, double avgToolRuns,
                            int hardFailures, List<String> details) {
+    }
+
+    /**
+     * Độ tản của một cấu hình qua N mẻ.
+     *
+     * <p>Có vì ngày 16/09 chạy ba mẻ trên cùng bộ 53 ca và thấy chênh lệch giữa hai mẻ của CÙNG
+     * một model (qwen: 98.1% rồi 92.5% khớp bộ) lớn hơn chênh lệch giữa hai model. Một con số
+     * trung bình đứng trơ trọi che mất chuyện đó, nên trung bình phải đi kèm khoảng.
+     */
+    private record Spread(String name, int runs, double exactMin, double exactMax,
+                          double argMin, double argMax, int forbidTotal, int maLaTotal) {
+
+        static Spread cua(String name, List<Metrics> cacMe) {
+            return new Spread(name, cacMe.size(),
+                    cacMe.stream().mapToDouble(Metrics::exactSet).min().orElse(0),
+                    cacMe.stream().mapToDouble(Metrics::exactSet).max().orElse(0),
+                    cacMe.stream().mapToDouble(Metrics::argAccuracy).min().orElse(0),
+                    cacMe.stream().mapToDouble(Metrics::argAccuracy).max().orElse(0),
+                    cacMe.stream().mapToInt(Metrics::forbidHits).sum(),
+                    cacMe.stream().mapToInt(Metrics::maLaHits).sum());
+        }
+    }
+
+    /**
+     * Gộp N mẻ của cùng một cấu hình thành một bản ghi để chấm ngưỡng.
+     *
+     * <p>Tỉ lệ thì lấy TRUNG BÌNH: câu hỏi "model này thường đúng bao nhiêu phần trăm" chỉ có
+     * nghĩa khi hỏi trên nhiều mẻ. Còn các bộ đếm không khoan nhượng — tham số bị cấm, mã điểm
+     * lạ — thì lấy TỔNG, vì câu hỏi ở đó không phải "thường xuyên đến đâu" mà là "có xảy ra
+     * không". Một lần tra sai tỉnh là một lần khách bị trả lời sai.
+     */
+    private static Metrics gopCacMe(String name, List<Metrics> cacMe, int hardFailures) {
+        Metrics dau = cacMe.get(0);
+        java.util.function.ToDoubleFunction<java.util.function.ToDoubleFunction<Metrics>> tb =
+                f -> cacMe.stream().mapToDouble(f).average().orElse(0);
+
+        Map<String, Integer> demChiTiet = new LinkedHashMap<>();
+        cacMe.forEach(m -> m.details().forEach(d -> demChiTiet.merge(d, 1, Integer::sum)));
+        List<String> details = demChiTiet.entrySet().stream()
+                .map(e -> cacMe.size() == 1 || e.getValue() == cacMe.size()
+                        ? e.getKey()
+                        : String.format("  [%d/%d mẻ]%n%s", e.getValue(), cacMe.size(), e.getKey()))
+                .toList();
+
+        return new Metrics(name, dau.cases(),
+                tb.applyAsDouble(Metrics::exactSet), tb.applyAsDouble(Metrics::microP),
+                tb.applyAsDouble(Metrics::microR), tb.applyAsDouble(Metrics::microF1),
+                tb.applyAsDouble(Metrics::macroF1), tb.applyAsDouble(Metrics::falseCall),
+                dau.noToolCases(), cacMe.stream().mapToInt(Metrics::falseCalls).sum(),
+                tb.applyAsDouble(Metrics::missed), tb.applyAsDouble(Metrics::argAccuracy),
+                cacMe.stream().mapToInt(Metrics::forbidHits).sum(),
+                cacMe.stream().mapToInt(Metrics::maLaHits).sum(),
+                tb.applyAsDouble(Metrics::avgProviderCalls), tb.applyAsDouble(Metrics::avgToolRuns),
+                hardFailures, details);
     }
 
     private record PerTool(String tool, int support, int tp, int fp, int fn) {
@@ -308,8 +389,9 @@ class ToolSelectionQualityTest {
          * đúng nhịp 4 giây thì cùng bấy nhiêu ca gọn trong khoảng mười phút. Bài học: với endpoint
          * có hạn mức, throttle nhanh hơn hạn mức KHÔNG phải là chạy nhanh hơn.
          *
-         * <p>Model local không có hạn mức, nhưng nhịp này áp chung cho mọi nhà cung cấp cho đơn
-         * giản — 53 ca nhân 4 giây là khoảng bốn phút, chấp nhận được.
+         * <p>Chỉ áp cho nhà cung cấp TỪ XA. Model chạy trên máy mình không có hạn mức nào để mà
+         * tôn trọng, và từ khi bộ đo chạy nhiều mẻ thì bốn giây một lượt nhân 53 ca nhân N mẻ là
+         * khoản chờ vô nghĩa duy nhất đủ lớn để làm người ta ngại chạy lại.
          */
         private static final long MIN_INTERVAL_MS = 4_000;
         private static final long RETRY_AFTER_429_MS = 20_000;
@@ -317,15 +399,17 @@ class ToolSelectionQualityTest {
 
         private final LlmProvider delegate;
         private final double temperature;
+        private final long minIntervalMs;
 
         private int calls;
         private int rateLimitRetries;
         private int hardFailures;
         private long lastCallAt;
 
-        ThrottledProvider(LlmProvider delegate, double temperature) {
+        ThrottledProvider(LlmProvider delegate, double temperature, boolean local) {
             this.delegate = delegate;
             this.temperature = temperature;
+            this.minIntervalMs = local ? 0 : MIN_INTERVAL_MS;
         }
 
         private static void sleep(long ms) {
@@ -338,7 +422,10 @@ class ToolSelectionQualityTest {
         }
 
         private void throttle() {
-            long waitMs = MIN_INTERVAL_MS - (System.currentTimeMillis() - lastCallAt);
+            if (minIntervalMs <= 0) {
+                return;
+            }
+            long waitMs = minIntervalMs - (System.currentTimeMillis() - lastCallAt);
             if (waitMs > 0) {
                 sleep(waitMs);
             }
@@ -544,6 +631,7 @@ class ToolSelectionQualityTest {
         int argMatched = 0;
         int argTotal = 0;
         int forbidHits = 0;
+        int maLaHits = 0;
         int providerCalls = 0;
         int toolRuns = 0;
         List<String> details = new ArrayList<>();
@@ -627,11 +715,27 @@ class ToolSelectionQualityTest {
                 }
             }
 
+            List<String> maLaProblems = new ArrayList<>();
+            for (Call call : outcome.calls()) {
+                if (!"search_trips".equals(call.tool())) {
+                    continue;
+                }
+                for (String key : LOCATION_ARGS) {
+                    Object raw = call.args().get(key);
+                    String code = raw == null ? "" : String.valueOf(raw).trim();
+                    if (code.isEmpty() || "null".equals(code) || ACTIVE_CODES.contains(code)) {
+                        continue;
+                    }
+                    maLaHits++;
+                    maLaProblems.add(key + " = " + code);
+                }
+            }
+
             providerCalls += outcome.providerCalls();
             toolRuns += outcome.calls().size();
 
             if (!missing.isEmpty() || !extra.isEmpty() || !argProblems.isEmpty()
-                    || !forbidProblems.isEmpty()) {
+                    || !forbidProblems.isEmpty() || !maLaProblems.isEmpty()) {
                 StringBuilder line = new StringBuilder();
                 line.append(String.format("  \"%s\"%n    gọi %s", evalCase.utterance(),
                         called.isEmpty() ? "(không tool nào)" : called));
@@ -646,6 +750,10 @@ class ToolSelectionQualityTest {
                 }
                 if (!forbidProblems.isEmpty()) {
                     line.append(String.format("%n    THAM SỐ BỊ CẤM: %s", String.join("; ", forbidProblems)));
+                }
+                if (!maLaProblems.isEmpty()) {
+                    line.append(String.format("%n    MÃ KHÔNG CÓ TRONG HỆ THỐNG: %s (đang hoạt động: %s)",
+                            String.join("; ", maLaProblems), EVAL_LOCATIONS));
                 }
                 if (!evalCase.note().isBlank()) {
                     line.append(String.format("%n    ghi chú: %s", evalCase.note()));
@@ -667,7 +775,7 @@ class ToolSelectionQualityTest {
                 noToolCases, falseCalls,
                 (double) missedCases / n,
                 argTotal == 0 ? 1.0 : (double) argMatched / argTotal,
-                forbidHits, (double) providerCalls / n, (double) toolRuns / n,
+                forbidHits, maLaHits, (double) providerCalls / n, (double) toolRuns / n,
                 hardFailures, details);
     }
 
@@ -692,17 +800,18 @@ class ToolSelectionQualityTest {
     private void printMainTable(List<Metrics> results) {
         System.out.println();
         System.out.println("==================== CHẤT LƯỢNG CHỌN TOOL ====================");
-        System.out.printf("%-24s %4s %8s %7s %7s %7s %7s %11s %7s %7s%n",
-                "Cấu hình", "Câu", "Khớp bộ", "P", "R", "F1", "macroF1", "Gọi thừa", "Bỏ tra", "Args");
+        System.out.printf("%-24s %4s %8s %7s %7s %7s %7s %11s %7s %7s %6s %6s%n",
+                "Cấu hình", "Câu", "Khớp bộ", "P", "R", "F1", "macroF1", "Gọi thừa", "Bỏ tra",
+                "Args", "Cấm", "Mã lạ");
         System.out.println("---------------------------------------------------------------"
                 + "---------------------------");
         for (Metrics m : results) {
-            System.out.printf("%-24s %4d %7.1f%% %7.3f %7.3f %7.3f %7.3f %11s %6.1f%% %6.1f%%%n",
+            System.out.printf("%-24s %4d %7.1f%% %7.3f %7.3f %7.3f %7.3f %11s %6.1f%% %6.1f%% %6d %6d%n",
                     m.name(), m.cases(), m.exactSet() * 100, m.microP(), m.microR(), m.microF1(),
                     m.macroF1(),
                     m.falseCall() < 0 ? "—"
                             : String.format("%d/%d", m.falseCalls(), m.noToolCases()),
-                    m.missed() * 100, m.argAccuracy() * 100);
+                    m.missed() * 100, m.argAccuracy() * 100, m.forbidHits(), m.maLaHits());
         }
         System.out.println("---------------------------------------------------------------"
                 + "---------------------------");
@@ -712,7 +821,28 @@ class ToolSelectionQualityTest {
         System.out.println("Gọi thừa = số ca lẽ ra không cần tool mà vẫn gọi / tổng số ca như vậy");
         System.out.println("Bỏ tra   = tỉ lệ ca thiếu ít nhất một tool bắt buộc");
         System.out.println("Args     = tỉ lệ tham số khớp trên tổng tham số có khai trong tool-eval.yml");
+        System.out.println("Cấm      = số lần truyền đúng một giá trị bị cấm liệt kê trong ca đo");
+        System.out.println("Mã lạ    = số lần search_trips nhận mã điểm không có trong hệ thống");
         System.out.println("===============================================================");
+    }
+
+    private void printSpreadTable(List<Spread> spreads, int runs) {
+        System.out.println();
+        System.out.printf("============ ĐỘ TẢN QUA %d MẺ ============%n", runs);
+        System.out.printf("%-24s %16s %16s %6s %6s%n",
+                "Cấu hình", "Khớp bộ", "Args", "Cấm", "Mã lạ");
+        System.out.println("--------------------------------------------------------------------");
+        for (Spread s : spreads) {
+            System.out.printf("%-24s %6.1f%% – %6.1f%% %6.1f%% – %6.1f%% %6d %6d%n",
+                    s.name(), s.exactMin() * 100, s.exactMax() * 100,
+                    s.argMin() * 100, s.argMax() * 100, s.forbidTotal(), s.maLaTotal());
+        }
+        System.out.println("--------------------------------------------------------------------");
+        System.out.println("Khoảng nhỏ nhất – lớn nhất qua các mẻ. Bảng chính ở trên là TRUNG BÌNH,");
+        System.out.println("riêng Cấm và Mã lạ là TỔNG: ở đó câu hỏi là có xảy ra không, không phải");
+        System.out.println("thường xuyên đến đâu. Khoảng của một model rộng hơn khoảng cách giữa hai");
+        System.out.println("model thì KHÔNG xếp hạng được, dù trung bình có chênh nhau.");
+        System.out.println("====================================================================");
     }
 
     private void printPerToolTable(String configName, Map<String, PerTool> perTool) {
@@ -809,6 +939,12 @@ class ToolSelectionQualityTest {
      */
     private double evalTemperature() {
         return Double.parseDouble(env("TOOL_EVAL_TEMPERATURE", "0.7"));
+    }
+
+    /** Endpoint nằm trên chính máy này thì không có hạn mức để mà giãn nhịp. */
+    private static boolean isLocal(LlmProperties.Provider config) {
+        String url = config.getBaseUrl() == null ? "" : config.getBaseUrl();
+        return url.contains("127.0.0.1") || url.contains("localhost") || url.contains("[::1]");
     }
 
     private LlmProvider buildLiveProvider(LlmProperties.Provider config) {
@@ -963,6 +1099,80 @@ class ToolSelectionQualityTest {
                 .contains(EVAL_LOCATIONS);
     }
 
+    // ------------------------------------------------------------------ test thăm dò
+
+    /**
+     * Chạy ĐÚNG một ca nhiều lần và in tham số của từng lần.
+     *
+     * <p>Sinh ra từ một câu hỏi mà bảng điểm không trả lời được: mẻ đo ngày 16/09 thấy Gemini
+     * truyền mã điểm Quảng Ninh cho câu hỏi về Quy Nhơn, nhưng mẻ ngay trước đó thì không. Bảng
+     * điểm chạy một lượt nên không phân biệt được "lỗi có hệ thống" với "một lần xui ở
+     * temperature 0.7" — mà hai thứ đó dẫn tới hai hành động khác hẳn nhau.
+     *
+     * <p>Tách khỏi {@link #doChatLuongChonTool} có chủ ý: nó KHÔNG có ngưỡng, không chấm điểm,
+     * không được xen vào bảng. Việc của nó là in ra sự thật thô để người đọc tự kết luận.
+     *
+     * <pre>
+     *   TOOL_EVAL_PROBE="Quy Nhơn" TOOL_EVAL_PROBE_N=12 TOOL_EVAL_TEMPERATURE=0      *   TOOL_EVAL_LIVE=1 mvnw -Dtest=ToolSelectionQualityTest test
+     * </pre>
+     */
+    @Test
+    @DisplayName("Thăm dò: chạy một ca nhiều lần, in tham số từng lần")
+    void thamDoMotCa() throws IOException {
+        String needle = env("TOOL_EVAL_PROBE", "");
+        assumeTrue(liveModeEnabled() && !needle.isBlank(),
+                "cần TOOL_EVAL_PROBE=<một phần câu hỏi> cùng TOOL_EVAL_LIVE=1");
+
+        List<EvalCase> found = loadEvalCases().stream()
+                .filter(c -> c.utterance().toLowerCase(Locale.ROOT)
+                        .contains(needle.toLowerCase(Locale.ROOT)))
+                .toList();
+        assertThat(found).as("không ca nào trong tool-eval.yml chứa \"%s\"", needle).isNotEmpty();
+        assertThat(found).as("\"%s\" khớp nhiều ca, thăm dò chỉ nhận một", needle).hasSize(1);
+
+        EvalCase target = found.get(0);
+        int repeat = Integer.parseInt(env("TOOL_EVAL_PROBE_N", "12"));
+        double temperature = evalTemperature();
+        List<EvalCase> lap = new ArrayList<>();
+        for (int i = 0; i < repeat; i++) {
+            lap.add(target);
+        }
+
+        System.out.printf("%n==================== THĂM DÒ ====================%n");
+        System.out.printf("Ca      : \"%s\"%n", target.utterance());
+        System.out.printf("Lặp     : %d lần, nhiệt độ %.2f%n", repeat, temperature);
+        System.out.printf("Bị cấm  : %s%n", target.forbid());
+        System.out.printf("Ghi chú : %s%n", target.note());
+
+        for (LlmProperties.Provider config : liveProviders()) {
+            ThrottledProvider provider = new ThrottledProvider(buildLiveProvider(config), temperature,
+                    isLocal(config));
+            System.out.printf("%n--- %s (%s) ---%n", config.getName(), config.getModel());
+
+            List<Outcome> outcomes = runLive(provider, lap);
+            int dinhCam = 0;
+            for (int i = 0; i < outcomes.size(); i++) {
+                List<Call> calls = outcomes.get(i).calls();
+                boolean cam = false;
+                for (Call call : calls) {
+                    Map<String, String> banned = target.forbid().get(call.tool());
+                    if (banned == null) {
+                        continue;
+                    }
+                    for (Map.Entry<String, String> pair : banned.entrySet()) {
+                        cam |= argMatches(call.args().get(pair.getKey()), pair.getValue());
+                    }
+                }
+                dinhCam += cam ? 1 : 0;
+                String moTa = calls.isEmpty() ? "(không gọi tool nào)"
+                        : String.join("; ", calls.stream().map(c -> c.tool() + c.args()).toList());
+                System.out.printf("  %2d %s  %s%n", i + 1, cam ? "BỊ CẤM" : "      ", moTa);
+            }
+            System.out.printf("  => truyền giá trị bị cấm %d/%d lần%n", dinhCam, outcomes.size());
+        }
+        System.out.println("=================================================");
+    }
+
     // ------------------------------------------------------------------ test live
 
     @Test
@@ -978,31 +1188,58 @@ class ToolSelectionQualityTest {
         List<EvalCase> cases = loadEvalCases();
         List<LlmProperties.Provider> configs = liveProviders();
         double temperature = evalTemperature();
+        int runs = Math.max(1, Integer.parseInt(env("TOOL_EVAL_RUNS", "1")));
 
-        System.out.printf("%n[Live] %d ca đo, %d nhà cung cấp, nhiệt độ %.2f%n",
-                cases.size(), configs.size(), temperature);
+        System.out.printf("%n[Live] %d ca đo, %d nhà cung cấp, nhiệt độ %.2f, %d mẻ%n",
+                cases.size(), configs.size(), temperature, runs);
+        if (runs == 1) {
+            System.out.println("[Live] Một mẻ ở nhiệt độ khác 0 chỉ là MỘT mẫu. Muốn so hai model "
+                    + "thì đặt TOOL_EVAL_RUNS=5 — xem experiments.md mục 16/09 (e).");
+        }
 
         List<Metrics> allResults = new ArrayList<>();
+        List<Spread> spreads = new ArrayList<>();
         Map<String, Metrics> primaryByLang = null;
         Map<String, Integer> hardFailuresByProvider = new LinkedHashMap<>();
 
         for (LlmProperties.Provider config : configs) {
-            ThrottledProvider provider = new ThrottledProvider(buildLiveProvider(config), temperature);
+            ThrottledProvider provider = new ThrottledProvider(buildLiveProvider(config), temperature,
+                    isLocal(config));
             String name = config.getName() + " (" + config.getModel() + ")";
-            System.out.printf("%n[Live] Đang đo %s...%n", name);
+            System.out.printf("%n[Live] Đang đo %s, %d mẻ...%n", name, runs);
 
-            List<Outcome> outcomes = runLive(provider, cases);
-            Map<String, Metrics> byLang = evaluateByLang(config.getName(), outcomes,
-                    provider.hardFailures);
+            // Gom theo ngôn ngữ: mỗi ngôn ngữ một danh sách N bản ghi, mỗi bản ghi là một mẻ.
+            Map<String, List<Metrics>> theoNgonNgu = new LinkedHashMap<>();
+            for (int me = 1; me <= runs; me++) {
+                List<Outcome> outcomes = runLive(provider, cases);
+                Map<String, PerTool> perTool = new LinkedHashMap<>();
+                Metrics gop = evaluate(config.getName() + " · " + ALL_LANGS, outcomes, perTool, 0);
 
-            Map<String, PerTool> perTool = new LinkedHashMap<>();
-            Metrics gop = evaluate(config.getName() + " · " + ALL_LANGS, outcomes, perTool,
-                    provider.hardFailures);
+                evaluateByLang(config.getName(), outcomes, 0)
+                        .forEach((lang, m) -> theoNgonNgu
+                                .computeIfAbsent(lang, k -> new ArrayList<>()).add(m));
+
+                if (runs == 1) {
+                    printPerToolTable(name, perTool);
+                    printCost(name, gop);
+                } else {
+                    System.out.printf("  mẻ %d/%d: khớp bộ %.1f%%, Args %.1f%%, cấm %d, mã lạ %d%n",
+                            me, runs, gop.exactSet() * 100, gop.argAccuracy() * 100,
+                            gop.forbidHits(), gop.maLaHits());
+                }
+            }
+
+            Map<String, Metrics> byLang = new LinkedHashMap<>();
+            theoNgonNgu.forEach((lang, cacMe) -> {
+                String nhan = config.getName() + " · " + lang;
+                byLang.put(lang, gopCacMe(nhan, cacMe,
+                        ALL_LANGS.equals(lang) ? provider.hardFailures : 0));
+                if (runs > 1) {
+                    spreads.add(Spread.cua(nhan, cacMe));
+                }
+            });
 
             allResults.addAll(byLang.values());
-            printPerToolTable(name, perTool);
-            printCost(name, gop);
-
             System.out.printf("Lời gọi model: %d, số lần phải thử lại vì 429: %d, hỏng hẳn: %d%n",
                     provider.calls, provider.rateLimitRetries, provider.hardFailures);
 
@@ -1016,6 +1253,9 @@ class ToolSelectionQualityTest {
         // chốt ngay trong vòng lặp thì cả bảng của nhà thứ nhất — vốn đã đo xong sạch sẽ — biến
         // mất theo. Một lần chạy tốn vài phút gọi API thì không được phép mất số vì thứ tự in.
         printMainTable(allResults);
+        if (!spreads.isEmpty()) {
+            printSpreadTable(spreads, runs);
+        }
         printDetails(allResults);
 
         // Cùng bài học với bộ đo RAG: AIService bắt lỗi nhà cung cấp rồi trả câu xin lỗi, nên một
@@ -1059,6 +1299,11 @@ class ToolSelectionQualityTest {
             assertThat(m.forbidHits())
                     .as("cấu hình \"%s\" truyền %d lần tham số bị cấm — gọi đúng tool nhưng tra sai "
                             + "chỗ, kiểu lỗi không ném ra ngoại lệ nào", m.name(), m.forbidHits())
+                    .isZero();
+            assertThat(m.maLaHits())
+                    .as("cấu hình \"%s\" truyền %d lần mã điểm không có trong hệ thống — truy vấn "
+                            + "trả rỗng, không có ngoại lệ, và mã đó còn đọng lại trong sessionCache "
+                            + "làm điểm đến mặc định cho các lượt sau", m.name(), m.maLaHits())
                     .isZero();
             assertThat(m.exactSet())
                     .as("tỉ lệ khớp bộ tool của \"%s\" tụt dưới ngưỡng — kiểm tra thay đổi ở mô tả "

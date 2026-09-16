@@ -272,12 +272,29 @@ Ba điểm thiết kế đáng nói:
 ### Chạy thử trên máy mình
 
 ```bash
-ollama serve                    # server phải chạy trước
 ollama ps                       # xem model nào đang nạp, chiếm bao nhiêu VRAM
 ```
 
+**Không cần chạy `ollama serve`.** Bản Windows cài sẵn một app nền (`ollama app.exe`) tự dựng
+server khi có ai gọi CLI hoặc API — nên lệnh CLI đầu tiên sau khi khởi động máy có thể treo vài
+chục giây, đó là lúc nó đang dựng server chứ không phải treo. Gọi `ollama serve` bằng tay lúc đó
+chỉ nhận về `bind: Only one usage of each socket address`, vô hại nhưng vô nghĩa.
+
 Model tự rời VRAM sau 5 phút không ai gọi, nên lời gọi đầu sau khi nghỉ luôn lâu hơn — phải nạp
 lại 5,5 GB từ ổ vào VRAM.
+
+**Nhìn model làm việc** — Ollama không có giao diện web, nhưng ghi log chi tiết ở
+`%LOCALAPPDATA%\Ollama\server.log`:
+
+```
+slot operator(): id 0 | task 26931 | cached n_tokens = 3481, memory_seq_rm [3481, end)
+slot create_check: id 0 | task 26931 | created context checkpoint 3 of 32 (50.251 MiB)
+```
+
+Đọc được: prompt dài 3.485 token (prompt VigoTrip cộng mô tả tool khá nặng), **3.481 token dùng
+lại từ KV cache**, mỗi checkpoint tốn 50 MiB. Đây chính là phần bộ nhớ ngoài trọng số nói ở mục 3.
+Trong Task Manager cũng thấy hai tiến trình tách nhau: `ollama.exe` là phần quản lý, còn
+`llama-server.exe` mới là tiến trình thật sự chạy model — sinh ra mỗi khi một model được nạp.
 
 ---
 
@@ -342,5 +359,5 @@ thì bật, không có thì khối đó tự bị loại lúc khởi động.
 | `nvidia-smi` khác gì | Nó nhìn toàn GPU, kể cả Windows và trình duyệt. Đo model thì đọc `ollama ps` |
 | Model biến mất sau vài phút | Đúng thiết kế — tự rời VRAM sau 5 phút rảnh |
 | `content` trả về rỗng | Model đang bật suy nghĩ. Thêm `extra-body: {reasoning_effort: none}` |
-| Bật model local trong VigoTrip | Đặt `OLLAMA_API_KEY` khác rỗng và chạy `ollama serve` |
+| Bật model local trong VigoTrip | Đặt `OLLAMA_API_KEY` khác rỗng; server tự chạy, không cần `ollama serve` |
 | Production có dùng model local không | **Không.** Khối `ollama` đứng cuối chuỗi và mặc định bị loại |
