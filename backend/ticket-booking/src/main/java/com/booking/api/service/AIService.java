@@ -395,11 +395,15 @@ public class AIService {
             "Bảng quy đổi: Hà Nội=HAN, TP.HCM/Sài Gòn/HCM=SGN, Đà Nẵng=DAD, Hải Phòng=HPH, Huế=HUE, " +
             "Vinh=VIN, Sa Pa=SAP, Quảng Ninh/Hạ Long=QNH, Nha Trang=NTR, Đà Lạt=DLT, " +
             "Phú Quốc=PQC, Chu Lai=VCL. " +
-            "Ví dụ: tuyến Hà Nội đi Sài Gòn thì origin='HAN', destination='SGN'.");
+            "Ví dụ: tuyến Hà Nội đi Sài Gòn thì origin='HAN', destination='SGN'. " +
+            "Nơi khách nói mà KHÔNG có trong bảng quy đổi trên thì VigoTrip chưa có tuyến nào tới đó: " +
+            "để trống tham số đó và nói với khách là chưa hỗ trợ. TUYỆT ĐỐI KHÔNG đoán mã — không lấy " +
+            "mã sân bay ngoài đời (Quy Nhơn KHÔNG phải 'UIH') và không chọn mã nghe gần giống " +
+            "(Quy Nhơn KHÔNG phải 'QNH', 'QNH' là Quảng Ninh).");
 
         Map<String, Object> props = new HashMap<>();
-        props.put("origin", Map.of("type", "string", "description", "Mã điểm khởi hành (VD: HAN, SGN, DAD, HPH, HUE, VIN, SAP, QNH, NTR, DLT)"));
-        props.put("destination", Map.of("type", "string", "description", "Mã điểm đến (VD: HAN, SGN, DAD, HPH, HUE, VIN, SAP, QNH, NTR, DLT)"));
+        props.put("origin", Map.of("type", "string", "description", "Mã điểm khởi hành, CHỈ nhận mã có trong bảng quy đổi ở phần mô tả (VD: HAN, SGN, DAD, HPH, HUE, VIN, SAP, QNH, NTR, DLT). Nơi không có trong bảng thì truyền giá trị rỗng ''."));
+        props.put("destination", Map.of("type", "string", "description", "Mã điểm đến, CHỈ nhận mã có trong bảng quy đổi ở phần mô tả (VD: HAN, SGN, DAD, HPH, HUE, VIN, SAP, QNH, NTR, DLT). Nơi không có trong bảng thì truyền giá trị rỗng ''."));
         props.put("vehicleType", Map.of("type", "string", "description", "Loại phương tiện: 'BUS' (xe khách), 'PLANE' (máy bay), 'TRAIN' (tàu hỏa)"));
         props.put("departureDate", Map.of("type", "string", "description", "Ngày đi theo định dạng YYYY-MM-DD. NẾU KHÁCH KHÔNG CUNG CẤP NGÀY CỤ THỂ HOẶC NÓI TÌM VÉ BẤT KỲ, HÃY TRUYỀN GIÁ TRỊ RỖNG ''. NẾU KHÁCH HỎI 'NGÀY MAI' HÃY TRUYỀN NGÀY TƯƠNG ỨNG."));
         props.put("timeSlot", Map.of("type", "string", "description", "Khung giờ khởi hành: 'MORNING' (Sáng: 05:00-12:00), 'AFTERNOON' (Chiều: 12:00-18:00), 'EVENING' (Tối/Đêm: 18:00-23:59), 'EARLY_MORNING' (Sáng sớm: 00:00-05:00), hoặc giờ cụ thể (VD: '12:00'). NẾU KHÁCH KHÔNG NÓI GIỜ, TRUYỀN GIÁ TRỊ RỖNG ''."));

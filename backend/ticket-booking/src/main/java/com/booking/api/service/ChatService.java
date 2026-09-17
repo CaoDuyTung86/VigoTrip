@@ -107,12 +107,18 @@ public class ChatService implements AIService.ToolHandler {
         }
 
         if ("search_trips".equals(functionName)) {
-            String origin = arguments != null && arguments.containsKey("origin")
-                    ? String.valueOf(arguments.get("origin"))
-                    : null;
-            String destination = arguments != null && arguments.containsKey("destination")
-                    ? String.valueOf(arguments.get("destination"))
-                    : null;
+            // Mã điểm là thứ duy nhất trong lượt gọi này do MODEL nghĩ ra, nên nó được kiểm
+            // trước khi chạm tới cơ sở dữ liệu — xem javadoc của unsupportedPlaceResult.
+            PlaceArg originArg = placeArg(arguments, "origin", "điểm đi");
+            if (originArg.refusal() != null) {
+                return originArg.refusal();
+            }
+            PlaceArg destinationArg = placeArg(arguments, "destination", "điểm đến");
+            if (destinationArg.refusal() != null) {
+                return destinationArg.refusal();
+            }
+            String origin = originArg.code();
+            String destination = destinationArg.code();
             String vehicleType = arguments != null && arguments.containsKey("vehicleType")
                     ? String.valueOf(arguments.get("vehicleType"))
                     : null;
@@ -179,16 +185,21 @@ public class ChatService implements AIService.ToolHandler {
             String effectiveKey = (sessionKey != null && !sessionKey.isBlank()) ? sessionKey : "default_session";
             Map<String, String> cache = sessionCache.get(effectiveKey,
                     k -> new java.util.concurrent.ConcurrentHashMap<>());
-            if (origin != null && !origin.isBlank() && !"null".equals(origin))
+            // Chỉ mã đã qua PlaceCatalog mới xuống được tới đây, nên tuyến đọng lại trong cache
+            // — thứ thành điểm đi/đến mặc định cho những lượt sau — luôn là nơi có thật.
+            if (origin != null)
                 cache.put("origin", origin);
-            if (destination != null && !destination.isBlank() && !"null".equals(destination))
+            if (destination != null)
                 cache.put("destination", destination);
             if (dateStr != null && !dateStr.isBlank() && !"null".equals(dateStr))
                 cache.put("date", dateStr);
             if (timeSlot != null && !timeSlot.isBlank() && !"null".equals(timeSlot))
                 cache.put("timeSlot", timeSlot);
 
-            StringBuilder linkParams = new StringBuilder("?from=").append(origin).append("&to=").append(destination);
+            // Để trống chứ không in ra chữ "null": khách bấm vào link vẫn mở đúng trang tìm
+            // kiếm với ô đó bỏ trống, thay vì đi tìm một nơi tên là "null".
+            StringBuilder linkParams = new StringBuilder("?from=").append(origin == null ? "" : origin)
+                    .append("&to=").append(destination == null ? "" : destination);
             if (dateStr != null && !dateStr.isBlank() && !"null".equals(dateStr)) {
                 linkParams.append("&date=").append(dateStr);
             }
@@ -718,6 +729,54 @@ public class ChatService implements AIService.ToolHandler {
         return value.isEmpty() || "null".equals(value) ? null : value;
     }
 
+    /**
+     * Một tham số mã điểm đã đọc xong: hoặc ra mã, hoặc ra câu từ chối.
+     *
+     * @param code    mã điểm có thật, {@code null} khi model không truyền tham số này
+     * @param refusal câu trả lời phải gửi ngược lại cho model, {@code null} khi không có gì sai
+     */
+    private record PlaceArg(String code, String refusal) {
+    }
+
+    /**
+     * Đọc một tham số mã điểm và đối chiếu với {@link com.booking.api.catalog.PlaceCatalog}.
+     *
+     * <p>Nhận cả mã lẫn tên nơi vì cửa {@code resolveCode} nhận cả hai: model truyền
+     * {@code "Đà Nẵng"} thay vì {@code "DAD"} là chuyện thường, và trước đây chuỗi đó đi thẳng
+     * vào câu LIKE rồi không khớp tuyến nào.
+     */
+    private static PlaceArg placeArg(Map<String, Object> arguments, String key, String label) {
+        String raw = textArg(arguments, key);
+        if (raw == null) {
+            return new PlaceArg(null, null);
+        }
+        return com.booking.api.catalog.PlaceCatalog.resolveCode(raw)
+                .map(code -> new PlaceArg(code, null))
+                .orElseGet(() -> new PlaceArg(null, unsupportedPlaceResult(label, raw)));
+    }
+
+    /**
+     * Câu trả lời khi model truyền một nơi không có trong danh mục điểm.
+     *
+     * <p>Đường này sinh ra từ một lỗi thật (xem mục 16/09 trong bộ đo chọn tool): khách hỏi
+     * "tìm vé đi Quy Nhơn", Quy Nhơn không có trong bảng mã, và model truyền {@code UIH} — mã
+     * IATA thật của sân bay Phù Cát, đúng ngoài đời nhưng hệ thống không hề có. Chỗ này trước
+     * đây không kiểm gì: câu LIKE không khớp tuyến nào nên trả rỗng êm đẹp, khách nghe thành
+     * "hết vé" thay vì "chưa hỗ trợ", và mã bịa còn đọng lại trong {@code sessionCache} làm
+     * điểm đến mặc định cho những lượt sau.
+     *
+     * <p>Vì thế câu này nói rõ ba điều: chưa hỗ trợ chứ không phải hết vé, tra được những nơi
+     * nào, và cấm hẳn việc gọi lại bằng một mã khác — model đoán lần hai cũng chỉ là đoán.
+     */
+    private static String unsupportedPlaceResult(String label, String raw) {
+        return "Không tra được " + label + " \"" + raw + "\": nơi này không nằm trong danh mục "
+                + "điểm đi/đến của VigoTrip, nên hệ thống KHÔNG có tuyến nào tới đó. Hãy nói thẳng "
+                + "với khách là VigoTrip chưa hỗ trợ nơi này — KHÔNG được nói là hết vé hay không "
+                + "tìm thấy chuyến — rồi mời khách chọn một trong: "
+                + String.join(", ", com.booking.api.catalog.PlaceCatalog.vietnameseNames())
+                + ". TUYỆT ĐỐI KHÔNG gọi lại `search_trips` với một mã điểm khác đoán ra.";
+    }
+
     /** Đọc một tham số số nguyên; giá trị lạ thì dùng mặc định thay vì làm hỏng cả lượt hỏi. */
     private static int intArg(Map<String, Object> arguments, String key, int fallback) {
         String raw = textArg(arguments, key);
@@ -792,6 +851,42 @@ public class ChatService implements AIService.ToolHandler {
     }
 
     /**
+     * Ghép tên nơi vào từng mã điểm: {@code "HAN, QNH"} thành {@code "Hà Nội=HAN, Hạ Long=QNH"}.
+     *
+     * <p>Danh sách mã TRẦN là nguyên nhân gốc của ca "tìm vé đi Quy Nhơn": prompt đưa ra
+     * {@code QNH} mà không nói {@code QNH} là nơi nào, nên chỗ duy nhất model tra được nghĩa của
+     * mã là hiểu biết ngoài đời của nó — mà ngoài đời thì "QN" nghe rất giống Quy Nhơn. Có tên đi
+     * kèm thì "nơi này không có trong danh sách" là thứ ĐỌC được, không phải thứ phải suy ra.
+     *
+     * <p>Viết {@code Tên=MÃ} chứ không phải {@code MÃ (Tên)} để trùng khuôn với bảng quy đổi
+     * trong mô tả của {@code search_trips}: hai chỗ cùng một khuôn thì củng cố lẫn nhau, và thứ
+     * đứng ở vế phải luôn là thứ phải điền vào tham số — không có chỗ nào để model chép nhầm cả
+     * cụm vào {@code origin}.
+     *
+     * <p>Mã không có trong {@link com.booking.api.catalog.PlaceCatalog} thì để trần: danh mục
+     * tuyến mới là nguồn sự thật cho "đang có chuyến", danh mục địa điểm chỉ bổ sung cái tên.
+     */
+    static String placeCodesWithNames(String locationsStr) {
+        if (locationsStr == null || locationsStr.isBlank()) {
+            return "";
+        }
+        return java.util.Arrays.stream(locationsStr.split(","))
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .map(code -> com.booking.api.catalog.PlaceCatalog.find(code)
+                        .map(place -> place.nameVi() + "=" + code)
+                        .orElse(code))
+                .collect(java.util.stream.Collectors.joining(", "));
+    }
+
+    /** Một mã điểm kèm tên nơi, hoặc mã trần khi danh mục địa điểm chưa biết nơi đó. */
+    private static String placeLabel(String code) {
+        return com.booking.api.catalog.PlaceCatalog.find(code)
+                .map(place -> code + " (" + place.nameVi() + ")")
+                .orElse(code);
+    }
+
+    /**
      * Khối hướng dẫn chọn công cụ trong system prompt.
      *
      * <p>Tách ra khỏi chuỗi nối của {@link #buildSystemInstruction} để bộ đo
@@ -805,8 +900,10 @@ public class ChatService implements AIService.ToolHandler {
     static String toolUsageGuide(String locationsStr) {
         return "HƯỚNG DẪN DÙNG CÔNG CỤ (TOOLS):\n"
                 + "- Bạn có công cụ `search_trips` để tìm chuyến đi từ hệ thống. Hãy chủ động gọi công cụ này khi khách hỏi về chuyến đi, tuyến đường, hoặc giá vé.\n"
-                + "- QUAN TRỌNG - Khi gọi `search_trips`, phải dùng MÃ sân bay/ga/bến xe, KHÔNG dùng tên thành phố. Các mã hiện đang hoạt động: " + locationsStr + "\n"
+                + "- QUAN TRỌNG - Khi gọi `search_trips`, phải dùng MÃ sân bay/ga/bến xe, KHÔNG dùng tên thành phố. Các mã hiện đang hoạt động, kèm nơi mà mã đó thật sự trỏ tới: " + placeCodesWithNames(locationsStr) + "\n"
                 + "  Ví dụ: 'Hà Nội đi Sài Gòn' → origin='HAN', destination='SGN'\n"
+                + "- CHỈ ĐƯỢC DÙNG MÃ CÓ TRONG DANH SÁCH TRÊN. Nơi khách nhắc tới mà không có trong danh sách đó thì VigoTrip chưa có tuyến nào tới đó: hãy nói thẳng là chưa hỗ trợ nơi ấy rồi mời khách chọn nơi khác, TUYỆT ĐỐI KHÔNG gọi `search_trips` với một mã tự nghĩ ra.\n"
+                + "  Hai kiểu đoán dưới đây đều sai và đều đã xảy ra thật. Lấy mã sân bay ngoài đời: Quy Nhơn KHÔNG phải 'UIH', hệ thống không hề có mã đó. Chọn mã nghe gần giống: Quy Nhơn KHÔNG phải 'QNH', 'QNH' là Quảng Ninh, cách đó hơn 800 km. Mã lạ không báo lỗi gì cả — nó chỉ lặng lẽ tra ra một tỉnh khác, hoặc không ra gì.\n"
                 + "- LƯU Ý KHỨ HỒI: Tính năng đặt vé khứ hồi trong MỘT lần đang bảo trì, nhưng từng chiều vẫn tra được. Khi khách hỏi vé khứ hồi: nói ngắn gọn là cần đặt hai vé một chiều, rồi GỌI NGAY `search_trips` cho chiều đi (và gọi thêm một lần cho chiều về nếu khách đã nói ngày về) ngay trong lượt trả lời này.\n"
                 + "- Bạn có công cụ `get_user_bookings` để tra cứu vé đã đặt của khách. Hãy gọi công cụ này khi khách hỏi về đơn hàng hoặc vé của họ (có thể phân tích ngày từ câu hỏi để tra cứu).\n"
                 + "- Bạn có công cụ `get_booking_by_id` để tra cứu chính xác một mã đơn hàng. Hãy gọi khi khách cung cấp ID cụ thể.\n"
@@ -849,10 +946,12 @@ public class ChatService implements AIService.ToolHandler {
         Map<String, String> cache = sessionCache.getIfPresent(effectiveKey);
         if (cache != null && !cache.isEmpty()) {
             cacheContext.append("Khách hàng đang quan tâm tuyến đường: ");
+            // Kèm tên nơi vì lý do giống hệt danh sách mã trong hướng dẫn tool: một dòng "Đến
+            // QNH" trơ trọi buộc model phải tự nhớ QNH là đâu, mà nó nhớ sai.
             if (cache.containsKey("origin"))
-                cacheContext.append("Từ ").append(cache.get("origin")).append(" ");
+                cacheContext.append("Từ ").append(placeLabel(cache.get("origin"))).append(" ");
             if (cache.containsKey("destination"))
-                cacheContext.append("Đến ").append(cache.get("destination")).append(" ");
+                cacheContext.append("Đến ").append(placeLabel(cache.get("destination"))).append(" ");
             if (cache.containsKey("date"))
                 cacheContext.append("Ngày ").append(cache.get("date")).append(" ");
             if (cache.containsKey("timeSlot"))

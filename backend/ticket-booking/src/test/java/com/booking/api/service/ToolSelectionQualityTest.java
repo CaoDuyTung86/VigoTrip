@@ -1095,8 +1095,38 @@ class ToolSelectionQualityTest {
                     .as("khối HƯỚNG DẪN DÙNG CÔNG CỤ chưa nhắc tới tool \"%s\"", tool)
                     .contains(tool);
         }
-        assertThat(guide).as("hướng dẫn phải nhồi được danh sách mã điểm đang hoạt động")
-                .contains(EVAL_LOCATIONS);
+        // Khối hướng dẫn nay ghi mã kèm tên nơi ("Hà Nội=HAN") thay cho danh sách mã trần — xem
+        // ChatService.placeCodesWithNames — nên không so nguyên chuỗi EVAL_LOCATIONS được nữa.
+        // Thứ phải giữ là: mã nào đang hoạt động cũng có mặt trong prompt.
+        for (String code : ACTIVE_CODES) {
+            assertThat(guide).as("khối hướng dẫn chưa nhồi mã điểm \"%s\"", code).contains(code);
+        }
+    }
+
+    @Test
+    @DisplayName("Hướng dẫn vẫn cấm model tự nghĩ ra mã điểm")
+    void huongDanVanCamTuNghiRaMaDiem() {
+        String guide = ChatService.toolUsageGuide(EVAL_LOCATIONS);
+
+        // Ca "tìm vé đi Quy Nhơn" (16/09): prompt liệt kê mã trần và không có luật nào cho nơi
+        // ngoài bảng, nên model truyền UIH 12/12 lần ở temperature 0. Luật này là thứ duy nhất
+        // chặn chuyện đó từ phía prompt; bỏ nó đi thì bảng điểm chỉ đỏ sau một lần chạy live tốn
+        // tiền, nên chốt lại ở đây.
+        assertThat(guide)
+                .as("hướng dẫn không còn cấm dùng mã ngoài danh sách")
+                .contains("CHỈ ĐƯỢC DÙNG MÃ CÓ TRONG DANH SÁCH");
+        assertThat(guide)
+                .as("hướng dẫn không còn nêu hai kiểu đoán mã đã xảy ra thật")
+                .contains("UIH")
+                .contains("Quảng Ninh");
+
+        // Mỗi mã đi kèm tên nơi nó trỏ tới: đó là nửa còn lại của bản sửa, và cũng là nửa dễ bị
+        // gỡ đi nhất khi ai đó thấy prompt dài.
+        for (String tenNoi : List.of("Hà Nội", "Hạ Long")) {
+            assertThat(guide)
+                    .as("mã điểm trong hướng dẫn không còn kèm tên nơi (\"%s\")", tenNoi)
+                    .contains(tenNoi);
+        }
     }
 
     // ------------------------------------------------------------------ test thăm dò

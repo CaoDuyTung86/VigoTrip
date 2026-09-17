@@ -240,6 +240,28 @@ hơn tám trăm cây số — không có lỗi nào được ném ra, không có
 Sai kiểu này không sửa được bằng cách viết mô tả cẩn thận hơn: chừng nào việc đổi tên sang mã
 còn nằm trong trí nhớ của model thì nó còn đoán, và đoán thì có lúc trượt.
 
+Ngày 16/09 nó gãy lần thứ hai, dưới một hình dạng khác và lần này đo được: khách hỏi *"tìm vé đi
+Quy Nhơn"*, Quy Nhơn không có trong bảng mã, và thăm dò 12 lần ở nhiệt độ 0 thì **cả 12 lần**
+model truyền `destination=UIH` — mã IATA thật của sân bay Phù Cát, đúng ngoài đời nhưng hệ thống
+không hề có. Ở nhiệt độ 0.7 thì 2/12 lần nó lùi về `QNH`, tức là đúng lỗi cũ. Ba tầng phía sau
+đều im lặng: câu `LIKE` không khớp tuyến nào nên trả rỗng, khách nghe thành *"hết vé"* thay vì
+*"chưa hỗ trợ"*, và mã bịa còn đọng lại trong `sessionCache` làm điểm đến mặc định cho những
+lượt sau.
+
+Bản sửa ngày 17/09 đóng cả ba chỗ đó, không chỗ nào dựa vào việc model ngoan hơn:
+
+1. **`search_trips` kiểm mã trước khi tra.** `origin` và `destination` đi qua đúng cái cửa mà
+   tool thời tiết đang dùng — `PlaceCatalog.resolveCode` — nên mã lạ bị chặn ngay, còn tên thành
+   phố model lỡ gửi thay cho mã thì được đổi giúp. Tra không ra thì tool nói thẳng là **chưa hỗ
+   trợ nơi này**, không phải "không tìm thấy chuyến phù hợp", kèm danh sách nơi tra được.
+2. **Bộ nhớ phiên chỉ nhận mã đã kiểm.** Không còn đường nào để một mã bịa nằm lại làm điểm đến
+   mặc định cho lượt sau.
+3. **Prompt ghi mã kèm tên nơi** — `Hà Nội=HAN, Hạ Long=QNH` thay cho danh sách mã trần — và có
+   thêm luật cho nơi ngoài bảng: chưa hỗ trợ thì nói chưa hỗ trợ, cấm đoán mã.
+
+Hai điểm đầu là thứ chặn thật; điểm thứ ba chỉ làm model ít phải đoán hơn. Cả ba được khoá bằng
+test offline trong `ChatServiceSearchTripsPlaceGuardTest`.
+
 Nên `get_weather_forecast` đi theo hướng ngược lại: nó nhận **tên** khách nói, và việc đổi tên
 sang mã do `PlaceCatalog.resolveCode` làm — một bảng tra có thật, tra được cả tên tiếng Việt có
 dấu lẫn không dấu, tên tiếng Anh, các cách gọi khác ("Sài Gòn", "TPHCM", "Quảng Ninh", "Hạ Long")
@@ -943,6 +965,12 @@ cho ca đó điểm tối đa.
 Vì thế mỗi ca đo có thêm trường `forbid`: những giá trị tham số **tuyệt đối không được xuất
 hiện**. Ca *tìm vé đi Quy Nhơn* chấm đúng một điều — không được bịa mã điểm. Nói thẳng là chưa
 hỗ trợ, hay tra thử với điểm đến để trống, đều được; truyền `QNH` thì đỏ.
+
+**Cấm theo từng giá trị vẫn chưa đủ.** Ca ấy chỉ cấm đúng một giá trị là `QNH`, nên nó chấm ĐẠT
+cho cả 12 lần model truyền `UIH`: hành vi xảy ra gần như mọi lần thì lọt lưới, còn biến thể hiếm
+mới bị bắt. Nên bảng điểm có thêm cột `maLaHits` chấm theo **luật** — `search_trips` chỉ được
+nhận mã nằm trong danh sách mà prompt vừa đưa cho nó — và cột đó bắt được cả những mã đúng ngoài
+đời mà hệ thống không có.
 
 #### Bộ đo chạy trên đúng đường mà lượt chat thật đi
 
