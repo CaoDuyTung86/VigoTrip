@@ -93,7 +93,7 @@ số này lệch nhau?"* — đó là câu trả lời, không phải lỗi làm
 
 Câu hỏi hay gặp: *"AI BI có đo được như chatbot RAG (recall@3, MRR) không?"*
 
-**Không, và không phải vì làm thiếu.** Mấy chỉ số đó đo bước **truy hồi** — trong 57 câu hỏi vàng,
+**Không, và không phải vì làm thiếu.** Mấy chỉ số đó đo bước **truy hồi** — trong 132 câu hỏi vàng,
 hệ thống có lôi đúng chunk tri thức lên top-3 không. AI BI **không có bước truy hồi**: nguồn dữ
 liệu là SQL, mà SQL thì đúng theo định nghĩa, không có chuyện "lấy nhầm dòng vào top-3".
 

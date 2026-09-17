@@ -40,7 +40,7 @@ jobs:
     # hoan toan: H2 trong bo nho, profile "test", khong can DB that lan API key.
     #
     # Cong chat luong truy hoi RAG nam trong bo nay chu khong con la mot buoc rieng:
-    # RagRetrievalQualityTest do BM25 tren bo 57 cau hoi vang va tu do neu recall@3 < 0.85
+    # RagRetrievalQualityTest do BM25 tren bo 132 cau hoi vang (4 ngon ngu) va tu do neu recall@3 < 0.85
     # hoac MRR < 0.70, nen sua knowledge base hay TextNormalizer ma lam tut thi build do ngay.
     - name: Build & Test Backend
       run: |

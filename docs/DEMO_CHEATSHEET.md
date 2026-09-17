@@ -117,8 +117,8 @@ Câu mời: *"Dạ hội đồng muốn xem phần nào ạ, em mở luôn."* �
 | Hỏi                                  | Đáp                                                                                                                     |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | "Chống đặt trùng ghế thế nào?"        | Ba lớp độc lập: khoá tạm qua WebSocket, khoá bi quan ở tầng giao dịch, và khoá dòng đơn hàng chống xác nhận thanh toán trùng. |
-| "Chatbot có bịa không?"               | Tri thức lấy từ Hybrid RAG (vector + BM25, hợp nhất bằng RRF); dữ liệu chuyến và vé lấy qua function calling truy vấn thẳng DB. |
-| "Đo được độ chính xác không?"         | Bộ 57 câu hỏi vàng: recall@3 94.7%, MRR 0.795.                                                                            |
+| "Chatbot có bịa không?"               | Tri thức lấy từ Hybrid RAG (vector là nhánh chính, BM25 lấp chỗ trống); dữ liệu chuyến và vé lấy qua function calling truy vấn thẳng DB. |
+| "Đo được độ chính xác không?"         | Bộ 132 câu hỏi vàng, 4 ngôn ngữ. Đường production: P@1 95.5%, recall@3 99.2%, MRR 0.975. Không có embedding thì rơi về BM25 thuần: 76.5% / 95.5% / 0.861. |
 | "AI có làm lộ vé người khác không?"   | Không — backend ép email từ JWT, bỏ qua tham số do model sinh ra. Demo trực tiếp được (câu số 4 ở mục 3).                  |
 | "Một nhà cung cấp AI chết thì sao?"   | LLM Gateway đa nhà cung cấp, có circuit breaker, tự chuyển Gemini ↔ Groq.                                                  |
 | "AI BI có tự viết SQL không?"         | Không. SQL tính sẵn mọi con số, LLM chỉ diễn giải và bị ràng buộc chỉ dùng số được cung cấp.                               |

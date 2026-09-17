@@ -349,7 +349,7 @@ chốt cần nói: **hai tầng AI dùng hai loại thước khác nhau, vì r�
 
 ### 10.1 Chatbot RAG — đo **truy hồi** (`RagRetrievalQualityTest`)
 
-Đo trên **bộ câu hỏi vàng** (`rag-eval.yml`, 57 câu): mỗi câu ghi sẵn chunk nào *đúng ra* phải được
+Đo trên **bộ câu hỏi vàng** (`rag-eval.yml`, 132 câu — `vi` 59, `en` 37, `ja` 18, `zh` 18): mỗi câu ghi sẵn chunk nào *đúng ra* phải được
 lấy về. Chạy trên nhánh BM25, **offline hoàn toàn** — JUnit thuần, không Spring context, không CSDL,
 không API key — nên chạy được trong CI ở mọi lần push.
 
