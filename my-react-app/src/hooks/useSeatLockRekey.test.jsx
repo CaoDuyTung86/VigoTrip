@@ -1,3 +1,4 @@
+// @ts-check
 import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import useSeatLockRekey from './useSeatLockRekey';

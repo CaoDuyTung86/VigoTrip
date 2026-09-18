@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Nguồn duy nhất để đọc danh mục dịch vụ bổ sung mà backend trả về.
  *

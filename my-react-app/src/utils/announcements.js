@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Dữ liệu và câu chữ cho dải tin chạy trên Header (components/AnnouncementTicker.jsx).
  *

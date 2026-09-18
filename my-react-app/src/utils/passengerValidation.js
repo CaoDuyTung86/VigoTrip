@@ -1,3 +1,4 @@
+// @ts-check
 // Validate hành khách: định dạng ngày sinh, ngày sinh có thực sự tồn tại,
 // không ở tương lai, và tuổi phù hợp với loại hành khách (Adult/Child/Infant)
 // tại thời điểm khởi hành. Đây chỉ là validate định dạng/hợp lý — không xác

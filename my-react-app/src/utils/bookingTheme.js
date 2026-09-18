@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Màu và biểu tượng nhận diện của từng luồng đặt vé.
  *

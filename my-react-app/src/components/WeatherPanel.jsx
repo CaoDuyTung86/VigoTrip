@@ -1,3 +1,4 @@
+// @ts-check
 import React, { useEffect, useState } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { fetchForecast, toIsoDate, describeWeather, formatTemperature } from "../utils/weather";

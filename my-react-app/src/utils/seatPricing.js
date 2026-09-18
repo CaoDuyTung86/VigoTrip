@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Phụ thu theo hạng chỗ — PHẢI khớp `BookingService.createBooking` ở backend.
  *

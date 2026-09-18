@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Nhãn hiệu nhà cung cấp hiện trên thẻ chuyến: mã viết tắt, màu chữ và màu nền của ô logo.
  *

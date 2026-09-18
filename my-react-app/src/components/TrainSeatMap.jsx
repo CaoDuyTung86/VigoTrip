@@ -1,3 +1,4 @@
+// @ts-check
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '../context/ThemeContext';

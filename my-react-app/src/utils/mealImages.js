@@ -1,3 +1,4 @@
+// @ts-check
 // Ảnh minh hoạ suất ăn nằm trong /public/suat an/.
 //
 // Tra theo MÃ dịch vụ (AdditionalServiceSeeder.CATALOG), không tra theo tên nữa.

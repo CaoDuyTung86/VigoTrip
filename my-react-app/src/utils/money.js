@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Viết số tiền theo quy ước của ngôn ngữ đang hiển thị.
  *

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Thẻ điều khiển trong câu trả lời của trợ lý: [BTN: ...], [LINK: nhãn | /đường-dẫn],
  * [VOUCHER: MÃ] và [ACTION: mã-đề-xuất].

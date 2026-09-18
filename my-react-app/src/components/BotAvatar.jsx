@@ -1,3 +1,4 @@
+// @ts-check
 import React from 'react';
 
 /**
@@ -13,6 +14,12 @@ import React from 'react';
  *
  * Lưới 16×16 và `shape-rendering="crispEdges"` là có chủ đích — nét pixel phải sắc, đừng
  * đổi sang bo góc mượt rồi thắc mắc sao trông nhòe ở cỡ 16px.
+ *
+ * @param {object} props
+ * @param {number} [props.size=20] cạnh hình vuông tính bằng px
+ * @param {string} [props.className] class CSS bổ sung
+ * @param {React.CSSProperties} [props.style] inline style bổ sung
+ * @returns {React.JSX.Element}
  */
 const BotAvatar = ({ size = 20, className, style }) => (
   <svg

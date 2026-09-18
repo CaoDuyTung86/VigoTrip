@@ -1,3 +1,4 @@
+// @ts-check
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   shiftAnchor,

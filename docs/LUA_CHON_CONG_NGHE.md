@@ -121,7 +121,7 @@ ngôn ngữ, vé đang chọn. React Context xử lý đủ. Thêm Redux cho ba 
 *Ngưỡng đổi ý:* khi có trạng thái server phức tạp cần cache/invalidate — lúc đó thứ cần là
 **TanStack Query**, không phải Redux.
 
-**Không dùng TypeScript** — xem mục 15 (nợ kỹ thuật có chủ đích).
+**Không viết TypeScript, nhưng có kiểm tra kiểu** qua JSDoc + `tsc` — xem mục 15.
 
 **PWA (`vite-plugin-pwa`):** cài được lên điện thoại và mở lại được khi mạng chập chờn ở bến xe —
 đúng bối cảnh sử dụng của sản phẩm.
@@ -539,7 +539,7 @@ Liệt kê ở đây để **chủ động** nói ra, thay vì bị đào ra.
 | Nợ | Vì sao chấp nhận | Hướng xử lý |
 |---|---|---|
 | Chưa có `Content-Security-Policy` | Đã hạ được hậu quả của XSS bằng HttpOnly cookie + access token 15 phút; CSP là lớp chặn XSS ngay từ gốc nhưng cần rà toàn bộ script và style nội tuyến | Thêm CSP theo chế độ report-only trước, rồi mới siết |
-| Không dùng TypeScript | Đội chưa quen; chuyển giữa chừng thì phần lớn thời gian sẽ đi vào việc sửa kiểu thay vì làm tính năng | Áp dần theo từng file — `.jsx` và `.tsx` sống chung được |
+| Không viết TypeScript (`.ts`/`.tsx`) | Đội chưa quen; chuyển giữa chừng thì phần lớn thời gian sẽ đi vào việc sửa kiểu thay vì làm tính năng | **Đã làm bước đầu:** `tsc` soát kiểu từ JSDoc (`npm run typecheck`, chạy trong CI), không đổi tên file nào, không đụng Vite. Chỉ file mở đầu bằng `// @ts-check` bị soát — 75/117 file, gồm toàn bộ luồng đặt vé; 42 file còn lại bật dần |
 | Chỉ chạy **1 instance** | Toàn bộ cơ chế giữ ghế và broker STOMP trong bộ nhớ dựa trên giả định này | Cần STOMP relay ngoài + kho giữ ghế dùng chung trước khi scale ngang |
 | `ddl-auto=update` thay vì công cụ migration | Lược đồ đổi liên tục suốt quá trình làm; và phải chạy trên hai hệ CSDL | Chuyển sang Flyway/Liquibase trước khi có dữ liệu thật (`backend/migrations/` đã là bước đầu) |
 | `ja`/`zh` mới dịch một phần | Hoãn **có chủ đích**: ưu tiên tiếng Anh trước; đã có chuỗi dự phòng vi → en → ngôn ngữ đang chọn nên không bao giờ hiện `undefined` | Dịch tiếp khi tiếng Anh đã phủ đủ |

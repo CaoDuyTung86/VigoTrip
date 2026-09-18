@@ -1,3 +1,4 @@
+// @ts-check
 import { FiSearch } from "react-icons/fi";
 
 import { softenAccent } from "../utils/bookingTheme";
@@ -39,7 +40,7 @@ const tripDuration = (departureTime, arrivalTime, t) => {
   const arr = parseTripTime(arrivalTime);
   if (!dep || !arr) return "";
 
-  let diff = (arr - dep) / 60000;
+  let diff = (arr.getTime() - dep.getTime()) / 60000;
   if (diff < 0) diff += 1440;
   const hours = Math.floor(diff / 60);
   const mins = Math.round(diff % 60);
@@ -68,12 +69,19 @@ const tripDuration = (departureTime, arrivalTime, t) => {
  *    nào cũng ra đúng sắc của nền đó — xem `softenAccent`.
  *
  * @param {object} props
- * @param {object} props.booking giá trị trả về của useTicketBooking
+ * @param {import("../hooks/useTicketBooking").Booking} props.booking giá trị trả về của useTicketBooking
  * @param {import("../utils/bookingTheme").BookingTheme} props.theme bộ màu của luồng
  * @param {React.ComponentType<{style?: object}>} props.ModeIcon biểu tượng phương tiện
  * @param {Record<string, {code?: string, color?: string, bg?: string, logo?: string}>} props.providerLogos
  *        nhãn hiệu nhà cung cấp — xem utils/providerBranding.js
  * @param {object} props.labels chữ đã dịch sẵn, khác nhau theo phương tiện
+ * @param {string} props.labels.listTitle tiêu đề danh sách ("Danh sách chuyến xe khách"…)
+ * @param {string} props.labels.providerLabel nhãn trước dãy nút lọc nhà cung cấp
+ * @param {string} props.labels.clearProviderFilter nút bỏ lọc nhà cung cấp
+ * @param {string} props.labels.noMatchingTrips lời nhắn khi bộ lọc loại hết chuyến
+ * @param {string} props.labels.modeBadge chữ nhỏ dưới mã nhà cung cấp ("XE KHÁCH"…)
+ * @param {string} props.labels.vehicleFallback loại phương tiện khi chuyến không ghi rõ
+ * @param {string} props.labels.directRoute chữ dưới đường chặng ("Chạy thẳng"…)
  */
 export default function TripResultsList({ booking, theme, ModeIcon, providerLogos, labels }) {
   const {

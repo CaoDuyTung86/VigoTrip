@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Gọi API có khả năng chịu được "cold start" của backend.
  *

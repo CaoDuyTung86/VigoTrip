@@ -1,3 +1,4 @@
+// @ts-check
 import { useLanguage } from "../context/LanguageContext";
 import { useToast } from "../context/ToastContext";
 import { useNavigate } from "react-router-dom";

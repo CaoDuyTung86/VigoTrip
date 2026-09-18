@@ -1,3 +1,4 @@
+// @ts-check
 import { describe, it, expect, vi } from 'vitest';
 import { parseChatMarkup, localizeLinkLabel, localizeButtonLabel } from './chatMarkup';
 

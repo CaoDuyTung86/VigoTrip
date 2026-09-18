@@ -1,3 +1,4 @@
+// @ts-check
 import { FaRegCalendarAlt, FaUser } from "react-icons/fa";
 import { FiChevronDown, FiLock } from "react-icons/fi";
 import { CgSandClock } from "react-icons/cg";
@@ -31,7 +32,7 @@ const MAX_PASSENGERS = 5;
  *    hơn cả chữ bên trong. Nay dùng `var(--border-main)` như trang máy bay.
  *
  * @param {object} props
- * @param {object} props.booking giá trị trả về của useTicketBooking
+ * @param {import("../hooks/useTicketBooking").Booking} props.booking giá trị trả về của useTicketBooking
  * @param {import("../utils/bookingTheme").BookingTheme} props.theme bộ màu của luồng
  * @param {React.ComponentType} props.PlaceIcon biểu tượng đứng trước nhãn điểm đi/đến
  * @param {object} props.labels chữ đã dịch sẵn, khác nhau theo phương tiện

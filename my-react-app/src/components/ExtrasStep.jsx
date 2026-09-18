@@ -1,3 +1,4 @@
+// @ts-check
 import { FaTicketAlt, FaShieldAlt, FaTaxi } from "react-icons/fa";
 import { FiInfo } from "react-icons/fi";
 
@@ -19,10 +20,21 @@ import { translateServiceName } from "../utils/serviceCatalog";
  * chỗ kia ở lại. Xem mục 8 trong index.css.
  *
  * @param {object} props
- * @param {object} props.booking giá trị trả về của useTicketBooking
+ * @param {import("../hooks/useTicketBooking").Booking} props.booking giá trị trả về của useTicketBooking
  * @param {object} props.labels chữ đã dịch sẵn, khác nhau theo phương tiện
+ * @param {string} props.labels.baggageTitle
+ * @param {string} props.labels.baggageSub
+ * @param {string} props.labels.noExtraBaggage
+ * @param {string} props.labels.mealSub
+ * @param {string} props.labels.noMeals
+ * @param {string} props.labels.buyMealElsewhere
+ * @param {string} props.labels.insuranceTitle
+ * @param {string} props.labels.insuranceSub
+ * @param {string} props.labels.insuranceTip
+ * @param {string} props.labels.transferTitle
+ * @param {string} props.labels.transferSub
  * @param {Array<Array<string>>} props.insuranceRows bảng so sánh quyền lợi: [tên, gói cơ bản, gói cao]
- * @param {(service: object) => string} [props.baggageOptionLabel] nhãn của một gói hành lý
+ * @param {(service: {serviceName: string}) => string} [props.baggageOptionLabel] nhãn của một gói hành lý
  * @param {(base: number, seat: object) => number} props.getSeatPrice giá một chỗ theo hạng
  */
 export default function ExtrasStep({

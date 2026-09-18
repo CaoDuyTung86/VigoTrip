@@ -84,6 +84,14 @@ jobs:
         cd my-react-app
         npm run i18n:check
 
+    # Kiểm tra kiểu từ JSDoc (tsc, không sinh file). Chỉ những file mở đầu bằng
+    # `// @ts-check` mới bị soát — áp dần từng file, xem jsconfig.json. Vite KHÔNG tự
+    # kiểm tra kiểu lúc build, nên sai tên prop/trường chỉ bị chặn ở bước này.
+    - name: Typecheck
+      run: |
+        cd my-react-app
+        npm run typecheck
+
     # Test đơn vị frontend (Vitest). Chạy sau build để lỗi build lộ ra trước,
     # nhưng vẫn chặn được job nếu logic vé/ghế/đếm ngược bị sửa hỏng.
     - name: Run Frontend Unit Tests

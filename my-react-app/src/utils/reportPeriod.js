@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Con trỏ kỳ báo cáo cho màn Thống kê doanh thu.
  *

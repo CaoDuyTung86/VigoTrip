@@ -1,3 +1,4 @@
+// @ts-check
 import { useState } from "react";
 import { TbTrain } from "react-icons/tb";
 

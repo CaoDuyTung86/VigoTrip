@@ -1,3 +1,4 @@
+// @ts-check
 import { FaChair, FaUser, FaConciergeBell, FaCreditCard } from "react-icons/fa";
 
 import HoldCountdownBanner from "./HoldCountdownBanner";
@@ -18,7 +19,7 @@ export const STEPPER_STEPS = Object.keys(STEP_ORDER);
  * biểu tượng chỉ để vẽ lại cùng một thanh.
  *
  * @param {object} props
- * @param {object} props.booking giá trị trả về của useTicketBooking
+ * @param {import("../hooks/useTicketBooking").Booking} props.booking giá trị trả về của useTicketBooking
  */
 export default function BookingStepper({ booking }) {
   const { t, step, timeLeft, paymentTimeLeft } = booking;

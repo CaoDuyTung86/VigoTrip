@@ -1,3 +1,4 @@
+// @ts-check
 import WeatherPanel from "./WeatherPanel";
 import { FaRegCalendarAlt } from "react-icons/fa";
 
@@ -19,7 +20,7 @@ import { formatTripDateTime } from "../utils/datetime";
  * Phần khác nhau còn lại là màu nhấn và biểu tượng, nên chúng thành tham số.
  *
  * @param {object} props
- * @param {object} props.booking giá trị trả về của useTicketBooking
+ * @param {import("../hooks/useTicketBooking").Booking} props.booking giá trị trả về của useTicketBooking
  * @param {import("../utils/bookingTheme").BookingTheme} props.theme bộ màu của luồng
  * @param {React.ComponentType<{style?: object}>} props.ModeIcon biểu tượng phương tiện
  * @param {boolean} [props.showWeather] có kèm dự báo thời tiết nơi đến không

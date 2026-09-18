@@ -1,3 +1,4 @@
+// @ts-check
 import axios from "axios";
 import { FaUser, FaTicketAlt } from "react-icons/fa";
 import { MdOutlineDone, MdOutlineCreditCard } from "react-icons/md";
@@ -22,7 +23,7 @@ import { groupSeatsByClass } from "../utils/seatPricing";
  *    hạng lấy từ chỗ thật đang chọn chứ không vẽ cứng hai dòng.
  *
  * @param {object} props
- * @param {object} props.booking giá trị trả về của useTicketBooking
+ * @param {import("../hooks/useTicketBooking").Booking} props.booking giá trị trả về của useTicketBooking
  * @param {import("../utils/bookingTheme").BookingTheme} props.theme bộ màu của luồng
  * @param {(base: number, seat: string|object) => number} props.getSeatPrice giá một chỗ theo hạng
  * @param {(type: string, t: object) => string} props.seatClassLabel nhãn hiển thị của một hạng chỗ

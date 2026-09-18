@@ -1,3 +1,4 @@
+// @ts-check
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { useLocation } from "react-router-dom";
@@ -52,10 +53,12 @@ const PENDING_HOLD_MS = 5 * 60 * 1000;
  * ném lỗi trắng trang. Sửa một lỗi ở luồng đặt vé trước đây có nghĩa là nhớ sửa ở ba nơi,
  * và lịch sử repo cho thấy việc nhớ đó không phải lúc nào cũng xảy ra.
  *
- * KHÔNG ôm phần giao diện. Sơ đồ chỗ của xe giường nằm, toa tàu và khoang máy bay là ba thứ
- * khác hẳn nhau, và phần JSX của ba trang chỉ trùng nhau chừng 18%. Gộp nốt phần đó lại sẽ
- * đẻ ra một component đầy cờ `if (mode === "air")` — đổi một bản sao thừa lấy một mớ nhánh
- * điều kiện, tức là đi lùi.
+ * KHÔNG ôm phần giao diện. Giao diện dùng chung nằm ở các component bước đặt vé
+ * (`TripSearchPanel`, `TripResultsList`, `SeatSelectionStep`, `PassengerStep`, `ExtrasStep`,
+ * `ReviewStep`); chúng nhận nguyên giá trị trả về của hook này qua prop `booking`, kiểu
+ * `Booking` bên dưới. Phần JSX của ba trang từng trùng nhau 72–90% tính theo từng cặp, và
+ * chỗ khác nhau chỉ là màu, biểu tượng, chữ — nên đó là tham số, không phải nhánh
+ * `if (mode === "air")`. Sơ đồ chỗ thì khác nhau thật, nên vẫn là ba component riêng.
  *
  * @param {object} config
  * @param {"bus"|"train"|"air"} config.mode khoá bản nháp và khoá tra bảng dữ liệu theo phương tiện
@@ -192,7 +195,7 @@ export default function useTicketBooking({
           const dep = parseT(trip.departureTime);
           const arr = parseT(trip.arrivalTime);
           if (!dep || !arr) return 0;
-          let diff = (arr - dep) / 60000;
+          let diff = (arr.getTime() - dep.getTime()) / 60000;
           if (diff < 0) diff += 1440;
           return diff;
         };
@@ -230,7 +233,7 @@ export default function useTicketBooking({
     },
     [showToast]
   );
-  const [formErrors, setFormErrors] = useState({});
+  const [formErrors, setFormErrors] = useState(/** @type {{from?: string, to?: string, date?: string}} */ ({}));
   const [promoCode, setPromoCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState("");
   const [voucherDiscount, setVoucherDiscount] = useState(0);
@@ -544,7 +547,7 @@ export default function useTicketBooking({
     const qProvider = params.get("providerName");
     const qTimeSlot = params.get("timeSlot");
 
-    if (qMaxPrice && !isNaN(qMaxPrice)) setMaxPriceFilter(Number(qMaxPrice));
+    if (qMaxPrice && !Number.isNaN(Number(qMaxPrice))) setMaxPriceFilter(Number(qMaxPrice));
     if (qProvider) setFilterProviders([qProvider]);
     if (qTimeSlot) {
       if (qTimeSlot === "MORNING") setTimeRange([5, 12]);
@@ -1147,3 +1150,13 @@ export default function useTicketBooking({
     setError,
   };
 }
+
+/**
+ * Mọi thứ hook trả về — kiểu của prop `booking` ở các component bước đặt vé.
+ *
+ * Suy ra thẳng từ câu `return` của hook chứ không khai tay: thêm, bớt hay đổi tên một
+ * trường ở đây thì mọi chỗ đọc `booking.x` sai tên đều bị `npm run typecheck` chỉ ra, thay
+ * vì lặng lẽ nhận `undefined` rồi hiện ô trống trên màn hình.
+ *
+ * @typedef {ReturnType<typeof useTicketBooking>} Booking
+ */

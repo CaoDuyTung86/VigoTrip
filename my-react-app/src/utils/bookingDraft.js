@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Bản nháp của một lượt đặt vé đang dở, để tải lại trang không mất tiến trình.
  *

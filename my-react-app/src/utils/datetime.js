@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Ngày giờ chuyến đi, viết theo quy ước của ngôn ngữ đang hiển thị.
  *

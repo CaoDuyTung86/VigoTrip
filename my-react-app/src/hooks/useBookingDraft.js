@@ -1,3 +1,4 @@
+// @ts-check
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { clearDraft, writeDraft } from "../utils/bookingDraft";
 

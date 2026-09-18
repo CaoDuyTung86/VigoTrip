@@ -1,3 +1,4 @@
+// @ts-check
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 const nowInSeconds = () => Math.floor(Date.now() / 1000);

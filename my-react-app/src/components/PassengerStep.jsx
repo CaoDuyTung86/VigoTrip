@@ -1,3 +1,4 @@
+// @ts-check
 import ContactInfoForm from "./ContactInfoForm";
 import PassengerInfoForm from "./PassengerInfoForm";
 import TripSummaryCard from "./TripSummaryCard";
@@ -20,7 +21,7 @@ import TripSummaryCard from "./TripSummaryCard";
  * chính nó.
  *
  * @param {object} props
- * @param {object} props.booking giá trị trả về của useTicketBooking
+ * @param {import("../hooks/useTicketBooking").Booking} props.booking giá trị trả về của useTicketBooking
  * @param {import("../utils/bookingTheme").BookingTheme} props.theme bộ màu của luồng
  * @param {React.ComponentType<{style?: object}>} props.ModeIcon biểu tượng phương tiện
  * @param {string[]} props.premiumSeatTypes các hạng cao, để chú thích sau số ghế

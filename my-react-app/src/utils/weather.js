@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Dữ liệu và câu chữ cho khối dự báo thời tiết (components/WeatherPanel.jsx).
  *

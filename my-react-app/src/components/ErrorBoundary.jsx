@@ -1,3 +1,4 @@
+// @ts-check
 import { Component } from "react";
 import { useLocation } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";

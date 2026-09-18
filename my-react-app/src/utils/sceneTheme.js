@@ -1,3 +1,4 @@
+// @ts-check
 // ─── Tiện ích trộn màu ngày/đêm cho các cảnh canvas (seat maps) ──────────────
 // Convention: t = 0 là ĐÊM (dark mode), t = 1 là NGÀY (light mode).
 // Mỗi frame, component tự ease dần t về target (isDark ? 0 : 1) để chuyển

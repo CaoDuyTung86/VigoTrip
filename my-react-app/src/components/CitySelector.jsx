@@ -1,3 +1,4 @@
+// @ts-check
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { IoClose, IoSearch } from "react-icons/io5";

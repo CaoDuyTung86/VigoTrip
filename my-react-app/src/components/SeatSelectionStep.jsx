@@ -1,3 +1,4 @@
+// @ts-check
 import TripSummaryCard from "./TripSummaryCard";
 import { canSelectSeats } from "../utils/seatBookingHelpers";
 
@@ -20,7 +21,7 @@ import { canSelectSeats } from "../utils/seatBookingHelpers";
  *    không có ghế thương gia nào — một mức giá cho thứ không bán.
  *
  * @param {object} props
- * @param {object} props.booking giá trị trả về của useTicketBooking
+ * @param {import("../hooks/useTicketBooking").Booking} props.booking giá trị trả về của useTicketBooking
  * @param {import("../utils/bookingTheme").BookingTheme} props.theme bộ màu của luồng
  * @param {React.ComponentType<{style?: object}>} props.ModeIcon biểu tượng phương tiện
  * @param {React.ReactNode} props.seatMap sơ đồ chỗ của phương tiện này
@@ -28,6 +29,8 @@ import { canSelectSeats } from "../utils/seatBookingHelpers";
  * @param {(type: string, t: object) => string} props.premiumSeatLabel nhãn hiển thị của một hạng
  * @param {(base: number, seat: string|object) => number} props.getSeatPrice giá một chỗ theo hạng
  * @param {object} props.labels chữ đã dịch sẵn, khác nhau theo phương tiện
+ * @param {string} props.labels.instruction câu hướng dẫn dưới tiêu đề
+ * @param {string} props.labels.ecoSeat tên hạng thường ("Ghế ngồi thường", "Phổ thông")
  */
 export default function SeatSelectionStep({
   booking,

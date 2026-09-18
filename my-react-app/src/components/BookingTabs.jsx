@@ -1,3 +1,4 @@
+// @ts-check
 import { useState } from "react";
 import { PiAirplaneTilt } from "react-icons/pi";
 import { MdOutlineTrain } from "react-icons/md";
@@ -7,6 +8,14 @@ import FlightSearch from "./FlightSearch";
 import TrainSearch from "./TrainSearch";
 import BusSearch from "./BusSearch";
 
+/**
+ * Panel ba tab chọn phương tiện (máy bay / tàu hoả / xe khách) ở trang chủ.
+ *
+ * Không nhận props — tab đang chọn được giữ trong state nội bộ; component cha
+ * chỉ việc render cái này.
+ *
+ * @returns {React.JSX.Element}
+ */
 const BookingTabs = () => {
   const [active, setActive] = useState(0);
   const { t } = useLanguage();

@@ -1,3 +1,4 @@
+// @ts-check
 import { useState } from "react";
 import { TbBus } from "react-icons/tb";
 
@@ -52,7 +53,7 @@ const BusTickets = () => {
   });
   const {
     t, step, seats, selectedSeatIds, toggleSeat, maxSeats, isMaxReached,
-    selectedSeatClass, setSelectedSeatClass, ownerToken, user, isAuthenticated, selectedTrip,
+    ownerToken, user, isAuthenticated, selectedTrip,
   } = booking;
 
   return (
@@ -129,8 +130,6 @@ const BusTickets = () => {
                     canSelectSeats={canSelectSeats}
                     isMaxReached={isMaxReached}
                     maxSeats={maxSeats}
-                    selectedSeatClass={selectedSeatClass}
-                    setSelectedSeatClass={setSelectedSeatClass}
                   />
                 }
               />

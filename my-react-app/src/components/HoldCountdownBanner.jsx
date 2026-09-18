@@ -1,3 +1,4 @@
+// @ts-check
 import React from "react";
 import { useTheme } from "../context/ThemeContext";
 
@@ -17,10 +18,11 @@ const URGENT_SECONDS = 120;
 /**
  * Dải đếm ngược thời gian giữ chỗ. Không render gì khi không có đồng hồ nào chạy.
  *
- * @param {number|null} seconds số giây còn lại (null = ẩn)
- * @param {string} label nhãn mô tả đang giữ gì
- * @param {boolean} [dark] tùy chọn ghi đè theme tối
- * @param {React.ReactNode} icon biểu tượng đứng trước nhãn
+ * @param {object} props
+ * @param {number|null} props.seconds số giây còn lại (null = ẩn)
+ * @param {string} props.label nhãn mô tả đang giữ gì
+ * @param {boolean} [props.dark] tùy chọn ghi đè theme tối
+ * @param {React.ReactNode} [props.icon] biểu tượng đứng trước nhãn, mặc định "⏱️"
  */
 export default function HoldCountdownBanner({ seconds, label, dark, icon = "⏱️" }) {
   const { isDark } = useTheme() || {};

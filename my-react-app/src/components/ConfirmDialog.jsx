@@ -1,3 +1,4 @@
+// @ts-check
 import React, { useEffect, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
@@ -11,6 +12,18 @@ import { AlertTriangle } from 'lucide-react';
  *
  * Cố ý KHÔNG đóng khi bấm ra ngoài: đây là thao tác không hoàn tác được, phải bấm rõ
  * một trong hai nút (Esc vẫn hủy được vì Esc là "hủy", không phải "đồng ý").
+ *
+ * @param {object} props
+ * @param {boolean} props.open hiện hộp thoại khi `true`
+ * @param {string} [props.title] tiêu đề in đậm phía trên thông điệp
+ * @param {React.ReactNode} props.message nội dung cần xác nhận
+ * @param {string} [props.confirmLabel="Xác nhận"] nhãn nút xác nhận
+ * @param {string} [props.cancelLabel="Hủy"] nhãn nút hủy
+ * @param {boolean} [props.danger=true] dùng màu đỏ khi là hành động nguy hiểm
+ * @param {boolean} [props.busy=false] vô hiệu hóa nút khi đang xử lý
+ * @param {() => void} [props.onConfirm] gọi khi bấm nút xác nhận
+ * @param {() => void} [props.onCancel] gọi khi bấm nút hủy hoặc Esc
+ * @returns {React.JSX.Element | null}
  */
 const ConfirmDialog = ({
   open,

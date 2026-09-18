@@ -1,3 +1,4 @@
+// @ts-check
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getDeviceKey, isSeatLockedByOthers } from './seatBookingHelpers';
 

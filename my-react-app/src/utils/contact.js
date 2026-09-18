@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Địa chỉ liên hệ hiển thị ở footer và hai trang pháp lý.
  *

@@ -1,3 +1,4 @@
+// @ts-check
 // Chạy trước mỗi file test (khai báo ở vite.config.js -> test.setupFiles).
 // Thêm matcher DOM cho expect: toBeInTheDocument, toHaveTextContent, ...
 import '@testing-library/jest-dom/vitest';

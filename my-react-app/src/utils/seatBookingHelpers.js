@@ -1,3 +1,4 @@
+// @ts-check
 /* eslint-disable no-unused-vars */
 export const canSelectSeats = (isAuthenticated, user) => true;
 

@@ -1,9 +1,22 @@
+// @ts-check
 import { PiAirplaneTilt } from "react-icons/pi";
 import { MdOutlineTrain } from "react-icons/md";
 import { IoIosBus } from "react-icons/io";
 import { useLanguage } from "../context/LanguageContext";
 import { useNavigate } from "react-router-dom";
 
+/**
+ * Thanh điều hướng cạnh trái, ẩn hoặc mở theo trạng thái `isOpen`.
+ *
+ * Đóng/mở bằng cách chuyển chiều rộng giữa 170px và 0 (có transition), kèm
+ * `overflow: hidden` để menu không lòi ra ngoài khi đang thu. `top` bám biến
+ * `--header-offset` thay vì cứng 70px, để sidebar không hụt hay chui dưới header
+ * trên iPhone có tai thỏ.
+ *
+ * @param {object} props
+ * @param {boolean} props.isOpen sidebar đang mở hay không
+ * @returns {React.JSX.Element}
+ */
 const Sidebar = ({ isOpen }) => {
   const { t } = useLanguage();
   const navigate = useNavigate();

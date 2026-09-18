@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Tên điểm đi/đến hiển thị trên ba trang đặt vé, dịch sẵn bốn thứ tiếng.
  *

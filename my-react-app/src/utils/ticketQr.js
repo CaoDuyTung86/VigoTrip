@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Định dạng mã QR của một đơn vé — nơi duy nhất định nghĩa nó ở phía web.
  *

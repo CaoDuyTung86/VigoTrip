@@ -1,3 +1,4 @@
+// @ts-check
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";

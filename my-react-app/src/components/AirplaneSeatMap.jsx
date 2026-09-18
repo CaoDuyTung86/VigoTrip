@@ -1,3 +1,4 @@
+// @ts-check
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { mixColor, THEME_EASE } from '../utils/sceneTheme';

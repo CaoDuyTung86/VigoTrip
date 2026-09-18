@@ -1,3 +1,4 @@
+// @ts-check
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLanguage } from "../context/LanguageContext";
@@ -48,6 +49,19 @@ const buildGrid = (viewDate) => {
   return Array.from({ length: 42 }, (_, i) => addDays(start, i));
 };
 
+/**
+ * Ô chọn ngày tự vẽ, thay cho `<input type="date">` vốn hiện khác nhau trên từng trình duyệt.
+ *
+ * @param {object} props
+ * @param {string} props.value ngày đang chọn, dạng "YYYY-MM-DD" ("" = chưa chọn)
+ * @param {(next: string) => void} props.onChange nhận ngày mới, cùng dạng "YYYY-MM-DD"
+ * @param {string} [props.min] ngày sớm nhất được chọn
+ * @param {string} [props.max] ngày muộn nhất được chọn
+ * @param {string} [props.placeholder] chữ khi chưa chọn; mặc định lấy từ bảng dịch
+ * @param {boolean} [props.disabled]
+ * @param {string} [props.ariaLabel] nhãn cho trình đọc màn hình
+ * @param {React.ReactNode} [props.icon]
+ */
 const DatePicker = ({
   value,
   onChange,
