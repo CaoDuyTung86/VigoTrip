@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { seatPrice, seatsSubtotal } from "./seatPricing";
+import { seatPrice, seatsSubtotal, groupSeatsByClass } from "./seatPricing";
 
 /**
  * Đây là quy tắc về TIỀN, nên bản đối chiếu nằm ở backend chứ không ở đâu khác:
@@ -93,5 +93,44 @@ describe("seatsSubtotal", () => {
     expect(seatsSubtotal("BUS", 500000, [])).toBe(0);
     expect(seatsSubtotal("BUS", 500000, null)).toBe(0);
     expect(seatsSubtotal("BUS", 500000, undefined)).toBe(0);
+  });
+});
+
+describe("groupSeatsByClass", () => {
+  /** Đúng hàm mà bước xác nhận dùng để tính tiền từng dòng. */
+  const busPrice = (base, seat) => seatPrice("BUS", base, seat);
+
+  it("gộp các chỗ cùng hạng thành một dòng, cộng dồn tiền", () => {
+    const seats = [{ seatType: "ECONOMY" }, { seatType: "ECONOMY" }, { seatType: "BUSINESS" }];
+    expect(groupSeatsByClass(seats, 500000, busPrice)).toEqual([
+      { type: "ECONOMY", count: 2, total: 1000000 },
+      { type: "BUSINESS", count: 1, total: 600000 },
+    ]);
+  });
+
+  it("giữ thứ tự hạng xuất hiện lần đầu, để bảng giá không nhảy chỗ giữa hai lần vẽ", () => {
+    const seats = [{ seatType: "BUSINESS" }, { seatType: "ECONOMY" }, { seatType: "BUSINESS" }];
+    expect(groupSeatsByClass(seats, 500000, busPrice).map(g => g.type)).toEqual(["BUSINESS", "ECONOMY"]);
+  });
+
+  it("chỗ không khai hạng được tính là hạng thường", () => {
+    // Backend có thể trả về chỗ thiếu seatType; gom vào ECONOMY thì tổng vẫn khớp
+    // với seatsSubtotal, còn để undefined thì bảng giá hiện một dòng trống.
+    const seats = [{ seatNumber: "A1" }, { seatType: "ECONOMY" }];
+    expect(groupSeatsByClass(seats, 500000, busPrice)).toEqual([
+      { type: "ECONOMY", count: 2, total: 1000000 },
+    ]);
+  });
+
+  it("tổng các nhóm luôn bằng seatsSubtotal của cùng danh sách", () => {
+    const seats = [{ seatType: "ECONOMY" }, { seatType: "SLEEPER" }, { seatType: "VIP" }];
+    const grouped = groupSeatsByClass(seats, 500000, busPrice)
+      .reduce((sum, g) => sum + g.total, 0);
+    expect(grouped).toBe(seatsSubtotal("BUS", 500000, seats));
+  });
+
+  it("danh sách rỗng hoặc thiếu trả về mảng rỗng", () => {
+    expect(groupSeatsByClass([], 500000, busPrice)).toEqual([]);
+    expect(groupSeatsByClass(null, 500000, busPrice)).toEqual([]);
   });
 });

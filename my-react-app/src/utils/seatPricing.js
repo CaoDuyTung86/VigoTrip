@@ -53,4 +53,31 @@ export const seatPrice = (vehicleKind, basePrice, seat) => {
 export const seatsSubtotal = (vehicleKind, basePrice, seats) =>
   (seats || []).reduce((sum, s) => sum + seatPrice(vehicleKind, basePrice, s), 0);
 
+/**
+ * Gộp các chỗ đang chọn theo hạng, giữ nguyên thứ tự xuất hiện.
+ *
+ * Dùng cho phần chi tiết thanh toán: một đơn có thể gồm nhiều hạng, và người mua cần thấy
+ * tiền của từng hạng chứ không phải một dòng "N ghế" gộp lại.
+ *
+ * @param {Array<{seatType?: string}>} seats các chỗ đang chọn
+ * @param {number} basePrice giá gốc của chuyến
+ * @param {(base: number, seat: object) => number} getSeatPrice giá một chỗ theo hạng
+ * @returns {Array<{type: string, count: number, total: number}>}
+ */
+export const groupSeatsByClass = (seats, basePrice, getSeatPrice) => {
+  const groups = [];
+  for (const seat of seats || []) {
+    const type = seat.seatType || "ECONOMY";
+    const price = getSeatPrice(basePrice, seat);
+    const found = groups.find(g => g.type === type);
+    if (found) {
+      found.count += 1;
+      found.total += price;
+    } else {
+      groups.push({ type, count: 1, total: price });
+    }
+  }
+  return groups;
+};
+
 export default seatPrice;

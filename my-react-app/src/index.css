@@ -1501,8 +1501,8 @@ body:not(.dark) .chatbot-messages-container::-webkit-scrollbar-thumb:hover {
   }
 }
 @media (max-width: 640px) {
-  /* Bộ lọc chuyến bay 5 cột → 1 cột. */
-  .flight-filter-grid {
+  /* Form tìm chuyến (cả ba phương tiện) 5 cột → 1 cột. */
+  .booking-search-grid {
     grid-template-columns: 1fr !important;
     gap: 10px !important;
   }

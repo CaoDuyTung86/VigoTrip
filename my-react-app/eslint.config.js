@@ -32,6 +32,10 @@ export default defineConfig([
       // nó không tạo reference cho JSX identifier. Đây là rule duy nhất chặn được.
       // (Đã mất một buổi vì <MdOutlineCreditCard/> thiếu import ở BusTickets.jsx.)
       'react/jsx-no-undef': 'error',
+      // Component truyền qua prop (`<ModeIcon />`, `<PlaceIcon />`) chỉ được DÙNG trong
+      // JSX, mà 'no-unused-vars' của ESLint core không đọc JSX nên báo nhầm là thừa.
+      // Rule này chỉ đánh dấu "đã dùng", không bao giờ tự báo lỗi.
+      'react/jsx-uses-vars': 'error',
     },
   },
 ])
