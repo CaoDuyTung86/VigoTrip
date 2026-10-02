@@ -1,10 +1,10 @@
 # Hệ Thống Đặt Vé Đa Phương Tiện (Ticket Booking System)
 
-Dự án đồ án tốt nghiệp cung cấp giải pháp đặt vé toàn diện cho máy bay, tàu hỏa và xe khách. Hệ thống tập trung vào tính ổn định, quy trình nghiệp vụ chặt chẽ và khả năng phân tích dữ liệu thông minh. Đồng thời là một bài học đắt giá về việc định hướng, mục tiêu, scope dự án ngay từ đầu thay vì chỉ đặt nặng về kỹ thuật, và cái giá đã phải trả.
+Dự án đồ án tốt nghiệp cung cấp giải pháp đặt vé toàn diện cho máy bay, tàu hỏa và xe khách. Hệ thống tập trung vào tính ổn định, quy trình nghiệp vụ chặt chẽ và khả năng phân tích dữ liệu thông minh.
 
 ---
 
-## ⚠️ Trạng thái: dự kiến tạm ngừng hỗ trợ từ 19/09/2026
+## Trạng thái: dự kiến tạm ngừng hỗ trợ từ 19/09/2026 (Vì hết gói Claude Pro...)
 
 Dự án đã bảo vệ xong và **đóng băng** kể từ mốc trên. Cụ thể là:
 
